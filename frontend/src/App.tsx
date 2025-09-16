@@ -11,12 +11,17 @@ interface Content {
 
 function App() {
   const [contentList, setContentList] = useState<Content[]>([]);
+  const [dashboardData, setDashboardData] = useState({content_count: 0, sales: 0});
 
   useEffect(() => {
     fetch('http://127.0.0.1:8000/api/content/')
       .then(response => response.json())
       .then(data => setContentList(data))
       .catch(error => console.error('Error fetching content:', error));
+    fetch('http://127.0.0.1:8000/api/dashboard/')
+      .then(response => response.json())
+      .then(data => setDashboardData(data))
+      .catch(error => console.error('Dashboard error:', error));
   }, []);
 
   const handleMint = () => {
@@ -34,7 +39,8 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>renaissBlock Content</h1>
-        <button onClick={handleMint}>Mint NFT</button>  # Prototype mint button (triggers backend/Anchor per FR5)
+        <button onClick={handleMint}>Mint NFT</button>  // Prototype mint button (triggers backend/Anchor per FR5)
+        <h2>Dashboard: {dashboardData.content_count} contents, $ {dashboardData.sales} sales</h2>
         <ul>
           {contentList.map(item => (
             <li key={item.id}>
