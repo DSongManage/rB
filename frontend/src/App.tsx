@@ -1,23 +1,44 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import logo from './logo.svg';
 import './App.css';
 
+interface Content {
+  id: number;
+  title: string;
+  teaser_link: string;
+  created_at: string;
+  creator: number;
+}
+
 function App() {
+  const [contentList, setContentList] = useState<Content[]>([]);
+
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/api/content/')
+      .then(response => response.json())
+      .then(data => setContentList(data))
+      .catch(error => console.error('Error fetching content:', error));
+  }, []);
+
+  const handleMint = () => {
+    fetch('http://127.0.0.1:8000/api/mint/', { method: 'POST' })  // Placeholder endpoint
+      .then(response => response.json())
+      .then(data => alert('Mint successful! NFT ID: ' + (data.nft_id || 'unknown')))  // Simulate response; handle potential undefined
+      .catch(error => console.error('Mint error:', error));
+  };
+
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        <h1>renaissBlock Content</h1>
+        <button onClick={handleMint}>Mint NFT</button>  # Prototype mint button (triggers backend/Anchor per FR5)
+        <ul>
+          {contentList.map(item => (
+            <li key={item.id}>
+              <a href={item.teaser_link}>{item.title}</a> (Created: {item.created_at})
+            </li>
+          ))}
+        </ul>
       </header>
     </div>
   );
