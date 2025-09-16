@@ -1,0 +1,22 @@
+# renaissBlock Development Guidelines
+
+- **General Principles**: Adhere strictly to the SCOPE.md and REQUIREMENTS.md; prioritize MVP features to avoid scope creep. Use agile sprints (2 weeks) for iterative progress.
+- **Coding Standards**: Follow PEP 8 for Python (Django), Rustfmt for Rust; use ESLint/Prettier for React. Comment code extensively; ensure cross-browser compatibility.
+- **Security Focus**:
+  - Implement input validation everywhere to prevent injection attacks (e.g., SQL, smart contract exploits).
+  - Use HTTPS for all data transmissions; enforce TLS 1.3+.
+  - Avoid storage of private keys or sensitive data—rely on Web3Auth for wallet management and decentralized storage (IPFS/Arweave) for content.
+  - Conduct threat modeling during design (e.g., STRIDE model: Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege) to identify and mitigate risks.
+  - Perform third-party security audits for smart contracts (Rust/Anchor) and critical APIs (e.g., fiat on-ramps) before deployment; schedule annual audits.
+  - Protect against XSS by sanitizing all user inputs in React and Django templates; use Content Security Policy (CSP).
+  - Mitigate DoS attacks with rate limiting (e.g., Django REST Framework throttling) and CDN caching for static assets.
+  - Ensure compliance with applicable regulations (e.g., GDPR for EU users, HIPAA if processing PHI) by implementing data minimization and access controls.
+  - Encrypt sensitive metadata (e.g., teaser links) in PostgreSQL using AES-256.
+- **Testing**:
+  - Unit tests for all components (e.g., Pytest for Django, Cargo for Rust) to cover security edge cases (e.g., invalid inputs, contract overflows).
+  - End-to-end tests with Cypress for React, simulating fiat/blockchain interactions and security scenarios (e.g., failed transactions).
+  - Penetration testing for APIs and smart contracts using tools like OWASP ZAP or Truffle Suite.
+- **Integration Rules**: Test fiat on-ramps (MoonPay/Ramp/Wyre) in sandbox mode; deploy smart contracts on Solana devnet first; monitor gas fees and transaction failures.
+- **Documentation**: Update README with every change; use Git branches (e.g., feature/minting); maintain a security log of audits and fixes.
+- **AI Usage (e.g., Cursor)**: Prompt with references to this file (e.g., "Implement minting per SCOPE.md FR5, hiding crypto elements, with security per Security Focus section"); verify AI-generated code against security guidelines before commit.
+- **Monitoring and Response**: Integrate real-time monitoring (e.g., Prometheus/Grafana) for transaction anomalies; establish an incident response plan (e.g., notify users within 72 hours per GDPR if breach occurs).
