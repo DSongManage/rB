@@ -7,10 +7,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 import random
 from anchorpy import Provider, Program
+from anchorpy.idl import IdlFetcher
 from solana.publickey import PublicKey
 from rest_framework.permissions import IsAuthenticated
-from solana.rpc.coretypes import Client, Keypair
-from solana.rpc.idl import Idl
+from solana.rpc.api import Client as SolanaClient
+from solana.keypair import Keypair
+from pathlib import Path
+from anchorpy.idl import Idl
 
 # Create your views here.
 
@@ -34,11 +37,28 @@ class ContentListView(generics.ListCreateAPIView):
 class MintView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
-        # Full Anchor call (FR5/FR9)
-        connection = Client("https://api.devnet.solana.com")
-        wallet = Keypair()  # Placeholder; integrate Web3Auth
+        royalties = request.data.get('royalties', [])
+        connection = SolanaClient("https://api.devnet.solana.com")
+        wallet = Keypair()  # Placeholder; integrate Web3Auth later
+        provider = Provider(connection, wallet, {})
         program_id = PublicKey("YourDeployedProgramID")
-        program = Program(idl, program_id, Provider(connection, wallet))
-        royalties = request.data.get('royalties', [])  # e.g., [(pubkey, percent)]
-        tx = program.rpc["mintNft"]("metadata", royalties)
+        # Temp sync load from file (after anchor build); switch to async fetch later with ASGI
+        idl_path = Path("/Users/davidsong/repos/songProjects/rB/blockchain/rb_contracts/target/idl/rb_contracts.json")
+        idl = Idl.from_json(idl_path.read_text())
+        program = Program(idl, program_id, provider)
+        tx = program.rpc["mintNft"]("metadata", [(PublicKey(r['pubkey']), r['percent']) for r in royalties])
         return Response({'tx_sig': tx})
+
+class SearchView(APIView):
+    def get(self, request):
+        query = request.query_params.get('q', '')
+        users = User.objects.filter(username__icontains=query)
+        return Response([u.username for u in users])  # For collaboration search (FR8)
+
+class DashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        content_count = Content.objects.filter(creator=request.user).count()
+        collabs = Collaboration.objects.filter(initiators=request.user).count()
+        revenue = 0  # Query Anchor for royalties (FR13) - expand with RPC call
+        return Response({'content_count': content_count, 'collabs': collabs, 'revenue': revenue})

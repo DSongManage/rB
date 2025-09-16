@@ -30,6 +30,9 @@ class User(AbstractUser):
         related_query_name='rb_user',
     )
 
+    def search_collaborators(self, query):
+        return User.objects.filter(username__icontains=query)  # Simple search for invites (FR8)
+
 class Content(models.Model):
     """Model for uploaded content metadata (FR4, FR5).
     
