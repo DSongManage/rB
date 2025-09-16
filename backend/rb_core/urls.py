@@ -1,7 +1,9 @@
 from django.urls import path
-from . import views  # Import views for routing
+from .views import home, ContentListView, MintView
 
 urlpatterns = [
-    path('', views.home, name='home'),  # Placeholder home view
-    # Future placeholders for FRs
+    path('', home, name='home'),
+    path('api/content/', ContentListView.as_view(), name='content-list'),  # API for content (FR4)
+    path('api/mint/', MintView.as_view(), name='mint'),  # Placeholder for NFT minting (FR5)
+    # Future: Add endpoints for fiat (FR2), auth (FR3)
 ]

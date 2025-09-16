@@ -20,10 +20,14 @@ function App() {
   }, []);
 
   const handleMint = () => {
-    fetch('http://127.0.0.1:8000/api/mint/', { method: 'POST' })  // Placeholder endpoint
+    fetch('http://127.0.0.1:8000/api/mint/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ royalties: [{'pubkey': 'example', 'percent': 10}] })  // Example data for splits (FR9)
+    })
       .then(response => response.json())
-      .then(data => alert('Mint successful! NFT ID: ' + (data.nft_id || 'unknown')))  // Simulate response; handle undefined
-      .catch((error: any) => console.error('Mint error:', error));  // Typed error
+      .then(data => alert('Mint TX: ' + data.tx_sig))
+      .catch((error: any) => console.error('Error:', error));
   };
 
   return (

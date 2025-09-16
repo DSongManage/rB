@@ -20,6 +20,7 @@ from django.urls import path, include  # For app URL inclusion (PEP 8)
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('rb_core.urls')),  # Include core app URLs for main functionality
+    path('accounts/', include('allauth.urls')),  # Allauth auth routes (FR3)
     # Placeholder: path('api/auth/', ... )  # Web3Auth integration (FR3)
     # Placeholder: path('api/fiat/', ... )  # Ramp/MoonPay for conversions (FR2)
     # Placeholder: path('api/content/', ... )  # Upload/mint (FR4, FR5) with IPFS

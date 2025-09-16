@@ -39,6 +39,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rb_core',  # Custom app for core functionality (avoids conflict with Python's 'core' module)
+    'rest_framework',  # For building APIs (e.g., content upload FR4, fiat callbacks FR2)
+    'allauth',
+    'allauth.account',
     # Future: Add apps for integrations like 'rest_framework' for APIs (FR2, FR4 in REQUIREMENTS.md)
 ]
 
@@ -50,7 +53,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Security: Add rate limiting middleware later (GUIDELINES.md)
+    'allauth.account.middleware.AccountMiddleware',  # Required for allauth auth (FR3)
+    # Security: Add rate limiting later (GUIDELINES.md)
 ]
 
 ROOT_URLCONF = 'renaissBlock.urls'
@@ -142,3 +146,14 @@ X_FRAME_OPTIONS = 'DENY'
 
 # Future Expansion: Add moderation queue, analytics (FR7), collaboration logic (FR8)
 # Ensure compliance with regulations (e.g., GDPR minimization) - no unnecessary data storage
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+SITE_ID = 1  # Required for allauth
+ACCOUNT_LOGIN_METHODS = {'username': True}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
+ACCOUNT_SIGNUP_FIELDS = ['username', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED/USERNAME_REQUIRED = False
+ACCOUNT_EMAIL_VERIFICATION = 'none'  # Optional for MVP
+# Future: Add Web3Auth provider for seamless wallet auth

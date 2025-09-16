@@ -1,15 +1,19 @@
 use anchor_lang::prelude::*;
 
-declare_id!("4znujrwLsjKTNQxLRncUYdGLAHnqsVLQarNP9jVEA57n");
+declare_id!("YourProgramIDHere");
 
 #[program]
 pub mod rb_contracts {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+    pub fn mint_nft(ctx: Context<MintNFT>, metadata: String, royalties: Vec<(Pubkey, u8)>) -> Result<()> {
+        // Mint logic (use anchor_spl for token)
+        // Enforce royalties on resales (FR13 per REQUIREMENTS.md)
         Ok(())
     }
 }
 
 #[derive(Accounts)]
-pub struct Initialize {}
+pub struct MintNFT<'info> {
+    // Accounts for minting
+}
