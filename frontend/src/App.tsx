@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import logo from './logo.svg';
 import './App.css';
 
 interface Content {
@@ -23,8 +22,8 @@ function App() {
   const handleMint = () => {
     fetch('http://127.0.0.1:8000/api/mint/', { method: 'POST' })  // Placeholder endpoint
       .then(response => response.json())
-      .then(data => alert('Mint successful! NFT ID: ' + (data.nft_id || 'unknown')))  // Simulate response; handle potential undefined
-      .catch(error => console.error('Mint error:', error));
+      .then(data => alert('Mint successful! NFT ID: ' + (data.nft_id || 'unknown')))  // Simulate response; handle undefined
+      .catch((error: any) => console.error('Mint error:', error));  // Typed error
   };
 
   return (
