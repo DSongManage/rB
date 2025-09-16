@@ -6,14 +6,15 @@ from .serializers import ContentSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 import random
-from anchorpy import Provider, Program
-from anchorpy.idl import IdlFetcher
-from solana.publickey import PublicKey
+# Temporarily comment blockchain integrations to unblock backend
+# from anchorpy import Provider, Program
+# from solana.publickey import PublicKey
 from rest_framework.permissions import IsAuthenticated
-from solana.rpc.api import Client as SolanaClient
-from solana.keypair import Keypair
-from pathlib import Path
-from anchorpy.idl import Idl
+# from solana.rpc.api import Client as SolanaClient
+# from solana.keypair import Keypair
+# from pathlib import Path
+# import json
+# from anchorpy.idl import idl
 
 # Create your views here.
 
@@ -38,16 +39,18 @@ class MintView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         royalties = request.data.get('royalties', [])
-        connection = SolanaClient("https://api.devnet.solana.com")
-        wallet = Keypair()  # Placeholder; integrate Web3Auth later
-        provider = Provider(connection, wallet, {})
-        program_id = PublicKey("YourDeployedProgramID")
-        # Temp sync load from file (after anchor build); switch to async fetch later with ASGI
-        idl_path = Path("/Users/davidsong/repos/songProjects/rB/blockchain/rb_contracts/target/idl/rb_contracts.json")
-        idl = Idl.from_json(idl_path.read_text())
-        program = Program(idl, program_id, provider)
-        tx = program.rpc["mintNft"]("metadata", [(PublicKey(r['pubkey']), r['percent']) for r in royalties])
-        return Response({'tx_sig': tx})
+        # connection = SolanaClient("https://api.devnet.solana.com")
+        # wallet = Keypair()  # Placeholder; integrate Web3Auth later
+        # provider = Provider(connection, wallet, {})
+        # program_id = PublicKey("YourDeployedProgramID")
+        # # Temp sync load from file (after anchor build); switch to async fetch later with ASGI
+        # idl_path = Path("/Users/davidsong/repos/songProjects/rB/blockchain/rb_contracts/target/idl/rb_contracts.json")
+        # with idl_path.open() as f:
+        #     idl_json = json.load(f)
+        # idl_obj = idl.from_json(idl_json)
+        # program = Program(idl_obj, program_id, provider)
+        # tx = program.rpc["mintNft"]("metadata", [(PublicKey(r['pubkey']), r['percent']) for r in royalties])
+        return Response({'tx_sig': 'dummy_tx_for_testing'})
 
 class SearchView(APIView):
     def get(self, request):
