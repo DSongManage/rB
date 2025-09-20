@@ -20,3 +20,14 @@
 - **Documentation**: Update README with every change; use Git branches (e.g., feature/minting); maintain a security log of audits and fixes.
 - **AI Usage (e.g., Cursor)**: Prompt with references to this file (e.g., "Implement minting per SCOPE.md FR5, hiding crypto elements, with security per Security Focus section"); verify AI-generated code against security guidelines before commit.
 - **Monitoring and Response**: Integrate real-time monitoring (e.g., Prometheus/Grafana) for transaction anomalies; establish an incident response plan (e.g., notify users within 72 hours per GDPR if breach occurs).
+
+## Feature Flags (Frontend)
+- Teasers toggle: `REACT_APP_SHOW_TEASERS`
+  - Default: `true` (teaser cards visible on Home)
+  - Set to `false` to hide all teaser cards globally (no code changes required)
+  - macOS/Linux (one-off):
+    - `export REACT_APP_SHOW_TEASERS=false && npm start`
+  - Windows (PowerShell):
+    - `setx REACT_APP_SHOW_TEASERS false` (restart terminal) then `npm start`
+  - .env file (persistent):
+    - Create `frontend/.env` with `REACT_APP_SHOW_TEASERS=false` and restart dev server

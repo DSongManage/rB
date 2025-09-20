@@ -1,56 +1,57 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { Route, Routes, Link, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
+import HomePage from './pages/HomePage';
+import SearchPage from './pages/SearchPage';
+import StudioPage from './pages/StudioPage';
+import DashboardPage from './pages/DashboardPage';
+import ProfilePage from './pages/ProfilePage';
+import { CreatorSidebar } from './components/CreatorSidebar';
 
-interface Content {
-  id: number;
-  title: string;
-  teaser_link: string;
-  created_at: string;
-  creator: number;
-}
-
-function App() {
-  const [contentList, setContentList] = useState<Content[]>([]);
-  const [dashboardData, setDashboardData] = useState({content_count: 0, sales: 0});
-
-  useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/content/')
-      .then(response => response.json())
-      .then(data => setContentList(data))
-      .catch(error => console.error('Error fetching content:', error));
-    fetch('http://127.0.0.1:8000/api/dashboard/')
-      .then(response => response.json())
-      .then(data => setDashboardData(data))
-      .catch(error => console.error('Dashboard error:', error));
-  }, []);
-
-  const handleMint = () => {
-    fetch('http://127.0.0.1:8000/api/mint/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ royalties: [{'pubkey': 'example', 'percent': 10}] })  // Example data for splits (FR9)
-    })
-      .then(response => response.json())
-      .then(data => alert('Mint TX: ' + data.tx_sig))
-      .catch((error: any) => console.error('Error:', error));
-  };
-
+function Header() {
+  const [q, setQ] = useState('');
+  const navigate = useNavigate();
+  const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>renaissBlock Content</h1>
-        <button onClick={handleMint}>Mint NFT</button>  // Prototype mint button (triggers backend/Anchor per FR5)
-        <h2>Dashboard: {dashboardData.content_count} contents, $ {dashboardData.sales} sales</h2>
-        <ul>
-          {contentList.map(item => (
-            <li key={item.id}>
-              <a href={item.teaser_link}>{item.title}</a> (Created: {item.created_at})
-            </li>
-          ))}
-        </ul>
-      </header>
-    </div>
+    <nav className="rb-header">
+      <div className="rb-header-left">
+        <div className="rb-logo">renaissBlock</div>
+      </div>
+      <div className="rb-header-center">
+        <form onSubmit={submit} className="rb-search">
+          <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search" />
+          <button type="submit">Search</button>
+        </form>
+      </div>
+      <div className="rb-header-right rb-nav">
+        <Link to="/">Home</Link>
+        <Link to="/search">Search</Link>
+        <Link to="/studio">Studio</Link>
+        <Link to="/dashboard">Dashboard</Link>
+        <Link to="/profile">Profile</Link>
+      </div>
+    </nav>
   );
 }
 
-export default App;
+export default function App() {
+  const location = useLocation();
+  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/].some(r => r.test(location.pathname));
+  return (
+    <div className="rb-app">
+      <Header />
+      <main className="rb-main" style={{display:'grid', gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr', gap:16}}>
+        {showCreatorSidebar && <CreatorSidebar />}
+        <div>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/studio" element={<StudioPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+          </Routes>
+        </div>
+      </main>
+    </div>
+  );
+}

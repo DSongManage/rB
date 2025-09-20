@@ -46,6 +46,7 @@ class Content(models.Model):
     teaser_link = models.URLField()  # Public teaser (no auth needed, FR1)
     ipfs_hash = models.CharField(max_length=46, blank=True)  # Full content hash (gated by NFT)
     nft_contract = models.CharField(max_length=44, blank=True)  # Solana contract address
+    flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

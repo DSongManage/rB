@@ -16,4 +16,5 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.28.0"
+anchor-lang = "0.28.0" # Compatible with rustc 1.68
+anchor-spl = "0.28.0"

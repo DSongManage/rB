@@ -13,9 +13,9 @@ renaissBlock employs a hybrid web-blockchain architecture: React frontend for us
 - **Backend (Django)**: Manages user auth (with Web3Auth), content metadata, search/collaboration logic; triggers blockchain actions.
 - **Database (Postgres)**: Stores profiles, collaborations, off-chain metadata (e.g., teaser links).
 - **Blockchain Layer (Rust/Anchor)**: Deploys smart contracts for minting, revenue splits (including platform fee), royalties.
-- **Storage Layer**: IPFS/Arweave for full content; teasers served via backend.
+- **Storage Layer**: IPFS for full content; teasers served via backend.
 - **Integrations**:
-  - Fiat: MoonPay/Ramp/Wyre APIs for conversions.
+  - Fiat: Ramp APIs for conversions.
   - Auth: Web3Auth for seamless wallet creation.
 - **Data Flow Example**: Consumer unlocks → Fiat API → SOL to wallet → Mint NFT (Anchor) → IPFS access.
 

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',  # For building APIs (e.g., content upload FR4, fiat callbacks FR2)
     'allauth',
     'allauth.account',
+    'corsheaders',
     # Future: Add apps for integrations like 'rest_framework' for APIs (FR2, FR4 in REQUIREMENTS.md)
 ]
 
@@ -54,6 +55,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',  # Required for allauth auth (FR3)
+    'corsheaders.middleware.CorsMiddleware',
     # Security: Add rate limiting later (GUIDELINES.md)
 ]
 
@@ -142,14 +144,17 @@ X_FRAME_OPTIONS = 'DENY'
 # Placeholder for Integrations (per ARCHITECTURE.md)
 # WEB3AUTH_CLIENT_ID = os.getenv('WEB3AUTH_CLIENT_ID')  # Set in env for keyless auth
 # RAMP_API_KEY = os.getenv('RAMP_API_KEY')  # For fiat-to-crypto (FR2)
-# IPFS_API_URL = 'https://ipfs.infura.io:5001'  # Free tier for decentralized storage (FR4, FR5)
+IPFS_API_URL = 'https://ipfs.infura.io:5001'  # Free tier for MVP (FR4)
 
 # Future Expansion: Add moderation queue, analytics (FR7), collaboration logic (FR8)
 # Ensure compliance with regulations (e.g., GDPR minimization) - no unnecessary data storage
 
+WEB3AUTH_CLIENT_ID = os.getenv('WEB3AUTH_CLIENT_ID', 'your_client_id_here')  # For keyless wallet auth (FR3)
+
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
+    'rb_core.backends.Web3AuthBackend',  # Custom backend for Web3Auth integration
 ]
 
 SITE_ID = 1  # Required for allauth
@@ -157,3 +162,7 @@ ACCOUNT_LOGIN_METHODS = {'username': True}  # Replaces ACCOUNT_AUTHENTICATION_ME
 ACCOUNT_SIGNUP_FIELDS = ['username', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED/USERNAME_REQUIRED = False
 ACCOUNT_EMAIL_VERIFICATION = 'none'  # Optional for MVP
 # Future: Add Web3Auth provider for seamless wallet auth
+
+CORS_ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+]
