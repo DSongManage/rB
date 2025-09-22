@@ -1,5 +1,9 @@
 from django.core.management.base import BaseCommand
 from rb_core.models import User, Content, Collaboration
+import random
+
+TYPES = ['book','art','film','music']
+GENRES = ['fantasy','scifi','nonfiction','drama','comedy','other']
 
 class Command(BaseCommand):
     help = "Seed demo users, content, and collaborations"
@@ -26,37 +30,38 @@ class Command(BaseCommand):
             user.save()
             users_by_name[username] = user
 
-        # Featured examples
-        if not Content.objects.filter(title="Indie Book One", creator_id=users_by_name["alice"].id).exists():
-            Content.objects.create(
-                creator=users_by_name["alice"], title="Indie Book One", teaser_link="https://example.com/t1"
+        def create_item(user, title):
+            ctype = random.choice(TYPES)
+            genre = random.choice(GENRES)
+            teaser = f"https://example.com/{user.username}/{title.replace(' ','_').lower()}/teaser"
+            Content.objects.get_or_create(
+                creator=user,
+                title=title,
+                defaults={
+                    'teaser_link': teaser,
+                    'content_type': ctype,
+                    'genre': genre,
+                }
             )
-        if not Content.objects.filter(title="Short Film", creator_id=users_by_name["bob"].id).exists():
-            Content.objects.create(
-                creator=users_by_name["bob"], title="Short Film", teaser_link="https://example.com/t2"
-            )
 
-        # Bulk fake books for Home feed
-        def create_books(user_key: str, count: int = 12):
-            user = users_by_name[user_key]
-            for i in range(1, count + 1):
-                title = f"{user.first_name} Book {i:02d}"
-                if not Content.objects.filter(title=title, creator_id=user.id).exists():
-                    Content.objects.create(
-                        creator=user,
-                        title=title,
-                        teaser_link=f"https://example.com/{user.username}/teaser/{i}",
-                    )
-        create_books("alice", 10)
-        create_books("bob", 8)
-        create_books("carol", 6)
+        # Featured
+        create_item(users_by_name['alice'], 'Indie Book One')
+        create_item(users_by_name['bob'], 'Short Film')
 
-        # One collaboration example
-        c1 = Content.objects.get(title="Indie Book One", creator_id=users_by_name["alice"].id)
-        collab, _ = Collaboration.objects.get_or_create(content=c1, status='active')
-        collab.initiators.add(users_by_name["alice"])
-        collab.collaborators.add(users_by_name["bob"])
-        collab.revenue_split = {"alice": 60, "bob": 40}
-        collab.save()
+        # Bulk
+        for i in range(1, 12):
+            create_item(users_by_name['alice'], f'Alice Book {i:02d}')
+        for i in range(1, 9):
+            create_item(users_by_name['bob'], f'Bob Work {i:02d}')
+        for i in range(1, 7):
+            create_item(users_by_name['carol'], f'Carol Piece {i:02d}')
 
-        self.stdout.write(self.style.SUCCESS("Seeded demo data (users, books, collab)."))
+        c1 = Content.objects.filter(title='Indie Book One', creator=users_by_name['alice']).first()
+        if c1:
+            collab, _ = Collaboration.objects.get_or_create(content=c1, status='active')
+            collab.initiators.add(users_by_name['alice'])
+            collab.collaborators.add(users_by_name['bob'])
+            collab.revenue_split = {'alice': 60, 'bob': 40}
+            collab.save()
+
+        self.stdout.write(self.style.SUCCESS("Seeded demo data (mixed types/genres)."))

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser  # Extend for custom users (no private keys stored)
+from django.core.validators import RegexValidator
 
 # Create your models here.
 
@@ -41,11 +42,27 @@ class Content(models.Model):
     - Auto-generate teasers (first 10%).
     - Moderation: Flag for review to prevent violations (GUIDELINES.md).
     """
+    CONTENT_TYPES = [
+        ('book', 'Book'),
+        ('art', 'Art'),
+        ('film', 'Film'),
+        ('music', 'Music'),
+    ]
+    GENRES = [
+        ('fantasy', 'Fantasy'),
+        ('scifi', 'Sci-Fi'),
+        ('nonfiction', 'Non-Fiction'),
+        ('drama', 'Drama'),
+        ('comedy', 'Comedy'),
+        ('other', 'Other'),
+    ]
     creator = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     teaser_link = models.URLField()  # Public teaser (no auth needed, FR1)
     ipfs_hash = models.CharField(max_length=46, blank=True)  # Full content hash (gated by NFT)
     nft_contract = models.CharField(max_length=44, blank=True)  # Solana contract address
+    content_type = models.CharField(max_length=16, choices=CONTENT_TYPES, default='book')
+    genre = models.CharField(max_length=32, choices=GENRES, default='other')
     flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -69,3 +86,40 @@ class Collaboration(models.Model):
     
     def __str__(self):
         return f"Collab for {self.content.title}"
+
+
+class UserProfile(models.Model):
+    """Profile for creators (LinkedIn-like layer).
+
+    - username: immutable handle (mirrors `User.username`), unique, validated
+    - display_name: editable, non-unique
+    - email_hash: SHA-256 of normalized email (no raw email stored)
+    - wallet_address: duplicate convenience field for quick joins (public only)
+    """
+
+    HANDLE_VALIDATOR = RegexValidator(
+        regex=r"^[A-Za-z0-9_]{1,50}$",
+        message="Username may only contain letters, numbers, and underscores (max 50).",
+    )
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    username = models.CharField(max_length=50, unique=True, validators=[HANDLE_VALIDATOR])
+    display_name = models.CharField(max_length=100, blank=True, default='')
+    email_hash = models.CharField(max_length=64, blank=True, default='')
+    wallet_address = models.CharField(max_length=44, unique=True, null=True, blank=True, default=None)
+
+    def save(self, *args, **kwargs):
+        # Ensure handle mirrors auth username on create; treat as immutable afterwards
+        if not self.pk:
+            self.username = self.username or self.user.username
+        else:
+            # Prevent handle changes after creation
+            orig = UserProfile.objects.get(pk=self.pk)
+            self.username = orig.username
+        # Keep public wallet in sync if set at User level
+        if self.user.wallet_address and not self.wallet_address:
+            self.wallet_address = self.user.wallet_address
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"@{self.username}"

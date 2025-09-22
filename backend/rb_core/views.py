@@ -1,8 +1,8 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 from rest_framework import generics
-from .models import Content
-from .serializers import ContentSerializer
+from .models import Content, UserProfile, User
+from .serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 import random
@@ -26,11 +26,23 @@ import ipfshttpclient
 from django.conf import settings
 from rest_framework import permissions
 from rest_framework import serializers
+from django.db import models
+from django.middleware.csrf import get_token
 
 # Create your views here.
 
 def home(request):
     return HttpResponse("renaissBlock Backend Running")
+
+class AuthStatusView(APIView):
+    def get(self, request):
+        is_authed = request.user.is_authenticated
+        return Response({
+            'authenticated': is_authed,
+            'user_id': request.user.id if is_authed else None,
+            'username': request.user.username if is_authed else None,
+            'wallet_address': getattr(request.user, 'wallet_address', None) if is_authed else None,
+        })
 
 class ContentListView(generics.ListCreateAPIView):
     """API view for listing and creating Content (FR1/FR4 in REQUIREMENTS.md).
@@ -46,6 +58,11 @@ class ContentListView(generics.ListCreateAPIView):
     # Dev: return all content; remove placeholder geo check
     def get_queryset(self):
         return Content.objects.all()
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAuthenticated()]
+        return super().get_permissions()
 
     def perform_create(self, serializer):
         file = self.request.FILES.get('file')
@@ -101,9 +118,18 @@ class MintView(APIView):
 
 class SearchView(APIView):
     def get(self, request):
-        query = request.query_params.get('q', '')
-        users = User.objects.filter(username__icontains=query)
-        return Response([u.username for u in users])  # For collaboration search (FR8)
+        q = request.query_params.get('q', '').strip()
+        genre = request.query_params.get('genre')
+        ctype = request.query_params.get('type')
+        qs = Content.objects.all()
+        if q:
+            qs = qs.filter(models.Q(title__icontains=q) | models.Q(creator__username__icontains=q))
+        if genre:
+            qs = qs.filter(genre=genre)
+        if ctype:
+            qs = qs.filter(content_type=ctype)
+        data = ContentSerializer(qs.order_by('-created_at')[:100], many=True).data
+        return Response(data)
 
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
@@ -139,3 +165,54 @@ class FlagView(APIView):
         content.flagged = True
         content.save()
         return Response({'message': 'Content flagged for review'})
+
+class LinkWalletView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        addr = request.data.get('wallet_address', '').strip()
+        if not addr:
+            return Response({'error':'wallet_address required'}, status=400)
+        # Enforce uniqueness at profile level (optional connection)
+        if UserProfile.objects.filter(wallet_address=addr).exclude(user=request.user).exists():
+            return Response({'error':'wallet already linked to another account'}, status=400)
+        request.user.wallet_address = addr[:44]
+        request.user.save()
+        prof, _ = UserProfile.objects.get_or_create(user=request.user, defaults={'username': request.user.username})
+        prof.wallet_address = addr[:44]
+        prof.save()
+        return Response({'ok': True, 'wallet_address': addr[:44]})
+
+class CsrfTokenView(APIView):
+    def get(self, request):
+        token = get_token(request)
+        return Response({'csrfToken': token})
+
+class UserSearchView(APIView):
+    def get(self, request):
+        q = request.query_params.get('q', '').strip()
+        if q.startswith('@'):
+            q = q[1:]
+        qs = UserProfile.objects.filter(username__icontains=q).select_related('user')[:20]
+        return Response([{ 'id':p.user.id, 'username':p.username, 'display_name':p.display_name, 'wallet_address':p.wallet_address or p.user.wallet_address } for p in qs])
+
+
+class SignupView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        serializer = SignupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        profile = serializer.save()
+        return Response(UserProfileSerializer(profile).data, status=201)
+
+
+class ProfileEditView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user, defaults={'username': request.user.username})
+        return Response(UserProfileSerializer(profile).data)
+    def patch(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user, defaults={'username': request.user.username})
+        serializer = ProfileEditSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(UserProfileSerializer(profile).data)

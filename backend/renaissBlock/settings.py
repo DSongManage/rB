@@ -16,6 +16,20 @@ import os  # For environment variables and paths (PEP 8 compliant)
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Ensure Django looks for project-level templates (e.g., themed allauth pages)
+try:
+    TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
+except Exception:
+    pass
+
+# Template overrides (ensure project-level templates are used)
+try:
+    import os as _os
+    TEMPLATES[0]['DIRS'] = [str(BASE_DIR / 'templates')]
+    TEMPLATES[0]['APP_DIRS'] = True
+except Exception:
+    pass
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -26,7 +40,10 @@ SECRET_KEY = 'django-insecure-your-secret-key-here'  # Change this in production
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []  # Update for production
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost',
+]
 
 
 # Application definition
@@ -47,6 +64,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -54,17 +72,16 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'allauth.account.middleware.AccountMiddleware',  # Required for allauth auth (FR3)
-    'corsheaders.middleware.CorsMiddleware',
-    # Security: Add rate limiting later (GUIDELINES.md)
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'renaissBlock.urls'
 
+# Template configuration
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [str(BASE_DIR / 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -154,15 +171,32 @@ WEB3AUTH_CLIENT_ID = os.getenv('WEB3AUTH_CLIENT_ID', 'your_client_id_here')  # F
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
-    'rb_core.backends.Web3AuthBackend',  # Custom backend for Web3Auth integration
 ]
 
-SITE_ID = 1  # Required for allauth
-ACCOUNT_LOGIN_METHODS = {'username': True}  # Replaces ACCOUNT_AUTHENTICATION_METHOD
-ACCOUNT_SIGNUP_FIELDS = ['username', 'password1*', 'password2*']  # Replaces EMAIL_REQUIRED/USERNAME_REQUIRED = False
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Optional for MVP
-# Future: Add Web3Auth provider for seamless wallet auth
+SITE_ID = 1
 
+# django-allauth v65 settings using ACCOUNT_LOGIN_METHODS / ACCOUNT_SIGNUP_FIELDS
+ACCOUNT_LOGIN_METHODS = { 'username': True }
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*', 'password2*']
+# Ensure no other legacy flags present
+try:
+    del ACCOUNT_AUTHENTICATION_METHOD
+    del ACCOUNT_USERNAME_REQUIRED
+    del ACCOUNT_EMAIL_REQUIRED
+except Exception:
+    pass
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+FRONTEND_ORIGIN = 'http://localhost:3000'
+LOGIN_REDIRECT_URL = f'{FRONTEND_ORIGIN}/'
+LOGOUT_REDIRECT_URL = f'{FRONTEND_ORIGIN}/'
+
+# CORS/CSRF for frontend
 CORS_ALLOWED_ORIGINS = [
   "http://localhost:3000",
+  "http://127.0.0.1:3000",
+]
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
 ]

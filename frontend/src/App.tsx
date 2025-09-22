@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Route, Routes, Link, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import HomePage from './pages/HomePage';
@@ -6,16 +6,30 @@ import SearchPage from './pages/SearchPage';
 import StudioPage from './pages/StudioPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
+import AuthPage from './pages/AuthPage';
 import { CreatorSidebar } from './components/CreatorSidebar';
 
 function Header() {
   const [q, setQ] = useState('');
+  const [isAuthed, setIsAuthed] = useState(false);
   const navigate = useNavigate();
+  useEffect(()=>{
+    fetch('http://localhost:8000/api/auth/status/', { credentials: 'include' })
+      .then(r=>r.json()).then(d=> setIsAuthed(!!d?.authenticated)).catch(()=>setIsAuthed(false));
+  },[]);
   const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
+  const goLogin = () => {
+    const next = encodeURIComponent(window.location.origin + '/');
+    window.location.assign(`http://localhost:8000/accounts/login/?next=${next}`);
+  };
+  const doLogout = () => {
+    const next = encodeURIComponent(window.location.origin + '/');
+    window.location.assign(`http://localhost:8000/accounts/logout/?next=${next}`);
+  };
   return (
     <nav className="rb-header">
       <div className="rb-header-left">
-        <div className="rb-logo">renaissBlock</div>
+        <Link to="/" className="rb-logo-link"><img src="/rb-logo.jpeg" alt="renaissBlock" className="rb-logo-img"/></Link>
       </div>
       <div className="rb-header-center">
         <form onSubmit={submit} className="rb-search">
@@ -24,11 +38,9 @@ function Header() {
         </form>
       </div>
       <div className="rb-header-right rb-nav">
-        <Link to="/">Home</Link>
-        <Link to="/search">Search</Link>
-        <Link to="/studio">Studio</Link>
-        <Link to="/dashboard">Dashboard</Link>
-        <Link to="/profile">Profile</Link>
+        {isAuthed && <Link to="/profile">Profile</Link>}
+        {!isAuthed && <button onClick={goLogin} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Sign in</button>}
+        {isAuthed && <button onClick={doLogout} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Logout</button>}
       </div>
     </nav>
   );
@@ -49,6 +61,7 @@ export default function App() {
             <Route path="/studio" element={<StudioPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/auth" element={<AuthPage />} />
           </Routes>
         </div>
       </main>
