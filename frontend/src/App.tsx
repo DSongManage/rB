@@ -7,6 +7,8 @@ import StudioPage from './pages/StudioPage';
 import DashboardPage from './pages/DashboardPage';
 import ProfilePage from './pages/ProfilePage';
 import AuthPage from './pages/AuthPage';
+import WalletInfoPage from './pages/WalletInfoPage';
+import TermsPage from './pages/TermsPage';
 import { CreatorSidebar } from './components/CreatorSidebar';
 
 function Header() {
@@ -18,10 +20,7 @@ function Header() {
       .then(r=>r.json()).then(d=> setIsAuthed(!!d?.authenticated)).catch(()=>setIsAuthed(false));
   },[]);
   const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
-  const goLogin = () => {
-    const next = encodeURIComponent(window.location.origin + '/');
-    window.location.assign(`http://localhost:8000/accounts/login/?next=${next}`);
-  };
+  const goLogin = () => { navigate('/auth'); };
   const doLogout = () => {
     const next = encodeURIComponent(window.location.origin + '/');
     window.location.assign(`http://localhost:8000/accounts/logout/?next=${next}`);
@@ -62,6 +61,8 @@ export default function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/wallet-info" element={<WalletInfoPage />} />
+            <Route path="/terms" element={<TermsPage />} />
           </Routes>
         </div>
       </main>

@@ -168,6 +168,11 @@ IPFS_API_URL = 'https://ipfs.infura.io:5001'  # Free tier for MVP (FR4)
 
 WEB3AUTH_CLIENT_ID = os.getenv('WEB3AUTH_CLIENT_ID', 'your_client_id_here')  # For keyless wallet auth (FR3)
 
+# Platform wallet config (FR9 platform fee routing)
+PLATFORM_WALLET_ADDRESS = os.getenv('PLATFORM_WALLET_ADDRESS', '2WHVxSRPQDhY5XjzXVbzAj2nNtam3cJQ5sKrhQWbkJ19')
+# Fee in basis points (e.g., 1000 = 10%)
+PLATFORM_FEE_BPS = int(os.getenv('PLATFORM_FEE_BPS', '1000'))
+
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',

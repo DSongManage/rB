@@ -16,7 +16,8 @@ renaissBlock employs a hybrid web-blockchain architecture: React frontend for us
 - **Storage Layer**: IPFS for full content; teasers served via backend.
 - **Integrations**:
   - Fiat: Ramp APIs for conversions.
-  - Auth: Web3Auth for seamless wallet creation.
+  - Auth: Web3Auth Modal SDK on the frontend; verify ID token with JWKS on backend; use Sapphire Devnet during development.
+  - Platform Wallet: All mints allocate a platform fee (bps-configurable) to `settings.PLATFORM_WALLET_ADDRESS`.
 - **Data Flow Example**: Consumer unlocks → Fiat API → SOL to wallet → Mint NFT (Anchor) → IPFS access.
 
 ## Key Interactions

@@ -3,6 +3,7 @@ from django.http import HttpResponse
 from rest_framework import generics
 from .models import Content, UserProfile, User
 from .serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer
+from .utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 import random
@@ -103,6 +104,35 @@ class MintView(APIView):
         if collab_id:
             collab = Collaboration.objects.get(id=collab_id)
             royalties = [(u.wallet_address, collab.revenue_split.get(u.username, 0)) for u in collab.collaborators.all()]
+        # Inject platform fee
+        try:
+            fee_bps = int(getattr(settings, 'PLATFORM_FEE_BPS', 1000))
+        except Exception:
+            fee_bps = 1000
+        platform_pct = max(0, min(100, fee_bps / 100.0))
+        platform_wallet = getattr(settings, 'PLATFORM_WALLET_ADDRESS', '').strip()[:44]
+        # Normalize royalties to list of (address, percent)
+        norm: list[tuple[str, float]] = []
+        for r in royalties:
+            if isinstance(r, dict):
+                addr = (r.get('pubkey') or r.get('address') or '').strip()[:44]
+                pct = float(r.get('percent') or 0)
+            else:
+                addr = (r[0] or '').strip()[:44]
+                pct = float(r[1] or 0)
+            if addr and pct > 0:
+                norm.append((addr, pct))
+        # Reserve space for platform fee by proportional scaling if needed
+        total_creator_pct = sum(p for _, p in norm)
+        target_creator_pct = max(0.0, 100.0 - platform_pct)
+        scaled: list[tuple[str, float]] = norm
+        if total_creator_pct > 0 and total_creator_pct > target_creator_pct:
+            scale = target_creator_pct / total_creator_pct
+            scaled = [(a, round(p * scale, 4)) for a, p in norm]
+        # Add platform last
+        if platform_wallet and platform_pct > 0:
+            scaled.append((platform_wallet, platform_pct))
+        royalties = scaled
         # connection = SolanaClient("https://api.devnet.solana.com")
         # wallet = Keypair()  # Placeholder; integrate Web3Auth later
         # provider = Provider(connection, wallet, {})
@@ -114,7 +144,7 @@ class MintView(APIView):
         # idl_obj = idl.from_json(idl_json)
         # program = Program(idl_obj, program_id, provider)
         # tx = program.rpc["mintNft"]("metadata", [(PublicKey(r['pubkey']), r['percent']) for r in royalties])
-        return Response({'tx_sig': 'dummy_tx_for_testing'})
+        return Response({'tx_sig': 'dummy_tx_for_testing', 'royalties': royalties})
 
 class SearchView(APIView):
     def get(self, request):
@@ -150,12 +180,28 @@ class DashboardView(APIView):
 
 class Web3AuthLoginView(APIView):
     def post(self, request):
-        token = request.data.get('token')
-        user = authenticate(request, token=token)
-        if user:
-            login(request, user)
-            return Response({'message': 'Login successful'}, status=status.HTTP_200_OK)
-        return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
+        token = request.data.get('token', '').strip()
+        if not token:
+            return Response({'error': 'token required'}, status=400)
+        try:
+            claims = verify_web3auth_jwt(token)
+        except Web3AuthVerificationError as exc:
+            return Response({'error': f'web3auth verification failed: {exc}'}, status=400)
+        sub = claims.get('sub')
+        if not sub:
+            return Response({'error': 'missing subject'}, status=400)
+        base_handle = f"renaiss{sub[:6]}"
+        user, created = User.objects.get_or_create(username=base_handle)
+        prof, _ = UserProfile.objects.get_or_create(user=user, defaults={'username': user.username})
+        addr = extract_wallet_from_claims(claims)
+        if addr and not prof.wallet_address:
+            prof.wallet_address = addr
+            prof.save()
+            user.wallet_address = addr
+            user.save()
+        from django.contrib.auth import login as django_login
+        django_login(request, user)
+        return Response({'message': 'Login successful'})
 
 class FlagView(APIView):
     permission_classes = [IsAuthenticated]
@@ -170,6 +216,15 @@ class LinkWalletView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         addr = request.data.get('wallet_address', '').strip()
+        token = request.data.get('web3auth_token', '').strip()
+        # If token provided and no address, derive address server-side
+        if token and not addr:
+            try:
+                claims = verify_web3auth_jwt(token)
+                derived = extract_wallet_from_claims(claims)
+                addr = (derived or '').strip()
+            except Web3AuthVerificationError as exc:
+                return Response({'error': f'web3auth verification failed: {exc}'}, status=400)
         if not addr:
             return Response({'error':'wallet_address required'}, status=400)
         # Enforce uniqueness at profile level (optional connection)
@@ -201,6 +256,15 @@ class SignupView(APIView):
     def post(self, request):
         serializer = SignupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        token = serializer.validated_data.get('web3auth_token')
+        if token:
+            try:
+                claims = verify_web3auth_jwt(token)
+                derived = extract_wallet_from_claims(claims)
+                if derived and not serializer.validated_data.get('wallet_address'):
+                    serializer.validated_data['wallet_address'] = derived
+            except Web3AuthVerificationError as exc:
+                return Response({'error': f'web3auth verification failed: {exc}'}, status=400)
         profile = serializer.save()
         return Response(UserProfileSerializer(profile).data, status=201)
 

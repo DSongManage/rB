@@ -31,3 +31,12 @@
     - `setx REACT_APP_SHOW_TEASERS false` (restart terminal) then `npm start`
   - .env file (persistent):
     - Create `frontend/.env` with `REACT_APP_SHOW_TEASERS=false` and restart dev server
+
+## Web3Auth Setup (Frontend)
+- Add `REACT_APP_WEB3AUTH_CLIENT_ID` to `frontend/.env`.
+- The app wraps `App` with `Web3AuthProvider` in `frontend/src/index.tsx`.
+- Signup flow offers default Web3Auth wallet creation and an "I’ll use my own wallet" option, posting either `web3auth_token` or `wallet_address` to `POST /api/users/signup/`.
+
+## Platform Wallet & Fees (Backend)
+- Set `PLATFORM_WALLET_ADDRESS` and optional `PLATFORM_FEE_BPS` in environment (default 10% = 1000 bps).
+- `MintView` injects platform fee into royalties and scales creator splits if total would exceed 100%.
