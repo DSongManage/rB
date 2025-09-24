@@ -11,3 +11,19 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Professional sidebar */
+.sidebar { background:#0f172a; border:1px solid #1f2937; border-radius:12px; padding:12px; }
+.sidebar-title { color:#e5e7eb; font-weight:700; font-size:14px; margin-bottom:8px; }
+.sidebar-nav { display:grid; gap:6px; }
+.sidebar-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; color:#cbd5e1; text-decoration:none; border:1px solid transparent; }
+.sidebar-item:hover { background:#0b1220; border-color:#1f2937; color:#e5e7eb; }
+
+/* Buttons and links */
+a { color:#cbd5e1; }
+a:hover { color:#e5e7eb; }
+
+/* Utility chip for wallet */
+.chip { display:inline-flex; align-items:center; gap:6px; background:#0b1220; color:#cbd5e1; border:1px solid #1f2937; padding:2px 8px; border-radius:999px; font-size:12px; }
+.chip button { background:transparent; border:none; color:#94a3b8; cursor:pointer; font-size:12px; }
+.chip button:hover { color:#e5e7eb; }

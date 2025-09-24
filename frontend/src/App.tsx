@@ -10,15 +10,17 @@ import AuthPage from './pages/AuthPage';
 import WalletInfoPage from './pages/WalletInfoPage';
 import TermsPage from './pages/TermsPage';
 import { CreatorSidebar } from './components/CreatorSidebar';
+import CollaboratorsPage from './pages/CollaboratorsPage';
 
 function Header() {
   const [q, setQ] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   useEffect(()=>{
     fetch('http://localhost:8000/api/auth/status/', { credentials: 'include' })
       .then(r=>r.json()).then(d=> setIsAuthed(!!d?.authenticated)).catch(()=>setIsAuthed(false));
-  },[]);
+  },[location.pathname]);
   const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
   const goLogin = () => { navigate('/auth'); };
   const doLogout = () => {
@@ -38,6 +40,7 @@ function Header() {
       </div>
       <div className="rb-header-right rb-nav">
         {isAuthed && <Link to="/profile">Profile</Link>}
+        {isAuthed && <Link to="/collaborators">Collaborators</Link>}
         {!isAuthed && <button onClick={goLogin} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Sign in</button>}
         {isAuthed && <button onClick={doLogout} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Logout</button>}
       </div>
@@ -47,7 +50,7 @@ function Header() {
 
 export default function App() {
   const location = useLocation();
-  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/].some(r => r.test(location.pathname));
+  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/].some(r => r.test(location.pathname));
   return (
     <div className="rb-app">
       <Header />
@@ -60,6 +63,7 @@ export default function App() {
             <Route path="/studio" element={<StudioPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/collaborators" element={<CollaboratorsPage />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/wallet-info" element={<WalletInfoPage />} />
             <Route path="/terms" element={<TermsPage />} />

@@ -22,12 +22,38 @@ export default function AuthPage() {
   const [walletStatus, setWalletStatus] = useState('');
   const navigate = useNavigate();
 
-  useEffect(()=>{
-    fetch(`${BACKEND}/api/auth/csrf/`, { credentials:'include' })
-      .then(r=>r.json())
-      .then(d=> setCsrf(d?.csrfToken || ''))
-      .catch(()=> setCsrf(''));
-  },[]);
+  const refreshCsrf = async () => {
+    try {
+      const r = await fetch(`${BACKEND}/api/auth/csrf/`, { credentials:'include' });
+      const d = await r.json();
+      setCsrf(d?.csrfToken || '');
+    } catch {
+      setCsrf('');
+    }
+  };
+
+  useEffect(()=>{ refreshCsrf(); },[]);
+
+  const ensureAuthenticated = async () => {
+    try {
+      const st = await fetch(`${BACKEND}/api/auth/status/`, { credentials:'include' });
+      const data = await st.json();
+      if (data?.authenticated) return true;
+      // Try programmatic login with provided credentials
+      const form = new URLSearchParams();
+      form.set('login', username);
+      form.set('password', password);
+      form.set('next', '/');
+      const res = await fetch(`${BACKEND}/accounts/login/`, {
+        method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
+      });
+      if (res.ok) {
+        await refreshCsrf();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  };
 
   const submitAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +67,13 @@ export default function AuthPage() {
       method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
     });
     if (res.ok) {
+      // Refresh CSRF after signup (token may rotate) and ensure session is authenticated
+      await refreshCsrf();
+      const ok = await ensureAuthenticated();
+      if (!ok) {
+        setMsg('Signed up, but session is not authenticated. Please try signing in.');
+        return;
+      }
       if (walletChoice === 'web3auth' || walletChoice === 'own') {
         setStep('wallet');
       } else {
@@ -61,12 +94,15 @@ export default function AuthPage() {
     const res = await fetch(`${BACKEND}/accounts/login/`, {
       method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
     });
-    if (res.ok) { navigate('/'); } else { setMsg('Sign in failed'); }
+    if (res.ok) { await refreshCsrf(); navigate('/'); } else { setMsg('Sign in failed'); }
   };
 
   const linkWalletWithWeb3Auth = async () => {
     setWalletStatus('');
     try {
+      if (!csrf) { await refreshCsrf(); }
+      const authOk = await ensureAuthenticated();
+      if (!authOk) { setWalletStatus('Please sign in again, then retry.'); return; }
       const clientId = process.env.REACT_APP_WEB3AUTH_CLIENT_ID || '';
       if (!clientId) { setWalletStatus('Missing Web3Auth client id'); return; }
       const web3auth = new Web3Auth({ clientId, web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET });
@@ -76,7 +112,7 @@ export default function AuthPage() {
       const idToken = userInfo?.idToken || userInfo?.id_token;
       if (!idToken) { setWalletStatus('Could not obtain Web3Auth token'); return; }
       const res = await fetch(`${BACKEND}/api/wallet/link/`, {
-        method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify({ web3auth_token: idToken })
+        method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ web3auth_token: idToken })
       });
       if (res.ok) {
         setWalletStatus('Wallet created and linked');
@@ -93,8 +129,11 @@ export default function AuthPage() {
   const linkOwnWallet = async (e: React.FormEvent) => {
     e.preventDefault();
     setWalletStatus('');
+    if (!csrf) { await refreshCsrf(); }
+    const authOk = await ensureAuthenticated();
+    if (!authOk) { setWalletStatus('Please sign in again, then retry.'); return; }
     const res = await fetch(`${BACKEND}/api/wallet/link/`, {
-      method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify({ wallet_address: ownWallet })
+      method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ wallet_address: ownWallet })
     });
     if (res.ok) {
       setWalletStatus('Wallet linked');

@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from 'react';
+import { Web3Auth, WEB3AUTH_NETWORK } from '@web3auth/modal';
 import ProfileEditForm from '../components/ProfileEditForm';
 
 type UserStatus = { user_id: number; username: string; wallet_address?: string } | null;
-type UserProfile = { id:number; username:string; display_name:string; wallet_address?:string };
+type UserProfile = {
+  id: number;
+  username: string;
+  display_name: string;
+  wallet_address?: string;
+  avatar_url?: string;
+  banner_url?: string;
+  location?: string;
+  roles?: string[];
+  genres?: string[];
+};
 type Dashboard = { content_count: number; sales: number; tier?: string; fee?: number };
 
 export default function ProfilePage() {
@@ -13,10 +24,27 @@ export default function ProfilePage() {
   const [status, setStatus] = useState('');
   const [dash, setDash] = useState<Dashboard>({ content_count: 0, sales: 0 });
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [csrf, setCsrf] = useState('');
+
+  async function refreshStatus() {
+    const d = await fetch('http://localhost:8000/api/auth/status/', { credentials:'include' }).then(r=>r.json());
+    setUser(d);
+    // Also refresh profile so header shows latest wallet
+    fetch('http://localhost:8000/api/users/profile/', { credentials:'include' })
+      .then(r=> r.ok ? r.json() : null)
+      .then(setProfile)
+      .catch(()=> {});
+  }
+
+  async function refreshCsrf() {
+    const t = await fetch('http://localhost:8000/api/auth/csrf/', { credentials:'include' }).then(r=>r.json());
+    setCsrf(t?.csrfToken || '');
+    return t?.csrfToken || '';
+  }
 
   useEffect(()=>{
-    fetch('http://localhost:8000/api/auth/status/', { credentials:'include' })
-      .then(r=>r.json()).then(d=> setUser(d));
+    refreshStatus();
+    refreshCsrf();
     fetch('http://localhost:8000/api/content/')
       .then(r=>r.json()).then(setContent);
     fetch('http://localhost:8000/api/dashboard/', { credentials:'include' })
@@ -35,28 +63,72 @@ export default function ProfilePage() {
       .then(r=>r.json()).then(setResults);
   };
 
-  const linkWallet = async () => {
+  const linkWalletManual = async () => {
     const manual = prompt('Enter your Solana public address');
     if (!manual) return;
+    const token = csrf || await refreshCsrf();
     const res = await fetch('http://localhost:8000/api/wallet/link/', {
-      method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({wallet_address:manual})
+      method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({wallet_address:manual})
     });
-    if (res.ok) { setStatus('Wallet linked'); setUser(u=> u? {...u, wallet_address: manual } : u); } else { setStatus('Failed to link wallet'); }
+    if (res.ok) { setStatus('Wallet linked'); await refreshStatus(); } else { const t = await res.text(); setStatus(`Failed: ${t}`); }
+  };
+
+  const linkWalletWeb3Auth = async () => {
+    try {
+      setStatus('');
+      const clientId = process.env.REACT_APP_WEB3AUTH_CLIENT_ID || '';
+      if (!clientId) { setStatus('Missing Web3Auth client id'); return; }
+      const web3auth = new Web3Auth({ clientId, web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET });
+      await web3auth.init();
+      await web3auth.connect();
+      const info: any = await web3auth.getUserInfo();
+      const idToken = info?.idToken || info?.id_token;
+      if (!idToken) { setStatus('Could not obtain Web3Auth token'); return; }
+      const token = csrf || await refreshCsrf();
+      const res = await fetch('http://localhost:8000/api/wallet/link/', {
+        method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({ web3auth_token: idToken })
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setStatus('Wallet created and linked');
+        await refreshStatus();
+      } else {
+        const t = await res.text();
+        setStatus(`Failed: ${t}`);
+      }
+    } catch (e:any) {
+      setStatus(`Error: ${e?.message || String(e)}`);
+    }
   };
 
   const myContent = content.filter(c=> c.creator === user?.user_id);
 
   return (
     <div className="page" style={{maxWidth: 1100, margin: '0 auto'}}>
-      <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:16, marginBottom:16, display:'grid', gridTemplateColumns:'72px 1fr auto', gap:16, alignItems:'center'}}>
-        <div style={{width:56, height:56, borderRadius:12, background:'#111827', display:'grid', placeItems:'center', color:'#f59e0b', fontWeight:700}}>{(user?.username||'?').slice(0,1).toUpperCase()}</div>
+      <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:16, marginBottom:16, display:'grid', gridTemplateColumns:'72px 1fr auto', gap:16, alignItems:'center', backgroundImage: profile?.banner_url? `url(${profile.banner_url})` : undefined, backgroundSize:'cover', backgroundPosition:'center'}}>
+        <div style={{width:56, height:56, borderRadius:12, background:'#111827', overflow:'hidden', display:'grid', placeItems:'center', color:'#f59e0b', fontWeight:700}}>
+          {profile?.avatar_url ? (<img src={profile.avatar_url} alt="avatar" style={{width:'100%', height:'100%', objectFit:'cover'}} />) : ((user?.username||'?').slice(0,1).toUpperCase())}
+        </div>
         <div>
           <div style={{fontSize:18, fontWeight:600, color:'#e5e7eb'}}>{profile?.display_name || user?.username || '—'}</div>
           <div style={{fontSize:12, color:'#94a3b8'}}>@{profile?.username || user?.username || ''}</div>
-          <div style={{fontSize:12, color:'#94a3b8'}}>Wallet: {user?.wallet_address || 'Not linked'}</div>
+          <div style={{marginTop:6}}>
+            {(() => {
+              const w = profile?.wallet_address || user?.wallet_address || '';
+              if (!w) return <span style={{fontSize:12, color:'#94a3b8'}}>Wallet: Not linked</span>;
+              const short = `${w.slice(0,4)}...${w.slice(-4)}`;
+              return (
+                <span className="chip" title={w}>
+                  <span>{short}</span>
+                  <button onClick={()=> navigator.clipboard.writeText(w)}>Copy</button>
+                </span>
+              );
+            })()}
+          </div>
         </div>
         <div style={{display:'flex', gap:8}}>
-          <button onClick={linkWallet} style={{background:'#f59e0b', color:'#111827', border:'none', padding:'8px 12px', borderRadius:8, fontWeight:600}}> {user?.wallet_address? 'Update wallet' : 'Link wallet'} </button>
+          <button onClick={linkWalletWeb3Auth} style={{background:'#f59e0b', color:'#111827', border:'none', padding:'8px 12px', borderRadius:8, fontWeight:600}}> {user?.wallet_address? 'Update with Web3Auth' : 'Link with Web3Auth'} </button>
+          <button onClick={linkWalletManual} style={{background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'8px 12px', borderRadius:8}}>Use my address</button>
         </div>
       </div>
 
@@ -69,32 +141,11 @@ export default function ProfilePage() {
 
       <div style={{display:'grid', gridTemplateColumns:'360px 1fr', gap:16}}>
         <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:16}}>
-          <div style={{fontWeight:600, color:'#e5e7eb', marginBottom:8}}>Search collaborators</div>
-          <div style={{display:'flex', gap:8}}>
-            <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search by username" style={{flex:1}} />
-            <button onClick={runSearch}>Search</button>
+          <div style={{display:'grid', gridTemplateColumns:'1fr auto', alignItems:'baseline'}}>
+            <div style={{fontWeight:600, color:'#e5e7eb', marginBottom:8}}>Profile settings</div>
+            <a href="/collaborators" style={{fontSize:12}}>Open Collaborators Search →</a>
           </div>
-          <div style={{marginTop:12}}>
-            {results.length === 0 ? (
-              <div style={{fontSize:12, color:'#94a3b8'}}>No results</div>
-            ) : (
-              <ul style={{listStyle:'none', padding:0, margin:0, display:'grid', gap:8}}>
-                {results.map(r=> (
-                  <li key={r.id} style={{background:'#0b1220', border:'1px solid #1f2937', borderRadius:8, padding:10, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <div style={{display:'flex', alignItems:'center', gap:10}}>
-                      <div style={{width:28, height:28, borderRadius:8, background:'#111827', display:'grid', placeItems:'center', color:'#f59e0b', fontWeight:700}}>{(r.username||'?').slice(0,1).toUpperCase()}</div>
-                      <div style={{color:'#e5e7eb', fontWeight:500}}>{r.username}</div>
-                    </div>
-                    <div style={{fontSize:12, color:'#94a3b8'}}>{r.wallet_address || ''}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div style={{marginTop:16}}>
-            <div style={{fontWeight:600, color:'#e5e7eb', marginBottom:8}}>Edit profile</div>
-            <ProfileEditForm initialDisplayName={''} />
-          </div>
+          <ProfileEditForm initialDisplayName={profile?.display_name || ''} />
           <div style={{marginTop:8, fontSize:12, color:'#94a3b8'}}>{status}</div>
         </div>
         <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:16}}>

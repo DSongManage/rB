@@ -23,7 +23,7 @@ class ContentSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['id', 'username', 'display_name', 'wallet_address']
+        fields = ['id', 'username', 'display_name', 'wallet_address', 'avatar_url', 'banner_url', 'location', 'roles', 'genres']
         read_only_fields = ['username']
 
 
@@ -70,4 +70,4 @@ class SignupSerializer(serializers.Serializer):
 class ProfileEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['display_name']
+        fields = ['display_name', 'avatar_url', 'banner_url', 'location', 'roles', 'genres']

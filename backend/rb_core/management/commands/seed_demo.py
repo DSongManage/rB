@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from rb_core.models import User, Content, Collaboration
+from rb_core.models import User, Content, Collaboration, UserProfile
 import random
 
 TYPES = ['book','art','film','music']
@@ -23,11 +23,15 @@ class Command(BaseCommand):
                     "email": f"{username}@example.com",
                     "first_name": first,
                     "last_name": last,
-                    "wallet_address": wallet[:44],
                 },
             )
             user.set_password("password")
             user.save()
+            # Ensure profile exists and carries wallet
+            prof, _ = UserProfile.objects.get_or_create(user=user, defaults={"username": username})
+            if not prof.wallet_address:
+                prof.wallet_address = wallet[:44]
+                prof.save()
             users_by_name[username] = user
 
         def create_item(user, title):

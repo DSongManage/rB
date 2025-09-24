@@ -38,7 +38,7 @@ def verify_web3auth_jwt(id_token: str) -> Dict[str, Any]:
         claims = jwt.decode(
             id_token,
             signing_key.key,
-            algorithms=["RS256"],
+            algorithms=["RS256", "ES256"],
             audience=getattr(settings, 'WEB3AUTH_CLIENT_ID', None),
             options={"verify_aud": bool(getattr(settings, 'WEB3AUTH_CLIENT_ID', None))},
         )
@@ -61,8 +61,19 @@ def extract_wallet_from_claims(claims: Dict[str, Any]) -> Optional[str]:
     if isinstance(wallets, list):
         for w in wallets:
             try:
-                if (w.get('type') or '').lower() == 'solana' and w.get('public_address'):
-                    return w['public_address'][:44]
+                # Preferred direct address field
+                if w.get('public_address'):
+                    return str(w['public_address'])[:44]
+                # Derive from ed25519 public_key hex (Solana)
+                pk_hex = (w.get('public_key') or '').strip()
+                curve = (w.get('curve') or '').lower()
+                if curve == 'ed25519' and len(pk_hex) >= 64:
+                    try:
+                        import base58  # type: ignore
+                        pk_bytes = bytes.fromhex(pk_hex[:64])
+                        return base58.b58encode(pk_bytes).decode('utf-8')[:44]
+                    except Exception:
+                        pass
             except Exception:
                 continue
     # Some providers place the address at `wallet` or `public_address`

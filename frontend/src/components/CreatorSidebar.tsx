@@ -4,11 +4,20 @@ export function CreatorSidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-title">Creator</div>
-      <ul>
-        <li><a href="/studio">New upload</a></li>
-        <li><a href="/dashboard">Analytics</a></li>
-        <li><a href="/profile">Profile</a></li>
-      </ul>
+      <nav className="sidebar-nav">
+        <a className="sidebar-item" href="/studio">
+          <span>New upload</span>
+        </a>
+        <a className="sidebar-item" href="/collaborators">
+          <span>Collaborators</span>
+        </a>
+        <a className="sidebar-item" href="/dashboard">
+          <span>Analytics</span>
+        </a>
+        <a className="sidebar-item" href="/profile">
+          <span>Profile</span>
+        </a>
+      </nav>
     </aside>
   );
 }

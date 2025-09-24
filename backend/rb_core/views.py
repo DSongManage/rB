@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 from rest_framework import generics
-from .models import Content, UserProfile, User
+from .models import Content, UserProfile, User as CoreUser
 from .serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer
 from .utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from rest_framework.response import Response
@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User as AuthUser
 from .models import Collaboration
 import ipfshttpclient
 from django.conf import settings
@@ -38,11 +38,24 @@ def home(request):
 class AuthStatusView(APIView):
     def get(self, request):
         is_authed = request.user.is_authenticated
+        wallet = None
+        if is_authed:
+            try:
+                core_user = CoreUser.objects.get(username=request.user.username)
+                wallet = core_user.wallet_address
+                # Prefer profile value if present
+                try:
+                    prof = core_user.profile
+                    wallet = prof.wallet_address or wallet
+                except Exception:
+                    pass
+            except CoreUser.DoesNotExist:
+                wallet = None
         return Response({
             'authenticated': is_authed,
             'user_id': request.user.id if is_authed else None,
             'username': request.user.username if is_authed else None,
-            'wallet_address': getattr(request.user, 'wallet_address', None) if is_authed else None,
+            'wallet_address': wallet,
         })
 
 class ContentListView(generics.ListCreateAPIView):
@@ -74,7 +87,9 @@ class ContentListView(generics.ListCreateAPIView):
             # Generate teaser (example: first 10% of content)
             teaser = file.read()[:int(file.size * 0.1)].decode('utf-8')  # Simplify for text; expand for other formats
             teaser_link = f'https://ipfs.io/ipfs/{ipfs_hash}?teaser=true'  # Placeholder
-            serializer.save(creator=self.request.user, ipfs_hash=ipfs_hash, teaser_link=teaser_link)
+            # Bridge auth user -> core user for FK consistency
+            core_user, _ = CoreUser.objects.get_or_create(username=self.request.user.username)
+            serializer.save(creator=core_user, ipfs_hash=ipfs_hash, teaser_link=teaser_link)
         else:
             raise serializers.ValidationError('File required')
 
@@ -85,7 +100,7 @@ class InviteView(APIView):
         split = request.data.get('split', 50)  # Default 50/50
         content_id = request.data.get('content')
         content = Content.objects.get(id=content_id, creator=request.user)
-        collaborator = User.objects.get(id=collaborator_id)
+        collaborator = AuthUser.objects.get(id=collaborator_id)
         collab = Collaboration.objects.create(
             content=content,
             status='pending'
@@ -164,8 +179,10 @@ class SearchView(APIView):
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
-        content_count = Content.objects.filter(creator=request.user).count()
-        collabs = Collaboration.objects.filter(initiators=request.user).count()
+        # Bridge to core user to avoid FK mismatches
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        content_count = Content.objects.filter(creator=core_user).count()
+        collabs = Collaboration.objects.filter(initiators=core_user).count()
         sales = 1000  # Placeholder: Query Anchor for total sales in USD
         if sales < 500:
             fee = 10
@@ -191,16 +208,16 @@ class Web3AuthLoginView(APIView):
         if not sub:
             return Response({'error': 'missing subject'}, status=400)
         base_handle = f"renaiss{sub[:6]}"
-        user, created = User.objects.get_or_create(username=base_handle)
-        prof, _ = UserProfile.objects.get_or_create(user=user, defaults={'username': user.username})
+        auth_user, created = AuthUser.objects.get_or_create(username=base_handle)
+        # Ensure a local CoreUser exists for profile link
+        core_user, _ = CoreUser.objects.get_or_create(username=auth_user.username)
+        prof, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
         addr = extract_wallet_from_claims(claims)
         if addr and not prof.wallet_address:
             prof.wallet_address = addr
             prof.save()
-            user.wallet_address = addr
-            user.save()
         from django.contrib.auth import login as django_login
-        django_login(request, user)
+        django_login(request, auth_user)
         return Response({'message': 'Login successful'})
 
 class FlagView(APIView):
@@ -228,11 +245,12 @@ class LinkWalletView(APIView):
         if not addr:
             return Response({'error':'wallet_address required'}, status=400)
         # Enforce uniqueness at profile level (optional connection)
-        if UserProfile.objects.filter(wallet_address=addr).exclude(user=request.user).exists():
+        # Compare by immutable handle to avoid cross-model FK type mismatch
+        if UserProfile.objects.filter(wallet_address=addr).exclude(username=getattr(request.user, 'username', '')).exists():
             return Response({'error':'wallet already linked to another account'}, status=400)
-        request.user.wallet_address = addr[:44]
-        request.user.save()
-        prof, _ = UserProfile.objects.get_or_create(user=request.user, defaults={'username': request.user.username})
+        # Bridge auth.User -> rb_core.User by username
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        prof, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
         prof.wallet_address = addr[:44]
         prof.save()
         return Response({'ok': True, 'wallet_address': addr[:44]})
@@ -248,7 +266,7 @@ class UserSearchView(APIView):
         if q.startswith('@'):
             q = q[1:]
         qs = UserProfile.objects.filter(username__icontains=q).select_related('user')[:20]
-        return Response([{ 'id':p.user.id, 'username':p.username, 'display_name':p.display_name, 'wallet_address':p.wallet_address or p.user.wallet_address } for p in qs])
+        return Response([{ 'id':p.user.id, 'username':p.username, 'display_name':p.display_name, 'wallet_address':p.wallet_address } for p in qs])
 
 
 class SignupView(APIView):
@@ -272,10 +290,12 @@ class SignupView(APIView):
 class ProfileEditView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
-        profile, _ = UserProfile.objects.get_or_create(user=request.user, defaults={'username': request.user.username})
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
         return Response(UserProfileSerializer(profile).data)
     def patch(self, request):
-        profile, _ = UserProfile.objects.get_or_create(user=request.user, defaults={'username': request.user.username})
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
         serializer = ProfileEditSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

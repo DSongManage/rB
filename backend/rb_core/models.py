@@ -11,7 +11,6 @@ class User(AbstractUser):
     - Stores minimal data: no private keys or sensitive info (GUIDELINES.md).
     - Future: Add fields for followers, metrics for tiering (FR9).
     """
-    wallet_address = models.CharField(max_length=44, blank=True, null=True)  # Public Solana address only
     # Encrypt any sensitive metadata if needed (AES-256 per GUIDELINES.md)
     
     groups = models.ManyToManyField(
@@ -33,6 +32,14 @@ class User(AbstractUser):
 
     def search_collaborators(self, query):
         return User.objects.filter(username__icontains=query)  # Simple search for invites (FR8)
+
+    # Read-only convenience property: source of truth is UserProfile.wallet_address
+    @property
+    def wallet_address(self):  # type: ignore[override]
+        try:
+            return self.profile.wallet_address
+        except Exception:
+            return None
 
 class Content(models.Model):
     """Model for uploaded content metadata (FR4, FR5).
@@ -107,6 +114,11 @@ class UserProfile(models.Model):
     display_name = models.CharField(max_length=100, blank=True, default='')
     email_hash = models.CharField(max_length=64, blank=True, default='')
     wallet_address = models.CharField(max_length=44, unique=True, null=True, blank=True, default=None)
+    avatar_url = models.URLField(blank=True, default='')
+    banner_url = models.URLField(blank=True, default='')
+    location = models.CharField(max_length=120, blank=True, default='')
+    roles = models.JSONField(default=list, blank=True)  # e.g., ["author", "artist"]
+    genres = models.JSONField(default=list, blank=True)  # e.g., ["fantasy", "drama"]
 
     def save(self, *args, **kwargs):
         # Ensure handle mirrors auth username on create; treat as immutable afterwards

@@ -16,6 +16,13 @@ import os  # For environment variables and paths (PEP 8 compliant)
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from backend/.env if present
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv(BASE_DIR / '.env')
+except Exception:
+    pass
+
 # Ensure Django looks for project-level templates (e.g., themed allauth pages)
 try:
     TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']
@@ -167,11 +174,8 @@ IPFS_API_URL = 'https://ipfs.infura.io:5001'  # Free tier for MVP (FR4)
 # Ensure compliance with regulations (e.g., GDPR minimization) - no unnecessary data storage
 
 WEB3AUTH_CLIENT_ID = os.getenv('WEB3AUTH_CLIENT_ID', 'your_client_id_here')  # For keyless wallet auth (FR3)
-
-# Platform wallet config (FR9 platform fee routing)
-PLATFORM_WALLET_ADDRESS = os.getenv('PLATFORM_WALLET_ADDRESS', '2WHVxSRPQDhY5XjzXVbzAj2nNtam3cJQ5sKrhQWbkJ19')
-# Fee in basis points (e.g., 1000 = 10%)
-PLATFORM_FEE_BPS = int(os.getenv('PLATFORM_FEE_BPS', '1000'))
+# Prefer the auth domain JWKS for Sapphire (supports ES256)
+WEB3AUTH_JWKS_URL = os.getenv('WEB3AUTH_JWKS_URL', 'https://api-auth.web3auth.io/.well-known/jwks.json')
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
