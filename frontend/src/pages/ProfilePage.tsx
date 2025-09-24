@@ -145,7 +145,7 @@ export default function ProfilePage() {
             <div style={{fontWeight:600, color:'#e5e7eb', marginBottom:8}}>Profile settings</div>
             <a href="/collaborators" style={{fontSize:12}}>Open Collaborators Search →</a>
           </div>
-          <ProfileEditForm initialDisplayName={profile?.display_name || ''} />
+          <ProfileEditForm initialDisplayName={profile?.display_name || ''} onSaved={refreshStatus} />
           <div style={{marginTop:8, fontSize:12, color:'#94a3b8'}}>{status}</div>
         </div>
         <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:16}}>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 
-export default function ProfileEditForm({ initialDisplayName }: { initialDisplayName?: string }) {
+export default function ProfileEditForm({ initialDisplayName, onSaved }: { initialDisplayName?: string; onSaved?: () => void }) {
   const [displayName, setDisplayName] = useState(initialDisplayName || '');
+  React.useEffect(()=>{ setDisplayName(initialDisplayName || ''); }, [initialDisplayName]);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [bannerUrl, setBannerUrl] = useState('');
   const [location, setLocation] = useState('');
@@ -11,6 +12,10 @@ export default function ProfileEditForm({ initialDisplayName }: { initialDisplay
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Fetch CSRF token for authenticated PATCH
+    const csrfRes = await fetch('http://localhost:8000/api/auth/csrf/', { credentials: 'include' });
+    const csrfData = await csrfRes.json();
+    const csrf = csrfData?.csrfToken || '';
     const body = {
       display_name: displayName,
       avatar_url: avatarUrl,
@@ -21,12 +26,13 @@ export default function ProfileEditForm({ initialDisplayName }: { initialDisplay
     };
     const res = await fetch('http://localhost:8000/api/users/profile/', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'include',
       body: JSON.stringify(body)
     });
     if (res.ok) {
       setMsg('Saved');
+      onSaved && onSaved();
     } else {
       const t = await res.text();
       setMsg(`Failed: ${t}`);
