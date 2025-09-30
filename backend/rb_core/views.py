@@ -1,8 +1,9 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 from rest_framework import generics
+from rest_framework.parsers import MultiPartParser, FormParser
 from .models import Content, UserProfile, User as CoreUser
-from .serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer
+from .serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer
 from .utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -29,6 +30,7 @@ from rest_framework import permissions
 from rest_framework import serializers
 from django.db import models
 from django.middleware.csrf import get_token
+from rest_framework.decorators import permission_classes
 
 # Create your views here.
 
@@ -68,6 +70,7 @@ class ContentListView(generics.ListCreateAPIView):
     queryset = Content.objects.all()
     serializer_class = ContentSerializer
     permission_classes = [permissions.AllowAny]  # Public browse (FR1)
+    parser_classes = [MultiPartParser, FormParser]
 
     # Dev: return all content; remove placeholder geo check
     def get_queryset(self):
@@ -80,18 +83,34 @@ class ContentListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         file = self.request.FILES.get('file')
+        text = self.request.data.get('text')
+        ipfs_hash = ''
+        teaser_link = 'https://example.com/teaser'
+        # Try IPFS if a file was provided
         if file:
-            client = ipfshttpclient.connect(settings.IPFS_API_URL)
-            res = client.add(file)
-            ipfs_hash = res['Hash']
-            # Generate teaser (example: first 10% of content)
-            teaser = file.read()[:int(file.size * 0.1)].decode('utf-8')  # Simplify for text; expand for other formats
-            teaser_link = f'https://ipfs.io/ipfs/{ipfs_hash}?teaser=true'  # Placeholder
-            # Bridge auth user -> core user for FK consistency
-            core_user, _ = CoreUser.objects.get_or_create(username=self.request.user.username)
-            serializer.save(creator=core_user, ipfs_hash=ipfs_hash, teaser_link=teaser_link)
+            try:
+                client = ipfshttpclient.connect(settings.IPFS_API_URL)
+                res = client.add(file)
+                ipfs_hash = res.get('Hash', '')
+                teaser_link = f'https://ipfs.io/ipfs/{ipfs_hash}?teaser=true'
+            except Exception:
+                # Fallback to placeholder teaser link
+                ipfs_hash = ''
+        elif text:
+            # No file; accept text-only content and generate a teaser placeholder
+            teaser_link = 'https://example.com/text-teaser'
         else:
             raise serializers.ValidationError('File required')
+        # Bridge auth user -> core user for FK consistency
+        core_user, _ = CoreUser.objects.get_or_create(username=self.request.user.username)
+        instance = serializer.save(creator=core_user, ipfs_hash=ipfs_hash, teaser_link=teaser_link)
+        # Increment creator stats
+        try:
+            profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
+            profile.content_count = (profile.content_count or 0) + 1
+            profile.save()
+        except Exception:
+            pass
 
 class InviteView(APIView):
     permission_classes = [IsAuthenticated]
@@ -161,6 +180,46 @@ class MintView(APIView):
         # tx = program.rpc["mintNft"]("metadata", [(PublicKey(r['pubkey']), r['percent']) for r in royalties])
         return Response({'tx_sig': 'dummy_tx_for_testing', 'royalties': royalties})
 
+class AdminStatsUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        # Minimal admin gate: superuser only for now
+        try:
+            if not request.user.is_superuser:
+                return Response({'error': 'forbidden'}, status=403)
+        except Exception:
+            return Response({'error': 'forbidden'}, status=403)
+        username = (request.data.get('username') or '').strip()
+        sales = request.data.get('total_sales_usd')
+        content_count = request.data.get('content_count')
+        if not username:
+            return Response({'error': 'username required'}, status=400)
+        core_user, _ = CoreUser.objects.get_or_create(username=username)
+        profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': username})
+        if sales is not None:
+            try:
+                profile.total_sales_usd = float(sales)
+            except Exception:
+                return Response({'error': 'invalid sales'}, status=400)
+        if content_count is not None:
+            try:
+                profile.content_count = int(content_count)
+            except Exception:
+                return Response({'error': 'invalid content_count'}, status=400)
+        # Recalculate tier/fee
+        s = float(profile.total_sales_usd or 0)
+        if s < 500:
+            profile.tier = 'Basic'
+            profile.fee_bps = 1000
+        elif s < 5000:
+            profile.tier = 'Pro'
+            profile.fee_bps = 800
+        else:
+            profile.tier = 'Elite'
+            profile.fee_bps = 500
+        profile.save()
+        return Response(UserProfileSerializer(profile, context={'request': request}).data)
+
 class SearchView(APIView):
     def get(self, request):
         q = request.query_params.get('q', '').strip()
@@ -181,19 +240,26 @@ class DashboardView(APIView):
     def get(self, request):
         # Bridge to core user to avoid FK mismatches
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
-        content_count = Content.objects.filter(creator=core_user).count()
-        collabs = Collaboration.objects.filter(initiators=core_user).count()
-        sales = 1000  # Placeholder: Query Anchor for total sales in USD
+        profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
+        # Derive tier/fee from profile stats; recalc simple rule if totals changed
+        sales = float(profile.total_sales_usd or 0)
         if sales < 500:
-            fee = 10
-            tier = 'Basic'
+            profile.tier = 'Basic'
+            profile.fee_bps = 1000
         elif sales < 5000:
-            fee = 8
-            tier = 'Pro'
+            profile.tier = 'Pro'
+            profile.fee_bps = 800
         else:
-            fee = 5
-            tier = 'Elite'
-        return Response({'content_count': content_count, 'collabs': collabs, 'sales': sales, 'tier': tier, 'fee': fee})
+            profile.tier = 'Elite'
+            profile.fee_bps = 500
+        profile.save()
+        return Response({
+            'content_count': profile.content_count,
+            'collabs': Collaboration.objects.filter(initiators=core_user).count(),
+            'sales': sales,
+            'tier': profile.tier,
+            'fee': round(profile.fee_bps / 100.0, 2)
+        })
 
 class Web3AuthLoginView(APIView):
     def post(self, request):
@@ -262,10 +328,42 @@ class CsrfTokenView(APIView):
 
 class UserSearchView(APIView):
     def get(self, request):
-        q = request.query_params.get('q', '').strip()
+        q = (request.query_params.get('q') or '').strip()
+        role = (request.query_params.get('role') or '').strip()
+        genre = (request.query_params.get('genre') or '').strip()
+        loc = (request.query_params.get('location') or '').strip()
+        status_param = (request.query_params.get('status') or '').strip().lower()
         if q.startswith('@'):
             q = q[1:]
-        qs = UserProfile.objects.filter(username__icontains=q).select_related('user')[:20]
+        qs = UserProfile.objects.all().select_related('user')
+        if q:
+            qs = qs.filter(username__icontains=q)
+        if role:
+            qs = qs.filter(roles__icontains=role)
+        if genre:
+            qs = qs.filter(genres__icontains=genre)
+        if loc:
+            qs = qs.filter(location__icontains=loc)
+        if status_param:
+            green = {'mint-ready partner', 'chain builder', 'open node'}
+            yellow = {'selective forge', 'linked capacity', 'partial protocol'}
+            red = {'locked chain', 'sealed vault', 'exclusive mint'}
+            st = None
+            if status_param in ('green', 'high'):
+                st = list(green)
+            elif status_param in ('yellow', 'conditional'):
+                st = list(yellow)
+            elif status_param in ('red', 'low'):
+                st = list(red)
+            if st:
+                qs = qs.filter(status__in=[s.title() for s in st])
+        # Exclude current logged-in user if authenticated
+        try:
+            if request.user and request.user.is_authenticated:
+                qs = qs.exclude(username=request.user.username)
+        except Exception:
+            pass
+        qs = qs.order_by('username')[:20]
         return Response([{ 'id':p.user.id, 'username':p.username, 'display_name':p.display_name, 'wallet_address':p.wallet_address } for p in qs])
 
 
@@ -292,11 +390,28 @@ class ProfileEditView(APIView):
     def get(self, request):
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
-        return Response(UserProfileSerializer(profile).data)
+        return Response(UserProfileSerializer(profile, context={'request': request}).data)
     def patch(self, request):
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
-        serializer = ProfileEditSerializer(profile, data=request.data, partial=True)
+        # Support multipart form data for file uploads
+        # Avoid deepcopy of uploaded files (causes BufferedRandom pickle error)
+        data = request.data
+        if 'avatar' in request.FILES:
+            profile.avatar_image = request.FILES['avatar']
+        if 'banner' in request.FILES:
+            profile.banner_image = request.FILES['banner']
+        serializer = ProfileEditSerializer(profile, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(UserProfileSerializer(profile).data)
+        return Response(UserProfileSerializer(profile, context={'request': request}).data)
+
+class ProfileStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+    def patch(self, request):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
+        serializer = ProfileStatusUpdateSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(UserProfileSerializer(profile, context={'request': request}).data)

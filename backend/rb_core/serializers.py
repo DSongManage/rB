@@ -11,8 +11,11 @@ class ContentSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Content
-        fields = ['id', 'title', 'teaser_link', 'created_at', 'creator', 'content_type', 'genre']
-        read_only_fields = ['creator']
+        fields = [
+            'id', 'title', 'teaser_link', 'created_at', 'creator', 'content_type', 'genre',
+            'price_usd', 'editions', 'teaser_percent', 'watermark_preview'
+        ]
+        read_only_fields = ['creator', 'teaser_link', 'created_at']
     
     def validate_teaser_link(self, value):
         if not value.startswith('http'):
@@ -21,10 +24,37 @@ class ContentSerializer(serializers.ModelSerializer):
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+    banner = serializers.SerializerMethodField()
     class Meta:
         model = UserProfile
-        fields = ['id', 'username', 'display_name', 'wallet_address', 'avatar_url', 'banner_url', 'location', 'roles', 'genres']
-        read_only_fields = ['username']
+        fields = [
+            'id', 'username', 'display_name', 'wallet_address',
+            'avatar', 'banner', 'avatar_url', 'banner_url',
+            'location', 'roles', 'genres', 'is_private', 'status',
+            'content_count', 'total_sales_usd', 'tier', 'fee_bps'
+        ]
+        read_only_fields = ['username', 'avatar', 'banner', 'content_count', 'total_sales_usd', 'tier', 'fee_bps']
+
+    def get_avatar(self, obj: UserProfile) -> str:
+        url = obj.resolved_avatar_url
+        try:
+            request = self.context.get('request') if hasattr(self, 'context') else None
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+        except Exception:
+            pass
+        return url
+
+    def get_banner(self, obj: UserProfile) -> str:
+        url = obj.resolved_banner_url
+        try:
+            request = self.context.get('request') if hasattr(self, 'context') else None
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+        except Exception:
+            pass
+        return url
 
 
 class SignupSerializer(serializers.Serializer):
@@ -70,4 +100,9 @@ class SignupSerializer(serializers.Serializer):
 class ProfileEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['display_name', 'avatar_url', 'banner_url', 'location', 'roles', 'genres']
+        fields = ['display_name', 'avatar_url', 'banner_url', 'location', 'roles', 'genres', 'is_private', 'status']
+
+class ProfileStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['status', 'is_private']

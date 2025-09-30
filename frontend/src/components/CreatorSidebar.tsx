@@ -1,21 +1,23 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 
 export function CreatorSidebar() {
+  const location = useLocation();
+  const isActive = (path: string) => location.pathname.startsWith(path);
   return (
     <aside className="sidebar">
-      <div className="sidebar-title">Creator</div>
       <nav className="sidebar-nav">
-        <a className="sidebar-item" href="/studio">
-          <span>New upload</span>
+        <a className={`sidebar-item ${isActive('/profile') ? 'active' : ''}`} href="/profile">
+          <span>Profile</span>
         </a>
-        <a className="sidebar-item" href="/collaborators">
+        <a className={`sidebar-item ${isActive('/studio') ? 'active' : ''}`} href="/studio">
+          <span>Create</span>
+        </a>
+        <a className={`sidebar-item ${isActive('/collaborators') ? 'active' : ''}`} href="/collaborators">
           <span>Collaborators</span>
         </a>
-        <a className="sidebar-item" href="/dashboard">
+        <a className={`sidebar-item ${isActive('/dashboard') ? 'active' : ''}`} href="/dashboard">
           <span>Analytics</span>
-        </a>
-        <a className="sidebar-item" href="/profile">
-          <span>Profile</span>
         </a>
       </nav>
     </aside>

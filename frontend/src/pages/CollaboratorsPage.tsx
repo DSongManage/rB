@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import StatusEditForm from '../components/StatusEditForm';
+import { ProfileStatus } from '../components/ProfileStatus';
 
 export default function CollaboratorsPage() {
   const [q, setQ] = useState('');
@@ -17,12 +19,19 @@ export default function CollaboratorsPage() {
     return params.toString();
   }, [q, role, genre, location]);
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(()=>{
-    setLoading(true);
-    fetch(`http://localhost:8000/api/users/search/?${queryString}`)
-      .then(r=> r.ok ? r.json() : [])
-      .then(setResults)
-      .finally(()=> setLoading(false));
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(()=>{
+      setLoading(true);
+      const url = `http://localhost:8000/api/users/search/?${queryString}`;
+      fetch(url, { credentials: 'include' })
+        .then(r=> r.ok ? r.json() : [])
+        .then((data)=> setResults(Array.isArray(data) ? data : []))
+        .finally(()=> setLoading(false));
+    }, 300);
+    return ()=> { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [queryString]);
 
   return (
@@ -43,18 +52,24 @@ export default function CollaboratorsPage() {
           <div style={{color:'#94a3b8'}}>No collaborators found. Try broadening your filters.</div>
         )}
         {!loading && results.map((p)=> (
-          <div key={p.id} style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:12, display:'grid', gridTemplateColumns:'56px 1fr auto', gap:12, alignItems:'center'}}>
-            <div style={{width:56, height:56, borderRadius:12, background:'#111827', display:'grid', placeItems:'center', color:'#f59e0b', fontWeight:700}}>{(p.username||'?').slice(0,1).toUpperCase()}</div>
+          <div key={p.id} style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:12, display:'grid', gridTemplateColumns:'56px 1fr auto', gap:12, alignItems:'center'}}>
+            <div style={{width:56, height:56, borderRadius:12, background:'#111', display:'grid', placeItems:'center', color:'var(--accent)', fontWeight:700}}>{(p.username||'?').slice(0,1).toUpperCase()}</div>
             <div>
-              <div style={{color:'#e5e7eb', fontWeight:600}}>@{p.username}</div>
+              <div style={{color:'var(--text)', fontWeight:600}}>@{p.username}</div>
               <div style={{fontSize:12, color:'#94a3b8'}}>{(p.display_name||'').trim()}</div>
               <div style={{fontSize:12, color:'#94a3b8'}}>{p.wallet_address ? `Wallet: ${p.wallet_address.slice(0,4)}...${p.wallet_address.slice(-4)}` : ''}</div>
+              {/* Placeholder space for status badge if API returns status later in results */}
             </div>
             <div>
-              <button style={{background:'#f59e0b', color:'#111827', border:'none', padding:'8px 10px', borderRadius:8}}>Invite</button>
+              <button style={{background:'var(--accent)', color:'#111', border:'none', padding:'8px 10px', borderRadius:8}}>Invite</button>
             </div>
           </div>
         ))}
+      </div>
+
+      <div style={{marginTop:24, background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>
+        <div style={{fontWeight:600, marginBottom:8}}>My availability status</div>
+        <StatusEditForm onSaved={()=>{ /* No-op here; used on Profile page primarily */ }} />
       </div>
     </div>
   );

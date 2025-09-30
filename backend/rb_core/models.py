@@ -70,6 +70,11 @@ class Content(models.Model):
     nft_contract = models.CharField(max_length=44, blank=True)  # Solana contract address
     content_type = models.CharField(max_length=16, choices=CONTENT_TYPES, default='book')
     genre = models.CharField(max_length=32, choices=GENRES, default='other')
+    # Commerce fields (MVP)
+    price_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    editions = models.PositiveIntegerField(default=1)
+    teaser_percent = models.PositiveIntegerField(default=10)
+    watermark_preview = models.BooleanField(default=False)
     flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -114,11 +119,35 @@ class UserProfile(models.Model):
     display_name = models.CharField(max_length=100, blank=True, default='')
     email_hash = models.CharField(max_length=64, blank=True, default='')
     wallet_address = models.CharField(max_length=44, unique=True, null=True, blank=True, default=None)
+    # Backward-compatible URL fields (kept); prefer uploaded images below
     avatar_url = models.URLField(blank=True, default='')
     banner_url = models.URLField(blank=True, default='')
+    # Uploaded media (preferred)
+    avatar_image = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    banner_image = models.ImageField(upload_to='banners/', blank=True, null=True)
+    # Profile metadata
     location = models.CharField(max_length=120, blank=True, default='')
     roles = models.JSONField(default=list, blank=True)  # e.g., ["author", "artist"]
     genres = models.JSONField(default=list, blank=True)  # e.g., ["fantasy", "drama"]
+    # Collaboration visibility and status
+    is_private = models.BooleanField(default=True)
+    STATUS_CHOICES = [
+        ('Mint-Ready Partner', 'Mint-Ready Partner'),
+        ('Chain Builder', 'Chain Builder'),
+        ('Open Node', 'Open Node'),
+        ('Selective Forge', 'Selective Forge'),
+        ('Linked Capacity', 'Linked Capacity'),
+        ('Partial Protocol', 'Partial Protocol'),
+        ('Locked Chain', 'Locked Chain'),
+        ('Sealed Vault', 'Sealed Vault'),
+        ('Exclusive Mint', 'Exclusive Mint'),
+    ]
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='Open Node')
+    # Per-user stats and tiering
+    content_count = models.PositiveIntegerField(default=0)
+    total_sales_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tier = models.CharField(max_length=16, choices=[('Basic', 'Basic'), ('Pro', 'Pro'), ('Elite', 'Elite')], default='Basic')
+    fee_bps = models.PositiveIntegerField(default=1000)  # default 10%
 
     def save(self, *args, **kwargs):
         # Ensure handle mirrors auth username on create; treat as immutable afterwards
@@ -135,3 +164,21 @@ class UserProfile(models.Model):
 
     def __str__(self) -> str:
         return f"@{self.username}"
+
+    @property
+    def resolved_avatar_url(self) -> str:
+        try:
+            if self.avatar_image and hasattr(self.avatar_image, 'url'):
+                return self.avatar_image.url
+        except Exception:
+            pass
+        return self.avatar_url or ''
+
+    @property
+    def resolved_banner_url(self) -> str:
+        try:
+            if self.banner_image and hasattr(self.banner_image, 'url'):
+                return self.banner_image.url
+        except Exception:
+            pass
+        return self.banner_url or ''

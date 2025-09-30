@@ -69,3 +69,36 @@ class Command(BaseCommand):
             collab.save()
 
         self.stdout.write(self.style.SUCCESS("Seeded demo data (mixed types/genres)."))
+
+        # Bulk create Test1..Test100 with diverse fields
+        cities = [
+            'New York, NY','Los Angeles, CA','Chicago, IL','Houston, TX','Phoenix, AZ','Philadelphia, PA','San Antonio, TX','San Diego, CA','Dallas, TX','San Jose, CA',
+            'Austin, TX','Jacksonville, FL','Fort Worth, TX','Columbus, OH','Charlotte, NC','San Francisco, CA','Indianapolis, IN','Seattle, WA','Denver, CO','Washington, DC',
+        ]
+        roles_options = [['author'], ['artist'], ['director'], ['editor'], ['composer'], ['writer'], ['illustrator'], ['producer']]
+        genre_options = [['fantasy'], ['scifi'], ['nonfiction'], ['drama'], ['comedy'], ['other']]
+        status_cycle = [
+            'Open Node','Chain Builder','Mint-Ready Partner',
+            'Selective Forge','Linked Capacity','Partial Protocol',
+            'Locked Chain','Sealed Vault','Exclusive Mint'
+        ]
+
+        for i in range(1, 101):
+            uname = f"Test{i}"
+            user, _ = User.objects.get_or_create(username=uname)
+            user.set_password('password')
+            user.email = f"{uname.lower()}@example.com"
+            user.first_name = "Test"
+            user.last_name = str(i)
+            user.save()
+            prof, _ = UserProfile.objects.get_or_create(user=user, defaults={"username": uname})
+            prof.location = cities[i % len(cities)]
+            prof.roles = roles_options[i % len(roles_options)]
+            prof.genres = genre_options[i % len(genre_options)]
+            prof.is_private = True  # default label
+            prof.status = status_cycle[i % len(status_cycle)]
+            if not prof.display_name:
+                prof.display_name = uname
+            prof.save()
+
+        self.stdout.write(self.style.SUCCESS("Seeded 100 test users with diverse profiles."))
