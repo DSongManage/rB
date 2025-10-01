@@ -75,6 +75,7 @@ class Content(models.Model):
     editions = models.PositiveIntegerField(default=1)
     teaser_percent = models.PositiveIntegerField(default=10)
     watermark_preview = models.BooleanField(default=False)
+    inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted')], default='draft')
     flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
     
@@ -164,6 +165,13 @@ class UserProfile(models.Model):
 
     def __str__(self) -> str:
         return f"@{self.username}"
+
+class TestFeeLog(models.Model):
+    """MVP fee log for integration testing and mock minting.
+    Stores amounts (USD-equivalent) and timestamps for platform fee tracking.
+    """
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     @property
     def resolved_avatar_url(self) -> str:

@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.urls import reverse
-from .models import User, UserProfile
+from .models import User, UserProfile, Content
 
 
 class ProfileTests(TestCase):
@@ -29,4 +29,48 @@ class ProfileTests(TestCase):
         data = res.json()
         self.assertTrue(any(r['username'].startswith('renaiss') for r in data))
 
-# Create your tests here.
+class ContentCustomizeAndPreviewTests(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username='owner')
+        self.other = User.objects.create_user(username='other')
+        self.owner_prof = UserProfile.objects.create(user=self.owner, username='owner')
+        self.other_prof = UserProfile.objects.create(user=self.other, username='other')
+        self.content = Content.objects.create(
+            creator=self.owner,
+            title='Test Work',
+            teaser_link='https://example.com/teaser',
+            content_type='book',
+            genre='other',
+        )
+
+    def test_owner_can_patch_customize_fields(self):
+        self.client.force_login(self.owner)
+        url = f'/api/content/detail/{self.content.id}/'
+        payload = {
+            'price_usd': 1.5,
+            'editions': 20,
+            'teaser_percent': 25,
+            'watermark_preview': True,
+        }
+        res = self.client.patch(url, data=payload, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        c = Content.objects.get(id=self.content.id)
+        self.assertEqual(float(c.price_usd), 1.5)
+        self.assertEqual(c.editions, 20)
+        self.assertEqual(c.teaser_percent, 25)
+        self.assertEqual(c.watermark_preview, True)
+
+    def test_non_owner_forbidden_to_patch(self):
+        self.client.force_login(self.other)
+        url = f'/api/content/detail/{self.content.id}/'
+        res = self.client.patch(url, data={'price_usd': 2.0}, content_type='application/json')
+        self.assertIn(res.status_code, (403, 404))  # hidden or forbidden
+
+    def test_preview_endpoint_valid_and_404(self):
+        res = self.client.get(f'/api/content/{self.content.id}/preview/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn('teaser_link', data)
+        self.assertEqual(data.get('content_type'), 'book')
+        res2 = self.client.get('/api/content/999999/preview/')
+        self.assertEqual(res2.status_code, 404)

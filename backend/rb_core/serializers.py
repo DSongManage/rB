@@ -13,7 +13,7 @@ class ContentSerializer(serializers.ModelSerializer):
         model = Content
         fields = [
             'id', 'title', 'teaser_link', 'created_at', 'creator', 'content_type', 'genre',
-            'price_usd', 'editions', 'teaser_percent', 'watermark_preview'
+            'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract'
         ]
         read_only_fields = ['creator', 'teaser_link', 'created_at']
     

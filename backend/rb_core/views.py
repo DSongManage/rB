@@ -31,6 +31,12 @@ from rest_framework import serializers
 from django.db import models
 from django.middleware.csrf import get_token
 from rest_framework.decorators import permission_classes
+from rest_framework import generics as drf_generics
+from io import BytesIO
+try:
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore
+except Exception:
+    Image = None  # Pillow optional at runtime
 
 # Create your views here.
 
@@ -72,9 +78,20 @@ class ContentListView(generics.ListCreateAPIView):
     permission_classes = [permissions.AllowAny]  # Public browse (FR1)
     parser_classes = [MultiPartParser, FormParser]
 
-    # Dev: return all content; remove placeholder geo check
+    # Filter by inventory status or mine
     def get_queryset(self):
-        return Content.objects.all()
+        qs = Content.objects.all()
+        status_f = self.request.query_params.get('inventory_status')
+        mine = self.request.query_params.get('mine')
+        if status_f:
+            qs = qs.filter(inventory_status=status_f)
+        if mine and self.request.user.is_authenticated:
+            try:
+                core_user = CoreUser.objects.get(username=self.request.user.username)
+                qs = qs.filter(creator=core_user)
+            except CoreUser.DoesNotExist:
+                qs = qs.none()
+        return qs
 
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -86,11 +103,45 @@ class ContentListView(generics.ListCreateAPIView):
         text = self.request.data.get('text')
         ipfs_hash = ''
         teaser_link = 'https://example.com/teaser'
+        # Basic moderation: simple keyword filter on title
+        bad_words = { 'porn', 'explicit', 'illegal' }
+        title = (self.request.data.get('title') or '').lower()
+        flagged = any(w in title for w in bad_words)
         # Try IPFS if a file was provided
         if file:
             try:
                 client = ipfshttpclient.connect(settings.IPFS_API_URL)
-                res = client.add(file)
+                # If this looks like an image and Pillow is available, make a watermarked teaser
+                content_type = (self.request.data.get('content_type') or '').strip()
+                name = getattr(file, 'name', '').lower()
+                is_image = any(name.endswith(ext) for ext in ('.png', '.jpg', '.jpeg', '.webp'))
+                if is_image and Image is not None:
+                    try:
+                        img = Image.open(file)
+                        draw = ImageDraw.Draw(img)
+                        text_wm = 'renaissBlock'
+                        w, h = img.size
+                        # Simple semi-transparent box + text at bottom-right
+                        box_w = int(w * 0.35)
+                        box_h = int(h * 0.08)
+                        box_x = w - box_w - 10
+                        box_y = h - box_h - 10
+                        draw.rectangle([box_x, box_y, box_x+box_w, box_y+box_h], fill=(0,0,0,128))
+                        try:
+                            font = ImageFont.load_default()
+                        except Exception:
+                            font = None
+                        draw.text((box_x+12, box_y+10), text_wm, fill=(255,255,255,200), font=font)
+                        out = BytesIO()
+                        fmt = 'PNG' if name.endswith('.png') else 'JPEG'
+                        img.save(out, format=fmt)
+                        out.seek(0)
+                        res = client.add(out)
+                    except Exception:
+                        out = None
+                        res = client.add(file)
+                else:
+                    res = client.add(file)
                 ipfs_hash = res.get('Hash', '')
                 teaser_link = f'https://ipfs.io/ipfs/{ipfs_hash}?teaser=true'
             except Exception:
@@ -104,6 +155,9 @@ class ContentListView(generics.ListCreateAPIView):
         # Bridge auth user -> core user for FK consistency
         core_user, _ = CoreUser.objects.get_or_create(username=self.request.user.username)
         instance = serializer.save(creator=core_user, ipfs_hash=ipfs_hash, teaser_link=teaser_link)
+        if flagged:
+            instance.flagged = True
+            instance.save()
         # Increment creator stats
         try:
             profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
@@ -134,10 +188,34 @@ class MintView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         royalties = request.data.get('royalties', [])
+        content_id = request.data.get('content_id')
         collab_id = request.data.get('collab')
         if collab_id:
             collab = Collaboration.objects.get(id=collab_id)
             royalties = [(u.wallet_address, collab.revenue_split.get(u.username, 0)) for u in collab.collaborators.all()]
+        # Update content as minted (mock program call)
+        if content_id:
+            try:
+                c = Content.objects.get(id=content_id)
+                c.inventory_status = 'minted'
+                if not c.nft_contract:
+                    c.nft_contract = 'mock_contract_'+str(c.id)
+                c.save()
+                # Log platform fee amount to TestFeeLog for MVP tracking
+                try:
+                    fee_bps = int(getattr(settings, 'PLATFORM_FEE_BPS', 1000))
+                except Exception:
+                    fee_bps = 1000
+                try:
+                    gross = float(c.price_usd or 0) * float(c.editions or 1)
+                except Exception:
+                    gross = 0.0
+                fee_amt = round(gross * (fee_bps/10000.0), 2)
+                from .models import TestFeeLog
+                if fee_amt > 0:
+                    TestFeeLog.objects.create(amount=fee_amt)
+            except Content.DoesNotExist:
+                pass
         # Inject platform fee
         try:
             fee_bps = int(getattr(settings, 'PLATFORM_FEE_BPS', 1000))
@@ -167,18 +245,27 @@ class MintView(APIView):
         if platform_wallet and platform_pct > 0:
             scaled.append((platform_wallet, platform_pct))
         royalties = scaled
-        # connection = SolanaClient("https://api.devnet.solana.com")
-        # wallet = Keypair()  # Placeholder; integrate Web3Auth later
-        # provider = Provider(connection, wallet, {})
-        # program_id = PublicKey("YourDeployedProgramID")
-        # # Temp sync load from file (after anchor build); switch to async fetch later with ASGI
-        # idl_path = Path("/Users/davidsong/repos/songProjects/rB/blockchain/rb_contracts/target/idl/rb_contracts.json")
-        # with idl_path.open() as f:
-        #     idl_json = json.load(f)
-        # idl_obj = idl.from_json(idl_json)
-        # program = Program(idl_obj, program_id, provider)
-        # tx = program.rpc["mintNft"]("metadata", [(PublicKey(r['pubkey']), r['percent']) for r in royalties])
+        # Anchor placeholder (to be integrated):
+        # - Resolve Web3Auth-derived wallet locally for devnet
+        # - Call mint instruction on Anchor program, pass royalty splits
+        # - Receive on-chain mint/contract address and persist to c.nft_contract
+        # For MVP we return a dummy tx signature and log the fee server-side.
         return Response({'tx_sig': 'dummy_tx_for_testing', 'royalties': royalties})
+
+class AnalyticsFeesView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        # Minimal admin check
+        try:
+            if not request.user.is_superuser:
+                return Response({'error': 'forbidden'}, status=403)
+        except Exception:
+            return Response({'error': 'forbidden'}, status=403)
+        from .models import TestFeeLog
+        qs = TestFeeLog.objects.order_by('-timestamp')[:100]
+        total = sum([float(x.amount) for x in qs])
+        data = [{ 'amount': float(x.amount), 'timestamp': x.timestamp.isoformat() } for x in qs]
+        return Response({ 'total_amount': round(total, 2), 'count': len(data), 'items': data })
 
 class AdminStatsUpdateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -219,6 +306,28 @@ class AdminStatsUpdateView(APIView):
             profile.fee_bps = 500
         profile.save()
         return Response(UserProfileSerializer(profile, context={'request': request}).data)
+
+class ContentDetailView(drf_generics.RetrieveUpdateAPIView):
+    serializer_class = ContentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Only allow owners to view/update via this view
+        try:
+            core_user = CoreUser.objects.get(username=self.request.user.username)
+            return Content.objects.filter(creator=core_user)
+        except CoreUser.DoesNotExist:
+            return Content.objects.none()
+
+class ContentPreviewView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request, pk:int):
+        try:
+            c = Content.objects.get(id=pk)
+        except Content.DoesNotExist:
+            return Response({'error':'not found'}, status=404)
+        data = ContentSerializer(c).data
+        return Response({'id': c.id, 'title': c.title, 'teaser_link': c.teaser_link, 'content_type': c.content_type, 'inventory_status': c.inventory_status, 'nft_contract': c.nft_contract, 'preview': data})
 
 class SearchView(APIView):
     def get(self, request):

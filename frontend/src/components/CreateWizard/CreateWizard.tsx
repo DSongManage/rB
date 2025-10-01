@@ -95,13 +95,32 @@ export default function CreateWizard(){
         />
       )}
       {step===2 && (
-        <CustomizeStep registerSubmit={registerCustomize} onNext={(c)=> { setMaxStep(Math.max(maxStep,2)); setStep(3); }} />
+        <CustomizeStep registerSubmit={registerCustomize} onNext={async (c)=> {
+          // Persist customizations before moving to Mint
+          try {
+            const csrf = await fetchCsrf();
+            const body = JSON.stringify({
+              price_usd: c.price,
+              editions: c.editions,
+              teaser_percent: c.teaserPercent,
+              watermark_preview: c.watermark,
+            });
+            await fetch(`http://localhost:8000/api/content/detail/${contentId}/`, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, credentials:'include', body
+            });
+          } catch (_) {}
+          setMaxStep(Math.max(maxStep,2)); setStep(3);
+        }} />
       )}
       {step===3 && (
         <MintStep price={collectCustomize ? collectCustomize().price : undefined} editions={collectCustomize ? collectCustomize().editions : undefined} onMint={()=> { setMaxStep(Math.max(maxStep,3)); doMint(); }} />
       )}
       {step===4 && (
-        <ShareStep contentId={contentId} />
+        <ShareStep contentId={contentId} onPublish={async ()=> {
+          const csrf = await fetchCsrf();
+          const res = await fetch('http://localhost:8000/api/mint/', { method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest'}, body: JSON.stringify({ content_id: contentId }), credentials:'include' });
+          if (res.ok) { setMsg('Published'); }
+        }} />
       )}
       <div style={{position:'sticky', bottom:0, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div style={{fontSize:12, color:'#94a3b8'}}>{msg}</div>

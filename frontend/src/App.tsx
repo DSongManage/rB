@@ -11,6 +11,7 @@ import WalletInfoPage from './pages/WalletInfoPage';
 import TermsPage from './pages/TermsPage';
 import { CreatorSidebar } from './components/CreatorSidebar';
 import CollaboratorsPage from './pages/CollaboratorsPage';
+import ContentDetail from './pages/ContentDetail';
 
 function Header() {
   const [q, setQ] = useState('');
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/wallet-info" element={<WalletInfoPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/content/:id" element={<ContentDetail />} />
           </Routes>
         </div>
       </main>

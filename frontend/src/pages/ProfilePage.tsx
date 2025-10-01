@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import PreviewModal from '../components/PreviewModal';
 import { Web3Auth, WEB3AUTH_NETWORK } from '@web3auth/modal';
 import ProfileEditForm from '../components/ProfileEditForm';
 import ProfileStatus from '../components/ProfileStatus';
@@ -109,6 +110,19 @@ export default function ProfilePage() {
   };
 
   const myContent = content.filter(c=> c.creator === user?.user_id);
+  const [inventory, setInventory] = useState<any[]>([]);
+  useEffect(()=>{
+    fetch('http://localhost:8000/api/content/?inventory_status=minted&mine=1', { credentials:'include' })
+      .then(r=> r.ok? r.json(): [])
+      .then(setInventory)
+      .catch(()=> setInventory([]));
+  }, [status]);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewItem, setPreviewItem] = useState<any>(null);
+  const openPreview = async (id:number) => {
+    const d = await fetch(`http://localhost:8000/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null);
+    if (d) { setPreviewItem(d); setShowPreview(true); }
+  };
 
   const onAvatarClick = () => {
     avatarInputRef.current?.click();
@@ -267,7 +281,27 @@ export default function ProfilePage() {
               <div style={{fontSize:12, color:'#94a3b8'}}>No works yet</div>
             )}
           </div>
+          <div style={{marginTop:16, fontWeight:600, color:'#e5e7eb'}}>Inventory (Minted)</div>
+          <div className="yt-grid" style={{marginTop:12}}>
+            {inventory.map((it)=> (
+              <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'80px 1fr', gap:12, alignItems:'center', cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
+                <div style={{width:80, height:60, background:'#111', borderRadius:6, overflow:'hidden', display:'grid', placeItems:'center'}}>
+                  <img src={it.teaser_link} alt="preview" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ e.currentTarget.style.display='none'; e.currentTarget.parentElement!.textContent='Preview'; }} />
+                </div>
+                <div>
+                  <div className="card-title">{it.title}</div>
+                  <div className="yt-meta">Contract: {it.nft_contract || '-'}</div>
+                </div>
+              </div>
+            ))}
+            {inventory.length === 0 && (
+              <div style={{fontSize:12, color:'#94a3b8'}}>Nothing minted yet</div>
+            )}
+          </div>
         </div>
+        {showPreview && (
+          <PreviewModal open={showPreview} onClose={()=> setShowPreview(false)} teaserUrl={previewItem?.teaser_link} contentType={previewItem?.content_type} />
+        )}
       </div>
     </div>
   );
