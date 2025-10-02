@@ -3,6 +3,8 @@ seeds = false
 skip-lint = false
 [programs.localnet]
 rb_contracts = "4znujrwLsjKTNQxLRncUYdGLAHnqsVLQarNP9jVEA57n"
+[programs.devnet]
+renaiss_block = "11111111111111111111111111111111" # placeholder; will be replaced after deploy
 
 [registry]
 url = "https://api.apr.dev"

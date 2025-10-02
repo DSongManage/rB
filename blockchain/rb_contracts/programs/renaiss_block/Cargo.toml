@@ -1,12 +1,12 @@
 [package]
-name = "rb_contracts"
+name = "renaiss_block"
 version = "0.1.0"
-description = "Created with Anchor"
+description = "renaissBlock Anchor program"
 edition = "2021"
 
 [lib]
+name = "renaiss_block"
 crate-type = ["cdylib", "lib"]
-name = "rb_contracts"
 
 [features]
 no-entrypoint = []
@@ -18,3 +18,4 @@ default = []
 [dependencies]
 anchor-lang = "0.29.0"
 anchor-spl = "0.29.0"
+

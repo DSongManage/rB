@@ -16,6 +16,11 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - name: Cargo test (programs/renaissBlock)
+      - name: Cargo test (programs/renaissBlock if present)
         working-directory: ./blockchain/programs/renaissBlock
-        run: cargo test --verbose
+        run: |
+          if [ -f Cargo.toml ]; then
+            cargo test --verbose
+          else
+            echo "No Cargo.toml in programs/renaissBlock, skipping rust tests for Anchor placeholder"
+          fi

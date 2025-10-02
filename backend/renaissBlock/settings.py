@@ -70,6 +70,9 @@ INSTALLED_APPS = [
     # Future: Add apps for integrations like 'rest_framework' for APIs (FR2, FR4 in REQUIREMENTS.md)
 ]
 
+# Use custom user model from rb_core for auth (FR3)
+AUTH_USER_MODEL = 'rb_core.User'
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -80,6 +83,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'rb_core.middleware.SimpleCSPMiddleware',
 ]
 
 ROOT_URLCONF = 'renaissBlock.urls'
@@ -165,6 +169,13 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 # CSP: To be configured for XSS protection
+# Basic defaults for MVP; adjust per asset/CDN usage
+CSP_DEFAULT_SRC = "'self'"
+CSP_IMG_SRC = "'self' data: https://picsum.photos https://ipfs.io"
+CSP_SCRIPT_SRC = "'self' 'unsafe-inline'"
+CSP_STYLE_SRC = "'self' 'unsafe-inline'"
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 # No private key storage - rely on Web3Auth (FR3 in REQUIREMENTS.md)
 
 # Placeholder for Integrations (per ARCHITECTURE.md)
@@ -211,3 +222,36 @@ CSRF_TRUSTED_ORIGINS = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
 ]
+
+# Feature flags and blockchain config
+FEATURE_ANCHOR_MINT = os.getenv('FEATURE_ANCHOR_MINT', 'false').lower() in ('1','true','yes','on')
+ANCHOR_PROGRAM_ID = os.getenv('ANCHOR_PROGRAM_ID', '')
+SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL', 'https://api.devnet.solana.com')
+PLATFORM_WALLET_PUBKEY = os.getenv('PLATFORM_WALLET_PUBKEY', '')
+# Optional: dev-only keypair path for platform wallet signer on devnet
+PLATFORM_WALLET_KEYPAIR_PATH = os.getenv('PLATFORM_WALLET_KEYPAIR_PATH', '')
+
+# DRF throttling for public endpoints
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '60/min',
+        'user': '120/min',
+    },
+}
+
+# Upload constraints (bytes and MIME types)
+MAX_UPLOAD_BYTES = int(os.getenv('MAX_UPLOAD_BYTES', str(10 * 1024 * 1024)))  # 10 MB
+ALLOWED_UPLOAD_CONTENT_TYPES = set((
+    'image/jpeg', 'image/png', 'image/webp',
+    'application/pdf',
+    'video/mp4',
+))
+
+# Feature-flag Anchor devnet minting (MVP)
+FEATURE_ANCHOR_MINT = os.getenv('FEATURE_ANCHOR_MINT', 'false').lower() in ('1','true','yes','on')
+ANCHOR_PROGRAM_ID = os.getenv('ANCHOR_PROGRAM_ID', '')
+SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL', 'https://api.devnet.solana.com')
