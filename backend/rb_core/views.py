@@ -22,7 +22,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User as AuthUser
+from django.contrib.auth import get_user_model
 from .models import Collaboration
 import ipfshttpclient
 from django.conf import settings
@@ -33,6 +33,9 @@ from django.middleware.csrf import get_token
 from rest_framework.decorators import permission_classes
 from rest_framework import generics as drf_generics
 from io import BytesIO
+from django.core.files.uploadedfile import UploadedFile
+import os
+import asyncio
 try:
     from PIL import Image, ImageDraw, ImageFont  # type: ignore
 except Exception:
@@ -107,10 +110,32 @@ class ContentListView(generics.ListCreateAPIView):
         bad_words = { 'porn', 'explicit', 'illegal' }
         title = (self.request.data.get('title') or '').lower()
         flagged = any(w in title for w in bad_words)
-        # Try IPFS if a file was provided
+        # Validate upload if a file was provided
         if file:
+            # Size validation
             try:
-                client = ipfshttpclient.connect(settings.IPFS_API_URL)
+                max_bytes = int(getattr(settings, 'MAX_UPLOAD_BYTES', 10 * 1024 * 1024))
+            except Exception:
+                max_bytes = 10 * 1024 * 1024
+            size_ok = True
+            try:
+                size_ok = file.size <= max_bytes
+            except Exception:
+                pass
+            if not size_ok:
+                raise serializers.ValidationError('File too large')
+            # Content-Type validation
+            ctype = getattr(file, 'content_type', '') or self.request.META.get('CONTENT_TYPE', '')
+            allowed = getattr(settings, 'ALLOWED_UPLOAD_CONTENT_TYPES', set())
+            if allowed and ctype not in allowed:
+                raise serializers.ValidationError('Unsupported file type')
+            # Try IPFS
+            try:
+                # Prefer multiaddr form for Infura; fall back to settings URL
+                try:
+                    client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
+                except Exception:
+                    client = ipfshttpclient.connect(settings.IPFS_API_URL)
                 # If this looks like an image and Pillow is available, make a watermarked teaser
                 content_type = (self.request.data.get('content_type') or '').strip()
                 name = getattr(file, 'name', '').lower()
@@ -173,12 +198,18 @@ class InviteView(APIView):
         split = request.data.get('split', 50)  # Default 50/50
         content_id = request.data.get('content')
         content = Content.objects.get(id=content_id, creator=request.user)
+        AuthUser = get_user_model()
         collaborator = AuthUser.objects.get(id=collaborator_id)
         collab = Collaboration.objects.create(
             content=content,
             status='pending'
         )
-        collab.initiators.add(request.user)
+        # Ensure we add the core user as initiator for consistency
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            core_user = CoreUser.objects.create(username=request.user.username)
+        collab.initiators.add(core_user)
         collab.collaborators.add(collaborator)
         collab.revenue_split = {'initiator': 100 - split, 'collaborator': split}
         collab.save()
@@ -245,12 +276,63 @@ class MintView(APIView):
         if platform_wallet and platform_pct > 0:
             scaled.append((platform_wallet, platform_pct))
         royalties = scaled
-        # Anchor placeholder (to be integrated):
-        # - Resolve Web3Auth-derived wallet locally for devnet
-        # - Call mint instruction on Anchor program, pass royalty splits
-        # - Receive on-chain mint/contract address and persist to c.nft_contract
-        # For MVP we return a dummy tx signature and log the fee server-side.
-        return Response({'tx_sig': 'dummy_tx_for_testing', 'royalties': royalties})
+        # Feature-flagged Anchor devnet call (prototype)
+        tx_sig = 'dummy_tx_for_testing'
+        if getattr(settings, 'FEATURE_ANCHOR_MINT', False):
+            try:
+                # Attempt a real AnchorPy call if available
+                from anchorpy import Program, Provider, Wallet  # type: ignore
+                from solana.rpc.async_api import AsyncClient  # type: ignore
+                from solana.keypair import Keypair  # type: ignore
+                from solders.pubkey import Pubkey  # type: ignore
+                # Config
+                rpc_url = getattr(settings, 'SOLANA_RPC_URL', 'https://api.devnet.solana.com')
+                program_str = getattr(settings, 'ANCHOR_PROGRAM_ID', '') or os.getenv('RENAISS_BLOCK_PROGRAM_ID', '')
+                if not program_str:
+                    raise RuntimeError('ANCHOR_PROGRAM_ID not set')
+                program_id = Pubkey.from_string(program_str)
+                # Load a devnet signer (platform wallet) for MVP server-side call
+                keypair_path = getattr(settings, 'PLATFORM_WALLET_KEYPAIR_PATH', '') or os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', 'blockchain', 'target', 'platform_wallet.json')
+                if not os.path.isabs(keypair_path):
+                    keypair_path = os.path.abspath(os.path.join(os.path.dirname(settings.BASE_DIR), 'blockchain', 'target', 'platform_wallet.json'))
+                try:
+                    kp = Keypair.from_secret_key(bytes(bytearray(__import__('json').loads(open(keypair_path, 'r').read()))))  # type: ignore
+                except Exception:
+                    # Fallback: keep dummy signature if key not present
+                    kp = None
+
+                async def _mint():
+                    client = AsyncClient(rpc_url)
+                    if not kp:
+                        await client.close()
+                        return None
+                    provider = Provider(client, Wallet(kp))
+                    # Attempt to load IDL from local target if available; otherwise assume empty and call method by name
+                    idl_path = os.path.abspath(os.path.join(os.path.dirname(settings.BASE_DIR), 'blockchain', 'rb_contracts', 'target', 'idl', 'renaiss_block.json'))
+                    idl = None
+                    try:
+                        import json as _json
+                        with open(idl_path, 'r') as f:
+                            idl = _json.load(f)
+                    except Exception:
+                        idl = None
+                    if idl is not None:
+                        program = await Program.create(idl, program_id, provider)
+                        # Minimal call with placeholder args; adjust to real accounts when program is ready
+                        tx = await program.rpc['mint_nft']('ipfs://metadata', int(1000))  # 10% bps placeholder
+                    else:
+                        # Fallback: construct Program without IDL by name (unsupported); skip real call
+                        tx = None
+                    await client.close()
+                    return tx
+
+                out = asyncio.run(_mint())
+                if out:
+                    tx_sig = out
+            except Exception:
+                # Keep dummy signature if deps or env not available
+                pass
+        return Response({'tx_sig': tx_sig, 'royalties': royalties})
 
 class AnalyticsFeesView(APIView):
     permission_classes = [IsAuthenticated]

@@ -24,8 +24,19 @@ export default function SignupForm() {
         web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
       });
       await web3auth.init();
-      await web3auth.connect();
+      const provider: any = await web3auth.connect();
       const userInfo: any = await web3auth.getUserInfo();
+      // Attempt to read the Solana devnet public key for manual capture
+      try {
+        const accounts: string[] = await (provider?.request?.({ method: 'solana_accounts' }) || web3auth.provider?.request?.({ method: 'solana_accounts' }));
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          // eslint-disable-next-line no-console
+          console.log('[Web3Auth][Devnet] solana pubkey:', accounts[0]);
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('Could not query solana_accounts from provider', e);
+      }
       const idToken = userInfo?.idToken || userInfo?.id_token;
       if (!idToken) {
         setMsg('Could not obtain Web3Auth token');

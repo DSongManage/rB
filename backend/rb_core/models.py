@@ -166,13 +166,6 @@ class UserProfile(models.Model):
     def __str__(self) -> str:
         return f"@{self.username}"
 
-class TestFeeLog(models.Model):
-    """MVP fee log for integration testing and mock minting.
-    Stores amounts (USD-equivalent) and timestamps for platform fee tracking.
-    """
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    timestamp = models.DateTimeField(auto_now_add=True)
-
     @property
     def resolved_avatar_url(self) -> str:
         try:
@@ -190,3 +183,12 @@ class TestFeeLog(models.Model):
         except Exception:
             pass
         return self.banner_url or ''
+
+class TestFeeLog(models.Model):
+    """MVP fee log for integration testing and mock minting.
+    Stores amounts (USD-equivalent) and timestamps for platform fee tracking.
+    """
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    # Intentionally minimal: URL resolution lives on UserProfile

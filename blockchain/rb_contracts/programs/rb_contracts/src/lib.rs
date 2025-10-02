@@ -1,17 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 
-#![feature(custom_getrandom)]
-
-use solana_program::declare_id;
 declare_id!("YourProgramIDHere");
-
-getrandom::register_custom_getrandom!(solana_getrandom);
-
-fn solana_getrandom(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
-    // Use Solana's randomness source
-    Ok(())
-}
 
 #[program]
 pub mod rb_contracts {
@@ -28,7 +18,7 @@ pub mod rb_contracts {
                 anchor_spl::token::MintTo {
                     mint: ctx.accounts.mint.to_account_info(),
                     to: ctx.accounts.token_account.to_account_info(),
-                    authority: ctx.accounts.authority.to_account_info(),
+                    authority: ctx.accounts.user.to_account_info(),
                 },
             ),
             1,  // 1 token for NFT
@@ -45,7 +35,8 @@ pub mod rb_contracts {
 
 #[derive(Accounts)]
 pub struct MintNFT<'info> {
-    #[account(init, payer = user, space = 8 + 32 + royalties.len() * (32 + 1) + 1)]
+    // Simplify space calc for placeholder (avoid reference to royalties in type-level calc)
+    #[account(init, payer = user, space = 8 + 4 + (32 + 1) * 10 + 1)]
     pub royalty_account: Account<'info, RoyaltyAccount>,
     #[account(mut)]
     pub mint: Account<'info, Mint>,

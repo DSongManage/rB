@@ -1,6 +1,9 @@
 from django.test import TestCase
 from django.urls import reverse
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.conf import settings
 from .models import User, UserProfile, Content
+from .serializers import UserProfileSerializer
 
 
 class ProfileTests(TestCase):
@@ -20,6 +23,15 @@ class ProfileTests(TestCase):
         self.assertEqual(res.status_code, 200)
         up = UserProfile.objects.get(user=user)
         self.assertEqual(up.display_name, 'New Name')
+
+    def test_userprofile_serializer_resolves_media_urls(self):
+        user = User.objects.create_user(username='mediauser')
+        prof = UserProfile.objects.create(user=user, username='mediauser', avatar_url='/media/avatars/x.png', banner_url='/media/banners/y.png')
+        req = type('obj', (object,), {'build_absolute_uri': lambda self, u: f'http://testserver{u}'})()
+        ser = UserProfileSerializer(prof, context={'request': req})
+        data = ser.data
+        self.assertTrue(data['avatar'].startswith('http://testserver/'))
+        self.assertTrue(data['banner'].startswith('http://testserver/'))
 
     def test_search_by_handle(self):
         user = User.objects.create_user(username='renaiss1234')
@@ -74,3 +86,23 @@ class ContentCustomizeAndPreviewTests(TestCase):
         self.assertEqual(data.get('content_type'), 'book')
         res2 = self.client.get('/api/content/999999/preview/')
         self.assertEqual(res2.status_code, 404)
+
+    def test_upload_rejects_large_file(self):
+        self.client.force_login(self.owner)
+        big = b'0' * (int(getattr(settings, 'MAX_UPLOAD_BYTES', 1024 * 1024)) + 1)
+        f = SimpleUploadedFile('big.pdf', big, content_type='application/pdf')
+        res = self.client.post('/api/content/', data={'title': 'Too Big', 'file': f, 'content_type': 'book', 'genre': 'other'})
+        self.assertEqual(res.status_code, 400)
+
+    def test_upload_rejects_bad_type(self):
+        self.client.force_login(self.owner)
+        small = b'hello world'
+        f = SimpleUploadedFile('bad.exe', small, content_type='application/x-msdownload')
+        res = self.client.post('/api/content/', data={'title': 'Bad Type', 'file': f, 'content_type': 'book', 'genre': 'other'})
+        self.assertEqual(res.status_code, 400)
+
+    def test_invite_view_creator_lookup(self):
+        self.client.force_login(self.owner)
+        c = Content.objects.create(creator=self.owner, title='Owned', teaser_link='https://t', content_type='book', genre='other')
+        res = self.client.post('/api/invite/', data={'collaborator': self.other.id, 'content': c.id})
+        self.assertEqual(res.status_code, 200)

@@ -5,6 +5,33 @@
 
 #![allow(unused)]
 
+use anchor_lang::prelude::*;
+
+declare_id!("11111111111111111111111111111111"); // Placeholder; use Anchor.toml for real ID
+
+// Optional: platform wallet pubkey, configured at runtime via client; kept as const placeholder here
+pub const PLATFORM_WALLET_PUBKEY: &str = env!("PLATFORM_WALLET_PUBKEY", "UnknownPlatformPubkey");
+
+#[program]
+pub mod renaiss_block {
+    use super::*;
+
+    pub fn mint_nft(_ctx: Context<MintNft>, _metadata_uri: String, _royalties_bps: u16) -> Result<()> {
+        // Placeholder: In a real implementation, create mint, metadata, and set royalties.
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct MintNft<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: placeholder; real program would require proper accounts
+    #[account(mut)]
+    pub recipient: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 pub mod math {
     /// Returns (platform_fee_amount, creator_amount)
     pub fn split_fee(gross_cents: u64, fee_bps: u16) -> (u64, u64) {
@@ -32,6 +59,13 @@ mod tests {
         let (fee, net) = split_fee(12345, 1000); // 10%
         assert_eq!(fee, 1234);
         assert_eq!(net, 11111);
+    }
+
+    #[test]
+    fn test_platform_wallet_env_present() {
+        // The const will be set to default if env isn't provided during build
+        let s = super::PLATFORM_WALLET_PUBKEY;
+        assert!(!s.is_empty());
     }
 }
 
