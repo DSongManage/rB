@@ -7,20 +7,72 @@ on:
     branches: [ main ]
 
 jobs:
-  rust-tests:
+  anchor:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          toolchain: stable
-          override: true
-      - name: Cargo test (programs/renaissBlock if present)
-        working-directory: ./blockchain/programs/renaissBlock
+          node-version: '20'
+      - name: Setup Rust 1.82.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.82.0'
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install Anchor CLI 0.31.1
+        run: cargo install anchor-cli --version 0.31.1 --locked
+      - name: Install SBF tools (once per runner)
+        working-directory: blockchain/rb_contracts
+        run: cargo build-sbf --force-tools-install
+      - name: Build renaiss_block (devnet)
+        working-directory: blockchain/rb_contracts
+        env:
+          PLATFORM_WALLET_PUBKEY: ${{ secrets.PLATFORM_WALLET_PUBKEY }}
         run: |
-          if [ -f Cargo.toml ]; then
-            cargo test --verbose
-          else
-            echo "No Cargo.toml in programs/renaissBlock, skipping rust tests for Anchor placeholder"
-          fi
+          echo "Building Anchor workspace with PLATFORM_WALLET_PUBKEY injected"
+          PLATFORM_WALLET_PUBKEY="$PLATFORM_WALLET_PUBKEY" anchor build -p renaiss_block
+      - name: Run cargo tests
+        working-directory: blockchain/rb_contracts
+        run: cargo test --workspace --all-targets
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install backend deps
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run Django tests (SQLite)
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: renaissBlock.settings
+        run: |
+          python manage.py test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install and test
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test -- --watchAll=false

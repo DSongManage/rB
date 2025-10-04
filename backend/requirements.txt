@@ -1,0 +1,11 @@
+Django==5.2.6
+djangorestframework==3.15.2
+django-allauth==65.1.0
+django-cors-headers==4.4.0
+python-dotenv==1.0.1
+PyJWT==2.9.0
+requests==2.32.3
+base58==2.1.1
+ipfshttpclient==0.8.0a2
+Pillow==10.4.0
+anchorpy==0.21.0
