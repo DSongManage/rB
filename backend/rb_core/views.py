@@ -221,26 +221,36 @@ class MintView(APIView):
         royalties = request.data.get('royalties', [])
         content_id = request.data.get('content_id')
         collab_id = request.data.get('collab')
+        # New: accept sale_amount (lamports) for fee calculation logging
+        sale_amount = request.data.get('sale_amount')
         if collab_id:
             collab = Collaboration.objects.get(id=collab_id)
             royalties = [(u.wallet_address, collab.revenue_split.get(u.username, 0)) for u in collab.collaborators.all()]
-        # Update content as minted (mock program call)
+        # Update content as minted (mock program call or devnet call below)
         if content_id:
             try:
                 c = Content.objects.get(id=content_id)
                 c.inventory_status = 'minted'
                 if not c.nft_contract:
-                    c.nft_contract = 'mock_contract_'+str(c.id)
+                    c.nft_contract = getattr(settings, 'ANCHOR_PROGRAM_ID', '') or 'mock_contract_'+str(c.id)
                 c.save()
                 # Log platform fee amount to TestFeeLog for MVP tracking
                 try:
                     fee_bps = int(getattr(settings, 'PLATFORM_FEE_BPS', 1000))
                 except Exception:
                     fee_bps = 1000
-                try:
-                    gross = float(c.price_usd or 0) * float(c.editions or 1)
-                except Exception:
-                    gross = 0.0
+                # Prefer on-chain sale_amount if provided; otherwise fall back to content fields
+                gross: float
+                if sale_amount is not None:
+                    try:
+                        gross = float(sale_amount)
+                    except Exception:
+                        gross = 0.0
+                else:
+                    try:
+                        gross = float(c.price_usd or 0) * float(c.editions or 1)
+                    except Exception:
+                        gross = 0.0
                 fee_amt = round(gross * (fee_bps/10000.0), 2)
                 from .models import TestFeeLog
                 if fee_amt > 0:
@@ -253,7 +263,7 @@ class MintView(APIView):
         except Exception:
             fee_bps = 1000
         platform_pct = max(0, min(100, fee_bps / 100.0))
-        platform_wallet = getattr(settings, 'PLATFORM_WALLET_ADDRESS', '').strip()[:44]
+        platform_wallet = getattr(settings, 'PLATFORM_WALLET_PUBKEY', '').strip()[:44]
         # Normalize royalties to list of (address, percent)
         norm: list[tuple[str, float]] = []
         for r in royalties:
@@ -318,8 +328,9 @@ class MintView(APIView):
                         idl = None
                     if idl is not None:
                         program = await Program.create(idl, program_id, provider)
-                        # Minimal call with placeholder args; adjust to real accounts when program is ready
-                        tx = await program.rpc['mint_nft']('ipfs://metadata', int(1000))  # 10% bps placeholder
+                        # TODO: optionally call on-chain mint with sale_amount routing in future
+                        _ = program_id
+                        tx = None
                     else:
                         # Fallback: construct Program without IDL by name (unsupported); skip real call
                         tx = None
@@ -329,6 +340,15 @@ class MintView(APIView):
                 out = asyncio.run(_mint())
                 if out:
                     tx_sig = out
+                # Attach program id to content record on successful connectivity
+                if content_id:
+                    try:
+                        c = Content.objects.get(id=content_id)
+                        if getattr(settings, 'ANCHOR_PROGRAM_ID', ''):
+                            c.nft_contract = getattr(settings, 'ANCHOR_PROGRAM_ID')
+                        c.save()
+                    except Exception:
+                        pass
             except Exception:
                 # Keep dummy signature if deps or env not available
                 pass

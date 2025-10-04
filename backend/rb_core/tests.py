@@ -1,9 +1,22 @@
 from django.test import TestCase
+from django.conf import settings
+
+
+class SettingsEnvFlagsTest(TestCase):
+    def test_anchor_env_flags_present(self):
+        # FEATURE_ANCHOR_MINT should be a boolean
+        self.assertIn(settings.FEATURE_ANCHOR_MINT, (True, False))
+        # ANCHOR_PROGRAM_ID should be non-empty for devnet testing
+        self.assertTrue(isinstance(settings.ANCHOR_PROGRAM_ID, str))
+        self.assertGreater(len(settings.ANCHOR_PROGRAM_ID or ''), 0)
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.conf import settings
 from .models import User, UserProfile, Content
 from .serializers import UserProfileSerializer
+from django.core.management import call_command
+from django.test import override_settings
+from django.urls import reverse
 
 
 class ProfileTests(TestCase):
@@ -106,3 +119,49 @@ class ContentCustomizeAndPreviewTests(TestCase):
         c = Content.objects.create(creator=self.owner, title='Owned', teaser_link='https://t', content_type='book', genre='other')
         res = self.client.post('/api/invite/', data={'collaborator': self.other.id, 'content': c.id})
         self.assertEqual(res.status_code, 200)
+
+
+class MintContentCommandTests(TestCase):
+    def test_mint_content_command_sets_minted_and_contract(self):
+        c = Content.objects.create(
+            creator=User.objects.create_user(username='mcuser'),
+            title='MC Work',
+            teaser_link='https://t',
+            content_type='book',
+            genre='other',
+        )
+        from django.conf import settings as django_settings
+        setattr(django_settings, 'FEATURE_ANCHOR_MINT', False)
+        call_command('mint_content', content_id=c.id)
+        c.refresh_from_db()
+        self.assertEqual(c.inventory_status, 'minted')
+        self.assertTrue((c.nft_contract or '') != '')
+
+
+class MintViewPlatformWalletTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='minter')
+        self.client.force_login(self.user)
+        self.content = Content.objects.create(
+            creator=self.user,
+            title='Mintable',
+            teaser_link='https://t',
+            content_type='book',
+            genre='other',
+            price_usd=10,
+            editions=1,
+        )
+
+    @override_settings(PLATFORM_WALLET_PUBKEY='11111111111111111111111111111111111111111111', PLATFORM_FEE_BPS=1000)
+    def test_platform_wallet_added_and_scaled(self):
+        # Creator requests 100%; platform fee 10% should scale creator to 90% and add platform 10%
+        royalties = [{ 'address': '22222222222222222222222222222222222222222222', 'percent': 100 }]
+        res = self.client.post('/api/mint/', data={'content_id': self.content.id, 'royalties': royalties}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        roys = data.get('royalties') or []
+        # Expect last entry to be platform wallet 10
+        self.assertTrue(len(roys) >= 2)
+        platform_entry = roys[-1]
+        self.assertEqual(platform_entry[0][:44], '11111111111111111111111111111111111111111111'[:44])
+        self.assertEqual(float(platform_entry[1]), 10.0)

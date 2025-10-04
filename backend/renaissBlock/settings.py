@@ -223,9 +223,14 @@ CSRF_TRUSTED_ORIGINS = [
   "http://127.0.0.1:3000",
 ]
 
-# Feature flags and blockchain config
-FEATURE_ANCHOR_MINT = os.getenv('FEATURE_ANCHOR_MINT', 'false').lower() in ('1','true','yes','on')
-ANCHOR_PROGRAM_ID = os.getenv('ANCHOR_PROGRAM_ID', '')
+"""Feature flags and blockchain config
+
+Read from environment with safe defaults for MVP (SQLite). For security, do not
+store private keys in the repo. Only public identifiers (program ID, pubkeys)
+may be given a default here per GUIDELINES.md.
+"""
+FEATURE_ANCHOR_MINT = os.getenv('FEATURE_ANCHOR_MINT', 'false').lower() in ('1', 'true', 'yes', 'on')
+ANCHOR_PROGRAM_ID = os.getenv('ANCHOR_PROGRAM_ID', '9ZACvfz6GNqa7fvtXTbsWUKjgzHUeJwxg4qiG8oRB7eH')
 SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL', 'https://api.devnet.solana.com')
 PLATFORM_WALLET_PUBKEY = os.getenv('PLATFORM_WALLET_PUBKEY', '')
 # Optional: dev-only keypair path for platform wallet signer on devnet
@@ -251,7 +256,4 @@ ALLOWED_UPLOAD_CONTENT_TYPES = set((
     'video/mp4',
 ))
 
-# Feature-flag Anchor devnet minting (MVP)
-FEATURE_ANCHOR_MINT = os.getenv('FEATURE_ANCHOR_MINT', 'false').lower() in ('1','true','yes','on')
-ANCHOR_PROGRAM_ID = os.getenv('ANCHOR_PROGRAM_ID', '')
-SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL', 'https://api.devnet.solana.com')
+## Duplicate guard: the above variables are defined once; keep this footer clean.

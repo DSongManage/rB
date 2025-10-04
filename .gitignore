@@ -1,0 +1,14 @@
+# Root ignores
+node_modules/
+**/node_modules/**
+.venv/
+venv/
+.env
+
+# Solana/Anchor build outputs
+blockchain/rb_contracts/target/
+blockchain/target/
+
+# Mac
+.DS_Store
+
