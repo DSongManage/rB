@@ -1,0 +1,25 @@
+env check:
+  ANCHOR_PROVIDER_URL= https://autumn-light-thunder.solana-devnet.quiknode.pro/97cc792c89dda353db1332623dc1308ccd0a7f97/
+  ANCHOR_WALLET= /Users/davidsong/repos/songProjects/rB/blockchain/target/platform_wallet.json
+  PLATFORM_WALLET_PUBKEY= 8h3ZjWbG...
+  ANCHOR_PROGRAM_ID= 9ZACvfz6GNqa7fvtXTbsWUKjgzHUeJwxg4qiG8oRB7eH
+fetched on-chain IDL
+idl name: undefined
+idl methods: [ 'mint_nft' ]
+coder instruction keys: []
+funded alt payer with 300000000 lamports; sig: 5qUtGZCR8dh5e6X9GEJ3bTjoCj1tqDSAg1ktss6rpznCWB6F1NseCJe1UzFPZLTzXCfDhvwfU9uLbQbqQzdm8sJD
+ATA created: 7PBS2YgvfQ7KACaZT8iAtb3kRbBiKmBvhGEcQJGph6qJ sig: 3WzdvEsNnsNv5wj7GCF4urftrQcBaVRk5kDHur97rMpAH5puTUyaUXk3sefbg2zmvcq6BUKZguGTaX1UWDj341tb
+provider wallet (platform?) 8h3ZjWbGATW9qRzbMm45Zd1jA6dR4G8FCjdckpeWubhV
+payer 2nn4778Kj2jEmAQBNNJhaoy8ejbkJV2wXniGeApgbBEb
+mint F6aQgvJDxVBKaUEVFvEWkbQN4n8683jZS2EAAdMznn9A
+recipient token 7PBS2YgvfQ7KACaZT8iAtb3kRbBiKmBvhGEcQJGph6qJ
+raw ix data lens: { disc: 8, uriLen: 15, uriBytes: 15, lamports: 8, total: 35 }
+tx 5HoCLRNu5MYuwpvxKpT49o8gXteuWcqtVTU847wfriFJNZXhbvxMVpQsBryAStQZXjKRrooyigPBVogahyqWufK
+tx confirmed: success {
+  confirmationStatus: 'confirmed',
+  confirmations: 1,
+  err: null,
+  slot: 414354910,
+  status: { Ok: null }
+}
+platform wallet balance delta (lamports): -10000

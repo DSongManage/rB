@@ -198,3 +198,25 @@ Example successful mint (devnet)
 
 - Transaction signature: YX3AfmRQSAiJ62myAkJ1fbruqYFvaSGNpfEtETRMvLzixMuW1PDbvwhYL6i4bnPAiVSHKWYh6jESzgwmZFHiHjU
 - Observed platform wallet balance delta reflects fee transfer as per on-chain logic (PLATFORM_FEE_BPS).
+
+---
+
+## Week 5 Validation Summary
+
+What we validated
+- On-chain IDL was upgraded and fetchable; Anchor methods are callable.
+- Program now transfers PLATFORM_FEE_BPS (default 1000 = 10%) of `sale_amount` lamports to `PLATFORM_WALLET_PUBKEY` and emits `Minted`.
+- Devnet mint succeeded via QuickNode; example tx:
+  - YX3AfmRQSAiJ62myAkJ1fbruqYFvaSGNpfEtETRMvLzixMuW1PDbvwhYL6i4bnPAiVSHKWYh6jESzgwmZFHiHjU
+- Positive platform delta can be demonstrated by using an alternate payer (set `USE_ALT_PAYER=1` and fund it).
+
+CI setup
+- GitHub Actions builds Anchor with Rust 1.82.0 + Anchor 0.31.1, installs SBF tools, runs cargo tests, Django (SQLite) tests, and React Jest tests.
+- Optional: set `QUICKNODE_DEVNET_URL` secret if future CI steps need RPC (not required for build-only jobs).
+
+Backend integration
+- Feature-flagged path (`FEATURE_ANCHOR_MINT=true`) in Django can call the on-chain method, passing `sale_amount` and returning `tx_sig` when provided `mint` and `recipient_token` accounts.
+
+Next steps
+- Add/iterate Rust tests around `Minted` event details as the program evolves.
+- Extend on-chain logic to support collaborator splits (post-Week 5 scope).
