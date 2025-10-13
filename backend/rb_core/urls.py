@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView
 
 urlpatterns = [
     path('', home, name='home'),
@@ -7,6 +7,7 @@ urlpatterns = [
     path('api/mint/', MintView.as_view(), name='mint'),
     path('api/content/<int:pk>/', ContentDetailView.as_view(), name='content_detail'),
     path('api/content/<int:pk>/preview/', ContentPreviewView.as_view(), name='content_preview'),
+    path('api/content/<int:pk>/teaser/', ContentTextTeaserView.as_view(), name='content_teaser'),
     path('api/content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_view'),
     path('api/analytics/fees/', AnalyticsFeesView.as_view(), name='analytics_fees'),
     path('api/admin/user-stats/', AdminStatsUpdateView.as_view(), name='admin_user_stats_update'),

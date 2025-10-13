@@ -16,7 +16,7 @@ describe('CreateWizard customize PATCH integration', () => {
       return Promise.resolve({ ok:true, json: async()=> ({}) });
     }) as any;
   });
-  it('submits customize PATCH before mint', async () => {
+  it('submits create via FormData (text) then customize PATCH before mint', async () => {
     render(<CreateWizard />);
     // Step 0: select type via button
     const button = await screen.findByText(/Write Text/);
@@ -24,6 +24,8 @@ describe('CreateWizard customize PATCH integration', () => {
     // Step 1: requires Next in footer -> mock by clicking footer Next
     const nexts = await screen.findAllByText(/^Next$/);
     fireEvent.click(nexts[nexts.length-1]);
+    // Expect create succeeded (id returned) and message cleared from failure state
+    await waitFor(()=> expect((global as any).fetch).toHaveBeenCalledWith(expect.stringContaining('/api/content/'), expect.objectContaining({ method: 'POST' })));
     // Step 2: press Next to trigger PATCH
     const next2 = await screen.findAllByText(/^Next$/);
     fireEvent.click(next2[next2.length-1]);

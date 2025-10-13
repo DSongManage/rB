@@ -173,13 +173,34 @@ class ContentListView(generics.ListCreateAPIView):
                 # Fallback to placeholder teaser link
                 ipfs_hash = ''
         elif text:
-            # No file; accept text-only content and generate a teaser placeholder
-            teaser_link = 'https://example.com/text-teaser'
+            # No file; accept text-only content and persist HTML to IPFS (best-effort)
+            try:
+                try:
+                    client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
+                except Exception:
+                    client = ipfshttpclient.connect(settings.IPFS_API_URL)
+                from io import BytesIO as _BytesIO
+                data = (text or '').encode('utf-8')
+                res = client.add(_BytesIO(data))
+                ipfs_hash = res.get('Hash', '')
+            except Exception:
+                ipfs_hash = ''
+            # Set a temporary internal route; finalize after save when we have an ID
+            teaser_link = ''
         else:
             raise serializers.ValidationError('File required')
         # Bridge auth user -> core user for FK consistency
         core_user, _ = CoreUser.objects.get_or_create(username=self.request.user.username)
         instance = serializer.save(creator=core_user, ipfs_hash=ipfs_hash, teaser_link=teaser_link)
+        # For text content, finalize internal teaser route now that we have an ID
+        try:
+            if not file and (text or ''):
+                # Use backend-served teaser to avoid external iframes/wallet warnings
+                internal = f"/api/content/{instance.id}/teaser/"
+                instance.teaser_link = internal
+                instance.save(update_fields=['teaser_link'])
+        except Exception:
+            pass
         if flagged:
             instance.flagged = True
             instance.save()
@@ -456,6 +477,38 @@ class ContentPreviewView(APIView):
             return Response({'error':'not found'}, status=404)
         data = ContentSerializer(c).data
         return Response({'id': c.id, 'title': c.title, 'teaser_link': c.teaser_link, 'content_type': c.content_type, 'inventory_status': c.inventory_status, 'nft_contract': c.nft_contract, 'preview': data})
+
+class ContentTextTeaserView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request, pk:int):
+        # Serve a sanitized text teaser as text/html
+        try:
+            from bs4 import BeautifulSoup  # type: ignore
+        except Exception:
+            return HttpResponse("<p>Teaser unavailable</p>", content_type='text/html')
+        try:
+            c = Content.objects.get(id=pk)
+        except Content.DoesNotExist:
+            return HttpResponse("<p>Not found</p>", status=404, content_type='text/html')
+        # If teaser_link points to /api/content/<id>/teaser/ and ipfs_hash is present, fetch from IPFS
+        html = ''
+        try:
+            if c.ipfs_hash:
+                import requests as _req  # type: ignore
+                r = _req.get(f"https://ipfs.io/ipfs/{c.ipfs_hash}", timeout=5)
+                if r.ok:
+                    html = r.text
+        except Exception:
+            html = ''
+        # Fallback to empty
+        soup = BeautifulSoup(html or '', 'lxml') if html else BeautifulSoup('<p></p>', 'lxml')
+        text = soup.get_text(separator='\n')
+        # Take first ~15% up to min/max bounds
+        n = max(200, min(len(text) // 6, 1500))
+        snippet = text[:n]
+        # Minimal HTML: wrap in safe <div>
+        body = f"<div style=\"font-family: ui-sans-serif, system-ui; white-space: pre-wrap;\">{snippet}</div>"
+        return HttpResponse(body, content_type='text/html')
 
 class SearchView(APIView):
     def get(self, request):

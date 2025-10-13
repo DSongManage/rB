@@ -27,13 +27,14 @@ export default function CreateWizard(){
     form.append('title', p.title);
     const mapped = p.type === 'text' ? 'book' : (p.type === 'image' ? 'art' : 'film');
     form.append('content_type', mapped);
+    // MVP: backend accepts either a file or a 'text' field. Prefer 'text' for text content.
     if (p.file) {
       form.append('file', p.file);
     } else if (p.type === 'text' && p.textHtml) {
-      const blob = new Blob([p.textHtml], { type: 'text/html' });
-      const pseudo = new File([blob], 'content.html', { type: 'text/html' });
-      form.append('file', pseudo);
+      form.append('text', p.textHtml);
     }
+    // Provide a default genre to satisfy backend model expectations
+    form.append('genre', 'other');
     const csrf = await fetchCsrf();
     const res = await fetch('http://localhost:8000/api/content/', { method:'POST', headers:{ 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, body: form, credentials:'include' });
     if (res.ok) {
