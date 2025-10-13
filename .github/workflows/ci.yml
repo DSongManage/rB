@@ -36,6 +36,7 @@ jobs:
         working-directory: blockchain/rb_contracts
         env:
           PLATFORM_WALLET_PUBKEY: ${{ secrets.PLATFORM_WALLET_PUBKEY }}
+          ANCHOR_PROVIDER_URL: ${{ secrets.QUICKNODE_DEVNET_URL }}
         run: |
           echo "Building Anchor workspace with PLATFORM_WALLET_PUBKEY injected"
           PLATFORM_WALLET_PUBKEY="$PLATFORM_WALLET_PUBKEY" anchor build -p renaiss_block

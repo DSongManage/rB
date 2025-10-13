@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import MintStep from '../../components/CreateWizard/MintStep';
+import MintStep from '../components/CreateWizard/MintStep';
 
 describe('MintStep fee math', () => {
   beforeEach(()=>{

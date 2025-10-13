@@ -131,7 +131,25 @@ export default function CreateWizard(){
           <button onClick={()=> submitCurrent && submitCurrent()} style={{background:'var(--accent)', color:'#111', border:'none', padding:'10px 18px', borderRadius:999}}>Next</button>
         )}
         {step===2 && (
-          <button onClick={()=> { if (collectCustomize){ const c = collectCustomize(); } setMaxStep(Math.max(maxStep,2)); setStep(3); }} style={{background:'var(--accent)', color:'#111', border:'none', padding:'10px 18px', borderRadius:999}}>Next</button>
+          <button onClick={async ()=> { 
+            setMaxStep(Math.max(maxStep,2));
+            try {
+              if (collectCustomize) {
+                const c = collectCustomize();
+                const csrf = await fetchCsrf();
+                const body = JSON.stringify({
+                  price_usd: c.price,
+                  editions: c.editions,
+                  teaser_percent: c.teaserPercent,
+                  watermark_preview: c.watermark,
+                });
+                await fetch(`http://localhost:8000/api/content/detail/${contentId}/`, {
+                  method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, credentials:'include', body
+                });
+              }
+            } catch (_) {}
+            setStep(3); 
+          }} style={{background:'var(--accent)', color:'#111', border:'none', padding:'10px 18px', borderRadius:999}}>Next</button>
         )}
         {false && step===3 && (
           <button onClick={()=> { setMaxStep(Math.max(maxStep,3)); doMint(); }} style={{background:'var(--accent)', color:'#111', border:'none', padding:'10px 18px', borderRadius:999}}>Mint</button>

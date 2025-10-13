@@ -104,31 +104,70 @@ async function main() {
     }
   }
 
+  const skipAirdrop = process.env.SKIP_AIRDROP === '1';
   // Airdrop if low balance (best-effort)
-  try { await with429Retry(() => provider.connection.requestAirdrop(kp.publicKey, 1_000_000_000), 'airdrop'); } catch {}
+  if (!skipAirdrop) {
+    try { await with429Retry(() => provider.connection.requestAirdrop(kp.publicKey, 1_000_000_000), 'airdrop'); } catch {}
+  }
 
-  // Pre-init: create mint (decimals 0) with payer as mint authority, and ensure recipient ATA exists
-  const payer = kp.publicKey;
+  // Optional: use an alternate payer to demonstrate platform wallet positive delta
+  // Set USE_ALT_PAYER=1 to generate a temporary keypair, or provide ALT_PAYER_KEYPAIR to load from file
+  let altKp: Keypair | null = null;
+  const useAlt = process.env.USE_ALT_PAYER === '1' || !!process.env.ALT_PAYER_KEYPAIR;
+  if (useAlt) {
+    try {
+      if (process.env.ALT_PAYER_KEYPAIR && fs.existsSync(process.env.ALT_PAYER_KEYPAIR)) {
+        const raw = Uint8Array.from(JSON.parse(fs.readFileSync(process.env.ALT_PAYER_KEYPAIR, 'utf8')));
+        altKp = Keypair.fromSecretKey(raw);
+      } else {
+        altKp = Keypair.generate();
+      }
+      // Airdrop to alt payer
+      if (!skipAirdrop) {
+        try { await with429Retry(() => provider.connection.requestAirdrop(altKp!.publicKey, 1_000_000_000), 'airdrop alt'); } catch {}
+      }
+      // If skipping airdrop (e.g., QuickNode), fund alt payer from provider wallet
+      if (skipAirdrop) {
+        const fundLamports = Number(process.env.FUND_LAMPORTS || 200_000_000); // 0.2 SOL default
+        try {
+          const txFund = new Transaction().add(SystemProgram.transfer({
+            fromPubkey: kp.publicKey,
+            toPubkey: altKp!.publicKey,
+            lamports: fundLamports,
+          }));
+          const sig = await with429Retry(() => provider.sendAndConfirm(txFund, [], { commitment: 'confirmed' }), 'fund alt payer');
+          console.log('funded alt payer with', fundLamports, 'lamports; sig:', sig);
+        } catch (e) {
+          console.warn('Funding alt payer failed (ensure provider wallet has SOL):', e);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to init alternate payer, falling back to provider wallet:', e);
+      altKp = null;
+    }
+  }
+
+  // Pre-init: create mint (decimals 0) with payer as mint authority, and ensure recipient ATA exists (owned by payer)
+  const payer = (altKp ? altKp.publicKey : kp.publicKey);
   let mintPubkey: PublicKey;
   try {
+    // mintAuthority = payer; freezeAuthority = null; decimals = 0
     mintPubkey = await with429Retry(() => createMint(provider.connection, kp, payer, null, 0), 'createMint');
   } catch (e) {
     console.error('Mint creation failed:', e);
     throw e;
   }
-  // Track platform wallet balance delta
+  // Prepare platform wallet pubkey; we'll snapshot balance right before mint to avoid including any pre-funding/ATA costs
   let platformKey: PublicKey | null = null;
   try { platformKey = platformPubkey ? new PublicKey(platformPubkey) : null; } catch { platformKey = null; }
   let preBal: number | null = null;
-  if (platformKey) {
-    try { preBal = await with429Retry(() => provider.connection.getBalance(platformKey!), 'getBalance pre'); } catch {}
-  }
 
   let ata: PublicKey;
   try {
+    // Create ATA owned by payer (alt or provider). Fee payer for this ix is the provider wallet (kp)
     const ataAddr = await getAssociatedTokenAddress(mintPubkey, payer, false, TOKEN_PROGRAM_ID);
     const ix = createAssociatedTokenAccountInstruction(
-      payer,
+      kp.publicKey,
       ataAddr,
       payer,
       mintPubkey
@@ -142,6 +181,7 @@ async function main() {
     throw e;
   }
 
+  console.log('provider wallet (platform?)', kp.publicKey.toBase58());
   console.log('payer', payer.toBase58());
   console.log('mint', mintPubkey.toBase58());
   console.log('recipient token', ata.toBase58());
@@ -165,6 +205,8 @@ async function main() {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       });
+    // If using an alternate payer, ensure the payer signs
+    const maybeSigned = altKp ? builder.signers([altKp]) : builder;
 
     // Validate accounts before rpc
     const accts: Record<string, any> = { payer, mint: mintPubkey, recipientToken: ata, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId };
@@ -174,7 +216,42 @@ async function main() {
       throw new Error('Aborting due to undefined accounts');
     }
 
-    const txSig = await with429Retry<string>(() => builder.rpc(), 'program rpc');
+    // Snapshot platform balance just before invoking program to isolate fee delta from pre-steps
+    if (platformKey) {
+      try { preBal = await with429Retry(() => provider.connection.getBalance(platformKey!), 'getBalance pre-mint'); } catch {}
+    }
+
+    let txSig: string | undefined;
+    try {
+      txSig = await with429Retry<string>(() => (maybeSigned as any).rpc(), 'program rpc');
+    } catch (encodeErr) {
+      console.warn('Anchor encode/rpc failed; attempting raw TransactionInstruction fallback ...');
+      // Build raw instruction using IDL discriminator + Borsh args (metadata_uri: string, sale_amount: u64)
+      const instr = ((idl as any)?.instructions || []).find((i: any) => i.name === 'mint_nft');
+      if (!instr || !Array.isArray(instr.discriminator)) {
+        throw encodeErr;
+      }
+      const disc = Buffer.from(instr.discriminator);
+      const metaUri = 'ipfs://metadata';
+      const uriBytes = Buffer.from(metaUri, 'utf8');
+      const len = Buffer.alloc(4); len.writeUInt32LE(uriBytes.length, 0);
+      const lamports = Buffer.alloc(8); lamports.writeBigUInt64LE(BigInt(saleLamports), 0);
+      const data = Buffer.concat([disc, len, uriBytes, lamports]);
+      console.log('raw ix data lens:', { disc: disc.length, uriLen: len.readUInt32LE(0), uriBytes: uriBytes.length, lamports: lamports.length, total: data.length });
+
+      const keys = [
+        { pubkey: payer, isSigner: true, isWritable: true },
+        { pubkey: mintPubkey, isSigner: false, isWritable: true },
+        { pubkey: ata, isSigner: false, isWritable: true },
+        { pubkey: platformKey || payer, isSigner: false, isWritable: true },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ];
+      const ix2 = new TransactionInstruction({ programId, keys, data });
+      const tx = new Transaction().add(ix2);
+      const extraSigners = altKp ? [altKp] as Keypair[] : [];
+      txSig = await with429Retry(() => provider.sendAndConfirm(tx, extraSigners, { commitment: 'confirmed' }), 'raw send');
+    }
     console.log('tx', txSig);
     // Confirm and log platform wallet balance delta
     try {

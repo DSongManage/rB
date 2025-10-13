@@ -328,9 +328,35 @@ class MintView(APIView):
                         idl = None
                     if idl is not None:
                         program = await Program.create(idl, program_id, provider)
-                        # TODO: optionally call on-chain mint with sale_amount routing in future
-                        _ = program_id
-                        tx = None
+                        # Optional: accept pre-created mint and recipient token from request for devnet-only flow
+                        mint_str = (request.data.get('mint') or '').strip()
+                        rcv_str = (request.data.get('recipient_token') or '').strip()
+                        if mint_str and rcv_str and sale_amount is not None:
+                            try:
+                                # Resolve accounts
+                                mint_pk = Pubkey.from_string(mint_str)
+                                rcv_pk = Pubkey.from_string(rcv_str)
+                                # Prefer configured platform wallet pubkey; fall back to provider wallet
+                                platform_str = (getattr(settings, 'PLATFORM_WALLET_PUBKEY', '') or '').strip() or str(kp.public_key)
+                                platform_pk = Pubkey.from_string(platform_str)
+                                token_program = Pubkey.from_string('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+                                system_program = Pubkey.from_string('11111111111111111111111111111111')
+                                accounts = {
+                                    'payer': kp.public_key,
+                                    'mint': mint_pk,
+                                    'recipient_token': rcv_pk,
+                                    'platform_wallet': platform_pk,
+                                    'token_program': token_program,
+                                    'system_program': system_program,
+                                }
+                                # Call Anchor method using on-chain IDL; sale_amount drives fee transfer
+                                meta_uri = 'ipfs://metadata'
+                                amt = int(float(sale_amount)) if sale_amount is not None else 0
+                                tx = await program.rpc['mint_nft'](meta_uri, amt, ctx={ 'accounts': accounts })
+                            except Exception:
+                                tx = None
+                        else:
+                            tx = None
                     else:
                         # Fallback: construct Program without IDL by name (unsupported); skip real call
                         tx = None

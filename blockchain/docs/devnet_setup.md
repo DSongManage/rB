@@ -183,9 +183,18 @@ export ANCHOR_WALLET="/Users/davidsong/repos/songProjects/rB/blockchain/target/p
 export ANCHOR_PROVIDER_URL="https://autumn-light-thunder.solana-devnet.quiknode.pro/97cc792c89dda353db1332623dc1308ccd0a7f97/"
 export PLATFORM_WALLET_PUBKEY="8h3ZjWbGATW9qRzbMm45Zd1jA6dR4G8FCjdckpeWubhV"
 export ANCHOR_PROGRAM_ID="9ZACvfz6GNqa7fvtXTbsWUKjgzHUeJwxg4qiG8oRB7eH"
+export USE_ALT_PAYER=1
+export SKIP_AIRDROP=1
+# optional fund amount for alt payer
+export FUND_LAMPORTS=300000000
 # optional for backend sync
 export CONTENT_ID="<content_id_if_available>"
 export BACKEND_DIR="/Users/davidsong/repos/songProjects/rB/backend"
 
 npx ts-node --transpile-only blockchain/scripts/mint_test.ts
 ```
+
+Example successful mint (devnet)
+
+- Transaction signature: YX3AfmRQSAiJ62myAkJ1fbruqYFvaSGNpfEtETRMvLzixMuW1PDbvwhYL6i4bnPAiVSHKWYh6jESzgwmZFHiHjU
+- Observed platform wallet balance delta reflects fee transfer as per on-chain logic (PLATFORM_FEE_BPS).

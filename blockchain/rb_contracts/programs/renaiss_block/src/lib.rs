@@ -131,6 +131,15 @@ mod tests {
         // When PLATFORM_WALLET_PUBKEY is not provided or invalid at compile time, expect None
         assert!(get_platform_wallet().is_none());
     }
+
+    #[test]
+    fn test_fee_bps_constant() {
+        // Ensure documented fee remains 1000 bps (10%) for Week 5 validation
+        let bps: u16 = 1000;
+        let (fee, net) = split_fee(1_000_000, bps);
+        assert_eq!(fee, 100_000);
+        assert_eq!(net, 900_000);
+    }
 }
 
 

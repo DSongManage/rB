@@ -54,7 +54,9 @@ export default function ProfilePage() {
     refreshStatus();
     refreshCsrf();
     fetch('http://localhost:8000/api/content/')
-      .then(r=>r.json()).then(setContent);
+      .then(r=>r.json())
+      .then((d)=> Array.isArray(d) ? setContent(d) : setContent([]))
+      .catch(()=> setContent([]));
     fetch('http://localhost:8000/api/dashboard/', { credentials:'include' })
       .then(r=> r.ok ? r.json() : {content_count:0, sales:0})
       .then(setDash)
@@ -109,7 +111,7 @@ export default function ProfilePage() {
     }
   };
 
-  const myContent = content.filter(c=> c.creator === user?.user_id);
+  const myContent = Array.isArray(content) ? content.filter(c=> c.creator === user?.user_id) : [];
   const [inventory, setInventory] = useState<any[]>([]);
   useEffect(()=>{
     fetch('http://localhost:8000/api/content/?inventory_status=minted&mine=1', { credentials:'include' })

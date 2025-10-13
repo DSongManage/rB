@@ -1,14 +1,15 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import CustomizeStep from '../../components/CreateWizard/CustomizeStep';
+import CustomizeStep from '../components/CreateWizard/CustomizeStep';
 
 describe('CustomizeStep PATCH payload', () => {
   it('calls onNext with selected values', () => {
     const onNext = jest.fn();
     render(<CustomizeStep onNext={onNext} />);
-    const price = screen.getByPlaceholderText('Price per edition (USD)') as HTMLInputElement;
-    const eds = screen.getByPlaceholderText('Number of editions') as HTMLInputElement;
+    const inputs = screen.getAllByDisplayValue(/^(1|10)$/) as HTMLInputElement[];
+    const price = inputs.find(i => i.getAttribute('type') === 'number' && i.value === '1')!;
+    const eds = inputs.find(i => i.getAttribute('type') === 'number' && i.value === '10')!;
     fireEvent.change(price, { target: { value: '3.5' } });
     fireEvent.change(eds, { target: { value: '7' } });
     // Using internal Next is omitted in component; we'll call provided register if needed.
