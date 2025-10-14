@@ -58,7 +58,7 @@ export default function SignupForm() {
         setLoading(false);
         return;
       }
-      const res = await fetch('http://localhost:8000/api/users/signup/', {
+      const res = await fetch('/api/users/signup/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, display_name: displayName, web3auth_token: idToken })
@@ -82,7 +82,7 @@ export default function SignupForm() {
     setMsg('');
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/users/signup/', {
+      const res = await fetch('/api/users/signup/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, display_name: displayName, wallet_address: walletAddress })

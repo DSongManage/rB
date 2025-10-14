@@ -6,7 +6,7 @@ export default function MintStep({ onMint, price, editions }: Props){
   const [agree, setAgree] = useState(false);
   const [feePct, setFeePct] = useState<number>(10);
   useEffect(()=>{
-    fetch('http://localhost:8000/api/dashboard/', { credentials:'include' })
+    fetch('/api/dashboard/', { credentials:'include' })
       .then(r=> r.ok? r.json(): null)
       .then(d=> { if (d && typeof d.fee === 'number') setFeePct(d.fee); })
       .catch(()=>{});

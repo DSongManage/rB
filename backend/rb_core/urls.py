@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView
 
 urlpatterns = [
     path('', home, name='home'),
@@ -23,4 +23,5 @@ urlpatterns = [
     path('api/users/signup/', SignupView.as_view(), name='user_signup'),
     path('api/users/profile/', ProfileEditView.as_view(), name='user_profile_edit'),
     path('api/profile/status/', ProfileStatusView.as_view(), name='profile_status_update'),
+    path('api/notifications/', NotificationsView.as_view(), name='notifications'),
 ]

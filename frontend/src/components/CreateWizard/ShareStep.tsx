@@ -9,12 +9,12 @@ export default function ShareStep({ contentId, onPublish }:{ contentId?: number;
   const [feePct, setFeePct] = useState<number>(10);
   useEffect(()=>{
     if (!contentId) return;
-    fetch(`http://localhost:8000/api/content/${contentId}/preview/`)
+    fetch(`/api/content/${contentId}/preview/`)
       .then(r=> r.ok? r.json(): null)
       .then(d=> { setTeaser(d?.teaser_link); setCtype(d?.content_type); })
       .catch(()=>{});
     // Get current platform fee from dashboard (already returns fee percent)
-    fetch('http://localhost:8000/api/dashboard/', { credentials:'include' })
+    fetch('/api/dashboard/', { credentials:'include' })
       .then(r=> r.ok? r.json(): null)
       .then(d=> { if (d && typeof d.fee === 'number') setFeePct(d.fee); })
       .catch(()=>{});

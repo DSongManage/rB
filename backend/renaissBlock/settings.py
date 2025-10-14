@@ -223,6 +223,16 @@ CSRF_TRUSTED_ORIGINS = [
   "http://127.0.0.1:3000",
 ]
 
+# Session cookie settings for cross-origin auth
+# Note: SameSite='None' requires Secure=True (HTTPS), but we're using HTTP in dev
+# Solution: Use 'Lax' for dev; frontend must be on same domain or use proxy
+SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' works with HTTP in dev
+SESSION_COOKIE_SECURE = False  # True in production with HTTPS
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access (security)
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False
+# For true cross-origin: deploy both frontend and backend on same domain (e.g., api.example.com)
+
 """Feature flags and blockchain config
 
 Read from environment with safe defaults for MVP (SQLite). For security, do not
@@ -238,6 +248,9 @@ PLATFORM_WALLET_KEYPAIR_PATH = os.getenv('PLATFORM_WALLET_KEYPAIR_PATH', '')
 
 # DRF throttling for public endpoints
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',

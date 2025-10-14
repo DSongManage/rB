@@ -84,6 +84,12 @@ class ContentListView(generics.ListCreateAPIView):
     # Filter by inventory status or mine
     def get_queryset(self):
         qs = Content.objects.all()
+        
+        # Exclude collaboration placeholder content from public listings (FR8 bug fix)
+        # Collaboration invites create placeholder content with title starting with "Collaboration Invite"
+        # These should only appear in collaboration management, not public browse
+        qs = qs.exclude(title__startswith='Collaboration Invite')
+        
         status_f = self.request.query_params.get('inventory_status')
         mine = self.request.query_params.get('mine')
         if status_f:
@@ -215,26 +221,87 @@ class ContentListView(generics.ListCreateAPIView):
 class InviteView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
-        collaborator_id = request.data.get('collaborator')
-        split = request.data.get('split', 50)  # Default 50/50
-        content_id = request.data.get('content')
-        content = Content.objects.get(id=content_id, creator=request.user)
+        """Enhanced collaboration invite endpoint (FR8)
+        
+        Accepts:
+        - message: str (project pitch, sanitized)
+        - equity_percent: int (0-100, collaborator's share)
+        - collaborators: list[int] (user IDs to invite)
+        - attachments: str (optional IPFS CID for pitch deck/samples)
+        - content_id: int (optional, if invite for specific content)
+        
+        Returns:
+        - invite_id: int
+        - status: 'pending'
+        - invited_users: list[str] (usernames)
+        """
+        from bs4 import BeautifulSoup
+        
+        # Parse request data
+        message = request.data.get('message', '').strip()
+        equity_percent = min(100, max(0, int(request.data.get('equity_percent', 50))))
+        collaborator_ids = request.data.get('collaborators', [])
+        attachments = request.data.get('attachments', '').strip()  # IPFS CID
+        content_id = request.data.get('content_id')  # Optional
+        
+        # Sanitize message (prevent XSS in stored invites)
+        soup = BeautifulSoup(message, 'html.parser')
+        message_clean = soup.get_text()[:1000]  # Limit to 1000 chars
+        
+        # Validate collaborators
+        if not isinstance(collaborator_ids, list) or len(collaborator_ids) == 0:
+            return Response({'error': 'At least one collaborator required'}, status=400)
+        
         AuthUser = get_user_model()
-        collaborator = AuthUser.objects.get(id=collaborator_id)
+        collaborators = list(AuthUser.objects.filter(id__in=collaborator_ids))
+        
+        if len(collaborators) == 0:
+            return Response({'error': 'No valid collaborators found'}, status=400)
+        
+        # Get or create content (if content_id not provided, create placeholder)
+        if content_id:
+            try:
+                content = Content.objects.get(id=content_id, creator=request.user)
+            except Content.DoesNotExist:
+                return Response({'error': 'Content not found or not yours'}, status=404)
+        else:
+            # Create placeholder collaboration content (can be updated later)
+            content = Content.objects.create(
+                title=f"Collaboration Invite - {message_clean[:50]}",
+                creator=request.user,
+                content_type='other',
+                genre='other'
+            )
+        
+        # Create Collaboration record
         collab = Collaboration.objects.create(
             content=content,
-            status='pending'
+            status='pending',
+            revenue_split={
+                'initiator': 100 - equity_percent,
+                'collaborators': equity_percent,
+                'message': message_clean,
+                'attachments': attachments,
+            }
         )
-        # Ensure we add the core user as initiator for consistency
-        try:
-            core_user = CoreUser.objects.get(username=request.user.username)
-        except CoreUser.DoesNotExist:
-            core_user = CoreUser.objects.create(username=request.user.username)
-        collab.initiators.add(core_user)
-        collab.collaborators.add(collaborator)
-        collab.revenue_split = {'initiator': 100 - split, 'collaborator': split}
+        
+        # Add initiator (ensure using correct User model)
+        collab.initiators.add(request.user)
+        
+        # Add all collaborators
+        for collaborator in collaborators:
+            collab.collaborators.add(collaborator)
+        
         collab.save()
-        return Response({'message': 'Invite sent'})
+        
+        # Return response with invite details
+        return Response({
+            'invite_id': collab.id,
+            'status': 'pending',
+            'invited_users': [c.username for c in collaborators],
+            'equity_percent': equity_percent,
+            'message': f'Invite sent to {len(collaborators)} collaborator(s)',
+        }, status=201)
 
 class MintView(APIView):
     permission_classes = [IsAuthenticated]
@@ -613,8 +680,19 @@ class LinkWalletView(APIView):
 
 class CsrfTokenView(APIView):
     def get(self, request):
+        # Ensure CSRF cookie is set in the response
         token = get_token(request)
-        return Response({'csrfToken': token})
+        response = Response({'csrfToken': token})
+        # Explicitly set the CSRF cookie for cross-origin requests
+        response.set_cookie(
+            'csrftoken',
+            token,
+            max_age=31449600,  # 1 year
+            secure=False,  # True in production with HTTPS
+            httponly=False,  # Must be False so JS can read it
+            samesite='Lax'
+        )
+        return response
 
 class UserSearchView(APIView):
     def get(self, request):
@@ -696,6 +774,55 @@ class UserSearchView(APIView):
                 # Profile media
                 'avatar_url': p.avatar_url or '',
                 'location': p.location or '',
+            })
+        
+        return Response(results)
+
+
+class NotificationsView(APIView):
+    """Return pending collaboration invites for the authenticated user (FR8)"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Find all pending collaborations where user is a recipient
+        pending_invites = Collaboration.objects.filter(
+            collaborators=request.user,
+            status='pending'
+        ).select_related('content').prefetch_related('initiators')
+        
+        results = []
+        for collab in pending_invites:
+            initiator = collab.initiators.first()  # Get first initiator
+            if not initiator:
+                continue
+                
+            # Extract invite details from revenue_split JSON
+            message = collab.revenue_split.get('message', '')
+            attachments = collab.revenue_split.get('attachments', '')
+            collaborators_equity = collab.revenue_split.get('collaborators', 50)
+            
+            # Get initiator profile for avatar
+            try:
+                initiator_profile = UserProfile.objects.get(user=initiator)
+                initiator_avatar = initiator_profile.avatar_url or ''
+                initiator_display = initiator_profile.display_name or initiator.username
+            except UserProfile.DoesNotExist:
+                initiator_avatar = ''
+                initiator_display = initiator.username
+            
+            results.append({
+                'id': collab.id,
+                'sender_id': initiator.id,
+                'sender_username': initiator.username,
+                'sender_display_name': initiator_display,
+                'sender_avatar': initiator_avatar,
+                'message': message[:200] + ('...' if len(message) > 200 else ''),  # Snippet
+                'message_full': message,
+                'equity_percent': collaborators_equity,
+                'attachments': attachments,
+                'content_id': collab.content.id if collab.content else None,
+                'content_title': collab.content.title if collab.content else '',
+                'created_at': collab.content.created_at.isoformat() if collab.content and hasattr(collab.content, 'created_at') else '',
             })
         
         return Response(results)

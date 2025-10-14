@@ -35,19 +35,20 @@ export default function ProfilePage() {
   const [csrf, setCsrf] = useState('');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   async function refreshStatus() {
-    const d = await fetch('http://localhost:8000/api/auth/status/', { credentials:'include' }).then(r=>r.json());
+    const d = await fetch('/api/auth/status/', { credentials:'include' }).then(r=>r.json());
     setUser(d);
     // Also refresh profile so header shows latest wallet
-    fetch('http://localhost:8000/api/users/profile/', { credentials:'include' })
+    fetch('/api/users/profile/', { credentials:'include' })
       .then(r=> r.ok ? r.json() : null)
       .then(setProfile)
       .catch(()=> {});
   }
 
   async function refreshCsrf() {
-    const t = await fetch('http://localhost:8000/api/auth/csrf/', { credentials:'include' }).then(r=>r.json());
+    const t = await fetch('/api/auth/csrf/', { credentials:'include' }).then(r=>r.json());
     setCsrf(t?.csrfToken || '');
     return t?.csrfToken || '';
   }
@@ -55,23 +56,27 @@ export default function ProfilePage() {
   useEffect(()=>{
     refreshStatus();
     refreshCsrf();
-    fetch('http://localhost:8000/api/content/')
+    fetch('/api/content/')
       .then(r=>r.json())
       .then((d)=> Array.isArray(d) ? setContent(d) : setContent([]))
       .catch(()=> setContent([]));
-    fetch('http://localhost:8000/api/dashboard/', { credentials:'include' })
+    fetch('/api/dashboard/', { credentials:'include' })
       .then(r=> r.ok ? r.json() : {content_count:0, sales:0})
       .then(setDash)
       .catch(()=> setDash({content_count:0, sales:0}));
-    fetch('http://localhost:8000/api/users/profile/', { credentials:'include' })
+    fetch('/api/users/profile/', { credentials:'include' })
       .then(r=> r.ok ? r.json() : null)
       .then(setProfile)
       .catch(()=> setProfile(null));
+    fetch('/api/notifications/', { credentials:'include' })
+      .then(r=> r.ok ? r.json() : [])
+      .then(setNotifications)
+      .catch(()=> setNotifications([]));
   },[]);
 
   const runSearch = () => {
     if (!q.trim()) { setResults([]); return; }
-    fetch(`http://localhost:8000/api/users/search/?q=${encodeURIComponent(q)}`)
+    fetch(`/api/users/search/?q=${encodeURIComponent(q)}`)
       .then(r=>r.json()).then(setResults);
   };
 
@@ -79,7 +84,7 @@ export default function ProfilePage() {
     const manual = prompt('Enter your Solana public address');
     if (!manual) return;
     const token = csrf || await refreshCsrf();
-    const res = await fetch('http://localhost:8000/api/wallet/link/', {
+    const res = await fetch('/api/wallet/link/', {
       method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({wallet_address:manual})
     });
     if (res.ok) { setStatus('Wallet linked'); await refreshStatus(); } else { const t = await res.text(); setStatus(`Failed: ${t}`); }
@@ -111,7 +116,7 @@ export default function ProfilePage() {
       const idToken = info?.idToken || info?.id_token;
       if (!idToken) { setStatus('Could not obtain Web3Auth token'); return; }
       const token = csrf || await refreshCsrf();
-      const res = await fetch('http://localhost:8000/api/wallet/link/', {
+      const res = await fetch('/api/wallet/link/', {
         method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({ web3auth_token: idToken })
       });
       if (res.ok) {
@@ -130,7 +135,7 @@ export default function ProfilePage() {
   const myContent = Array.isArray(content) ? content.filter(c=> c.creator === user?.user_id) : [];
   const [inventory, setInventory] = useState<any[]>([]);
   useEffect(()=>{
-    fetch('http://localhost:8000/api/content/?inventory_status=minted&mine=1', { credentials:'include' })
+    fetch('/api/content/?inventory_status=minted&mine=1', { credentials:'include' })
       .then(r=> r.ok? r.json(): [])
       .then(setInventory)
       .catch(()=> setInventory([]));
@@ -138,7 +143,7 @@ export default function ProfilePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
   const openPreview = async (id:number) => {
-    const d = await fetch(`http://localhost:8000/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null);
+    const d = await fetch(`/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null);
     if (d) { setPreviewItem(d); setShowPreview(true); }
   };
 
@@ -156,7 +161,7 @@ export default function ProfilePage() {
     const token = csrf || await refreshCsrf();
     const fd = new FormData();
     fd.append('avatar', file);
-    const res = await fetch('http://localhost:8000/api/users/profile/', {
+    const res = await fetch('/api/users/profile/', {
       method: 'PATCH',
       headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'include',
@@ -177,7 +182,7 @@ export default function ProfilePage() {
     const token = csrf || await refreshCsrf();
     const fd = new FormData();
     fd.append('banner', file);
-    const res = await fetch('http://localhost:8000/api/users/profile/', {
+    const res = await fetch('/api/users/profile/', {
       method: 'PATCH',
       headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'include',
@@ -222,7 +227,7 @@ export default function ProfilePage() {
             placeholder="Display name"
             onSave={async (val)=>{
               const token = csrf || await refreshCsrf();
-              const res = await fetch('http://localhost:8000/api/users/profile/', {
+              const res = await fetch('/api/users/profile/', {
                 method:'PATCH', headers:{'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({display_name: val})
               });
               if (res.ok) { await refreshStatus(); }
@@ -234,7 +239,7 @@ export default function ProfilePage() {
             placeholder="Location (e.g., New York, NY)"
             onSave={async (val)=>{
               const token = csrf || await refreshCsrf();
-              const res = await fetch('http://localhost:8000/api/users/profile/', {
+              const res = await fetch('/api/users/profile/', {
                 method:'PATCH', headers:{'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({location: val})
               });
               if (res.ok) { await refreshStatus(); }
@@ -273,6 +278,78 @@ export default function ProfilePage() {
         <StatCard label="Tier" value={dash.tier || '—'} />
         <StatCard label="Fee" value={dash.fee != null ? `${dash.fee}%` : '—'} />
       </div>
+
+      {/* Collaboration Invites Section */}
+      {notifications.length > 0 && (
+        <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16, marginBottom:16}}>
+          <div style={{fontWeight:600, color:'var(--text)', marginBottom:12, fontSize:16}}>
+            Collaboration Invites ({notifications.length})
+          </div>
+          <div style={{display:'grid', gap:12}}>
+            {notifications.map((notif) => (
+              <div key={notif.id} style={{background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:12, display:'grid', gridTemplateColumns:'48px 1fr auto', gap:12, alignItems:'center'}}>
+                {/* Sender Avatar */}
+                <div style={{width:48, height:48, borderRadius:8, background: notif.sender_avatar ? `url(${notif.sender_avatar})` : '#111', backgroundSize:'cover', display:'grid', placeItems:'center', color:'#f59e0b', fontWeight:700}}>
+                  {!notif.sender_avatar && notif.sender_username.slice(0,1).toUpperCase()}
+                </div>
+                
+                {/* Invite Details */}
+                <div>
+                  <div style={{fontSize:14, fontWeight:600, color:'#f8fafc', marginBottom:4}}>
+                    @{notif.sender_username} <span style={{fontWeight:400, color:'#94a3b8'}}>wants to collaborate</span>
+                  </div>
+                  <div style={{fontSize:12, color:'#cbd5e1', marginBottom:6}}>
+                    {notif.message}
+                  </div>
+                  <div style={{fontSize:11, color:'#f59e0b', fontWeight:600}}>
+                    Revenue Split: {notif.equity_percent}% for you
+                  </div>
+                </div>
+                
+                {/* Actions */}
+                <div style={{display:'flex', gap:8}}>
+                  <button 
+                    onClick={async () => {
+                      // TODO: Implement accept logic
+                      const token = csrf || await refreshCsrf();
+                      const res = await fetch(`/api/invite/${notif.id}/accept/`, {
+                        method: 'POST',
+                        headers: {'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'},
+                        credentials: 'include',
+                      });
+                      if (res.ok) {
+                        setNotifications(notifications.filter(n => n.id !== notif.id));
+                        setStatus('Invite accepted!');
+                      }
+                    }}
+                    style={{background:'#10b981', color:'#fff', border:'none', padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer'}}
+                  >
+                    Accept
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      // TODO: Implement decline logic
+                      const token = csrf || await refreshCsrf();
+                      const res = await fetch(`/api/invite/${notif.id}/decline/`, {
+                        method: 'POST',
+                        headers: {'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'},
+                        credentials: 'include',
+                      });
+                      if (res.ok) {
+                        setNotifications(notifications.filter(n => n.id !== notif.id));
+                        setStatus('Invite declined.');
+                      }
+                    }}
+                    style={{background:'transparent', color:'#94a3b8', border:'1px solid #334155', padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer'}}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{display:'grid', gridTemplateColumns:'360px 1fr', gap:16}}>
         <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>

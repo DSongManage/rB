@@ -7,7 +7,7 @@ export default function ContentDetail(){
   const [data, setData] = useState<any>(null);
   useEffect(()=>{
     if (!id) return;
-    fetch(`http://localhost:8000/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null).then(setData);
+    fetch(`/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null).then(setData);
   }, [id]);
   if (!id) return null;
   if (!data) return <div style={{padding:16}}>Loading…</div>;

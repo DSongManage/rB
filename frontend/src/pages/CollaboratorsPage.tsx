@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import StatusEditForm from '../components/StatusEditForm';
+import InviteModal from '../components/InviteModal';
 
 export default function CollaboratorsPage() {
   const [q, setQ] = useState('');
@@ -8,6 +9,8 @@ export default function CollaboratorsPage() {
   const [location, setLocation] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [selectedRecipient, setSelectedRecipient] = useState<any>(null);
 
   const queryString = useMemo(()=>{
     const params = new URLSearchParams();
@@ -24,7 +27,7 @@ export default function CollaboratorsPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(()=>{
       setLoading(true);
-      const url = `http://localhost:8000/api/users/search/?${queryString}`;
+      const url = `/api/users/search/?${queryString}`;
       fetch(url, { credentials: 'include' })
         .then(r=> r.ok ? r.json() : [])
         .then((data)=> setResults(Array.isArray(data) ? data : []))
@@ -118,7 +121,15 @@ export default function CollaboratorsPage() {
               )}
 
               {/* Action Button */}
-              <button style={{background:'var(--accent)', color:'#111', border:'none', padding:'10px 14px', borderRadius:8, fontWeight:600, cursor:'pointer', transition:'opacity 0.2s'}} onMouseOver={(e)=> e.currentTarget.style.opacity='0.9'} onMouseOut={(e)=> e.currentTarget.style.opacity='1'}>
+              <button 
+                onClick={() => {
+                  setSelectedRecipient(p);
+                  setInviteModalOpen(true);
+                }}
+                style={{background:'var(--accent)', color:'#111', border:'none', padding:'10px 14px', borderRadius:8, fontWeight:600, cursor:'pointer', transition:'opacity 0.2s'}} 
+                onMouseOver={(e)=> e.currentTarget.style.opacity='0.9'} 
+                onMouseOut={(e)=> e.currentTarget.style.opacity='1'}
+              >
                 Invite to Collaborate
               </button>
             </div>
@@ -130,6 +141,18 @@ export default function CollaboratorsPage() {
         <div style={{fontWeight:600, marginBottom:8}}>My availability status</div>
         <StatusEditForm onSaved={()=>{ /* No-op here; used on Profile page primarily */ }} />
       </div>
+
+      {/* Invite Modal */}
+      {selectedRecipient && (
+        <InviteModal
+          open={inviteModalOpen}
+          onClose={() => {
+            setInviteModalOpen(false);
+            setSelectedRecipient(null);
+          }}
+          recipient={selectedRecipient}
+        />
+      )}
     </div>
   );
 }

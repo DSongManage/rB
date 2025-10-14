@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import CollaboratorsPage from '../pages/CollaboratorsPage';
 
@@ -171,6 +171,94 @@ describe('CollaboratorsPage Enhanced Display', () => {
       expect.stringContaining('/api/users/search/'),
       expect.objectContaining({ credentials: 'include' })
     );
+  });
+
+  it('opens invite modal when Invite button clicked and sends invite', async () => {
+    const mockUser = {
+      id: 1,
+      username: 'test_creator',
+      display_name: 'Test Creator',
+      wallet_address: '8h3ZjWbGATW9qRzbMm45Zd1jA6dR4G8FCjdckpeWubhV',
+      roles: ['author'],
+      genres: ['fantasy'],
+      content_count: 10,
+      total_sales_usd: 1000,
+      successful_collabs: 5,
+      tier: 'Pro',
+      status: 'Mint-Ready Partner',
+      status_category: 'green',
+      avatar_url: '',
+      location: 'SF',
+    };
+
+    // Mock search results
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => [mockUser],
+    });
+
+    render(
+      <BrowserRouter>
+        <CollaboratorsPage />
+      </BrowserRouter>
+    );
+
+    // Wait for user card to render
+    const inviteButton = await screen.findByText('Invite to Collaborate');
+    expect(inviteButton).toBeInTheDocument();
+
+    // Click invite button
+    fireEvent.click(inviteButton);
+
+    // Assert modal opens
+    await waitFor(() => {
+      expect(screen.getByText('@test_creator')).toBeInTheDocument();
+      expect(screen.getByText('Project Pitch')).toBeInTheDocument();
+    });
+
+    // Assert recipient info displayed in modal header
+    expect(screen.getByText('Test Creator')).toBeInTheDocument();
+    expect(screen.getByText('GREEN')).toBeInTheDocument();
+    expect(screen.getByText('author')).toBeInTheDocument();
+
+    // Mock CSRF token fetch
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ csrfToken: 'test-csrf-token' }),
+    });
+
+    // Mock invite POST
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        invite_id: 123,
+        status: 'pending',
+        invited_users: ['test_creator'],
+        message: 'Invite sent',
+      }),
+    });
+
+    // Find and click Send Invite button
+    const sendButton = screen.getByText('Send Invite');
+    fireEvent.click(sendButton);
+
+    // Assert invite API called with correct data
+    await waitFor(() => {
+      const inviteCalls = (global.fetch as jest.Mock).mock.calls.filter(
+        call => call[0] && call[0].includes('/api/invite/')
+      );
+      expect(inviteCalls.length).toBeGreaterThan(0);
+      
+      const inviteCall = inviteCalls[0];
+      const body = JSON.parse(inviteCall[1].body);
+      expect(body.collaborators).toEqual([1]);
+      expect(body.equity_percent).toBe(50); // Default
+    });
+
+    // Assert success message shown
+    await waitFor(() => {
+      expect(screen.getByText(/Invite sent/i)).toBeInTheDocument();
+    });
   });
 });
 

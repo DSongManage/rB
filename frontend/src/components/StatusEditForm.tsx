@@ -18,8 +18,8 @@ export default function StatusEditForm({ initialStatus, onSaved }: { initialStat
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    const csrf = await fetch('http://localhost:8000/api/auth/csrf/', { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
-    const res = await fetch('http://localhost:8000/api/profile/status/', {
+    const csrf = await fetch('/api/auth/csrf/', { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
+    const res = await fetch('/api/profile/status/', {
       method:'PATCH', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, credentials:'include', body: JSON.stringify({ status })
     });
     if (res.ok) { setMsg('Saved'); onSaved && onSaved(); } else { setMsg('Failed'); }

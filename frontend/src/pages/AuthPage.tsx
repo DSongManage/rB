@@ -4,7 +4,7 @@ import { Web3Auth } from '@web3auth/modal';
 import { CHAIN_NAMESPACES } from '@web3auth/base';
 import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 
-const BACKEND = 'http://localhost:8000';
+// Use relative URLs - setupProxy.js proxies to backend
 
 type Step = 'account' | 'wallet' | 'done';
 
@@ -26,7 +26,7 @@ export default function AuthPage() {
 
   const refreshCsrf = async () => {
     try {
-      const r = await fetch(`${BACKEND}/api/auth/csrf/`, { credentials:'include' });
+      const r = await fetch('/api/auth/csrf/', { credentials:'include' });
       const d = await r.json();
       setCsrf(d?.csrfToken || '');
     } catch {
@@ -38,7 +38,7 @@ export default function AuthPage() {
 
   const ensureAuthenticated = async () => {
     try {
-      const st = await fetch(`${BACKEND}/api/auth/status/`, { credentials:'include' });
+      const st = await fetch('/api/auth/status/', { credentials:'include' });
       const data = await st.json();
       if (data?.authenticated) return true;
       // Try programmatic login with provided credentials
@@ -46,7 +46,7 @@ export default function AuthPage() {
       form.set('login', username);
       form.set('password', password);
       form.set('next', '/');
-      const res = await fetch(`${BACKEND}/accounts/login/`, {
+      const res = await fetch('/accounts/login/', {
         method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
       });
       if (res.ok) {
@@ -65,7 +65,7 @@ export default function AuthPage() {
     form.set('password1', password);
     form.set('password2', password2);
     form.set('next', '/');
-    const res = await fetch(`${BACKEND}/accounts/signup/`, {
+    const res = await fetch('/accounts/signup/', {
       method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
     });
     if (res.ok) {
@@ -93,7 +93,7 @@ export default function AuthPage() {
     form.set('login', username);
     form.set('password', password);
     form.set('next', '/');
-    const res = await fetch(`${BACKEND}/accounts/login/`, {
+    const res = await fetch('/accounts/login/', {
       method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
     });
     if (res.ok) { await refreshCsrf(); navigate('/'); } else { setMsg('Sign in failed'); }
@@ -127,7 +127,7 @@ export default function AuthPage() {
       const userInfo: any = await web3auth.getUserInfo();
       const idToken = userInfo?.idToken || userInfo?.id_token;
       if (!idToken) { setWalletStatus('Could not obtain Web3Auth token'); return; }
-      const res = await fetch(`${BACKEND}/api/wallet/link/`, {
+      const res = await fetch('/api/wallet/link/', {
         method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ web3auth_token: idToken })
       });
       if (res.ok) {
@@ -148,7 +148,7 @@ export default function AuthPage() {
     if (!csrf) { await refreshCsrf(); }
     const authOk = await ensureAuthenticated();
     if (!authOk) { setWalletStatus('Please sign in again, then retry.'); return; }
-    const res = await fetch(`${BACKEND}/api/wallet/link/`, {
+    const res = await fetch('/api/wallet/link/', {
       method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ wallet_address: ownWallet })
     });
     if (res.ok) {

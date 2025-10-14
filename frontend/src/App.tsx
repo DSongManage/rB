@@ -16,17 +16,43 @@ import ContentDetail from './pages/ContentDetail';
 function Header() {
   const [q, setQ] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
+  
+  const checkAuthAndNotifications = React.useCallback(() => {
+    fetch('/api/auth/status/', { credentials: 'include' })
+      .then(r=>r.json())
+      .then(d=> {
+        const authed = !!d?.authenticated;
+        setIsAuthed(authed);
+        // Only fetch notifications if authenticated
+        if (authed) {
+          fetch('/api/notifications/', { credentials: 'include' })
+            .then(r=> r.ok ? r.json() : [])
+            .then(data=> setNotifCount(Array.isArray(data) ? data.length : 0))
+            .catch(()=> setNotifCount(0));
+        } else {
+          setNotifCount(0);
+        }
+      })
+      .catch(()=> {
+        setIsAuthed(false);
+        setNotifCount(0);
+      });
+  }, []);
+  
   useEffect(()=>{
-    fetch('http://localhost:8000/api/auth/status/', { credentials: 'include' })
-      .then(r=>r.json()).then(d=> setIsAuthed(!!d?.authenticated)).catch(()=>setIsAuthed(false));
-  },[location.pathname]);
+    checkAuthAndNotifications();
+    // Poll every 10 seconds to catch auth state changes (e.g., after login)
+    const interval = setInterval(checkAuthAndNotifications, 10000);
+    return () => clearInterval(interval);
+  },[location.pathname, checkAuthAndNotifications]);
   const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
   const goLogin = () => { navigate('/auth'); };
   const doLogout = () => {
     const next = encodeURIComponent(window.location.origin + '/');
-    window.location.assign(`http://localhost:8000/accounts/logout/?next=${next}`);
+    window.location.assign(`/accounts/logout/?next=${next}`);
   };
   return (
     <nav className="rb-header">
@@ -40,7 +66,16 @@ function Header() {
         </form>
       </div>
       <div className="rb-header-right rb-nav">
-        {isAuthed && <Link to="/profile">Profile</Link>}
+        {isAuthed && (
+          <Link to="/profile" style={{position:'relative'}}>
+            Profile
+            {notifCount > 0 && (
+              <span style={{position:'absolute', top:-6, right:-8, background:'#ef4444', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:10, minWidth:18, textAlign:'center'}}>
+                {notifCount}
+              </span>
+            )}
+          </Link>
+        )}
         {isAuthed && <Link to="/collaborators">Collaborators</Link>}
         {!isAuthed && <button onClick={goLogin} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Sign in</button>}
         {isAuthed && <button onClick={doLogout} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Logout</button>}

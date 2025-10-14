@@ -115,6 +115,142 @@ class ProfileTests(TestCase):
         # Assert tier and location
         self.assertIn('tier', creator1_data)
         self.assertEqual(creator1_data['location'], 'SF')
+    
+    def test_invite_creates_collaboration_with_message_and_equity(self):
+        """Test enhanced InviteView creates Collaboration with message, equity, and sanitization (FR8)"""
+        # Create initiator and collaborator
+        initiator = User.objects.create_user(username='initiator', password='testpass')
+        initiator_profile = UserProfile.objects.create(user=initiator, username='initiator')
+        
+        collaborator = User.objects.create_user(username='collab1')
+        collab_profile = UserProfile.objects.create(user=collaborator, username='collab1')
+        
+        # Login as initiator
+        self.client.login(username='initiator', password='testpass')
+        
+        # Send invite with message and equity split
+        res = self.client.post('/api/invite/', {
+            'message': 'Let\'s create <script>alert("xss")</script> an amazing NFT together!',
+            'equity_percent': 30,
+            'collaborators': [collaborator.id],
+            'attachments': 'QmExampleIPFSHash123',
+        }, content_type='application/json')
+        
+        self.assertEqual(res.status_code, 201)
+        data = res.json()
+        
+        # Assert response contains invite details
+        self.assertIn('invite_id', data)
+        self.assertEqual(data['status'], 'pending')
+        self.assertEqual(data['invited_users'], ['collab1'])
+        self.assertEqual(data['equity_percent'], 30)
+        
+        # Verify Collaboration created
+        collab = Collaboration.objects.get(id=data['invite_id'])
+        self.assertEqual(collab.status, 'pending')
+        self.assertIn(initiator, collab.initiators.all())
+        self.assertIn(collaborator, collab.collaborators.all())
+        
+        # Verify revenue split stored
+        self.assertEqual(collab.revenue_split['initiator'], 70)
+        self.assertEqual(collab.revenue_split['collaborators'], 30)
+        
+        # Verify message sanitized (XSS removed)
+        message_stored = collab.revenue_split.get('message', '')
+        self.assertIn('amazing NFT together', message_stored)
+        self.assertNotIn('<script>', message_stored)
+        
+        # Verify attachments stored
+        self.assertEqual(collab.revenue_split.get('attachments'), 'QmExampleIPFSHash123')
+    
+    def test_collaboration_placeholder_content_excluded_from_home_page(self):
+        """Test that collaboration invite placeholder content is excluded from /api/content/ (bug fix)"""
+        # Create regular content
+        regular_user = User.objects.create_user(username='regular_creator')
+        regular_profile = UserProfile.objects.create(user=regular_user, username='regular_creator')
+        regular_content = Content.objects.create(
+            title='My Amazing NFT',
+            creator=regular_user,
+            content_type='book',
+            genre='fantasy'
+        )
+        
+        # Create collaboration placeholder (from InviteView)
+        collab_user = User.objects.create_user(username='collab_creator')
+        collab_profile = UserProfile.objects.create(user=collab_user, username='collab_creator')
+        collab_placeholder = Content.objects.create(
+            title='Collaboration Invite - Test Project',  # Starts with "Collaboration Invite"
+            creator=collab_user,
+            content_type='other',
+            genre='other'
+        )
+        
+        # Fetch /api/content/ (should exclude collaboration placeholders)
+        res = self.client.get('/api/content/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        
+        # Assert regular content is included
+        titles = [item['title'] for item in data]
+        self.assertIn('My Amazing NFT', titles)
+        
+        # Assert collaboration placeholder is EXCLUDED
+        self.assertNotIn('Collaboration Invite - Test Project', titles)
+        
+        # Verify collaboration placeholder exists in DB but not in API
+        self.assertTrue(Content.objects.filter(title__startswith='Collaboration Invite').exists())
+        self.assertEqual(len([t for t in titles if t.startswith('Collaboration Invite')]), 0)
+    
+    def test_notifications_returns_pending_invites_for_user(self):
+        """Test /api/notifications/ returns pending collaboration invites for authenticated user (FR8)"""
+        # Create users
+        initiator = User.objects.create_user(username='initiator', password='testpass')
+        initiator_profile = UserProfile.objects.create(user=initiator, username='initiator', display_name='Initiator User')
+        
+        recipient = User.objects.create_user(username='recipient', password='testpass')
+        recipient_profile = UserProfile.objects.create(user=recipient, username='recipient')
+        
+        # Create collaboration invite
+        content = Content.objects.create(title='Test Collab Content', creator=initiator, content_type='book')
+        collab = Collaboration.objects.create(
+            content=content,
+            status='pending',
+            revenue_split={
+                'initiator': 60,
+                'collaborators': 40,
+                'message': 'Let\'s work together on this fantasy series!',
+                'attachments': 'QmTest123',
+            }
+        )
+        collab.initiators.add(initiator)
+        collab.collaborators.add(recipient)
+        
+        # Login as recipient
+        self.client.login(username='recipient', password='testpass')
+        
+        # Fetch notifications
+        res = self.client.get('/api/notifications/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        
+        # Assert invite returned
+        self.assertEqual(len(data), 1)
+        invite = data[0]
+        
+        # Assert all fields present
+        self.assertEqual(invite['id'], collab.id)
+        self.assertEqual(invite['sender_username'], 'initiator')
+        self.assertEqual(invite['sender_display_name'], 'Initiator User')
+        self.assertIn('fantasy series', invite['message'])
+        self.assertEqual(invite['equity_percent'], 40)
+        self.assertEqual(invite['attachments'], 'QmTest123')
+        self.assertEqual(invite['content_id'], content.id)
+        
+        # Verify initiator's own invites don't appear in their notifications
+        self.client.login(username='initiator', password='testpass')
+        res2 = self.client.get('/api/notifications/')
+        data2 = res2.json()
+        self.assertEqual(len(data2), 0)  # Initiator should see 0 notifications
 
 class ContentCustomizeAndPreviewTests(TestCase):
     def setUp(self):
