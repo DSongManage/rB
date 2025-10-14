@@ -10,7 +10,7 @@ type Payload = { title: string; type:'text'|'image'|'video'; file?: File; textHt
 export default function CreateWizard(){
   const [step, setStep] = useState(0);
   const [ctype, setCtype] = useState<'text'|'image'|'video'|'none'>('none');
-  const [payload, setPayload] = useState<Payload|undefined>();
+  const [, setPayload] = useState<Payload|undefined>();
   const [contentId, setContentId] = useState<number|undefined>();
   const [msg, setMsg] = useState('');
   const [maxStep, setMaxStep] = useState(0);

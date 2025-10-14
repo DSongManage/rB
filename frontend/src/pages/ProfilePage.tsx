@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PreviewModal from '../components/PreviewModal';
-import { Web3Auth, WEB3AUTH_NETWORK } from '@web3auth/modal';
+import { Web3Auth } from '@web3auth/modal';
+import { CHAIN_NAMESPACES } from '@web3auth/base';
+import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 import ProfileEditForm from '../components/ProfileEditForm';
 import ProfileStatus from '../components/ProfileStatus';
 import StatusEditForm from '../components/StatusEditForm';
@@ -88,7 +90,21 @@ export default function ProfilePage() {
       setStatus('');
       const clientId = process.env.REACT_APP_WEB3AUTH_CLIENT_ID || '';
       if (!clientId) { setStatus('Missing Web3Auth client id'); return; }
-      const web3auth = new Web3Auth({ clientId, web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET });
+      const chainConfig = {
+        chainNamespace: CHAIN_NAMESPACES.SOLANA,
+        chainId: "0x3", // Solana devnet
+        rpcTarget: "https://api.devnet.solana.com",
+      };
+      
+      const privateKeyProvider = new SolanaPrivateKeyProvider({
+        config: { chainConfig },
+      });
+
+      const web3auth = new Web3Auth({
+        clientId,
+        chainConfig,
+        privateKeyProvider,
+      });
       await web3auth.init();
       await web3auth.connect();
       const info: any = await web3auth.getUserInfo();

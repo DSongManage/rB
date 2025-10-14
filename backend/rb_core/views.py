@@ -654,7 +654,51 @@ class UserSearchView(APIView):
         except Exception:
             pass
         qs = qs.order_by('username')[:20]
-        return Response([{ 'id':p.user.id, 'username':p.username, 'display_name':p.display_name, 'wallet_address':p.wallet_address } for p in qs])
+        
+        # Enhance response with capabilities, accomplishments, and stats (FR8)
+        results = []
+        for p in qs:
+            # Count successful collaborations
+            successful_collabs = (
+                p.user.initiated_collabs.filter(status='active').count() +
+                p.user.joined_collabs.filter(status='active').count()
+            )
+            
+            # Determine status category for badge color
+            status_category = 'green'  # default
+            if p.status:
+                green_statuses = {'Mint-Ready Partner', 'Chain Builder', 'Open Node'}
+                yellow_statuses = {'Selective Forge', 'Linked Capacity', 'Partial Protocol'}
+                red_statuses = {'Locked Chain', 'Sealed Vault', 'Exclusive Mint'}
+                if p.status in green_statuses:
+                    status_category = 'green'
+                elif p.status in yellow_statuses:
+                    status_category = 'yellow'
+                elif p.status in red_statuses:
+                    status_category = 'red'
+            
+            results.append({
+                'id': p.user.id,
+                'username': p.username,
+                'display_name': p.display_name,
+                'wallet_address': p.wallet_address,
+                # Capabilities (FR8)
+                'roles': p.roles or [],
+                'genres': p.genres or [],
+                # Accomplishments
+                'content_count': p.content_count,
+                'total_sales_usd': float(p.total_sales_usd) if p.total_sales_usd else 0.0,
+                'successful_collabs': successful_collabs,
+                'tier': p.tier if hasattr(p, 'tier') else 'Basic',
+                # Status
+                'status': p.status or '',
+                'status_category': status_category,  # 'green', 'yellow', 'red' for UI
+                # Profile media
+                'avatar_url': p.avatar_url or '',
+                'location': p.location or '',
+            })
+        
+        return Response(results)
 
 
 class SignupView(APIView):

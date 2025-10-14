@@ -12,16 +12,31 @@ export default function SignupForm() {
     setMsg('');
     setLoading(true);
     try {
-      const { Web3Auth, WEB3AUTH_NETWORK } = await import('@web3auth/modal');
+      const { Web3Auth } = await import('@web3auth/modal');
+      const { CHAIN_NAMESPACES } = await import('@web3auth/base');
+      const { SolanaPrivateKeyProvider } = await import('@web3auth/solana-provider');
+      
       const clientId = process.env.REACT_APP_WEB3AUTH_CLIENT_ID || '';
       if (!clientId) {
         setMsg('Missing REACT_APP_WEB3AUTH_CLIENT_ID');
         setLoading(false);
         return;
       }
+      
+      const chainConfig = {
+        chainNamespace: CHAIN_NAMESPACES.SOLANA,
+        chainId: "0x3", // Solana devnet
+        rpcTarget: "https://api.devnet.solana.com",
+      };
+      
+      const privateKeyProvider = new SolanaPrivateKeyProvider({
+        config: { chainConfig },
+      });
+
       const web3auth = new Web3Auth({
         clientId,
-        web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
+        chainConfig,
+        privateKeyProvider,
       });
       await web3auth.init();
       const provider: any = await web3auth.connect();

@@ -10,7 +10,7 @@ export default function CustomizeStep({ onNext, registerSubmit }: Props){
   const [watermark, setWatermark] = useState(false);
   const [price, setPrice] = useState(1);
   const [editions, setEditions] = useState(10);
-  const [splits, setSplits] = useState<Array<{address:string; percent:number}>>([]);
+  const [splits] = useState<Array<{address:string; percent:number}>>([]);
   const latest = useRef({ teaserPercent: teaser, watermark, price, editions, splits });
   // Keep a ref of latest values without triggering parent state updates
   useEffect(()=>{

@@ -220,3 +220,98 @@ Backend integration
 Next steps
 - Add/iterate Rust tests around `Minted` event details as the program evolves.
 - Extend on-chain logic to support collaborator splits (post-Week 5 scope).
+
+---
+
+## Week 6: User Testing & Feedback (Planned)
+
+### Objectives
+1. **End-to-End Flow Validation** - Test complete creator and collector journeys
+2. **UX Feedback Collection** - Identify pain points and improvement opportunities
+3. **Performance Testing** - Measure upload times, mint latency, preview rendering
+4. **Bug Discovery** - Find edge cases and error scenarios
+
+### Test Scenarios
+
+#### Scenario 1: Creator Happy Path
+```bash
+# 1. Signup via Web3Auth or manual wallet
+# 2. Create content (text/image/video) via /studio
+# 3. Customize: price $5, 10 editions, 20% teaser
+# 4. Preview with watermark
+# 5. Mint with sale_amount=5000000 lamports
+# 6. Verify tx_sig and TestFeeLog entry
+# 7. Check /api/analytics/fees/ for total
+```
+
+**Success Criteria**:
+- Time to complete: <10 minutes
+- No errors encountered
+- Fee accurately calculated (10% of sale_amount)
+- Transaction confirmed on-chain
+
+#### Scenario 2: Collector Discovery
+```bash
+# 1. Browse /search for content
+# 2. Filter by genre/type
+# 3. View content preview
+# 4. Verify teaser shows correctly (limited %)
+# 5. (Future) Purchase NFT
+```
+
+**Success Criteria**:
+- Content discoverable via search
+- Preview loads within 2 seconds
+- Watermark visible on teaser
+
+#### Scenario 3: Edge Cases
+- Large file upload (49MB video)
+- Invalid sale_amount (negative, zero, huge)
+- Unauthorized mint attempt
+- Concurrent minting (race conditions)
+
+### Feedback Collection
+
+**Quantitative Metrics**:
+- Task completion rate (%)
+- Average time per flow (minutes)
+- Error rate (failures per attempt)
+- Performance (upload time, mint time)
+
+**Qualitative Feedback**:
+- User satisfaction (1-5 stars)
+- UX clarity (confusing steps?)
+- Feature requests
+- Bug reports (severity: critical/high/medium/low)
+
+### Commands for Testing
+
+**Run mint test with fee logging**:
+```bash
+cd /Users/davidsong/repos/songProjects/rB
+export ANCHOR_WALLET="blockchain/target/platform_wallet.json"
+export ANCHOR_PROVIDER_URL="https://autumn-light-thunder.solana-devnet.quiknode.pro/97cc792c89dda353db1332623dc1308ccd0a7f97/"
+export USE_ALT_PAYER=1
+export SKIP_AIRDROP=1
+npx ts-node --transpile-only blockchain/scripts/mint_test.ts
+```
+
+**Check fee logs**:
+```bash
+cd backend
+source ../venv/bin/activate
+python manage.py shell -c "
+from rb_core.models import TestFeeLog
+logs = TestFeeLog.objects.all().order_by('-created_at')[:10]
+for log in logs:
+    print(f'Sale: {log.sale_amount_lamports}, Fee: {log.platform_fee_lamports}, BPS: {log.fee_bps}')
+"
+```
+
+### Deliverables (Week 6)
+1. **Testing Report** (`WEEK6_TESTING_REPORT.md`) - User sessions, bugs, metrics
+2. **Bug Fixes** - Address critical issues found during testing
+3. **UX Improvements** - Low-hanging fruit based on feedback
+4. **Updated Documentation** - User guide, FAQ, known limitations
+
+See `WEEK5_FINALIZATION.md` for complete Week 6 task breakdown and timeline.

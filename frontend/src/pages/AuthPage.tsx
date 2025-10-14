@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Web3Auth, WEB3AUTH_NETWORK } from '@web3auth/modal';
+import { Web3Auth } from '@web3auth/modal';
+import { CHAIN_NAMESPACES } from '@web3auth/base';
+import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 
 const BACKEND = 'http://localhost:8000';
 
@@ -105,7 +107,21 @@ export default function AuthPage() {
       if (!authOk) { setWalletStatus('Please sign in again, then retry.'); return; }
       const clientId = process.env.REACT_APP_WEB3AUTH_CLIENT_ID || '';
       if (!clientId) { setWalletStatus('Missing Web3Auth client id'); return; }
-      const web3auth = new Web3Auth({ clientId, web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET });
+      const chainConfig = {
+        chainNamespace: CHAIN_NAMESPACES.SOLANA,
+        chainId: "0x3", // Solana devnet
+        rpcTarget: "https://api.devnet.solana.com",
+      };
+      
+      const privateKeyProvider = new SolanaPrivateKeyProvider({
+        config: { chainConfig },
+      });
+
+      const web3auth = new Web3Auth({
+        clientId,
+        chainConfig,
+        privateKeyProvider,
+      });
       await web3auth.init();
       await web3auth.connect();
       const userInfo: any = await web3auth.getUserInfo();

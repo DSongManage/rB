@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { VideoCard } from '../components/VideoCard';
 
@@ -13,15 +13,16 @@ export default function SearchPage() {
   const [genre, setGenre] = useState('all');
   const [results, setResults] = useState<any[]>([]);
 
-  const run = () => {
+  const run = useCallback(() => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (type !== 'all') params.set('type', type);
     if (genre !== 'all') params.set('genre', genre);
     fetch(`http://127.0.0.1:8000/api/search/?${params.toString()}`)
       .then(r=>r.json()).then(setResults).catch(()=>setResults([]));
-  };
-  useEffect(()=>{ run(); /* eslint-disable-next-line */ },[]);
+  }, [q, type, genre]);
+  
+  useEffect(()=>{ run(); }, [run]);
 
   return (
     <div className="page" style={{background:'transparent', border:'none', boxShadow:'none'}}>

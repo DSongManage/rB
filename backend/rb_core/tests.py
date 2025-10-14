@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.conf import settings
+from .models import User, UserProfile, Content, Collaboration
 
 
 class SettingsEnvFlagsTest(TestCase):
@@ -53,6 +54,67 @@ class ProfileTests(TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertTrue(any(r['username'].startswith('renaiss') for r in data))
+    
+    def test_user_search_returns_accomplishments_and_stats(self):
+        """Test enhanced UserSearchView returns capabilities, accomplishments, and stats (FR8)"""
+        # Create test users with profiles
+        user1 = User.objects.create_user(username='creator1')
+        profile1 = UserProfile.objects.create(
+            user=user1,
+            username='creator1',
+            display_name='Test Creator',
+            roles=['author', 'artist'],
+            genres=['fantasy', 'scifi'],
+            content_count=15,
+            total_sales_usd=2500.50,
+            status='Mint-Ready Partner',
+            location='SF'
+        )
+        
+        user2 = User.objects.create_user(username='artist2')
+        profile2 = UserProfile.objects.create(
+            user=user2,
+            username='artist2',
+            roles=['artist'],
+            genres=['art'],
+            content_count=8,
+            total_sales_usd=1200.00,
+            status='Selective Forge'
+        )
+        
+        # Create collaborations to test successful_collabs count
+        content = Content.objects.create(title='Test', creator=user1, content_type='book')
+        collab = Collaboration.objects.create(content=content, status='active')
+        collab.collaborators.add(user1, user2)
+        
+        # Search for users
+        res = self.client.get('/api/users/search/?role=artist')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        
+        # Assert both users returned
+        self.assertGreaterEqual(len(data), 2)
+        
+        # Find creator1 in results
+        creator1_data = next((u for u in data if u['username'] == 'creator1'), None)
+        self.assertIsNotNone(creator1_data)
+        
+        # Assert capabilities
+        self.assertEqual(creator1_data['roles'], ['author', 'artist'])
+        self.assertEqual(creator1_data['genres'], ['fantasy', 'scifi'])
+        
+        # Assert accomplishments
+        self.assertEqual(creator1_data['content_count'], 15)
+        self.assertAlmostEqual(creator1_data['total_sales_usd'], 2500.50, places=2)
+        self.assertGreaterEqual(creator1_data['successful_collabs'], 1)
+        
+        # Assert status
+        self.assertEqual(creator1_data['status'], 'Mint-Ready Partner')
+        self.assertEqual(creator1_data['status_category'], 'green')
+        
+        # Assert tier and location
+        self.assertIn('tier', creator1_data)
+        self.assertEqual(creator1_data['location'], 'SF')
 
 class ContentCustomizeAndPreviewTests(TestCase):
     def setUp(self):

@@ -11,8 +11,12 @@
     "@types/node": "^16.18.126",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
-    "@web3auth/modal": "^10.3.1",
+    "@web3auth/base": "^9.7.0",
+    "@web3auth/modal": "9.3.2",
+    "@web3auth/solana-provider": "^9.7.0",
+    "buffer": "^6.0.3",
     "dompurify": "3.3.0",
+    "process": "^0.11.10",
     "quill": "^2.0.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -55,26 +59,26 @@
   },
   "overrides": {
     "viem": "2.37.8",
-    "ox": "0.6.0",
+    "ox": "0.9.3",
     "@walletconnect/utils": {
-    "viem": "2.37.8",
-      "ox": "0.6.0"
+      "viem": "2.37.8",
+      "ox": "0.9.3"
     },
     "@web3auth/no-modal": {
       "viem": "2.37.8",
-      "ox": "0.6.0"
+      "ox": "0.9.3"
     },
     "@web3auth/modal": {
       "viem": "2.37.8",
-      "ox": "0.6.0"
+      "ox": "0.9.3"
     },
     "permissionless": {
       "viem": "2.37.8",
-      "ox": "0.6.0"
+      "ox": "0.9.3"
     },
     "@toruslabs/ethereum-controllers": {
       "viem": "2.37.8",
-      "ox": "0.6.0"
+      "ox": "0.9.3"
     }
   }
 }

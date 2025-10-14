@@ -33,6 +33,7 @@ export default function CreateStep({ type, onReady, registerSubmit, showNextButt
     if (registerSubmit) {
       registerSubmit(()=> onReady({ title, file, textHtml }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registerSubmit, title, file, textHtml]);
 
   return (
