@@ -1,3 +1,23 @@
+## Auth and Web3Auth quick start (updated)
+
+- Ensure frontend uses proxy with relative URLs. Do NOT set `REACT_APP_BACKEND_ORIGIN` in dev.
+- Backend now includes `django.contrib.sites` and `SITE_ID=1` configured to `localhost:8000`.
+- Session login: `/accounts/login/` works via proxy; `/api/auth/status/` reflects session.
+- Web3Auth login: frontend "Sign in with Web3Auth" obtains idToken and POSTs to `/auth/web3/`; backend verifies token with JWKS, maps subject to `UserProfile.web3auth_sub`, sets session.
+
+Env vars (dev):
+
+```
+WEB3AUTH_CLIENT_ID=<your_client_id>
+WEB3AUTH_JWKS_URL=https://api-auth.web3auth.io/.well-known/jwks.json
+```
+
+Troubleshooting:
+
+- If login returns 403, verify requests are same-origin (URL should be `http://localhost:3000/...`).
+- Clear cookies for `localhost:3000` and retry.
+- Verify `SITE_ID=1` domain is `localhost:8000` using Django shell.
+
 # Quick Start: Week 5 → Week 6 Transition
 
 **Status**: Week 5 Complete ✅ | Ready for Week 6 Testing 📋

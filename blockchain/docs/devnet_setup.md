@@ -1,3 +1,18 @@
+## Web3Auth client setup (dev)
+
+- Obtain a Web3Auth Client ID (Sapphire) and add your local dev origin to the allowlist:
+  - Allowed domains: `http://127.0.0.1:3000`, `http://localhost:3000`
+  - For the dev proxy approach, the browser origin is `:3000`.
+- Frontend env:
+  - Create `frontend/.env` with:
+    - `REACT_APP_WEB3AUTH_CLIENT_ID=YOUR_CLIENT_ID`
+- Backend env (already defaulted in settings):
+  - `WEB3AUTH_CLIENT_ID` and `WEB3AUTH_JWKS_URL` can be left as defaults for dev or set explicitly.
+- Test flow:
+  - Start Django at `127.0.0.1:8000`.
+  - Start the React dev server or the static proxy at `127.0.0.1:3000`.
+  - Use “Continue with Web3Auth” on `/auth`.
+
 # renaissBlock Devnet Setup (Placeholder)
 
 This document outlines a minimal, safe path to compile and deploy the Anchor program on Solana devnet.

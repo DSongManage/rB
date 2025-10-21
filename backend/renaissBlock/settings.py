@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
     'rb_core',  # Custom app for core functionality (avoids conflict with Python's 'core' module)
     'rest_framework',  # For building APIs (e.g., content upload FR4, fiat callbacks FR2)
     'allauth',
@@ -208,9 +209,10 @@ try:
 except Exception:
     pass
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-FRONTEND_ORIGIN = 'http://localhost:3000'
-LOGIN_REDIRECT_URL = f'{FRONTEND_ORIGIN}/'
-LOGOUT_REDIRECT_URL = f'{FRONTEND_ORIGIN}/'
+FRONTEND_ORIGIN = os.getenv('FRONTEND_ORIGIN', 'http://127.0.0.1:3000')
+# Neutral redirects so dev works on both localhost and 127.0.0.1
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
 
 # CORS/CSRF for frontend
 CORS_ALLOWED_ORIGINS = [
@@ -256,8 +258,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '60/min',
-        'user': '120/min',
+        # Relax throttles in DEBUG to accommodate SPA polling
+        'anon': '600/min' if DEBUG else '60/min',
+        'user': '600/min' if DEBUG else '120/min',
     },
 }
 

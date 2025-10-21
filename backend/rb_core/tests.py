@@ -1,6 +1,8 @@
 from django.test import TestCase
 from django.conf import settings
 from .models import User, UserProfile, Content, Collaboration
+from django.test import override_settings
+from unittest.mock import patch
 
 
 class SettingsEnvFlagsTest(TestCase):
@@ -10,6 +12,17 @@ class SettingsEnvFlagsTest(TestCase):
         # ANCHOR_PROGRAM_ID should be non-empty for devnet testing
         self.assertTrue(isinstance(settings.ANCHOR_PROGRAM_ID, str))
         self.assertGreater(len(settings.ANCHOR_PROGRAM_ID or ''), 0)
+
+class SessionLoginTests(TestCase):
+    def test_form_login_sets_session_and_auth_status(self):
+        User.objects.create_user(username='loginuser', password='pw12345!')
+        # CSRF fetch (simulated; not strictly required for test client)
+        res = self.client.post('/accounts/login/', data={'login': 'loginuser', 'password': 'pw12345!', 'next': '/'})
+        self.assertIn(res.status_code, (200, 302))
+        # Auth status should now be true
+        st = self.client.get('/api/auth/status/')
+        self.assertEqual(st.status_code, 200)
+        self.assertTrue(st.json().get('authenticated'))
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.conf import settings
@@ -200,6 +213,31 @@ class ProfileTests(TestCase):
         # Verify collaboration placeholder exists in DB but not in API
         self.assertTrue(Content.objects.filter(title__startswith='Collaboration Invite').exists())
         self.assertEqual(len([t for t in titles if t.startswith('Collaboration Invite')]), 0)
+
+class Web3AuthLoginTests(TestCase):
+    @override_settings(WEB3AUTH_CLIENT_ID='test-client')
+    @patch('rb_core.utils.PyJWKClient')
+    @patch('rb_core.utils.jwt')
+    def test_web3auth_login_maps_subject_and_sets_session(self, mock_jwt, mock_jwkc):
+        # Mock JWKS resolution and jwt.decode to return claims
+        class Key: pass
+        key = Key()
+        mock_jwkc.return_value.get_signing_key_from_jwt.return_value.key = key
+        mock_jwt.decode.return_value = {
+            'sub': 'sub-abc123',
+            'wallets': [{'public_address': '11111111111111111111111111111111111111111111'}],
+            'aud': 'test-client'
+        }
+        res = self.client.post('/auth/web3/', data={'token': 'idtoken'}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        # Authenticated session
+        st = self.client.get('/api/auth/status/')
+        self.assertEqual(st.status_code, 200)
+        self.assertTrue(st.json().get('authenticated'))
+        # Subject persisted
+        u = User.objects.get(username=st.json().get('username'))
+        prof = UserProfile.objects.get(user=u)
+        self.assertEqual(prof.web3auth_sub, 'sub-abc123')
     
     def test_notifications_returns_pending_invites_for_user(self):
         """Test /api/notifications/ returns pending collaboration invites for authenticated user (FR8)"""

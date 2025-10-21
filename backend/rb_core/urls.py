@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView
+from django.views.generic import RedirectView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView
 
 urlpatterns = [
     path('', home, name='home'),
@@ -24,4 +25,16 @@ urlpatterns = [
     path('api/users/profile/', ProfileEditView.as_view(), name='user_profile_edit'),
     path('api/profile/status/', ProfileStatusView.as_view(), name='profile_status_update'),
     path('api/notifications/', NotificationsView.as_view(), name='notifications'),
+    path('api/auth/logout/', LogoutView.as_view(), name='auth_logout'),
+    # Backward-compatible aliases (some clients may call without the /api prefix)
+    path('auth/status/', AuthStatusView.as_view(), name='auth_status_alias'),
+    path('auth/csrf/', CsrfTokenView.as_view(), name='csrf_alias'),
+    path('auth/logout/', LogoutView.as_view(), name='auth_logout_alias'),
+    # Non-API aliases for common endpoints used by the frontend when opened on :8000
+    path('notifications/', NotificationsView.as_view(), name='notifications_alias'),
+    path('users/profile/', ProfileEditView.as_view(), name='user_profile_edit_alias'),
+    path('users/search/', UserSearchView.as_view(), name='user_search_alias'),
+    path('dashboard/', DashboardView.as_view(), name='dashboard_alias'),
+    path('content/', ContentListView.as_view(), name='content_alias'),
+    path('content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_alias'),
 ]

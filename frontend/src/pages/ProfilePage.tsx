@@ -93,7 +93,7 @@ export default function ProfilePage() {
   const linkWalletWeb3Auth = async () => {
     try {
       setStatus('');
-      const clientId = process.env.REACT_APP_WEB3AUTH_CLIENT_ID || '';
+      const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || '';
       if (!clientId) { setStatus('Missing Web3Auth client id'); return; }
       const chainConfig = {
         chainNamespace: CHAIN_NAMESPACES.SOLANA,

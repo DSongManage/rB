@@ -16,9 +16,9 @@ export default function SignupForm() {
       const { CHAIN_NAMESPACES } = await import('@web3auth/base');
       const { SolanaPrivateKeyProvider } = await import('@web3auth/solana-provider');
       
-      const clientId = process.env.REACT_APP_WEB3AUTH_CLIENT_ID || '';
+      const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || '';
       if (!clientId) {
-        setMsg('Missing REACT_APP_WEB3AUTH_CLIENT_ID');
+        setMsg('Missing VITE_WEB3AUTH_CLIENT_ID');
         setLoading(false);
         return;
       }
@@ -58,17 +58,36 @@ export default function SignupForm() {
         setLoading(false);
         return;
       }
-      const res = await fetch('/api/users/signup/', {
+      // Create or fetch account and establish a session in one step
+      const csrfResp = await fetch('/api/auth/csrf/', { credentials: 'include' }).then(r=>r.json()).catch(()=>({ csrfToken: '' }));
+      const csrf = csrfResp?.csrfToken || '';
+      const loginRes = await fetch('/auth/web3/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, display_name: displayName, web3auth_token: idToken })
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ token: idToken })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setMsg(`Created @${data.username} with a new Web3Auth wallet`);
+      if (!loginRes.ok) {
+        const t = await loginRes.text();
+        setMsg(`Login failed: ${t}`);
+        setLoading(false);
+        return;
+      }
+      // Check auth status and optionally link wallet if missing
+      const st = await fetch('/api/auth/status/', { credentials:'include' }).then(r=>r.json()).catch(()=>({ authenticated:false }));
+      if (st?.authenticated) {
+        if (!st.wallet_address) {
+          try {
+            await fetch('/api/wallet/link/', {
+              method:'POST', credentials:'include',
+              headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+              body: JSON.stringify({ web3auth_token: idToken })
+            });
+          } catch {}
+        }
+        setMsg('Signed in with Web3Auth');
       } else {
-        const t = await res.text();
-        setMsg(`Failed: ${t}`);
+        setMsg('Signed in, but session not detected yet. Refresh the page.');
       }
     } catch (e: any) {
       setMsg(`Error: ${e?.message || String(e)}`);
@@ -104,7 +123,7 @@ export default function SignupForm() {
   return (
     <div style={{display:'grid', gap:12}}>
       <div style={{fontSize:14, color:'#cbd5e1'}}>
-        By default, we’ll set you up with a Web3Auth wallet (keyless, non-custodial). You can also choose “I’ll use my own wallet”.
+        Continue with Web3Auth to create your account and sign in automatically. You can link or change your wallet later.
       </div>
       <div style={{display:'grid', gap:8}}>
         <input value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="@handle (optional)" />
@@ -120,7 +139,7 @@ export default function SignupForm() {
       {usingOwnWallet && (
         <form onSubmit={submitOwnWallet} style={{display:'grid', gap:8}}>
           <input value={walletAddress} onChange={(e)=>setWalletAddress(e.target.value)} placeholder="Your Solana wallet address" />
-          <button type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create account with my wallet'}</button>
+          <button type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create account with my wallet (no session)'}</button>
         </form>
       )}
 

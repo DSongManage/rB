@@ -66,6 +66,8 @@ class Content(models.Model):
     creator = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
     teaser_link = models.URLField()  # Public teaser (no auth needed, FR1)
+    # Persist a local teaser fallback for text content to avoid IPFS dependency
+    teaser_html = models.TextField(blank=True, default='')
     ipfs_hash = models.CharField(max_length=46, blank=True)  # Full content hash (gated by NFT)
     nft_contract = models.CharField(max_length=44, blank=True)  # Solana contract address
     content_type = models.CharField(max_length=16, choices=CONTENT_TYPES, default='book')
@@ -120,6 +122,8 @@ class UserProfile(models.Model):
     display_name = models.CharField(max_length=100, blank=True, default='')
     email_hash = models.CharField(max_length=64, blank=True, default='')
     wallet_address = models.CharField(max_length=44, unique=True, null=True, blank=True, default=None)
+    # Web3Auth/OpenLogin subject identifier for deterministic identity mapping
+    web3auth_sub = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None)
     # Backward-compatible URL fields (kept); prefer uploaded images below
     avatar_url = models.URLField(blank=True, default='')
     banner_url = models.URLField(blank=True, default='')

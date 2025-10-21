@@ -1,0 +1,76 @@
+
+> frontend@0.1.0 start
+> react-scripts start --no-source-maps
+
+Attempting to bind to HOST environment variable: 127.0.0.1
+If this was unintentional, check that you haven't mistakenly set it in your shell.
+Learn more here: https://cra.link/advanced-config
+
+Starting the development server...
+
+(node:24142) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:24142) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+Compiled with warnings.
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/frontend/node_modules/enc-utils/src/index.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/frontend/node_modules/enc-utils/src/index.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/buffer-layout/src/Layout.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/buffer-layout/src/Layout.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/error.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/error.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/struct.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/struct.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/coercions.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/coercions.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/refinements.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/refinements.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/types.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/types.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/utilities.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/utilities.ts'
+
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/utils.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/utils.ts'
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in ./node_modules/enc-utils/dist/cjs/index.js
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/frontend/node_modules/enc-utils/src/index.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/frontend/node_modules/enc-utils/src/index.ts'
+
+WARNING in ../node_modules/@solana/buffer-layout/lib/Layout.js
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/buffer-layout/src/Layout.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/buffer-layout/src/Layout.ts'
+
+WARNING in ../node_modules/@solana/web3.js/node_modules/superstruct/dist/index.mjs
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/error.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/error.ts'
+
+WARNING in ../node_modules/@solana/web3.js/node_modules/superstruct/dist/index.mjs
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/struct.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/struct.ts'
+
+WARNING in ../node_modules/@solana/web3.js/node_modules/superstruct/dist/index.mjs
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/coercions.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/coercions.ts'
+
+WARNING in ../node_modules/@solana/web3.js/node_modules/superstruct/dist/index.mjs
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/refinements.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/refinements.ts'
+
+WARNING in ../node_modules/@solana/web3.js/node_modules/superstruct/dist/index.mjs
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/types.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/types.ts'
+
+WARNING in ../node_modules/@solana/web3.js/node_modules/superstruct/dist/index.mjs
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/utilities.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/structs/utilities.ts'
+
+WARNING in ../node_modules/@solana/web3.js/node_modules/superstruct/dist/index.mjs
+Module Warning (from ./node_modules/source-map-loader/dist/cjs.js):
+Failed to parse source map from '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/utils.ts' file: Error: ENOENT: no such file or directory, open '/Users/davidsong/repos/songProjects/rB/node_modules/@solana/web3.js/node_modules/superstruct/src/utils.ts'
+
+webpack compiled with 9 warnings
+Files successfully emitted, waiting for typecheck results...
+Issues checking in progress...
+No issues found.

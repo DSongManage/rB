@@ -191,6 +191,16 @@ class ContentListView(generics.ListCreateAPIView):
                 ipfs_hash = res.get('Hash', '')
             except Exception:
                 ipfs_hash = ''
+            # Build a teaser fallback (first 15%, bounded) and store locally
+            try:
+                from bs4 import BeautifulSoup  # type: ignore
+                soup = BeautifulSoup(text or '', 'lxml')
+                plain = soup.get_text(separator='\n')
+                n = max(200, min(len(plain) // 6, 1500))
+                snippet = plain[:n]
+                teaser_html_local = f"<div style=\"white-space: pre-wrap;\">{snippet}</div>"
+            except Exception:
+                teaser_html_local = ''
             # Set a temporary internal route; finalize after save when we have an ID
             teaser_link = ''
         else:
@@ -204,6 +214,8 @@ class ContentListView(generics.ListCreateAPIView):
                 # Use backend-served teaser to avoid external iframes/wallet warnings
                 internal = f"/api/content/{instance.id}/teaser/"
                 instance.teaser_link = internal
+                if 'teaser_html_local' in locals() and teaser_html_local:
+                    instance.teaser_html = teaser_html_local
                 instance.save(update_fields=['teaser_link'])
         except Exception:
             pass
@@ -568,13 +580,25 @@ class ContentTextTeaserView(APIView):
         except Exception:
             html = ''
         # Fallback to empty
-        soup = BeautifulSoup(html or '', 'lxml') if html else BeautifulSoup('<p></p>', 'lxml')
-        text = soup.get_text(separator='\n')
-        # Take first ~15% up to min/max bounds
-        n = max(200, min(len(text) // 6, 1500))
-        snippet = text[:n]
-        # Minimal HTML: wrap in safe <div>
-        body = f"<div style=\"font-family: ui-sans-serif, system-ui; white-space: pre-wrap;\">{snippet}</div>"
+        body = ''
+        try:
+            if html:
+                soup = BeautifulSoup(html or '', 'lxml')
+                text = soup.get_text(separator='\n')
+                n = max(200, min(len(text) // 6, 1500))
+                snippet = text[:n]
+                body = f"<div style=\"font-family: ui-sans-serif, system-ui; white-space: pre-wrap;\">{snippet}</div>"
+        except Exception:
+            body = ''
+        # If empty, serve persisted fallback teaser
+        if not body:
+            try:
+                if getattr(c, 'teaser_html', ''):
+                    body = c.teaser_html
+            except Exception:
+                body = ''
+        if not body:
+            body = "<div><p></p></div>"
         return HttpResponse(body, content_type='text/html')
 
 class SearchView(APIView):
@@ -630,17 +654,47 @@ class Web3AuthLoginView(APIView):
         sub = claims.get('sub')
         if not sub:
             return Response({'error': 'missing subject'}, status=400)
-        base_handle = f"renaiss{sub[:6]}"
-        auth_user, created = AuthUser.objects.get_or_create(username=base_handle)
-        # Ensure a local CoreUser exists for profile link
-        core_user, _ = CoreUser.objects.get_or_create(username=auth_user.username)
-        prof, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
         addr = extract_wallet_from_claims(claims)
+        # Resolve or create user based on web3auth subject or wallet
+        AuthUser = get_user_model()
+        # First preference: subject match
+        prof = UserProfile.objects.filter(web3auth_sub=sub).select_related('user').first()
+        if not prof and addr:
+            # Fallback: wallet match (may be pre-linked via API signup)
+            prof = UserProfile.objects.filter(wallet_address=addr).select_related('user').first()
+        if prof:
+            core_user = prof.user
+        else:
+            # Create a new handle; ensure uniqueness
+            base_handle = f"renaiss{sub[:6]}"
+            handle = base_handle
+            n = 0
+            while AuthUser.objects.filter(username=handle).exists():
+                n += 1
+                handle = f"{base_handle}{n}"
+            core_user = AuthUser.objects.create_user(username=handle, password=None)
+            prof = UserProfile.objects.create(user=core_user, username=handle)
+        # Update identity mapping and wallet if available
+        changed = False
+        if getattr(prof, 'web3auth_sub', None) != sub:
+            prof.web3auth_sub = sub
+            changed = True
         if addr and not prof.wallet_address:
+            # Only set if free; uniqueness is enforced at DB level
             prof.wallet_address = addr
-            prof.save()
+            changed = True
+        if changed:
+            try:
+                prof.save()
+            except Exception:
+                # If wallet uniqueness blocks save, keep subject mapping only
+                prof.wallet_address = prof.wallet_address  # no-op safeguard
+                try:
+                    prof.save(update_fields=['web3auth_sub'])
+                except Exception:
+                    pass
         from django.contrib.auth import login as django_login
-        django_login(request, auth_user)
+        django_login(request, core_user)
         return Response({'message': 'Login successful'})
 
 class FlagView(APIView):
@@ -826,6 +880,31 @@ class NotificationsView(APIView):
             })
         
         return Response(results)
+
+
+class LogoutView(APIView):
+    """API endpoint to log out the current session cleanly.
+
+    Frontend can POST here with CSRF and then redirect client-side
+    without relying on allauth's HTML flow, avoiding redirect loops
+    in proxied dev environments.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from django.contrib.auth import logout as django_logout
+        try:
+            django_logout(request)
+        except Exception:
+            pass
+        # Return a simple JSON and let client redirect
+        resp = Response({'ok': True})
+        try:
+            # Proactively expire session cookie in dev
+            resp.delete_cookie('sessionid', path='/', samesite='Lax')
+        except Exception:
+            pass
+        return resp
 
 
 class SignupView(APIView):

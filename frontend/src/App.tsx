@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Route, Routes, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Route, Routes, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import './App.css';
 import HomePage from './pages/HomePage';
 import SearchPage from './pages/SearchPage';
@@ -48,11 +48,32 @@ function Header() {
     const interval = setInterval(checkAuthAndNotifications, 10000);
     return () => clearInterval(interval);
   },[location.pathname, checkAuthAndNotifications]);
+  // Also refresh immediately when we land on home with potential fresh logout redirect
+  useEffect(()=>{
+    if (location.pathname === '/') {
+      checkAuthAndNotifications();
+    }
+  }, [location.pathname, checkAuthAndNotifications]);
   const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
   const goLogin = () => { navigate('/auth'); };
-  const doLogout = () => {
-    const next = encodeURIComponent(window.location.origin + '/');
-    window.location.assign(`/accounts/logout/?next=${next}`);
+  const doLogout = async () => {
+    try {
+      const t = await fetch('/api/auth/csrf/', { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
+      await fetch('/api/auth/logout/', { method:'POST', credentials:'include', headers:{ 'X-CSRFToken': t, 'X-Requested-With': 'XMLHttpRequest' } });
+    } catch {}
+    // Optimistically flip immediately
+    setIsAuthed(false);
+    setNotifCount(0);
+    // Re-check server state right away so UI can't be stale
+    checkAuthAndNotifications();
+    // Soft navigate to home to avoid full reload that can delay state render
+    try {
+      const nav = (window as any).__rb_nav as undefined | ((p:string)=>void);
+      if (typeof nav === 'function') nav('/');
+      else if (window.history && window.history.pushState) {
+        window.history.pushState({}, '', '/');
+      }
+    } catch {}
   };
   return (
     <nav className="rb-header">
@@ -70,7 +91,7 @@ function Header() {
           <Link to="/profile" style={{position:'relative'}}>
             Profile
             {notifCount > 0 && (
-              <span style={{position:'absolute', top:-6, right:-8, background:'#ef4444', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:10, minWidth:18, textAlign:'center'}}>
+              <span className="rb-badge" style={{position:'absolute', top:-6, right:-8, background:'#ef4444', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:10, minWidth:18, textAlign:'center'}}>
                 {notifCount}
               </span>
             )}
@@ -95,6 +116,8 @@ export default function App() {
         <div>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<Navigate to="/auth" replace />} />
+            <Route path="/signup" element={<Navigate to="/auth" replace />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/studio" element={<StudioPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
