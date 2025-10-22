@@ -200,7 +200,7 @@ SITE_ID = 1
 
 # django-allauth v65 settings using ACCOUNT_LOGIN_METHODS / ACCOUNT_SIGNUP_FIELDS
 ACCOUNT_LOGIN_METHODS = { 'username': True }
-ACCOUNT_SIGNUP_FIELDS = ['username*', 'password1*', 'password2*']
+ACCOUNT_SIGNUP_FIELDS = ['username*', 'email*', 'password1*', 'password2*']
 # Ensure no other legacy flags present
 try:
     del ACCOUNT_AUTHENTICATION_METHOD

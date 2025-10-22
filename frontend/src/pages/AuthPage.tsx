@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Web3Auth } from '@web3auth/modal';
-import { CHAIN_NAMESPACES } from '@web3auth/base';
+import { CHAIN_NAMESPACES, WALLET_ADAPTERS } from '@web3auth/base';
 import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
+import { OpenloginAdapter } from '@web3auth/openlogin-adapter';
 
 // Use relative URLs - setupProxy.js proxies to backend
 
@@ -16,6 +17,7 @@ export default function AuthPage() {
   const [csrf, setCsrf] = useState('');
   const [mode, setMode] = useState<'login'|'register'>('register');
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [msg, setMsg] = useState('');
@@ -25,6 +27,7 @@ export default function AuthPage() {
   const [ownWallet, setOwnWallet] = useState('');
   const [walletStatus, setWalletStatus] = useState('');
   const navigate = useNavigate();
+  const [web3authInstance, setWeb3authInstance] = useState<any>(null);
 
   const refreshCsrf = async () => {
     try {
@@ -64,13 +67,16 @@ export default function AuthPage() {
     setMsg('');
     const form = new URLSearchParams();
     form.set('username', username);
+    form.set('email', email);
     form.set('password1', password);
     form.set('password2', password2);
     form.set('next', '/');
     const res = await fetch(`${apiBase}/accounts/signup/`, {
       method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
     });
-    if (res.ok) {
+    
+    // Check if response is a redirect (302) - success
+    if (res.redirected || res.status === 302) {
       // Refresh CSRF after signup (token may rotate) and ensure session is authenticated
       await refreshCsrf();
       const ok = await ensureAuthenticated();
@@ -84,7 +90,23 @@ export default function AuthPage() {
         setStep('done');
       }
     } else {
-      setMsg('Signup failed');
+      // Got HTML error page - parse for errors
+      const text = await res.text();
+      if (text.includes('username') && text.includes('already')) {
+        setMsg('Username already exists. Please choose a different username.');
+      } else if (text.includes('email') && text.includes('already')) {
+        setMsg('Email already exists. Please use a different email or sign in.');
+      } else if (text.includes('email') && text.includes('invalid')) {
+        setMsg('Invalid email address. Please enter a valid email.');
+      } else if (text.includes('password') && text.includes('too common')) {
+        setMsg('Password is too common. Please choose a stronger password.');
+      } else if (text.includes('password') && text.includes('too short')) {
+        setMsg('Password is too short. Please use at least 8 characters.');
+      } else if (text.includes('password')) {
+        setMsg('Passwords do not match or are invalid.');
+      } else {
+        setMsg('Signup failed. Please check your information and try again.');
+      }
     }
   };
 
@@ -107,13 +129,15 @@ export default function AuthPage() {
   };
 
   const linkWalletWithWeb3Auth = async () => {
-    setWalletStatus('');
+    setWalletStatus('Initializing Web3Auth...');
     try {
       if (!csrf) { await refreshCsrf(); }
       const authOk = await ensureAuthenticated();
-      if (!authOk) { setWalletStatus('Please sign in again, then retry.'); return; }
+      if (!authOk) { setWalletStatus('Error: Please sign in again, then retry.'); return; }
       const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || '';
-      if (!clientId) { setWalletStatus('Missing Web3Auth client id'); return; }
+      console.log('[Web3Auth Debug] Client ID loaded:', clientId ? 'YES (length: ' + clientId.length + ')' : 'NO');
+      if (!clientId) { setWalletStatus('Error: Missing Web3Auth client ID. Please contact support.'); return; }
+      
       const chainConfig = {
         chainNamespace: CHAIN_NAMESPACES.SOLANA,
         chainId: "0x3", // Solana devnet
@@ -124,25 +148,87 @@ export default function AuthPage() {
         config: { chainConfig },
       });
 
+      setWalletStatus('Connecting to Web3Auth...');
       const web3auth = new Web3Auth({
         clientId,
+        web3AuthNetwork: 'sapphire_devnet',
         chainConfig,
         privateKeyProvider,
+        uiConfig: {
+          appName: 'renaissBlock',
+          mode: 'dark',
+          theme: {
+            primary: '#f59e0b',
+          },
+        },
       });
-      await web3auth.init();
-      await web3auth.connect();
+      
+      // Configure and add OpenLogin adapter
+      const openloginAdapter = new OpenloginAdapter({
+        privateKeyProvider,
+        adapterSettings: {
+          network: 'sapphire_devnet',
+          clientId,
+        },
+      });
+      web3auth.configureAdapter(openloginAdapter);
+      console.log('[Web3Auth Debug] OpenLogin adapter configured');
+      
+      setWalletStatus('Initializing Web3Auth modal...');
+      try {
+        // CRITICAL: Use initModal() instead of init() for Web3Auth Modal!
+        await web3auth.initModal();
+        console.log('[Web3Auth Debug] Modal init successful, status:', web3auth.status);
+        console.log('[Web3Auth Debug] Connected:', web3auth.connected);
+        console.log('[Web3Auth Debug] Provider:', !!web3auth.provider);
+      } catch (initError: any) {
+        console.error('[Web3Auth Debug] Modal init failed:', initError);
+        setWalletStatus(`Error during init: ${initError?.message || String(initError)}`);
+        return;
+      }
+      
+      // IMPORTANT: If already connected, logout first to force fresh login
+      if (web3auth.connected) {
+        console.log('[Web3Auth Debug] Already connected, logging out to force fresh login...');
+        try {
+          await web3auth.logout();
+          console.log('[Web3Auth Debug] Logged out successfully');
+        } catch (logoutError) {
+          console.warn('[Web3Auth Debug] Logout failed (may not matter):', logoutError);
+        }
+      }
+      
+      // Now show modal for fresh login choice
+      setWalletStatus('Opening Web3Auth modal...');
+      console.log('[Web3Auth Debug] Attempting to connect, status:', web3auth.status);
+      console.log('[Web3Auth Debug] Available adapters:', Object.keys(web3auth.walletAdapters || {}));
+      
+      try {
+        // Use connect() to show modal with all login options
+        // User can choose which social account to use
+        const provider = await web3auth.connect();
+        console.log('[Web3Auth Debug] Connect successful, provider:', !!provider);
+      } catch (connectError: any) {
+        console.error('[Web3Auth Debug] Connect failed:', connectError);
+        console.error('[Web3Auth Debug] Full error:', connectError);
+        setWalletStatus(`Error: ${connectError?.message || String(connectError)}`);
+        return;
+      }
+      
       const userInfo: any = await web3auth.getUserInfo();
       const idToken = userInfo?.idToken || userInfo?.id_token;
-      if (!idToken) { setWalletStatus('Could not obtain Web3Auth token'); return; }
+      if (!idToken) { setWalletStatus('Error: Could not obtain Web3Auth token'); return; }
+      
+      setWalletStatus('Linking wallet to your account...');
       const res = await fetch('/api/wallet/link/', {
         method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ web3auth_token: idToken })
       });
       if (res.ok) {
-        setWalletStatus('Wallet created and linked');
-        setStep('done');
+        setWalletStatus('✅ Wallet created and linked successfully!');
+        setTimeout(() => setStep('done'), 1500);
       } else {
         const t = await res.text();
-        setWalletStatus(`Failed: ${t}`);
+        setWalletStatus(`Error linking wallet: ${t}`);
       }
     } catch (e: any) {
       setWalletStatus(`Error: ${e?.message || String(e)}`);
@@ -150,11 +236,11 @@ export default function AuthPage() {
   };
 
   const continueWithWeb3Auth = async () => {
-    setWalletStatus('');
+    setWalletStatus('Initializing Web3Auth...');
     try {
       if (!csrf) { await refreshCsrf(); }
       const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || '';
-      if (!clientId) { setWalletStatus('Missing Web3Auth client id'); return; }
+      if (!clientId) { setWalletStatus('Error: Missing Web3Auth client ID'); return; }
 
       const chainConfig = {
         chainNamespace: CHAIN_NAMESPACES.SOLANA,
@@ -164,13 +250,43 @@ export default function AuthPage() {
       const privateKeyProvider = new SolanaPrivateKeyProvider({
         config: { chainConfig },
       });
-      const web3auth = new Web3Auth({ clientId, chainConfig, privateKeyProvider });
-      await web3auth.init();
+      
+      setWalletStatus('Connecting to Web3Auth...');
+      const web3auth = new Web3Auth({ 
+        clientId,
+        web3AuthNetwork: 'sapphire_devnet',
+        chainConfig, 
+        privateKeyProvider,
+        uiConfig: {
+          appName: 'renaissBlock',
+          mode: 'dark',
+          theme: {
+            primary: '#f59e0b',
+          },
+        },
+      });
+
+      // Configure and add OpenLogin adapter
+      const openloginAdapter = new OpenloginAdapter({
+        privateKeyProvider,
+        adapterSettings: {
+          network: 'sapphire_devnet',
+          clientId,
+        },
+      });
+      web3auth.configureAdapter(openloginAdapter);
+
+      setWalletStatus('Initializing Web3Auth modal...');
+      await web3auth.initModal();
+      
+      setWalletStatus('Opening Web3Auth modal...');
       await web3auth.connect();
+      
       const userInfo: any = await web3auth.getUserInfo();
       const idToken = userInfo?.idToken || userInfo?.id_token;
-      if (!idToken) { setWalletStatus('Could not obtain Web3Auth token'); return; }
+      if (!idToken) { setWalletStatus('Error: Could not obtain Web3Auth token'); return; }
 
+      setWalletStatus('Signing you in...');
       // Create a session using Web3Auth on the backend
       const res = await fetch('/auth/web3/', {
         method:'POST', credentials:'include',
@@ -196,11 +312,10 @@ export default function AuthPage() {
             });
           } catch {}
         }
-        setWalletStatus('Signed in');
-        // Soft navigate to dashboard
-        navigate('/dashboard');
+        setWalletStatus('✅ Signed in successfully!');
+        setTimeout(() => navigate('/dashboard'), 1000);
       } else {
-        setWalletStatus('Signed in, but session not detected yet. Refresh the page.');
+        setWalletStatus('Signed in, but session not detected yet. Please refresh the page.');
       }
     } catch (e: any) {
       setWalletStatus(`Error: ${e?.message || String(e)}`);
@@ -249,6 +364,7 @@ export default function AuthPage() {
       ) : (
         <form onSubmit={submitAccount} style={{display:'grid', gap:12}}>
           <input value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="Username" required />
+          <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="Email" required />
           <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Password" required />
           <input type="password" value={password2} onChange={(e)=>setPassword2(e.target.value)} placeholder="Confirm password" required />
 
@@ -314,11 +430,24 @@ export default function AuthPage() {
     </div>
   );
 
+  const stepIndex = step === 'account' ? 0 : step === 'wallet' ? 1 : 2;
+  const stepLabels = ['Account', 'Wallet', 'Done'];
+
   const Stepper = (
-    <div style={{display:'flex', gap:8, justifyContent:'center', marginTop:16}}>
-      <span className={step==='account'?'chip active':'chip'} style={{cursor:'default'}} aria-current={step==='account'?'step':undefined}>Account</span>
-      <span className={step==='wallet'?'chip active':'chip'} style={{cursor:'default'}} aria-current={step==='wallet'?'step':undefined}>Wallet</span>
-      <span className={step==='done'?'chip active':'chip'} style={{cursor:'default'}} aria-current={step==='done'?'step':undefined}>Done</span>
+    <div style={{display:'flex', justifyContent:'center', gap:16, alignItems:'center', maxWidth:800, margin:'24px auto', padding:'0 20px'}}>
+      {stepLabels.map((label, i)=> {
+        const current = i === stepIndex;
+        const completed = i < stepIndex;
+        return (
+          <div key={label} style={{flex: 1, maxWidth: 200}}>
+            <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:8}}>
+              <div style={{width:32, height:32, borderRadius:999, border:'2px solid ' + (current || completed ? '#f59e0b' : '#334155'), background: current? '#f59e0b': completed? '#f59e0b' : 'transparent', color: current || completed? '#111':'#94a3b8', display:'grid', placeItems:'center', fontSize:14, fontWeight:700, transition: 'all 0.3s'}}>{i+1}</div>
+              <div style={{fontSize:13, color: current? '#f59e0b' : completed? '#cbd5e1' : '#64748b', fontWeight: current? 700:500, textAlign:'center'}}>{label}</div>
+            </div>
+            <div style={{height:2, marginTop:8, borderRadius:999, background: current? 'linear-gradient(90deg, #f59e0b 0%, rgba(245,158,11,0.3) 100%)' : completed ? '#f59e0b' : '#334155', transition: 'all 0.3s'}} />
+          </div>
+        );
+      })}
     </div>
   );
 

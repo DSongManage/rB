@@ -64,16 +64,10 @@ function Header() {
     // Optimistically flip immediately
     setIsAuthed(false);
     setNotifCount(0);
-    // Re-check server state right away so UI can't be stale
-    checkAuthAndNotifications();
-    // Soft navigate to home to avoid full reload that can delay state render
-    try {
-      const nav = (window as any).__rb_nav as undefined | ((p:string)=>void);
-      if (typeof nav === 'function') nav('/');
-      else if (window.history && window.history.pushState) {
-        window.history.pushState({}, '', '/');
-      }
-    } catch {}
+    // Navigate to home using React Router
+    navigate('/');
+    // Re-check server state after navigation
+    setTimeout(() => checkAuthAndNotifications(), 100);
   };
   return (
     <nav className="rb-header">

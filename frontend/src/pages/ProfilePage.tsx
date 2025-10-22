@@ -109,6 +109,7 @@ export default function ProfilePage() {
         clientId,
         chainConfig,
         privateKeyProvider,
+        web3AuthNetwork: 'sapphire_devnet',
       });
       await web3auth.init();
       await web3auth.connect();
