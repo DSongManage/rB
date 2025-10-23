@@ -8,14 +8,28 @@ type Props = { open: boolean; onClose: ()=>void; teaserUrl?: string; contentType
 export default function PreviewModal({ open, onClose, teaserUrl, contentType }: Props){
   const type = contentType || 'book';
   const [html, setHtml] = useState<string>('');
+  const [loading, setLoading] = useState(true);
   useEffect(()=>{
     let active = true;
     if (open && type==='book' && teaserUrl) {
+      setLoading(true);
       // Fetch internal teaser endpoint and render inline
       fetch(teaserUrl, { credentials:'include' })
         .then(r=> r.ok ? r.text() : '')
-        .then(t=> { if (active) setHtml(String(t||'')); })
-        .catch(()=> { if (active) setHtml('<p>Preview unavailable</p>'); });
+        .then(t=> { 
+          if (active) {
+            setHtml(String(t||''));
+            setLoading(false);
+          }
+        })
+        .catch(()=> { 
+          if (active) {
+            setHtml('<p>Preview unavailable</p>');
+            setLoading(false);
+          }
+        });
+    } else {
+      setLoading(false);
     }
     return ()=> { active = false; };
   }, [open, type, teaserUrl]);
@@ -35,7 +49,13 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType }: 
         <div style={{padding:12, overflow:'auto'}}>
           {type==='book' && (
             <div style={{width:'100%', height:'65vh', overflow:'auto', padding:12, background:'#0b1220', borderRadius:8}}>
-              <div dangerouslySetInnerHTML={{ __html: safe }} />
+              {loading ? (
+                <div style={{color:'#94a3b8', textAlign:'center', padding:20}}>Loading preview...</div>
+              ) : safe ? (
+                <div dangerouslySetInnerHTML={{ __html: safe }} />
+              ) : (
+                <div style={{color:'#94a3b8', textAlign:'center', padding:20}}>No preview available</div>
+              )}
             </div>
           )}
           {(type==='art') && (

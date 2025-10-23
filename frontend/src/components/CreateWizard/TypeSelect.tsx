@@ -24,7 +24,7 @@ export default function TypeSelect({ onSelect }:{ onSelect:(t:'text'|'image'|'vi
   );
   return (
     <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12}}>
-      {card('text', 'Write Text / Chapter', 'Compose a chapter or article with a rich editor')}
+      {card('text', 'Write a Book', 'Create a book with chapters, organize, and publish as a series or complete work')}
       {card('image', 'Upload Image / Art', 'PNG/JPG/WebP up to 50MB; watermark optional')}
       {card('video', 'Upload Video / Song', 'MP4/MOV/MP3 up to 50MB; auto-compress')}
     </div>

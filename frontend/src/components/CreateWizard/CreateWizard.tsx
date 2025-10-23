@@ -4,6 +4,7 @@ import CreateStep from './CreateStep';
 import CustomizeStep from './CustomizeStep';
 import MintStep from './MintStep';
 import ShareStep from './ShareStep';
+import BookEditor from '../BookEditor/BookEditor';
 
 type Payload = { title: string; type:'text'|'image'|'video'; file?: File; textHtml?: string };
 
@@ -14,6 +15,7 @@ export default function CreateWizard(){
   const [contentId, setContentId] = useState<number|undefined>();
   const [msg, setMsg] = useState('');
   const [maxStep, setMaxStep] = useState(0);
+  const [showBookEditor, setShowBookEditor] = useState(false);
 
   async function fetchCsrf(){
     try {
@@ -59,6 +61,28 @@ export default function CreateWizard(){
   const registerSubmit = useCallback((fn: ()=>void)=> { setSubmitCurrent(()=> fn); }, []);
   const registerCustomize = useCallback((fn: ()=>{ teaserPercent:number; watermark:boolean; price:number; editions:number; splits:any[] })=> { setCollectCustomize(()=> fn); }, []);
 
+  // Handle book editor publish
+  const handleBookPublish = (publishedContentId: number) => {
+    setContentId(publishedContentId);
+    setShowBookEditor(false);
+    setStep(2); // Go to customize step
+    setMaxStep(Math.max(maxStep, 2));
+  };
+
+  // If book editor is active, show it instead of the wizard
+  if (showBookEditor) {
+    return (
+      <BookEditor
+        onPublish={handleBookPublish}
+        onBack={() => {
+          setShowBookEditor(false);
+          setCtype('none');
+          setStep(0);
+        }}
+      />
+    );
+  }
+
   return (
     <div style={{display:'grid', gap:16}}>
       <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:8, alignItems:'end'}}>
@@ -85,7 +109,17 @@ export default function CreateWizard(){
       )}
 
       {step===0 && (
-        <TypeSelect onSelect={(t)=> { setCtype(t); setMaxStep(Math.max(maxStep,0)); setStep(1); }} />
+        <TypeSelect onSelect={(t)=> { 
+          setCtype(t); 
+          if (t === 'text') {
+            // For text/book, show the book editor
+            setShowBookEditor(true);
+          } else {
+            // For image/video, proceed to normal create step
+            setMaxStep(Math.max(maxStep,0)); 
+            setStep(1);
+          }
+        }} />
       )}
       {step===1 && ctype!=='none' && (
         <CreateStep

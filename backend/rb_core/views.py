@@ -1,9 +1,10 @@
 from django.shortcuts import render
 from django.http import HttpResponse
+from django.db import models
 from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import Content, UserProfile, User as CoreUser
-from .serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer
+from .models import Content, UserProfile, User as CoreUser, BookProject, Chapter
+from .serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer
 from .utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -955,3 +956,209 @@ class ProfileStatusView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(UserProfileSerializer(profile, context={'request': request}).data)
+
+
+# Book Project and Chapter Views
+
+class BookProjectListCreateView(APIView):
+    """List all book projects for authenticated user or create a new one."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        projects = BookProject.objects.filter(creator=core_user)
+        serializer = BookProjectSerializer(projects, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        serializer = BookProjectSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(creator=core_user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class BookProjectDetailView(APIView):
+    """Retrieve, update, or delete a specific book project."""
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, pk, user):
+        core_user, _ = CoreUser.objects.get_or_create(username=user.username)
+        try:
+            return BookProject.objects.get(pk=pk, creator=core_user)
+        except BookProject.DoesNotExist:
+            return None
+    
+    def get(self, request, pk):
+        project = self.get_object(pk, request.user)
+        if not project:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = BookProjectSerializer(project)
+        return Response(serializer.data)
+    
+    def patch(self, request, pk):
+        project = self.get_object(pk, request.user)
+        if not project:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = BookProjectSerializer(project, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, pk):
+        project = self.get_object(pk, request.user)
+        if not project:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        project.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChapterListCreateView(APIView):
+    """List chapters for a project or create a new chapter."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, project_id):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            project = BookProject.objects.get(pk=project_id, creator=core_user)
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        chapters = project.chapters.all()
+        serializer = ChapterSerializer(chapters, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request, project_id):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            project = BookProject.objects.get(pk=project_id, creator=core_user)
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Auto-assign order as the next available number
+        max_order = project.chapters.aggregate(models.Max('order'))['order__max']
+        order = (max_order or -1) + 1
+        
+        serializer = ChapterSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(book_project=project, order=order)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChapterDetailView(APIView):
+    """Retrieve, update, or delete a specific chapter."""
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, pk, user):
+        core_user, _ = CoreUser.objects.get_or_create(username=user.username)
+        try:
+            chapter = Chapter.objects.select_related('book_project').get(pk=pk)
+            if chapter.book_project.creator == core_user:
+                return chapter
+        except Chapter.DoesNotExist:
+            pass
+        return None
+    
+    def get(self, request, pk):
+        chapter = self.get_object(pk, request.user)
+        if not chapter:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ChapterSerializer(chapter)
+        return Response(serializer.data)
+    
+    def patch(self, request, pk):
+        chapter = self.get_object(pk, request.user)
+        if not chapter:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ChapterSerializer(chapter, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, pk):
+        chapter = self.get_object(pk, request.user)
+        if not chapter:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        chapter.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PublishChapterView(APIView):
+    """Publish a single chapter as Content/NFT."""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            chapter = Chapter.objects.select_related('book_project').get(pk=pk)
+            if chapter.book_project.creator != core_user:
+                return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        except Chapter.DoesNotExist:
+            return Response({'error': 'Chapter not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Create Content item for this chapter
+        content = Content.objects.create(
+            creator=core_user,
+            title=f"{chapter.book_project.title} - {chapter.title}",
+            teaser_html=chapter.content_html,
+            teaser_link=f'/api/content/{pk}/teaser/',  # Will be updated after save
+            content_type='book',
+            genre='other'
+        )
+        content.teaser_link = f'/api/content/{content.id}/teaser/'
+        content.save()
+        
+        chapter.is_published = True
+        chapter.published_content = content
+        chapter.save()
+        
+        return Response({
+            'content_id': content.id,
+            'message': 'Chapter published successfully'
+        }, status=status.HTTP_201_CREATED)
+
+
+class PublishBookView(APIView):
+    """Publish entire book (all chapters combined) as Content/NFT."""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            project = BookProject.objects.get(pk=pk, creator=core_user)
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Combine all chapters into one HTML document
+        chapters = project.chapters.all().order_by('order')
+        if not chapters.exists():
+            return Response({'error': 'No chapters to publish'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        combined_html = ''
+        for chapter in chapters:
+            combined_html += f'<h2>{chapter.title}</h2>\n{chapter.content_html}\n\n'
+        
+        # Create Content item for the entire book
+        content = Content.objects.create(
+            creator=core_user,
+            title=project.title,
+            teaser_html=combined_html,
+            teaser_link=f'/api/content/{pk}/teaser/',  # Will be updated after save
+            content_type='book',
+            genre='other'
+        )
+        content.teaser_link = f'/api/content/{content.id}/teaser/'
+        content.save()
+        
+        project.is_published = True
+        project.published_content = content
+        project.save()
+        
+        return Response({
+            'content_id': content.id,
+            'message': 'Book published successfully'
+        }, status=status.HTTP_201_CREATED)

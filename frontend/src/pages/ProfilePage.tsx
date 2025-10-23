@@ -384,9 +384,11 @@ export default function ProfilePage() {
                 <div style={{width:80, height:60, background:'#111', borderRadius:6, overflow:'hidden', display:'grid', placeItems:'center'}}>
                   <img src={it.teaser_link} alt="preview" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ e.currentTarget.style.display='none'; e.currentTarget.parentElement!.textContent='Preview'; }} />
                 </div>
-                <div>
+                <div style={{minWidth: 0}}>
                   <div className="card-title">{it.title}</div>
-                  <div className="yt-meta">Contract: {it.nft_contract || '-'}</div>
+                  <div className="yt-meta" style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                    Contract: {it.nft_contract ? `${it.nft_contract.slice(0, 8)}...${it.nft_contract.slice(-6)}` : '-'}
+                  </div>
                 </div>
               </div>
             ))}
@@ -395,8 +397,13 @@ export default function ProfilePage() {
             )}
           </div>
         </div>
-        {showPreview && (
-          <PreviewModal open={showPreview} onClose={()=> setShowPreview(false)} teaserUrl={previewItem?.teaser_link} contentType={previewItem?.content_type} />
+        {showPreview && previewItem && (
+          <PreviewModal 
+            open={showPreview} 
+            onClose={()=> setShowPreview(false)} 
+            teaserUrl={previewItem.teaser_link} 
+            contentType={previewItem.content_type}
+          />
         )}
       </div>
     </div>

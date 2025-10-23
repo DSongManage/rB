@@ -196,3 +196,49 @@ class TestFeeLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     # Intentionally minimal: URL resolution lives on UserProfile
+
+
+class BookProject(models.Model):
+    """Book project for managing multi-chapter books.
+    
+    - Authors can create books with multiple chapters
+    - Chapters can be published individually or as a complete book
+    - Content is encrypted at rest for privacy
+    """
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='book_projects')
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_published = models.BooleanField(default=False)
+    published_content = models.ForeignKey(Content, null=True, blank=True, on_delete=models.SET_NULL, related_name='source_book_project')
+    
+    class Meta:
+        ordering = ['-updated_at']
+    
+    def __str__(self):
+        return f"{self.title} by {self.creator.username}"
+
+
+class Chapter(models.Model):
+    """Individual chapter within a book project.
+    
+    - Each chapter has title and HTML content
+    - Chapters are ordered within the book
+    - Can be published individually as NFT or as part of complete book
+    """
+    book_project = models.ForeignKey(BookProject, on_delete=models.CASCADE, related_name='chapters')
+    title = models.CharField(max_length=255)
+    content_html = models.TextField(blank=True, default='')  # Encrypted at rest
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_published = models.BooleanField(default=False)
+    published_content = models.ForeignKey(Content, null=True, blank=True, on_delete=models.SET_NULL, related_name='source_chapter')
+    
+    class Meta:
+        ordering = ['order', 'created_at']
+        unique_together = ['book_project', 'order']
+    
+    def __str__(self):
+        return f"Chapter {self.order}: {self.title}"

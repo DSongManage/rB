@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PublishChapterView, PublishBookView
 
 urlpatterns = [
     path('', home, name='home'),
@@ -37,4 +37,11 @@ urlpatterns = [
     path('dashboard/', DashboardView.as_view(), name='dashboard_alias'),
     path('content/', ContentListView.as_view(), name='content_alias'),
     path('content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_alias'),
+    # Book project and chapter endpoints
+    path('api/book-projects/', BookProjectListCreateView.as_view(), name='book_projects'),
+    path('api/book-projects/<int:pk>/', BookProjectDetailView.as_view(), name='book_project_detail'),
+    path('api/book-projects/<int:project_id>/chapters/', ChapterListCreateView.as_view(), name='chapters'),
+    path('api/chapters/<int:pk>/', ChapterDetailView.as_view(), name='chapter_detail'),
+    path('api/chapters/<int:pk>/publish/', PublishChapterView.as_view(), name='publish_chapter'),
+    path('api/book-projects/<int:pk>/publish/', PublishBookView.as_view(), name='publish_book'),
 ]

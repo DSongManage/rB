@@ -33,9 +33,12 @@ export default function AuthPage() {
     try {
       const r = await fetch(`${apiBase}/api/auth/csrf/`, { credentials:'include' });
       const d = await r.json();
-      setCsrf(d?.csrfToken || '');
+      const token = d?.csrfToken || '';
+      setCsrf(token);
+      return token;
     } catch {
       setCsrf('');
+      return '';
     }
   };
 
@@ -65,14 +68,23 @@ export default function AuthPage() {
   const submitAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg('');
+    
+    // Refresh CSRF token right before submission to avoid stale token issues
+    const freshCsrf = await refreshCsrf();
+    if (!freshCsrf) {
+      setMsg('Failed to get CSRF token. Please refresh the page.');
+      return;
+    }
+    
     const form = new URLSearchParams();
     form.set('username', username);
     form.set('email', email);
     form.set('password1', password);
     form.set('password2', password2);
     form.set('next', '/');
+    
     const res = await fetch(`${apiBase}/accounts/signup/`, {
-      method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf }, body:String(form)
+      method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': freshCsrf }, body:String(form)
     });
     
     // Check if response is a redirect (302) - success
@@ -113,8 +125,13 @@ export default function AuthPage() {
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg('');
+    // Get fresh CSRF token
+    const freshCsrf = await refreshCsrf();
+    if (!freshCsrf) {
+      setMsg('Failed to get CSRF token. Please refresh the page.');
+      return;
+    }
     // Submit via top-level form to ensure cookies set reliably even if proxy is flaky
-    if (!csrf) { await refreshCsrf(); }
     const f = document.createElement('form');
     f.method = 'POST';
     f.action = `${apiBase}/accounts/login/` || '/accounts/login/';
@@ -123,7 +140,7 @@ export default function AuthPage() {
     add('login', username);
     add('password', password);
     add('next', '/');
-    add('csrfmiddlewaretoken', csrf);
+    add('csrfmiddlewaretoken', freshCsrf);
     document.body.appendChild(f);
     f.submit();
   };
@@ -313,7 +330,7 @@ export default function AuthPage() {
           } catch {}
         }
         setWalletStatus('✅ Signed in successfully!');
-        setTimeout(() => navigate('/dashboard'), 1000);
+        setTimeout(() => navigate('/profile'), 1000);
       } else {
         setWalletStatus('Signed in, but session not detected yet. Please refresh the page.');
       }
@@ -425,7 +442,7 @@ export default function AuthPage() {
       <div style={{fontSize:13, color:'#94a3b8', marginBottom:16}}>Welcome to renaissBlock. You can link or update your wallet anytime from your profile.</div>
       <div style={{display:'flex', gap:8, justifyContent:'center'}}>
         <button onClick={()=> navigate('/')}>Go to Home</button>
-        <button onClick={()=> navigate('/dashboard')}>Go to Dashboard</button>
+        <button onClick={()=> navigate('/profile')}>Go to Profile</button>
       </div>
     </div>
   );

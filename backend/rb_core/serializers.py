@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Content, UserProfile, User
+from .models import Content, UserProfile, User, BookProject, Chapter
 from django.utils.crypto import salted_hmac
 import hashlib
 
@@ -9,13 +9,18 @@ class ContentSerializer(serializers.ModelSerializer):
     - Exposes metadata only; full content via IPFS (decentralized, no server storage per ARCHITECTURE.md).
     - Validation: Ensure teaser_link is valid URL; add custom validators for moderation (GUIDELINES.md).
     """
+    creator_username = serializers.SerializerMethodField()
+    
     class Meta:
         model = Content
         fields = [
-            'id', 'title', 'teaser_link', 'created_at', 'creator', 'content_type', 'genre',
+            'id', 'title', 'teaser_link', 'teaser_html', 'created_at', 'creator', 'creator_username', 'content_type', 'genre',
             'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract'
         ]
-        read_only_fields = ['creator', 'teaser_link', 'created_at']
+        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at']
+    
+    def get_creator_username(self, obj):
+        return obj.creator.username if obj.creator else 'Unknown'
     
     def validate_teaser_link(self, value):
         if not value.startswith('http'):
@@ -106,3 +111,25 @@ class ProfileStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['status', 'is_private']
+
+
+class ChapterSerializer(serializers.ModelSerializer):
+    """Serializer for individual book chapters."""
+    class Meta:
+        model = Chapter
+        fields = ['id', 'title', 'content_html', 'order', 'created_at', 'updated_at', 'is_published']
+        read_only_fields = ['created_at', 'updated_at', 'is_published']
+
+
+class BookProjectSerializer(serializers.ModelSerializer):
+    """Serializer for book projects with nested chapters."""
+    chapters = ChapterSerializer(many=True, read_only=True)
+    chapter_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BookProject
+        fields = ['id', 'title', 'description', 'chapters', 'chapter_count', 'created_at', 'updated_at', 'is_published']
+        read_only_fields = ['created_at', 'updated_at', 'is_published', 'chapter_count']
+    
+    def get_chapter_count(self, obj):
+        return obj.chapters.count()
