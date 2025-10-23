@@ -235,5 +235,21 @@ export const bookApi = {
     
     return response.json();
   },
+
+  /**
+   * Get book project by its published content ID
+   */
+  async getProjectByContentId(contentId: number): Promise<BookProject> {
+    const response = await fetch(`${API_BASE}/api/book-projects/by-content/${contentId}/`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch project by content: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
 };
 

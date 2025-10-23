@@ -1162,3 +1162,35 @@ class PublishBookView(APIView):
             'content_id': content.id,
             'message': 'Book published successfully'
         }, status=status.HTTP_201_CREATED)
+
+
+class BookProjectByContentView(APIView):
+    """Get book project by its published content ID."""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, content_id):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            # Try to find a book project that published this content
+            project = BookProject.objects.filter(
+                creator=core_user,
+                published_content_id=content_id
+            ).first()
+            
+            if project:
+                serializer = BookProjectSerializer(project)
+                return Response(serializer.data)
+            
+            # Also check if any chapter published this content
+            chapter = Chapter.objects.filter(
+                book_project__creator=core_user,
+                published_content_id=content_id
+            ).select_related('book_project').first()
+            
+            if chapter:
+                serializer = BookProjectSerializer(chapter.book_project)
+                return Response(serializer.data)
+            
+            return Response({'error': 'No book project found for this content'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -7,9 +7,10 @@ import PublishModal from './PublishModal';
 interface BookEditorProps {
   onPublish: (contentId: number) => void;
   onBack: () => void;
+  existingContentId?: number; // If provided, load the book project for this content
 }
 
-export default function BookEditor({ onPublish, onBack }: BookEditorProps) {
+export default function BookEditor({ onPublish, onBack, existingContentId }: BookEditorProps) {
   const [project, setProject] = useState<BookProject | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedChapterId, setSelectedChapterId] = useState<number | null>(null);
@@ -17,21 +18,38 @@ export default function BookEditor({ onPublish, onBack }: BookEditorProps) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState(true);
 
   // Initialize: Create a new project or load existing
   useEffect(() => {
     initializeProject();
-  }, []);
+  }, [existingContentId]);
 
   const initializeProject = async () => {
+    setLoading(true);
     try {
-      // For now, always create a new project
-      // In the future, we could load existing projects from a list
-      const newProject = await bookApi.createProject('Untitled Book', '');
-      setProject(newProject);
-      setChapters(newProject.chapters || []);
+      if (existingContentId) {
+        // Load existing project by content ID
+        const existingProject = await bookApi.getProjectByContentId(existingContentId);
+        setProject(existingProject);
+        setChapters(existingProject.chapters || []);
+        // Select first unminted chapter or first chapter
+        const firstUnminted = existingProject.chapters?.find(ch => !ch.is_published);
+        if (firstUnminted) {
+          setSelectedChapterId(firstUnminted.id);
+        } else if (existingProject.chapters && existingProject.chapters.length > 0) {
+          setSelectedChapterId(existingProject.chapters[0].id);
+        }
+      } else {
+        // Create a new project
+        const newProject = await bookApi.createProject('Untitled Book', '');
+        setProject(newProject);
+        setChapters(newProject.chapters || []);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to initialize project');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -104,6 +122,22 @@ export default function BookEditor({ onPublish, onBack }: BookEditorProps) {
   };
 
   const selectedChapter = chapters.find(ch => ch.id === selectedChapterId) || null;
+
+  if (loading) {
+    return (
+      <div style={{ 
+        width: '100%', 
+        height: '60vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        color: '#94a3b8',
+        fontSize: 16,
+      }}>
+        Loading book project...
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 import { Web3Auth } from '@web3auth/modal';
 import { CHAIN_NAMESPACES } from '@web3auth/base';
@@ -25,6 +26,7 @@ type UserProfile = {
 type Dashboard = { content_count: number; sales: number; tier?: string; fee?: number };
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<UserStatus>(null);
   const [content, setContent] = useState<any[]>([]);
   const [q, setQ] = useState('');
@@ -380,16 +382,37 @@ export default function ProfilePage() {
           <div style={{marginTop:16, fontWeight:600, color:'#e5e7eb'}}>Inventory (Minted)</div>
           <div className="yt-grid" style={{marginTop:12}}>
             {inventory.map((it)=> (
-              <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'80px 1fr', gap:12, alignItems:'center', cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
-                <div style={{width:80, height:60, background:'#111', borderRadius:6, overflow:'hidden', display:'grid', placeItems:'center'}}>
+              <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'80px 1fr auto', gap:12, alignItems:'center'}}>
+                <div style={{width:80, height:60, background:'#111', borderRadius:6, overflow:'hidden', display:'grid', placeItems:'center', cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
                   <img src={it.teaser_link} alt="preview" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ e.currentTarget.style.display='none'; e.currentTarget.parentElement!.textContent='Preview'; }} />
                 </div>
-                <div style={{minWidth: 0}}>
+                <div style={{minWidth: 0, cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
                   <div className="card-title">{it.title}</div>
                   <div className="yt-meta" style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                     Contract: {it.nft_contract ? `${it.nft_contract.slice(0, 8)}...${it.nft_contract.slice(-6)}` : '-'}
                   </div>
                 </div>
+                {it.content_type === 'book' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/studio?editContent=${it.id}`);
+                    }}
+                    style={{
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '6px 12px',
+                      color: '#fff',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Edit Book
+                  </button>
+                )}
               </div>
             ))}
             {inventory.length === 0 && (

@@ -51,6 +51,7 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
   }
 
   const wordCount = content.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length;
+  const isMinted = chapter.is_published;
 
   return (
     <div style={{
@@ -66,20 +67,39 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
     }}>
       {/* Header with title and status */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {isMinted && (
+          <div style={{
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: 8,
+            padding: '8px 12px',
+            color: '#10b981',
+            fontSize: 12,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <span>✓</span>
+            <span>This chapter has been minted and is read-only</span>
+          </div>
+        )}
         <input
           type="text"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => !isMinted && setTitle(e.target.value)}
           placeholder="Chapter Title"
+          disabled={isMinted}
           style={{
-            background: 'var(--bg)',
+            background: isMinted ? 'rgba(100,100,100,0.1)' : 'var(--bg)',
             border: '1px solid var(--panel-border)',
             borderRadius: 8,
             padding: '12px 16px',
-            color: 'var(--text)',
+            color: isMinted ? '#94a3b8' : 'var(--text)',
             fontSize: 18,
             fontWeight: 700,
             outline: 'none',
+            cursor: isMinted ? 'not-allowed' : 'text',
           }}
         />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -87,7 +107,7 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
             {wordCount} words
           </div>
           <div style={{ fontSize: 12, color: saving ? '#f59e0b' : '#10b981' }}>
-            {saving ? 'Saving...' : lastSaved ? `Saved ${formatTimeAgo(lastSaved)}` : ''}
+            {isMinted ? 'Minted' : saving ? 'Saving...' : lastSaved ? `Saved ${formatTimeAgo(lastSaved)}` : ''}
           </div>
         </div>
       </div>
@@ -96,11 +116,17 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <ReactQuill
           value={content}
-          onChange={setContent}
+          onChange={(value) => !isMinted && setContent(value)}
+          readOnly={isMinted}
           theme="snow"
-          style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+          style={{ 
+            height: '100%', 
+            display: 'flex', 
+            flexDirection: 'column',
+            opacity: isMinted ? 0.6 : 1,
+          }}
           modules={{
-            toolbar: [
+            toolbar: isMinted ? false : [
               [{ header: [1, 2, 3, false] }],
               ['bold', 'italic', 'underline', 'strike'],
               [{ list: 'ordered' }, { list: 'bullet' }],

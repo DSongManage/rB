@@ -42,22 +42,40 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
             key={chapter.id}
             onClick={() => onSelectChapter(chapter.id)}
             style={{
-              background: selectedChapterId === chapter.id ? 'rgba(245,158,11,0.15)' : 'transparent',
+              background: selectedChapterId === chapter.id ? 'rgba(245,158,11,0.15)' : chapter.is_published ? 'rgba(100,100,100,0.1)' : 'transparent',
               border: selectedChapterId === chapter.id ? '1px solid rgba(245,158,11,0.5)' : '1px solid var(--panel-border)',
               borderRadius: 8,
               padding: 12,
               textAlign: 'left',
               cursor: 'pointer',
               transition: 'all 0.2s',
+              opacity: chapter.is_published ? 0.6 : 1,
+              position: 'relative',
             }}
           >
             <div style={{ 
               fontWeight: selectedChapterId === chapter.id ? 700 : 500, 
-              color: selectedChapterId === chapter.id ? '#f59e0b' : 'var(--text)',
+              color: selectedChapterId === chapter.id ? '#f59e0b' : chapter.is_published ? '#94a3b8' : 'var(--text)',
               fontSize: 14,
               marginBottom: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
             }}>
-              {chapter.order + 1}. {chapter.title || 'Untitled Chapter'}
+              <span>{chapter.order + 1}. {chapter.title || 'Untitled Chapter'}</span>
+              {chapter.is_published && (
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#10b981',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  textTransform: 'uppercase',
+                }}>
+                  Minted
+                </span>
+              )}
             </div>
             <div style={{ fontSize: 12, color: '#94a3b8' }}>
               {chapter.content_html.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length} words
