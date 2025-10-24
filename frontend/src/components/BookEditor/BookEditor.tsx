@@ -98,14 +98,20 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
     try {
       let response;
       if (type === 'chapter' && selectedChapterId) {
+        console.log('[BookEditor] Preparing chapter for mint:', selectedChapterId);
         response = await bookApi.prepareChapterForMint(selectedChapterId);
       } else {
+        console.log('[BookEditor] Preparing book for mint:', project.id);
         response = await bookApi.prepareBookForMint(project.id);
       }
+      
+      console.log('[BookEditor] Prepare response:', response);
+      console.log('[BookEditor] Calling onPublish with contentId:', response.content_id);
       
       setShowPublishModal(false);
       onPublish(response.content_id);
     } catch (err: any) {
+      console.error('[BookEditor] Publish error:', err);
       setError(err.message || 'Failed to prepare for publishing');
     }
   };

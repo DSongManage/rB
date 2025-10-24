@@ -93,8 +93,15 @@ class ContentListView(generics.ListCreateAPIView):
         
         status_f = self.request.query_params.get('inventory_status')
         mine = self.request.query_params.get('mine')
+        
+        # Default to showing only minted content for public browsing
+        # Allow explicit filtering via query params (e.g., ?inventory_status=draft for profile/studio)
         if status_f:
             qs = qs.filter(inventory_status=status_f)
+        else:
+            # If no status filter specified, default to minted for public home page
+            qs = qs.filter(inventory_status='minted')
+        
         if mine and self.request.user.is_authenticated:
             try:
                 core_user = CoreUser.objects.get(username=self.request.user.username)
@@ -335,6 +342,19 @@ class MintView(APIView):
                 if not c.nft_contract:
                     c.nft_contract = getattr(settings, 'ANCHOR_PROGRAM_ID', '') or 'mock_contract_'+str(c.id)
                 c.save()
+                
+                # If this content is linked to a chapter or book project, mark as published
+                from .models import Chapter, BookProject
+                chapter = Chapter.objects.filter(published_content=c).first()
+                if chapter:
+                    chapter.is_published = True
+                    chapter.save()
+                
+                book_project = BookProject.objects.filter(published_content=c).first()
+                if book_project:
+                    book_project.is_published = True
+                    book_project.save()
+                
                 # Log platform fee amount to TestFeeLog for MVP tracking
                 try:
                     fee_bps = int(getattr(settings, 'PLATFORM_FEE_BPS', 1000))

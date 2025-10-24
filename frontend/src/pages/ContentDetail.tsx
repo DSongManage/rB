@@ -11,6 +11,13 @@ export default function ContentDetail(){
   }, [id]);
   if (!id) return null;
   if (!data) return <div style={{padding:16}}>Loading…</div>;
+  
+  // For books, always use the teaser API endpoint (not the cover image)
+  // For other types (art, film, music), use the teaser_link directly
+  const teaserUrl = data?.content_type === 'book' 
+    ? `/api/content/${id}/teaser/` 
+    : data?.teaser_link;
+  
   return (
     <div style={{maxWidth:900, margin:'0 auto', padding:16}}>
       <h2 style={{marginBottom:12}}>{data?.title}</h2>
@@ -22,7 +29,7 @@ export default function ContentDetail(){
       <PreviewModal 
         open={true} 
         onClose={()=>{}} 
-        teaserUrl={data?.teaser_link} 
+        teaserUrl={teaserUrl} 
         contentType={data?.content_type}
         contentId={parseInt(id)}
         price={data?.price_usd}

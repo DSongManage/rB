@@ -11,7 +11,14 @@ export default function ShareStep({ contentId, onPublish }:{ contentId?: number;
     if (!contentId) return;
     fetch(`/api/content/${contentId}/preview/`)
       .then(r=> r.ok? r.json(): null)
-      .then(d=> { setTeaser(d?.teaser_link); setCtype(d?.content_type); })
+      .then(d=> { 
+        // For books, use the teaser API endpoint (not the cover image)
+        const teaserUrl = d?.content_type === 'book' 
+          ? `/api/content/${contentId}/teaser/` 
+          : d?.teaser_link;
+        setTeaser(teaserUrl); 
+        setCtype(d?.content_type); 
+      })
       .catch(()=>{});
     // Get current platform fee from dashboard (already returns fee percent)
     fetch('/api/dashboard/', { credentials:'include' })

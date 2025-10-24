@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import TypeSelect from './TypeSelect';
 import CreateStep from './CreateStep';
 import CustomizeStep from './CustomizeStep';
@@ -9,6 +10,8 @@ import BookEditor from '../BookEditor/BookEditor';
 type Payload = { title: string; type:'text'|'image'|'video'; file?: File; textHtml?: string };
 
 export default function CreateWizard(){
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [ctype, setCtype] = useState<'text'|'image'|'video'|'none'>('none');
   const [, setPayload] = useState<Payload|undefined>();
@@ -16,6 +19,26 @@ export default function CreateWizard(){
   const [msg, setMsg] = useState('');
   const [maxStep, setMaxStep] = useState(0);
   const [showBookEditor, setShowBookEditor] = useState(false);
+
+  // Check for mintContent parameter (from book editor publish flow)
+  useEffect(() => {
+    const mintContentParam = searchParams.get('mintContent');
+    console.log('[CreateWizard] Checking for mintContent param:', mintContentParam);
+    if (mintContentParam) {
+      const contentIdFromParam = parseInt(mintContentParam, 10);
+      console.log('[CreateWizard] Parsed contentId:', contentIdFromParam);
+      if (!isNaN(contentIdFromParam)) {
+        // Set content ID and jump to customize step
+        console.log('[CreateWizard] Setting contentId and jumping to step 2');
+        setContentId(contentIdFromParam);
+        setStep(2); // CustomizeStep
+        setMaxStep(2);
+        // Clear the parameter from URL to prevent re-triggering
+        console.log('[CreateWizard] Clearing URL parameter');
+        navigate('/studio', { replace: true });
+      }
+    }
+  }, [searchParams, navigate]);
 
   async function fetchCsrf(){
     try {
