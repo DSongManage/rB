@@ -98,15 +98,15 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
     try {
       let response;
       if (type === 'chapter' && selectedChapterId) {
-        response = await bookApi.publishChapter(selectedChapterId);
+        response = await bookApi.prepareChapterForMint(selectedChapterId);
       } else {
-        response = await bookApi.publishBook(project.id);
+        response = await bookApi.prepareBookForMint(project.id);
       }
       
       setShowPublishModal(false);
       onPublish(response.content_id);
     } catch (err: any) {
-      setError(err.message || 'Failed to publish');
+      setError(err.message || 'Failed to prepare for publishing');
     }
   };
 
@@ -118,6 +118,17 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
       setProject(updatedProject);
     } catch (err: any) {
       setError(err.message || 'Failed to update project title');
+    }
+  };
+
+  const handleCoverImageUpload = async (file: File) => {
+    if (!project) return;
+    
+    try {
+      const updatedProject = await bookApi.uploadCoverImage(project.id, file);
+      setProject(updatedProject);
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload cover image');
     }
   };
 
@@ -185,19 +196,22 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
           />
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          {selectedChapterId && (
+          {selectedChapterId && selectedChapter && (
             <button
               onClick={() => handleDeleteChapter(selectedChapterId)}
+              disabled={selectedChapter.is_published}
               style={{
                 background: 'transparent',
-                border: '1px solid #ef4444',
+                border: selectedChapter.is_published ? '1px solid #6b7280' : '1px solid #ef4444',
                 borderRadius: 8,
                 padding: '8px 16px',
-                color: '#ef4444',
+                color: selectedChapter.is_published ? '#6b7280' : '#ef4444',
                 fontWeight: 600,
-                cursor: 'pointer',
+                cursor: selectedChapter.is_published ? 'not-allowed' : 'pointer',
                 fontSize: 14,
+                opacity: selectedChapter.is_published ? 0.5 : 1,
               }}
+              title={selectedChapter.is_published ? 'Cannot delete a minted chapter' : 'Delete this chapter'}
             >
               Delete Chapter
             </button>
@@ -248,14 +262,77 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
         </div>
       )}
 
-      {/* Main Content: Chapter List + Editor */}
+      {/* Main Content: Chapter List (with Cover) + Editor */}
       <div style={{ display: 'flex', gap: 16 }}>
-        <ChapterList
-          chapters={chapters}
-          selectedChapterId={selectedChapterId}
-          onSelectChapter={setSelectedChapterId}
-          onAddChapter={handleAddChapter}
-        />
+        {/* Left Sidebar: Cover + Chapters */}
+        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Compact Cover Image */}
+          <div style={{
+            background: 'var(--panel)',
+            borderRadius: 12,
+            padding: 12,
+          }}>
+            <div style={{
+              width: '100%',
+              aspectRatio: '3/4',
+              borderRadius: 8,
+              overflow: 'hidden',
+              background: '#1a1a1a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '2px dashed var(--panel-border)',
+              marginBottom: 12,
+            }}>
+              {project?.cover_image_url ? (
+                <img 
+                  src={project.cover_image_url} 
+                  alt="Book cover" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{ color: '#666', fontSize: 11, textAlign: 'center', padding: 8 }}>
+                  No cover
+                </span>
+              )}
+            </div>
+            <label style={{
+              display: 'block',
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 12px',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: 11,
+              textAlign: 'center',
+            }}>
+              Upload Cover
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleCoverImageUpload(file);
+                  }
+                }}
+              />
+            </label>
+          </div>
+          
+          {/* Chapter List */}
+          <ChapterList
+            chapters={chapters}
+            selectedChapterId={selectedChapterId}
+            onSelectChapter={setSelectedChapterId}
+            onAddChapter={handleAddChapter}
+          />
+        </div>
+        
+        {/* Right: Editor */}
         <ChapterEditor
           chapter={selectedChapter}
           onUpdateChapter={handleUpdateChapter}

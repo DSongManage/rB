@@ -9,6 +9,8 @@ type Item = {
   creator_username?: string;
   created_at?: string;
   content_type?: string;
+  price_usd?: number;
+  editions?: number;
 };
 
 const GENRES = ['All','Books','Art','Film','Music','Tech','Photography'];
@@ -64,6 +66,8 @@ export default function HomePage() {
               timeText={getTimeAgo(it.created_at)}
               thumbnailUrl={it.teaser_link || ''}
               teaser_link={it.teaser_link}
+              price={it.price_usd}
+              editions={it.editions}
             />
           ))}
         </div>

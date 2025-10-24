@@ -367,28 +367,17 @@ export default function ProfilePage() {
           <div style={{marginTop:8, fontSize:12, color:'#94a3b8'}}>{status}</div>
         </div>
         <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>
-          <div style={{fontWeight:600, color:'#e5e7eb'}}>Your works (NFTs)</div>
-          <div className="yt-grid" style={{marginTop:12}}>
-            {myContent.map((it)=> (
-              <div key={it.id} className="card">
-                <div className="card-title">{it.title}</div>
-                <div className="yt-meta">Type: {it.content_type} • Genre: {it.genre}</div>
-              </div>
-            ))}
-            {myContent.length === 0 && (
-              <div style={{fontSize:12, color:'#94a3b8'}}>No works yet</div>
-            )}
-          </div>
-          <div style={{marginTop:16, fontWeight:600, color:'#e5e7eb'}}>Inventory (Minted)</div>
-          <div className="yt-grid" style={{marginTop:12}}>
+          <div style={{fontWeight:600, color:'#e5e7eb', marginBottom:12}}>Inventory (Minted)</div>
+          <div style={{display:'flex', flexDirection:'column', gap:12}}>
             {inventory.map((it)=> (
-              <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'80px 1fr auto', gap:12, alignItems:'center'}}>
-                <div style={{width:80, height:60, background:'#111', borderRadius:6, overflow:'hidden', display:'grid', placeItems:'center', cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
-                  <img src={it.teaser_link} alt="preview" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ e.currentTarget.style.display='none'; e.currentTarget.parentElement!.textContent='Preview'; }} />
+              <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'100px 1fr auto', gap:16, alignItems:'center', padding:12}}>
+                <div style={{width:100, height:133, background:'#111', borderRadius:8, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'1px solid var(--panel-border)'}} onClick={()=> openPreview(it.id)}>
+                  <img src={it.teaser_link} alt="cover" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ e.currentTarget.style.display='none'; e.currentTarget.parentElement!.textContent='No Cover'; e.currentTarget.parentElement!.style.fontSize='11px'; e.currentTarget.parentElement!.style.color='#666'; }} />
                 </div>
                 <div style={{minWidth: 0, cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
-                  <div className="card-title">{it.title}</div>
-                  <div className="yt-meta" style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                  <div className="card-title" style={{fontSize:16, marginBottom:4}}>{it.title}</div>
+                  <div className="yt-meta" style={{marginBottom:4}}>Type: {it.content_type} • Genre: {it.genre}</div>
+                  <div className="yt-meta" style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize:11}}>
                     Contract: {it.nft_contract ? `${it.nft_contract.slice(0, 8)}...${it.nft_contract.slice(-6)}` : '-'}
                   </div>
                 </div>
@@ -402,7 +391,7 @@ export default function ProfilePage() {
                       background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                       border: 'none',
                       borderRadius: 6,
-                      padding: '6px 12px',
+                      padding: '8px 16px',
                       color: '#fff',
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -416,7 +405,7 @@ export default function ProfilePage() {
               </div>
             ))}
             {inventory.length === 0 && (
-              <div style={{fontSize:12, color:'#94a3b8'}}>Nothing minted yet</div>
+              <div style={{fontSize:12, color:'#94a3b8', textAlign:'center', padding:20}}>Nothing minted yet</div>
             )}
           </div>
         </div>

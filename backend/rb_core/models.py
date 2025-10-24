@@ -128,8 +128,8 @@ class UserProfile(models.Model):
     avatar_url = models.URLField(blank=True, default='')
     banner_url = models.URLField(blank=True, default='')
     # Uploaded media (preferred)
-    avatar_image = models.ImageField(upload_to='avatars/', blank=True, null=True)
-    banner_image = models.ImageField(upload_to='banners/', blank=True, null=True)
+    avatar_image = models.ImageField(upload_to='avatars/', blank=True, null=True, max_length=255)
+    banner_image = models.ImageField(upload_to='banners/', blank=True, null=True, max_length=255)
     # Profile metadata
     location = models.CharField(max_length=120, blank=True, default='')
     roles = models.JSONField(default=list, blank=True)  # e.g., ["author", "artist"]
@@ -208,6 +208,7 @@ class BookProject(models.Model):
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='book_projects')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
+    cover_image = models.ImageField(upload_to='book_covers/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_published = models.BooleanField(default=False)

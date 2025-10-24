@@ -18,9 +18,12 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
   useEffect(() => {
     if (chapter) {
       setTitle(chapter.title);
-      setContent(chapter.content_html);
+      setContent(chapter.content_html || '');
+    } else {
+      setTitle('');
+      setContent('');
     }
-  }, [chapter?.id]); // Only reset when chapter ID changes
+  }, [chapter]); // Reset when chapter changes
 
   // Debounced save
   useEffect(() => {

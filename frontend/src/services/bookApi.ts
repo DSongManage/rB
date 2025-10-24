@@ -20,6 +20,8 @@ export interface BookProject {
   id: number;
   title: string;
   description: string;
+  cover_image?: string | null;
+  cover_image_url?: string | null;
   chapters: Chapter[];
   chapter_count: number;
   created_at: string;
@@ -115,6 +117,29 @@ export const bookApi = {
     
     if (!response.ok) {
       throw new Error(`Failed to update project: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Upload cover image for a book project
+   */
+  async uploadCoverImage(id: number, imageFile: File): Promise<BookProject> {
+    const formData = new FormData();
+    formData.append('cover_image', imageFile);
+    
+    const response = await fetch(`${API_BASE}/api/book-projects/${id}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to upload cover image: ${response.statusText}`);
     }
     
     return response.json();
@@ -247,6 +272,46 @@ export const bookApi = {
     
     if (!response.ok) {
       throw new Error(`Failed to fetch project by content: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Prepare a chapter for minting (creates draft Content)
+   */
+  async prepareChapterForMint(chapterId: number): Promise<ContentResponse> {
+    const response = await fetch(`${API_BASE}/api/chapters/${chapterId}/prepare/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to prepare chapter: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Prepare entire book for minting (creates draft Content)
+   */
+  async prepareBookForMint(projectId: number): Promise<ContentResponse> {
+    const response = await fetch(`${API_BASE}/api/book-projects/${projectId}/prepare/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to prepare book: ${response.statusText}`);
     }
     
     return response.json();

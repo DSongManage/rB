@@ -16,12 +16,11 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
 
   return (
     <div style={{
-      width: 280,
       background: 'var(--panel)',
       border: '1px solid var(--panel-border)',
       borderRadius: 12,
       padding: 16,
-      height: '70vh',
+      flex: 1,
       display: 'flex',
       flexDirection: 'column',
       gap: 12,

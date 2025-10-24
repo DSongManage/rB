@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PublishChapterView, PublishBookView, BookProjectByContentView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
 
 urlpatterns = [
     path('', home, name='home'),
@@ -43,6 +43,8 @@ urlpatterns = [
     path('api/book-projects/<int:project_id>/chapters/', ChapterListCreateView.as_view(), name='chapters'),
     path('api/book-projects/by-content/<int:content_id>/', BookProjectByContentView.as_view(), name='book_project_by_content'),
     path('api/chapters/<int:pk>/', ChapterDetailView.as_view(), name='chapter_detail'),
+    path('api/chapters/<int:pk>/prepare/', PrepareChapterView.as_view(), name='prepare_chapter'),
     path('api/chapters/<int:pk>/publish/', PublishChapterView.as_view(), name='publish_chapter'),
+    path('api/book-projects/<int:pk>/prepare/', PrepareBookView.as_view(), name='prepare_book'),
     path('api/book-projects/<int:pk>/publish/', PublishBookView.as_view(), name='publish_book'),
 ]

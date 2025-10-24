@@ -1001,9 +1001,27 @@ class BookProjectDetailView(APIView):
         project = self.get_object(pk, request.user)
         if not project:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        serializer = BookProjectSerializer(project, data=request.data, partial=True)
+        
+        # Check if cover_image is being updated
+        cover_image_updated = 'cover_image' in request.FILES
+        
+        serializer = BookProjectSerializer(project, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
-            serializer.save()
+            updated_project = serializer.save()
+            
+            # If cover image was updated, update all published chapters' teaser_link
+            if cover_image_updated and updated_project.cover_image:
+                published_chapters = updated_project.chapters.filter(is_published=True)
+                for chapter in published_chapters:
+                    if chapter.published_content:
+                        chapter.published_content.teaser_link = updated_project.cover_image.url
+                        chapter.published_content.save(update_fields=['teaser_link'])
+                
+                # Also update the book's published content if it exists
+                if updated_project.published_content:
+                    updated_project.published_content.teaser_link = updated_project.cover_image.url
+                    updated_project.published_content.save(update_fields=['teaser_link'])
+            
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -1039,7 +1057,7 @@ class ChapterListCreateView(APIView):
         
         # Auto-assign order as the next available number
         max_order = project.chapters.aggregate(models.Max('order'))['order__max']
-        order = (max_order or -1) + 1
+        order = (max_order + 1) if max_order is not None else 0
         
         serializer = ChapterSerializer(data=request.data)
         if serializer.is_valid():
@@ -1083,8 +1101,52 @@ class ChapterDetailView(APIView):
         chapter = self.get_object(pk, request.user)
         if not chapter:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        if chapter.is_published:
+            return Response({'error': 'Cannot delete a minted chapter'}, status=status.HTTP_400_BAD_REQUEST)
         chapter.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PrepareChapterView(APIView):
+    """Prepare a chapter for minting (creates draft Content)."""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            chapter = Chapter.objects.select_related('book_project').get(pk=pk)
+            if chapter.book_project.creator != core_user:
+                return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        except Chapter.DoesNotExist:
+            return Response({'error': 'Chapter not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Create draft Content item for this chapter
+        # Use book cover image as teaser_link if available
+        teaser_link = f'/api/content/{pk}/teaser/'
+        if chapter.book_project.cover_image:
+            teaser_link = chapter.book_project.cover_image.url
+        
+        content = Content.objects.create(
+            creator=core_user,
+            title=f"{chapter.book_project.title} - {chapter.title}",
+            teaser_html=chapter.content_html,
+            teaser_link=teaser_link,
+            content_type='book',
+            genre='other',
+            inventory_status='draft'  # Keep as draft until minted
+        )
+        if not chapter.book_project.cover_image:
+            content.teaser_link = f'/api/content/{content.id}/teaser/'
+            content.save()
+        
+        # Don't mark as published yet - that happens after minting
+        chapter.published_content = content
+        chapter.save()
+        
+        return Response({
+            'content_id': content.id,
+            'message': 'Chapter prepared for minting'
+        }, status=status.HTTP_201_CREATED)
 
 
 class PublishChapterView(APIView):
@@ -1101,16 +1163,22 @@ class PublishChapterView(APIView):
             return Response({'error': 'Chapter not found'}, status=status.HTTP_404_NOT_FOUND)
         
         # Create Content item for this chapter
+        # Use book cover image as teaser_link if available
+        teaser_link = f'/api/content/{pk}/teaser/'
+        if chapter.book_project.cover_image:
+            teaser_link = chapter.book_project.cover_image.url
+        
         content = Content.objects.create(
             creator=core_user,
             title=f"{chapter.book_project.title} - {chapter.title}",
             teaser_html=chapter.content_html,
-            teaser_link=f'/api/content/{pk}/teaser/',  # Will be updated after save
+            teaser_link=teaser_link,
             content_type='book',
             genre='other'
         )
-        content.teaser_link = f'/api/content/{content.id}/teaser/'
-        content.save()
+        if not chapter.book_project.cover_image:
+            content.teaser_link = f'/api/content/{content.id}/teaser/'
+            content.save()
         
         chapter.is_published = True
         chapter.published_content = content
@@ -1119,6 +1187,55 @@ class PublishChapterView(APIView):
         return Response({
             'content_id': content.id,
             'message': 'Chapter published successfully'
+        }, status=status.HTTP_201_CREATED)
+
+
+class PrepareBookView(APIView):
+    """Prepare entire book for minting (creates draft Content)."""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            project = BookProject.objects.get(pk=pk, creator=core_user)
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Combine all chapters into one HTML document
+        chapters = project.chapters.all().order_by('order')
+        if not chapters.exists():
+            return Response({'error': 'No chapters to publish'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        combined_html = ''
+        for chapter in chapters:
+            combined_html += f'<h2>{chapter.title}</h2>\n{chapter.content_html}\n\n'
+        
+        # Create draft Content item for the entire book
+        # Use book cover image as teaser_link if available
+        teaser_link = f'/api/content/{pk}/teaser/'
+        if project.cover_image:
+            teaser_link = project.cover_image.url
+        
+        content = Content.objects.create(
+            creator=core_user,
+            title=project.title,
+            teaser_html=combined_html,
+            teaser_link=teaser_link,
+            content_type='book',
+            genre='other',
+            inventory_status='draft'  # Keep as draft until minted
+        )
+        if not project.cover_image:
+            content.teaser_link = f'/api/content/{content.id}/teaser/'
+            content.save()
+        
+        # Don't mark as published yet - that happens after minting
+        project.published_content = content
+        project.save()
+        
+        return Response({
+            'content_id': content.id,
+            'message': 'Book prepared for minting'
         }, status=status.HTTP_201_CREATED)
 
 
@@ -1143,16 +1260,22 @@ class PublishBookView(APIView):
             combined_html += f'<h2>{chapter.title}</h2>\n{chapter.content_html}\n\n'
         
         # Create Content item for the entire book
+        # Use book cover image as teaser_link if available
+        teaser_link = f'/api/content/{pk}/teaser/'
+        if project.cover_image:
+            teaser_link = project.cover_image.url
+        
         content = Content.objects.create(
             creator=core_user,
             title=project.title,
             teaser_html=combined_html,
-            teaser_link=f'/api/content/{pk}/teaser/',  # Will be updated after save
+            teaser_link=teaser_link,
             content_type='book',
             genre='other'
         )
-        content.teaser_link = f'/api/content/{content.id}/teaser/'
-        content.save()
+        if not project.cover_image:
+            content.teaser_link = f'/api/content/{content.id}/teaser/'
+            content.save()
         
         project.is_published = True
         project.published_content = content

@@ -5,13 +5,23 @@ import { VideoCard } from '../components/VideoCard';
 const TYPES = ['all','book','art','film','music'];
 const GENRES = ['all','fantasy','scifi','nonfiction','drama','comedy','other'];
 
+type SearchResult = {
+  id: number;
+  title: string;
+  teaser_link?: string;
+  creator?: number;
+  creator_username?: string;
+  created_at?: string;
+  content_type?: string;
+};
+
 export default function SearchPage() {
   const location = useLocation();
   const urlQ = new URLSearchParams(location.search).get('q') || '';
   const [q, setQ] = useState(urlQ);
   const [type, setType] = useState('all');
   const [genre, setGenre] = useState('all');
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
 
   const run = useCallback(() => {
     const params = new URLSearchParams();
@@ -23,6 +33,20 @@ export default function SearchPage() {
   }, [q, type, genre]);
   
   useEffect(()=>{ run(); }, [run]);
+
+  // Format time ago
+  const getTimeAgo = (dateString?: string) => {
+    if (!dateString) return 'Recently';
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+    return `${Math.floor(seconds / 604800)} weeks ago`;
+  };
 
   return (
     <div className="page" style={{background:'transparent', border:'none', boxShadow:'none'}}>
@@ -37,12 +61,14 @@ export default function SearchPage() {
         <button onClick={run}>Search</button>
       </div>
       <div className="yt-grid">
-        {results.map((it, idx)=> (
+        {results.map((it)=> (
           <VideoCard key={it.id}
             id={it.id}
             title={it.title}
-            author={`Creator #${it.creator ?? 0}`}
-            thumbnailUrl={`https://picsum.photos/seed/s${idx}/960/540`}
+            author={it.creator_username || `Creator #${it.creator ?? 0}`}
+            viewsText="0 views"
+            timeText={getTimeAgo(it.created_at)}
+            thumbnailUrl={it.teaser_link || ''}
             teaser_link={it.teaser_link}
           />
         ))}

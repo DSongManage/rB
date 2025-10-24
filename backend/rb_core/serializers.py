@@ -118,18 +118,27 @@ class ChapterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Chapter
         fields = ['id', 'title', 'content_html', 'order', 'created_at', 'updated_at', 'is_published']
-        read_only_fields = ['created_at', 'updated_at', 'is_published']
+        read_only_fields = ['created_at', 'updated_at', 'is_published', 'order']
 
 
 class BookProjectSerializer(serializers.ModelSerializer):
     """Serializer for book projects with nested chapters."""
     chapters = ChapterSerializer(many=True, read_only=True)
     chapter_count = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField()
     
     class Meta:
         model = BookProject
-        fields = ['id', 'title', 'description', 'chapters', 'chapter_count', 'created_at', 'updated_at', 'is_published']
-        read_only_fields = ['created_at', 'updated_at', 'is_published', 'chapter_count']
+        fields = ['id', 'title', 'description', 'cover_image', 'cover_image_url', 'chapters', 'chapter_count', 'created_at', 'updated_at', 'is_published']
+        read_only_fields = ['created_at', 'updated_at', 'is_published', 'chapter_count', 'cover_image_url']
     
     def get_chapter_count(self, obj):
         return obj.chapters.count()
+    
+    def get_cover_image_url(self, obj):
+        if obj.cover_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.cover_image.url)
+            return obj.cover_image.url
+        return None
