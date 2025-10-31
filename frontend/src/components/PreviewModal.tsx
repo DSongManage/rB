@@ -63,11 +63,43 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
     if (!contentId) return;
     setPurchasing(true);
     try {
-      // TODO: Implement actual purchase flow
-      alert(`Purchase flow for content ${contentId} - Price: $${price || 0}`);
-      // This would integrate with the mint/purchase API
+      // Call backend to create Stripe checkout session
+      const res = await fetch('/api/checkout/session/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ content_id: contentId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Handle specific error codes from backend
+        if (data?.code === 'NOT_MINTED') {
+          alert('Content not available for purchase');
+        } else if (data?.code === 'SOLD_OUT') {
+          alert('This content is sold out');
+        } else if (data?.code === 'ALREADY_OWNED') {
+          alert('You already own this content');
+        } else if (data?.code === 'STRIPE_ERROR') {
+          alert('Payment system error. Please try again.');
+        } else {
+          alert(data?.error || 'Checkout failed');
+        }
+        return;
+      }
+
+      // Redirect to Stripe Checkout
+      if (data?.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        alert('No checkout URL received');
+      }
     } catch (err) {
       console.error('Purchase failed:', err);
+      alert('Failed to initiate checkout. Please try again.');
     } finally {
       setPurchasing(false);
     }
