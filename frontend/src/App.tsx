@@ -12,6 +12,7 @@ import TermsPage from './pages/TermsPage';
 import { CreatorSidebar } from './components/CreatorSidebar';
 import CollaboratorsPage from './pages/CollaboratorsPage';
 import ContentDetail from './pages/ContentDetail';
+import PurchaseSuccessPage from './pages/PurchaseSuccessPage';
 
 function Header() {
   const [q, setQ] = useState('');
@@ -121,6 +122,7 @@ export default function App() {
             <Route path="/wallet-info" element={<WalletInfoPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/content/:id" element={<ContentDetail />} />
+            <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
           </Routes>
         </div>
       </main>
