@@ -81,4 +81,43 @@ def extract_wallet_from_claims(claims: Dict[str, Any]) -> Optional[str]:
     return (addr or '')[:44] if addr else None
 
 
+def calculate_fees(price: float) -> Dict[str, float]:
+    """Calculate Stripe and platform fees for a given price.
+
+    Stripe Micropayments pricing: 5% + $0.05
+    Platform fees (tiered):
+    - Under $10: 15%
+    - $10-$50: 12%
+    - Over $50: 10%
+
+    Returns dict with:
+    - stripe_fee: Stripe processing fee
+    - platform_fee: Platform fee
+    - creator_gets: Net amount to creator
+    """
+    from decimal import Decimal, ROUND_HALF_UP
+
+    price_decimal = Decimal(str(price))
+
+    # Stripe Micropayments: 5% + $0.05
+    stripe_fee = (price_decimal * Decimal('0.05') + Decimal('0.05')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    # Tiered platform fees
+    if price < 10:
+        platform_fee_rate = Decimal('0.15')  # 15%
+    elif price < 50:
+        platform_fee_rate = Decimal('0.12')  # 12%
+    else:
+        platform_fee_rate = Decimal('0.10')  # 10%
+
+    platform_fee = (price_decimal * platform_fee_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    # Creator gets the rest
+    creator_gets = (price_decimal - stripe_fee - platform_fee).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    return {
+        'stripe_fee': float(stripe_fee),
+        'platform_fee': float(platform_fee),
+        'creator_gets': float(creator_gets),
+    }
 

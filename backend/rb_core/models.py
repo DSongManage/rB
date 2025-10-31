@@ -83,7 +83,31 @@ class Content(models.Model):
     
     def __str__(self):
         return self.title
-    
+
+    def is_owned_by(self, user):
+        """Check if user owns this content via purchase."""
+        if not user or not user.is_authenticated:
+            return False
+        return self.purchases.filter(user=user, refunded=False).exists()
+
+    def purchases_count(self):
+        """Count non-refunded purchases."""
+        return self.purchases.filter(refunded=False).count()
+
+    def revenue_total(self):
+        """Calculate total revenue from this content."""
+        from django.db.models import Sum
+        from decimal import Decimal
+        result = self.purchases.filter(refunded=False).aggregate(total=Sum('purchase_price_usd'))
+        return result['total'] or Decimal('0.00')
+
+    def creator_earnings_total(self):
+        """Calculate total earnings for creator (after all fees)."""
+        from django.db.models import Sum
+        from decimal import Decimal
+        result = self.purchases.filter(refunded=False).aggregate(total=Sum('creator_earnings_usd'))
+        return result['total'] or Decimal('0.00')
+
     # Future: Methods for minting integration, revenue splits (FR9, FR13)
 # Ensure input validation on save (prevent injection, GUIDELINES.md)
 
@@ -243,3 +267,38 @@ class Chapter(models.Model):
     
     def __str__(self):
         return f"Chapter {self.order}: {self.title}"
+
+
+class Purchase(models.Model):
+    """Track NFT purchases for ownership verification and revenue."""
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
+    content = models.ForeignKey(Content, on_delete=models.PROTECT, related_name='purchases')
+    
+    # Payment details
+    purchase_price_usd = models.DecimalField(max_digits=10, decimal_places=2)
+    stripe_fee_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    platform_fee_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    creator_earnings_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Stripe identifiers
+    stripe_payment_intent_id = models.CharField(max_length=255, unique=True)
+    stripe_checkout_session_id = models.CharField(max_length=255, unique=True, blank=True, default='')
+    
+    # Blockchain tracking
+    transaction_signature = models.CharField(max_length=128, blank=True, default='')
+    nft_minted = models.BooleanField(default=False)
+    nft_mint_eligible_at = models.DateTimeField(null=True, blank=True)
+    
+    purchased_at = models.DateTimeField(auto_now_add=True)
+    refunded = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-purchased_at']
+        indexes = [
+            models.Index(fields=['user', 'content']),
+            models.Index(fields=['stripe_payment_intent_id']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} purchased {self.content.title}"

@@ -248,6 +248,15 @@ PLATFORM_WALLET_PUBKEY = os.getenv('PLATFORM_WALLET_PUBKEY', '')
 # Optional: dev-only keypair path for platform wallet signer on devnet
 PLATFORM_WALLET_KEYPAIR_PATH = os.getenv('PLATFORM_WALLET_KEYPAIR_PATH', '')
 
+# Stripe Payment Configuration
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+
+# Application URLs for Stripe redirects
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')
+BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')
+
 # DRF throttling for public endpoints
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

@@ -4,6 +4,15 @@ node_modules/
 .venv/
 venv/
 .env
+backend/.env
+
+# Python
+__pycache__/
+**/__pycache__/**
+*.pyc
+*.pyo
+*.pyd
+.Python
 
 # Solana/Anchor build outputs
 blockchain/rb_contracts/target/

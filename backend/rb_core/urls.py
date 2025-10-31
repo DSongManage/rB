@@ -1,6 +1,8 @@
 from django.urls import path
 from django.views.generic import RedirectView
 from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
+from .views.checkout import CreateCheckoutSessionView
+from .views.webhook import stripe_webhook
 
 urlpatterns = [
     path('', home, name='home'),
@@ -10,6 +12,9 @@ urlpatterns = [
     path('api/content/<int:pk>/preview/', ContentPreviewView.as_view(), name='content_preview'),
     path('api/content/<int:pk>/teaser/', ContentTextTeaserView.as_view(), name='content_teaser'),
     path('api/content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_view'),
+    # Stripe checkout and payment processing
+    path('api/checkout/session/', CreateCheckoutSessionView.as_view(), name='checkout_session'),
+    path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook'),
     path('api/analytics/fees/', AnalyticsFeesView.as_view(), name='analytics_fees'),
     path('api/admin/user-stats/', AdminStatsUpdateView.as_view(), name='admin_user_stats_update'),
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),

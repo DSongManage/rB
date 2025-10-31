@@ -9,3 +9,4 @@ base58==2.1.1
 ipfshttpclient==0.8.0a2
 Pillow==10.4.0
 anchorpy==0.21.0
+stripe==11.4.0

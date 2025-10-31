@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from .models import Content, UserProfile, User, BookProject, Chapter
+from .models import Content, UserProfile, User, BookProject, Chapter, Purchase
 from django.utils.crypto import salted_hmac
+from django.utils import timezone
 import hashlib
 
 class ContentSerializer(serializers.ModelSerializer):
@@ -142,3 +143,34 @@ class BookProjectSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.cover_image.url)
             return obj.cover_image.url
         return None
+
+
+class PurchaseSerializer(serializers.ModelSerializer):
+    """Serializer for Purchase records with nested content details."""
+    content_title = serializers.CharField(source='content.title', read_only=True)
+    content_type = serializers.CharField(source='content.content_type', read_only=True)
+    creator_username = serializers.CharField(source='content.creator.username', read_only=True)
+    days_since_purchase = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Purchase
+        fields = [
+            'id', 'user', 'content', 'content_title', 'content_type', 'creator_username',
+            'purchase_price_usd', 'stripe_fee_usd', 'platform_fee_usd', 'creator_earnings_usd',
+            'stripe_payment_intent_id', 'stripe_checkout_session_id',
+            'transaction_signature', 'nft_minted', 'nft_mint_eligible_at',
+            'purchased_at', 'refunded', 'days_since_purchase'
+        ]
+        read_only_fields = [
+            'user', 'content', 'content_title', 'content_type', 'creator_username',
+            'purchase_price_usd', 'stripe_fee_usd', 'platform_fee_usd', 'creator_earnings_usd',
+            'stripe_payment_intent_id', 'stripe_checkout_session_id',
+            'purchased_at', 'refunded', 'days_since_purchase'
+        ]
+
+    def get_days_since_purchase(self, obj):
+        """Calculate days since purchase."""
+        if obj.purchased_at:
+            delta = timezone.now() - obj.purchased_at
+            return delta.days
+        return 0
