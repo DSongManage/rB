@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { VideoCard } from '../components/VideoCard';
 
-type Item = { 
-  id: number; 
-  title: string; 
-  teaser_link?: string; 
+type Item = {
+  id: number;
+  title: string;
+  teaser_link?: string;
   creator?: number;
   creator_username?: string;
   created_at?: string;
   content_type?: string;
   price_usd?: number;
   editions?: number;
+  owned?: boolean;
 };
 
 const GENRES = ['All','Books','Art','Film','Music','Tech','Photography'];
@@ -20,7 +21,7 @@ export default function HomePage() {
   const [genre, setGenre] = useState('All');
 
   useEffect(()=>{
-    fetch('http://127.0.0.1:8000/api/content/')
+    fetch('http://127.0.0.1:8000/api/content/', { credentials: 'include' })
       .then(r=>r.json()).then(setItems).catch(()=>setItems([]));
   },[]);
 
@@ -68,6 +69,7 @@ export default function HomePage() {
               teaser_link={it.teaser_link}
               price={it.price_usd}
               editions={it.editions}
+              owned={it.owned}
             />
           ))}
         </div>

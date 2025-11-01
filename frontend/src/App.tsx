@@ -10,9 +10,11 @@ import AuthPage from './pages/AuthPage';
 import WalletInfoPage from './pages/WalletInfoPage';
 import TermsPage from './pages/TermsPage';
 import { CreatorSidebar } from './components/CreatorSidebar';
+import { LibrarySidebar } from './components/LibrarySidebar';
 import CollaboratorsPage from './pages/CollaboratorsPage';
 import ContentDetail from './pages/ContentDetail';
 import PurchaseSuccessPage from './pages/PurchaseSuccessPage';
+import { ReaderPage } from './pages/ReaderPage';
 
 function Header() {
   const [q, setQ] = useState('');
@@ -103,12 +105,25 @@ function Header() {
 export default function App() {
   const location = useLocation();
   const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/].some(r => r.test(location.pathname));
+  const showLibrarySidebar = [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
+  const isReaderPage = /^\/reader/.test(location.pathname);
+
   return (
     <div className="rb-app">
       <Header />
-      <main className="rb-main" style={{display:'grid', gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr', gap:16}}>
+      {showLibrarySidebar && <LibrarySidebar />}
+      <main
+        className="rb-main"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr',
+          gap: 16,
+          marginLeft: showLibrarySidebar ? 320 : 0,
+          transition: 'margin-left 0.3s ease',
+        }}
+      >
         {showCreatorSidebar && <CreatorSidebar />}
-        <div>
+        <div style={{ width: isReaderPage ? '100%' : 'auto', maxWidth: isReaderPage ? 'none' : undefined }}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<Navigate to="/auth" replace />} />
@@ -123,6 +138,7 @@ export default function App() {
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/content/:id" element={<ContentDetail />} />
             <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
+            <Route path="/reader/:contentId" element={<ReaderPage />} />
           </Routes>
         </div>
       </main>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { OwnedBadge } from './OwnedBadge';
 
 type Props = {
   id: number;
@@ -11,21 +12,32 @@ type Props = {
   teaser_link?: string;
   price?: number;
   editions?: number;
+  owned?: boolean;
 };
 
-export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K views', timeText = '2 days ago', thumbnailUrl, teaser_link, price, editions }: Props) {
+export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K views', timeText = '2 days ago', thumbnailUrl, teaser_link, price, editions, owned = false }: Props) {
   const priceNum = typeof price === 'string' ? parseFloat(price) : price;
   const editionsNum = typeof editions === 'string' ? parseInt(editions) : editions;
   const editionsText = editionsNum && editionsNum > 0 ? `${editionsNum} edition${editionsNum > 1 ? 's' : ''} available` : 'Sold out';
   const priceText = priceNum && priceNum > 0 ? `$${priceNum.toFixed(2)}` : 'Free';
-  
+
   return (
     <div className="yt-card">
       <Link to={`/content/${id}`} className="yt-thumb" aria-label={title}>
         <img src={thumbnailUrl} alt={title} onError={(e: any) => {
           e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="960" height="540"%3E%3Crect fill="%23111827" width="960" height="540"/%3E%3Ctext fill="%2394a3b8" font-family="sans-serif" font-size="24" x="50%25" y="50%25" text-anchor="middle" dominant-baseline="middle"%3EPreview%3C/text%3E%3C/svg%3E';
         }} />
-        {/* Price badge */}
+        {/* Owned badge - top left */}
+        {owned && (
+          <div style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+          }}>
+            <OwnedBadge owned={owned} />
+          </div>
+        )}
+        {/* Price badge - top right */}
         {priceNum !== undefined && !isNaN(priceNum) && (
           <div style={{
             position: 'absolute',
