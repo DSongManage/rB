@@ -1,27 +1,35 @@
 from rest_framework import serializers
-from .models import Content, UserProfile, User, BookProject, Chapter, Purchase
+from .models import Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
 import hashlib
 
 class ContentSerializer(serializers.ModelSerializer):
     """Serializer for Content model (FR4/FR5 in REQUIREMENTS.md).
-    
+
     - Exposes metadata only; full content via IPFS (decentralized, no server storage per ARCHITECTURE.md).
     - Validation: Ensure teaser_link is valid URL; add custom validators for moderation (GUIDELINES.md).
     """
     creator_username = serializers.SerializerMethodField()
-    
+    owned = serializers.SerializerMethodField()
+
     class Meta:
         model = Content
         fields = [
             'id', 'title', 'teaser_link', 'teaser_html', 'created_at', 'creator', 'creator_username', 'content_type', 'genre',
-            'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract'
+            'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract', 'owned'
         ]
-        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at']
-    
+        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at', 'owned']
+
     def get_creator_username(self, obj):
         return obj.creator.username if obj.creator else 'Unknown'
+
+    def get_owned(self, obj):
+        """Check if the requesting user owns this content."""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            return obj.is_owned_by(request.user)
+        return False
     
     def validate_teaser_link(self, value):
         if not value.startswith('http'):
@@ -174,3 +182,21 @@ class PurchaseSerializer(serializers.ModelSerializer):
             delta = timezone.now() - obj.purchased_at
             return delta.days
         return 0
+
+
+class ReadingProgressSerializer(serializers.ModelSerializer):
+    """Serializer for reading progress tracking."""
+
+    class Meta:
+        model = ReadingProgress
+        fields = [
+            'id', 'user', 'content', 'progress_percentage',
+            'last_position', 'last_read_at', 'created_at'
+        ]
+        read_only_fields = ['user', 'last_read_at', 'created_at']
+
+    def validate_progress_percentage(self, value):
+        """Ensure progress is between 0 and 100."""
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("Progress must be between 0 and 100")
+        return value

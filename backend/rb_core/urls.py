@@ -4,6 +4,7 @@ from .views import home, ContentListView, MintView, DashboardView, SearchView, W
 from .views.checkout import CreateCheckoutSessionView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
+from .views.library import LibraryView, FullContentView, ReadingProgressView
 
 urlpatterns = [
     path('', home, name='home'),
@@ -17,6 +18,11 @@ urlpatterns = [
     path('api/checkout/session/', CreateCheckoutSessionView.as_view(), name='checkout_session'),
     path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook'),
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
+    # Library and reading
+    path('api/library/', LibraryView.as_view(), name='library'),
+    path('api/content/<int:pk>/full/', FullContentView.as_view(), name='content_full'),
+    path('api/reading-progress/', ReadingProgressView.as_view(), name='reading_progress'),
+    path('api/reading-progress/<int:content_id>/', ReadingProgressView.as_view(), name='reading_progress_detail'),
     path('api/analytics/fees/', AnalyticsFeesView.as_view(), name='analytics_fees'),
     path('api/admin/user-stats/', AdminStatsUpdateView.as_view(), name='admin_user_stats_update'),
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
