@@ -344,7 +344,7 @@ class MintView(APIView):
                 c.save()
                 
                 # If this content is linked to a chapter or book project, mark as published
-                from .models import Chapter, BookProject
+                from ..models import Chapter, BookProject
                 chapter = Chapter.objects.filter(published_content=c).first()
                 if chapter:
                     chapter.is_published = True
@@ -373,7 +373,7 @@ class MintView(APIView):
                     except Exception:
                         gross = 0.0
                 fee_amt = round(gross * (fee_bps/10000.0), 2)
-                from .models import TestFeeLog
+                from ..models import TestFeeLog
                 if fee_amt > 0:
                     TestFeeLog.objects.create(amount=fee_amt)
             except Content.DoesNotExist:
@@ -510,7 +510,7 @@ class AnalyticsFeesView(APIView):
                 return Response({'error': 'forbidden'}, status=403)
         except Exception:
             return Response({'error': 'forbidden'}, status=403)
-        from .models import TestFeeLog
+        from ..models import TestFeeLog
         qs = TestFeeLog.objects.order_by('-timestamp')[:100]
         total = sum([float(x.amount) for x in qs])
         data = [{ 'amount': float(x.amount), 'timestamp': x.timestamp.isoformat() } for x in qs]
@@ -576,7 +576,17 @@ class ContentPreviewView(APIView):
         except Content.DoesNotExist:
             return Response({'error':'not found'}, status=404)
         data = ContentSerializer(c).data
-        return Response({'id': c.id, 'title': c.title, 'teaser_link': c.teaser_link, 'content_type': c.content_type, 'inventory_status': c.inventory_status, 'nft_contract': c.nft_contract, 'preview': data})
+        return Response({
+            'id': c.id,
+            'title': c.title,
+            'teaser_link': c.teaser_link,
+            'content_type': c.content_type,
+            'inventory_status': c.inventory_status,
+            'nft_contract': c.nft_contract,
+            'price_usd': float(c.price_usd),
+            'editions': c.editions,
+            'preview': data
+        })
 
 class ContentTextTeaserView(APIView):
     permission_classes = [permissions.AllowAny]

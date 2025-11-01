@@ -19,15 +19,24 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   
-  // Handle ESC key to close modal
+  // Handle ESC key to close modal and prevent body scroll
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && open) {
         onClose();
       }
     };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
+
+    if (open) {
+      window.addEventListener('keydown', handleEsc);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = 'unset';
+    };
   }, [open, onClose]);
   
   useEffect(()=>{
@@ -63,11 +72,17 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
     if (!contentId) return;
     setPurchasing(true);
     try {
+      // Get CSRF token
+      const csrfToken = await fetch('/api/auth/csrf/', { credentials: 'include' })
+        .then(r => r.json())
+        .then(j => j?.csrfToken || '');
+
       // Call backend to create Stripe checkout session
       const res = await fetch('/api/checkout/session/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
         },
         credentials: 'include',
         body: JSON.stringify({ content_id: contentId }),
@@ -110,8 +125,17 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
 
   if (!open) return null;
   return (
-    <div 
-      style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', display:'grid', placeItems:'center', zIndex:2000}}
+    <div
+      style={{
+        position:'fixed',
+        inset:0,
+        background:'rgba(0,0,0,0.75)',
+        backdropFilter:'blur(4px)',
+        display:'grid',
+        placeItems:'center',
+        zIndex:2000,
+        cursor:'pointer'
+      }}
       onClick={(e) => {
         // Close when clicking the backdrop
         if (e.target === e.currentTarget) {
@@ -119,7 +143,7 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
         }
       }}
     >
-      <div style={{width:'80vw', maxWidth:900, maxHeight:'80vh', background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, overflow:'hidden', display:'grid', gridTemplateRows:'50px 1fr'}}>
+      <div style={{width:'80vw', maxWidth:900, maxHeight:'80vh', background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, overflow:'hidden', display:'grid', gridTemplateRows:'50px 1fr', cursor:'default'}}>
         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 16px', borderBottom:'1px solid #1f2937'}}>
           <div style={{display:'flex', alignItems:'center', gap:16}}>
             <div style={{fontWeight:600, fontSize:16, color:'#e5e7eb'}}>Teaser Preview</div>

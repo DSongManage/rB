@@ -15,11 +15,17 @@ export default function CheckoutButton({ contentId, price, editions }: Props) {
     setError(null);
 
     try {
+      // Get CSRF token
+      const csrfToken = await fetch('/api/auth/csrf/', { credentials: 'include' })
+        .then(r => r.json())
+        .then(j => j?.csrfToken || '');
+
       // Call backend to create Stripe checkout session
       const res = await fetch('/api/checkout/session/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
         },
         credentials: 'include',
         body: JSON.stringify({ content_id: contentId }),

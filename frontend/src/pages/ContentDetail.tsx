@@ -1,23 +1,33 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 
 export default function ContentDetail(){
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
+  const [modalOpen, setModalOpen] = useState(true);
+
   useEffect(()=>{
     if (!id) return;
     fetch(`/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null).then(setData);
   }, [id]);
+
+  const handleClose = () => {
+    setModalOpen(false);
+    // Navigate back to home or previous page
+    navigate(-1);
+  };
+
   if (!id) return null;
   if (!data) return <div style={{padding:16}}>Loading…</div>;
-  
+
   // For books, always use the teaser API endpoint (not the cover image)
   // For other types (art, film, music), use the teaser_link directly
-  const teaserUrl = data?.content_type === 'book' 
-    ? `/api/content/${id}/teaser/` 
+  const teaserUrl = data?.content_type === 'book'
+    ? `/api/content/${id}/teaser/`
     : data?.teaser_link;
-  
+
   return (
     <div style={{maxWidth:900, margin:'0 auto', padding:16}}>
       <h2 style={{marginBottom:12}}>{data?.title}</h2>
@@ -26,10 +36,10 @@ export default function ContentDetail(){
         {data?.price_usd !== undefined && ` • Price: $${data.price_usd.toFixed(2)}`}
         {data?.editions !== undefined && ` • ${data.editions} edition${data.editions > 1 ? 's' : ''} available`}
       </div>
-      <PreviewModal 
-        open={true} 
-        onClose={()=>{}} 
-        teaserUrl={teaserUrl} 
+      <PreviewModal
+        open={modalOpen}
+        onClose={handleClose}
+        teaserUrl={teaserUrl}
         contentType={data?.content_type}
         contentId={parseInt(id)}
         price={data?.price_usd}
