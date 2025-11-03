@@ -9,12 +9,14 @@ from .views.library import LibraryView, FullContentView, ReadingProgressView
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet
 )
+from .views.notifications import NotificationViewSet
 
-# Router for collaboration ViewSets
+# Router for collaboration and notification ViewSets
 router = DefaultRouter()
 router.register(r'collaborative-projects', CollaborativeProjectViewSet, basename='collaborative-project')
 router.register(r'project-sections', ProjectSectionViewSet, basename='project-section')
 router.register(r'project-comments', ProjectCommentViewSet, basename='project-comment')
+router.register(r'notifications', NotificationViewSet, basename='notification')
 
 urlpatterns = [
     path('', home, name='home'),

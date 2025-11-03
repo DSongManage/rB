@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
-    CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment
+    CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -351,3 +351,41 @@ class CollaborativeProjectListSerializer(serializers.ModelSerializer):
     def get_total_collaborators(self, obj):
         """Count accepted collaborators."""
         return obj.collaborators.filter(status='accepted').count()
+
+
+class NotificationUserSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for user info in notifications."""
+    avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'avatar']
+
+    def get_avatar(self, obj):
+        """Get user avatar URL."""
+        try:
+            url = obj.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Serializer for notifications with nested user data."""
+    from_user = NotificationUserSerializer(read_only=True)
+    project_id = serializers.IntegerField(source='project.id', read_only=True, allow_null=True)
+    type = serializers.CharField(source='notification_type', read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'type', 'title', 'message', 'project_id',
+            'from_user', 'action_url', 'read', 'created_at'
+        ]
+        read_only_fields = [
+            'id', 'type', 'title', 'message', 'project_id',
+            'from_user', 'action_url', 'created_at'
+        ]

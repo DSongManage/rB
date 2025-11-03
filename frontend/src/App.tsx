@@ -18,62 +18,81 @@ import { ReaderPage } from './pages/ReaderPage';
 import CollaborationDashboard from './pages/CollaborationDashboard';
 import CollaborativeProjectPage from './pages/CollaborativeProjectPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import NotificationBell from './components/notifications/NotificationBell';
+import NotificationToastContainer from './components/notifications/NotificationToastContainer';
+import notificationService from './services/notificationService';
 
 function Header() {
   const [q, setQ] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
-  const [notifCount, setNotifCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const checkAuthAndNotifications = React.useCallback(() => {
+
+  const checkAuth = React.useCallback(() => {
     fetch('/api/auth/status/', { credentials: 'include' })
       .then(r=>r.json())
       .then(d=> {
         const authed = !!d?.authenticated;
         setIsAuthed(authed);
-        // Only fetch notifications if authenticated
+
+        // Start/stop notification polling based on auth state
         if (authed) {
-          fetch('/api/notifications/', { credentials: 'include' })
-            .then(r=> r.ok ? r.json() : [])
-            .then(data=> setNotifCount(Array.isArray(data) ? data.length : 0))
-            .catch(()=> setNotifCount(0));
+          if (!notificationService.isPolling()) {
+            notificationService.startPolling();
+          }
         } else {
-          setNotifCount(0);
+          if (notificationService.isPolling()) {
+            notificationService.stopPolling();
+          }
+          notificationService.reset();
         }
       })
       .catch(()=> {
         setIsAuthed(false);
-        setNotifCount(0);
+        notificationService.stopPolling();
+        notificationService.reset();
       });
   }, []);
-  
+
   useEffect(()=>{
-    checkAuthAndNotifications();
-    // Poll every 10 seconds to catch auth state changes (e.g., after login)
-    const interval = setInterval(checkAuthAndNotifications, 10000);
-    return () => clearInterval(interval);
-  },[location.pathname, checkAuthAndNotifications]);
+    checkAuth();
+    // Poll auth status every 10 seconds to catch changes
+    const interval = setInterval(checkAuth, 10000);
+    return () => {
+      clearInterval(interval);
+      // Clean up notification service on unmount
+      notificationService.stopPolling();
+    };
+  },[location.pathname, checkAuth]);
+
   // Also refresh immediately when we land on home with potential fresh logout redirect
   useEffect(()=>{
     if (location.pathname === '/') {
-      checkAuthAndNotifications();
+      checkAuth();
     }
-  }, [location.pathname, checkAuthAndNotifications]);
+  }, [location.pathname, checkAuth]);
+
   const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
   const goLogin = () => { navigate('/auth'); };
+
   const doLogout = async () => {
     try {
       const t = await fetch('/api/auth/csrf/', { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
       await fetch('/api/auth/logout/', { method:'POST', credentials:'include', headers:{ 'X-CSRFToken': t, 'X-Requested-With': 'XMLHttpRequest' } });
     } catch {}
+
+    // Stop notification polling and reset
+    notificationService.stopPolling();
+    notificationService.reset();
+
     // Optimistically flip immediately
     setIsAuthed(false);
-    setNotifCount(0);
+
     // Navigate to home using React Router
     navigate('/');
+
     // Re-check server state after navigation
-    setTimeout(() => checkAuthAndNotifications(), 100);
+    setTimeout(() => checkAuth(), 100);
   };
   return (
     <nav className="rb-header">
@@ -87,16 +106,8 @@ function Header() {
         </form>
       </div>
       <div className="rb-header-right rb-nav">
-        {isAuthed && (
-          <Link to="/profile" style={{position:'relative'}}>
-            Profile
-            {notifCount > 0 && (
-              <span className="rb-badge" style={{position:'absolute', top:-6, right:-8, background:'#ef4444', color:'#fff', fontSize:10, fontWeight:700, padding:'2px 6px', borderRadius:10, minWidth:18, textAlign:'center'}}>
-                {notifCount}
-              </span>
-            )}
-          </Link>
-        )}
+        {isAuthed && <NotificationBell />}
+        {isAuthed && <Link to="/profile">Profile</Link>}
         {isAuthed && <Link to="/collaborations">Collaborations</Link>}
         {isAuthed && <Link to="/collaborators">Collaborators</Link>}
         {!isAuthed && <button onClick={goLogin} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Sign in</button>}
@@ -148,6 +159,7 @@ export default function App() {
           </Routes>
         </div>
       </main>
+      <NotificationToastContainer />
     </div>
   );
 }

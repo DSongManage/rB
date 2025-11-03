@@ -23,6 +23,11 @@ from ..serializers import (
     CollaborativeProjectSerializer, CollaborativeProjectListSerializer,
     CollaboratorRoleSerializer, ProjectSectionSerializer, ProjectCommentSerializer
 )
+from ..notifications_utils import (
+    notify_collaboration_invitation, notify_invitation_response,
+    notify_section_update, notify_comment_added, notify_approval_status_change,
+    notify_revenue_proposal
+)
 
 
 class CollaborativeProjectViewSet(viewsets.ModelViewSet):
@@ -164,6 +169,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             can_edit_video=request.data.get('can_edit_video', False)
         )
 
+        # Send notification to invited user
+        notify_collaboration_invitation(core_user, invited_user, project, role)
+
         serializer = CollaboratorRoleSerializer(collaborator)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -194,6 +202,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         invitation.accepted_at = timezone.now()
         invitation.save()
 
+        # Notify project creator and other collaborators
+        notify_invitation_response(invitation, accepted=True)
+
         serializer = CollaboratorRoleSerializer(invitation)
         return Response(serializer.data)
 
@@ -223,6 +234,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         invitation.status = 'declined'
         invitation.save()
 
+        # Notify project creator
+        notify_invitation_response(invitation, accepted=False)
+
         return Response({'message': 'Invitation declined'})
 
     @action(detail=True, methods=['post'])
@@ -250,6 +264,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         # Approve version
         collaborator.approved_current_version = True
         collaborator.save()
+
+        # Notify about approval
+        notify_approval_status_change(collaborator, 'version')
 
         # Check if all collaborators approved
         if project.is_fully_approved():
@@ -314,6 +331,17 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                         {'error': f'User {user_id} is not a collaborator'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
+
+        # Build summary of changes for notification
+        changes_summary = ', '.join([
+            f"{CoreUser.objects.get(id=s['user_id']).username}: {s['percentage']}%"
+            for s in splits[:3]  # Show first 3 splits
+        ])
+        if len(splits) > 3:
+            changes_summary += f" and {len(splits) - 3} more"
+
+        # Notify collaborators about revenue split proposal
+        notify_revenue_proposal(core_user, project, changes_summary)
 
         serializer = CollaborativeProjectSerializer(project)
         return Response(serializer.data)
@@ -401,7 +429,10 @@ class ProjectSectionViewSet(viewsets.ModelViewSet):
             )
 
         # Set owner to current user
-        serializer.save(owner=core_user)
+        section = serializer.save(owner=core_user)
+
+        # Notify collaborators about new section
+        notify_section_update(core_user, project, section.title)
 
     def perform_update(self, serializer):
         """Update section with ownership and permission validation."""
@@ -429,7 +460,10 @@ class ProjectSectionViewSet(viewsets.ModelViewSet):
             except CollaboratorRole.DoesNotExist:
                 raise serializers.ValidationError('You are not a collaborator on this project')
 
-        serializer.save()
+        updated_section = serializer.save()
+
+        # Notify collaborators about section update
+        notify_section_update(core_user, section.project, updated_section.title)
 
     def perform_destroy(self, instance):
         """Delete section with ownership validation."""
@@ -487,7 +521,11 @@ class ProjectCommentViewSet(viewsets.ModelViewSet):
         if not is_collaborator:
             raise serializers.ValidationError('You must be a collaborator to comment')
 
-        serializer.save(author=core_user)
+        comment = serializer.save(author=core_user)
+
+        # Notify collaborators about new comment
+        comment_preview = comment.content[:100] if len(comment.content) > 100 else comment.content
+        notify_comment_added(core_user, project, comment_preview)
 
     @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):

@@ -554,3 +554,86 @@ class ProjectComment(models.Model):
 
     def __str__(self):
         return f"Comment by {self.author.username} on {self.project.title}"
+
+
+class Notification(models.Model):
+    """Real-time notification system for collaboration activities.
+
+    - Tracks collaboration invitations, comments, approvals, and updates
+    - Supports read/unread states for user inbox management
+    - Auto-links to related projects for easy navigation
+    - Efficient querying with database indexes
+    """
+
+    NOTIFICATION_TYPES = [
+        ('invitation', 'Collaboration Invitation'),
+        ('invitation_response', 'Invitation Response'),
+        ('comment', 'Comment'),
+        ('approval', 'Approval Status Change'),
+        ('section_update', 'Section Update'),
+        ('revenue_proposal', 'Revenue Split Proposal'),
+        ('mint_ready', 'Project Ready for Minting'),
+    ]
+
+    # Core fields
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        help_text="User who receives this notification"
+    )
+    from_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='sent_notifications',
+        help_text="User who triggered this notification"
+    )
+
+    # Notification content
+    notification_type = models.CharField(
+        max_length=20,
+        choices=NOTIFICATION_TYPES,
+        db_index=True
+    )
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+
+    # Related objects (optional linking)
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='notifications',
+        help_text="Related collaborative project"
+    )
+
+    # Navigation
+    action_url = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="URL to navigate to when notification is clicked"
+    )
+
+    # State tracking
+    read = models.BooleanField(default=False, db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'read', '-created_at']),
+            models.Index(fields=['recipient', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.notification_type}: {self.title} (to {self.recipient.username})"
+
+    def mark_as_read(self):
+        """Mark this notification as read."""
+        if not self.read:
+            self.read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['read', 'read_at'])
