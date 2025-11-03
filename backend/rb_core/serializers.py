@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress
+from .models import (
+    Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
+    CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment
+)
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
 import hashlib
@@ -200,3 +203,151 @@ class ReadingProgressSerializer(serializers.ModelSerializer):
         if value < 0 or value > 100:
             raise serializers.ValidationError("Progress must be between 0 and 100")
         return value
+
+
+class CollaboratorRoleSerializer(serializers.ModelSerializer):
+    """Serializer for collaborator roles with permissions and revenue splits."""
+    username = serializers.CharField(source='user.username', read_only=True)
+    display_name = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CollaboratorRole
+        fields = [
+            'id', 'user', 'username', 'display_name', 'role', 'revenue_percentage',
+            'status', 'invited_at', 'accepted_at', 'can_edit_text', 'can_edit_images',
+            'can_edit_audio', 'can_edit_video', 'can_edit', 'approved_current_version',
+            'approved_revenue_split'
+        ]
+        read_only_fields = ['id', 'invited_at', 'username', 'display_name', 'can_edit']
+
+    def get_display_name(self, obj):
+        """Get user's display name from profile."""
+        try:
+            return obj.user.profile.display_name or obj.user.username
+        except Exception:
+            return obj.user.username
+
+    def get_can_edit(self, obj):
+        """Return list of section types this collaborator can edit."""
+        can_edit = []
+        if obj.can_edit_text:
+            can_edit.append('text')
+        if obj.can_edit_images:
+            can_edit.append('image')
+        if obj.can_edit_audio:
+            can_edit.append('audio')
+        if obj.can_edit_video:
+            can_edit.append('video')
+        return can_edit
+
+
+class ProjectSectionSerializer(serializers.ModelSerializer):
+    """Serializer for project sections (content blocks)."""
+    owner_username = serializers.CharField(source='owner.username', read_only=True)
+
+    class Meta:
+        model = ProjectSection
+        fields = [
+            'id', 'section_type', 'title', 'content_html', 'media_file',
+            'owner', 'owner_username', 'order', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_username']
+
+
+class ProjectCommentSerializer(serializers.ModelSerializer):
+    """Serializer for project comments with threading support."""
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    author_avatar = serializers.SerializerMethodField()
+    replies_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectComment
+        fields = [
+            'id', 'author', 'author_username', 'author_avatar', 'content',
+            'parent_comment', 'resolved', 'created_at', 'replies_count'
+        ]
+        read_only_fields = ['id', 'created_at', 'author_username', 'author_avatar', 'replies_count']
+
+    def get_author_avatar(self, obj):
+        """Get author's avatar URL."""
+        try:
+            url = obj.author.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
+
+    def get_replies_count(self, obj):
+        """Count direct replies to this comment."""
+        return obj.replies.count()
+
+
+class CollaborativeProjectSerializer(serializers.ModelSerializer):
+    """Full serializer for collaborative projects with all nested data."""
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    collaborators = CollaboratorRoleSerializer(many=True, read_only=True)
+    sections = ProjectSectionSerializer(many=True, read_only=True)
+    recent_comments = serializers.SerializerMethodField()
+    is_fully_approved = serializers.SerializerMethodField()
+    total_collaborators = serializers.SerializerMethodField()
+    progress_percentage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CollaborativeProject
+        fields = [
+            'id', 'title', 'content_type', 'description', 'status', 'milestones',
+            'created_by', 'created_by_username', 'created_at', 'updated_at',
+            'collaborators', 'sections', 'recent_comments', 'is_fully_approved',
+            'total_collaborators', 'progress_percentage'
+        ]
+        read_only_fields = [
+            'id', 'created_at', 'updated_at', 'created_by_username',
+            'is_fully_approved', 'total_collaborators'
+        ]
+
+    def get_recent_comments(self, obj):
+        """Get last 5 comments on this project."""
+        recent = obj.comments.all()[:5]
+        return ProjectCommentSerializer(recent, many=True, context=self.context).data
+
+    def get_is_fully_approved(self, obj):
+        """Check if all collaborators have approved."""
+        return obj.is_fully_approved()
+
+    def get_total_collaborators(self, obj):
+        """Count accepted collaborators."""
+        return obj.collaborators.filter(status='accepted').count()
+
+    def get_progress_percentage(self, obj):
+        """Calculate project completion percentage based on milestones."""
+        milestones = obj.milestones or []
+        if not milestones:
+            return 0
+
+        try:
+            completed = sum(1 for m in milestones if isinstance(m, dict) and m.get('completed'))
+            total = len(milestones)
+            return round((completed / total) * 100, 2) if total > 0 else 0
+        except Exception:
+            return 0
+
+
+class CollaborativeProjectListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for project list views (performance optimized)."""
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    total_collaborators = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CollaborativeProject
+        fields = [
+            'id', 'title', 'content_type', 'status', 'created_by_username',
+            'total_collaborators', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'created_by_username', 'total_collaborators']
+
+    def get_total_collaborators(self, obj):
+        """Count accepted collaborators."""
+        return obj.collaborators.filter(status='accepted').count()

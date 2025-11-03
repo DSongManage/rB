@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser  # Extend for custom users (no private keys stored)
 from django.core.validators import RegexValidator
+from django.utils import timezone
+from decimal import Decimal
 
 # Create your models here.
 
@@ -333,3 +335,222 @@ class ReadingProgress(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.content.title} ({self.progress_percentage}%)"
+
+
+class CollaborativeProject(models.Model):
+    """Collaborative project model for multi-creator content.
+
+    - Supports multiple creators working together on books, music, video, or art
+    - Tracks project status from draft to minted
+    - Manages milestones and revenue splits
+    - Requires all collaborators to approve before minting
+    """
+
+    CONTENT_TYPE_CHOICES = [
+        ('book', 'Book'),
+        ('music', 'Music'),
+        ('video', 'Video'),
+        ('art', 'Art'),
+    ]
+
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('active', 'Active'),
+        ('ready_for_mint', 'Ready for Mint'),
+        ('minted', 'Minted'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    title = models.CharField(max_length=200)
+    content_type = models.CharField(max_length=16, choices=CONTENT_TYPE_CHOICES)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    milestones = models.JSONField(default=list, help_text="Milestone definitions and tracking")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='created_projects',
+        help_text="Project initiator"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+    def is_fully_approved(self):
+        """Check if all collaborators have approved the current version and revenue split."""
+        collaborators = self.collaborators.filter(status='accepted')
+        if not collaborators.exists():
+            return False
+        return all(
+            c.approved_current_version and c.approved_revenue_split
+            for c in collaborators
+        )
+
+    def total_revenue_percentage(self):
+        """Calculate total revenue percentage allocated to all collaborators."""
+        from django.db.models import Sum
+        result = self.collaborators.filter(status='accepted').aggregate(
+            total=Sum('revenue_percentage')
+        )
+        return result['total'] or Decimal('0.00')
+
+
+class CollaboratorRole(models.Model):
+    """Role assignment for collaborators in a project.
+
+    - Links users to projects with specific roles (Author, Illustrator, etc.)
+    - Defines revenue splits and permissions
+    - Tracks invitation and approval status
+    - Manages editing permissions per content type
+    """
+
+    STATUS_CHOICES = [
+        ('invited', 'Invited'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+        ('exited', 'Exited'),
+    ]
+
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        related_name='collaborators'
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='collaborations'
+    )
+    role = models.CharField(
+        max_length=50,
+        help_text="Author, Illustrator, Musician, Editor, etc."
+    )
+    revenue_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Revenue share percentage (0.00 to 100.00)"
+    )
+    invited_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='invited')
+
+    # Permissions by content type
+    can_edit_text = models.BooleanField(default=False)
+    can_edit_images = models.BooleanField(default=False)
+    can_edit_audio = models.BooleanField(default=False)
+    can_edit_video = models.BooleanField(default=False)
+
+    # Approval tracking
+    approved_current_version = models.BooleanField(default=False)
+    approved_revenue_split = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ['project', 'user']
+        ordering = ['-revenue_percentage']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role} ({self.revenue_percentage}%)"
+
+    def can_edit_section(self, section_type):
+        """Check if this collaborator can edit a specific section type."""
+        permission_map = {
+            'text': self.can_edit_text,
+            'image': self.can_edit_images,
+            'audio': self.can_edit_audio,
+            'video': self.can_edit_video,
+        }
+        return permission_map.get(section_type, False)
+
+
+class ProjectSection(models.Model):
+    """Individual section within a collaborative project.
+
+    - Represents discrete content blocks (text, image, audio, video)
+    - Assigned to specific collaborators for editing
+    - Ordered sequentially within the project
+    - Supports mixed media content
+    """
+
+    SECTION_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('audio', 'Audio'),
+        ('video', 'Video'),
+    ]
+
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        related_name='sections'
+    )
+    section_type = models.CharField(max_length=16, choices=SECTION_TYPE_CHOICES)
+    title = models.CharField(max_length=200, blank=True)
+    content_html = models.TextField(blank=True, help_text="For text sections")
+    media_file = models.FileField(
+        upload_to='collaborative_content/',
+        blank=True,
+        null=True,
+        help_text="For image, audio, or video sections"
+    )
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        help_text="Collaborator who can edit this section"
+    )
+    order = models.IntegerField(default=0, help_text="Display order within project")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+        unique_together = ['project', 'order']
+
+    def __str__(self):
+        return f"{self.project.title} - {self.section_type} #{self.order}"
+
+
+class ProjectComment(models.Model):
+    """Comments and discussions on collaborative projects.
+
+    - Supports threaded discussions via parent_comment
+    - Can be attached to entire project or specific sections
+    - Resolvable for issue tracking
+    - Maintains conversation history
+    """
+
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    section = models.ForeignKey(
+        ProjectSection,
+        on_delete=models.CASCADE,
+        related_name='comments',
+        null=True,
+        blank=True,
+        help_text="Optional: specific section this comment refers to"
+    )
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    content = models.TextField()
+    parent_comment = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies',
+        help_text="For threaded discussions"
+    )
+    resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Comment by {self.author.username} on {self.project.title}"

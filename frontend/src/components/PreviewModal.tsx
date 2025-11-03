@@ -205,7 +205,7 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
               {loading ? (
                 <div style={{color:'#94a3b8', textAlign:'center', padding:20}}>Loading preview...</div>
               ) : safe ? (
-                <div dangerouslySetInnerHTML={{ __html: safe }} />
+                <div className="content-display" dangerouslySetInnerHTML={{ __html: safe }} />
               ) : (
                 <div style={{color:'#94a3b8', textAlign:'center', padding:20}}>No preview available</div>
               )}

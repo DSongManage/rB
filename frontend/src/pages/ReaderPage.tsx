@@ -238,6 +238,7 @@ export function ReaderPage() {
 
         {/* HTML Content */}
         <div
+          className="content-display"
           style={{
             fontSize: 18,
             lineHeight: 1.8,

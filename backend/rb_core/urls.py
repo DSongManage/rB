@@ -1,10 +1,20 @@
-from django.urls import path
+from django.urls import path, include
 from django.views.generic import RedirectView
+from rest_framework.routers import DefaultRouter
 from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
 from .views.checkout import CreateCheckoutSessionView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView
+from .views.collaboration import (
+    CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet
+)
+
+# Router for collaboration ViewSets
+router = DefaultRouter()
+router.register(r'collaborative-projects', CollaborativeProjectViewSet, basename='collaborative-project')
+router.register(r'project-sections', ProjectSectionViewSet, basename='project-section')
+router.register(r'project-comments', ProjectCommentViewSet, basename='project-comment')
 
 urlpatterns = [
     path('', home, name='home'),
@@ -60,4 +70,6 @@ urlpatterns = [
     path('api/chapters/<int:pk>/publish/', PublishChapterView.as_view(), name='publish_chapter'),
     path('api/book-projects/<int:pk>/prepare/', PrepareBookView.as_view(), name='prepare_book'),
     path('api/book-projects/<int:pk>/publish/', PublishBookView.as_view(), name='publish_book'),
+    # Collaboration API endpoints
+    path('api/', include(router.urls)),
 ]

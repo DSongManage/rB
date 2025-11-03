@@ -83,3 +83,62 @@ button:hover { background:#d97706; }
 
 .rb-logo-link { display:flex; align-items:center; }
 .rb-logo-img { height:28px; width:auto; border-radius:4px; }
+
+/* ReactQuill Editor Text Wrapping */
+.ql-editor {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+  line-height: 1.6 !important;
+  font-family: Georgia, 'Times New Roman', serif !important;
+}
+
+/* ReactQuill Container */
+.quill {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+/* Ensure all paragraphs and text elements in the editor wrap properly */
+.ql-editor p,
+.ql-editor div,
+.ql-editor span,
+.ql-editor h1,
+.ql-editor h2,
+.ql-editor h3 {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  max-width: 100% !important;
+}
+
+/* Content display text wrapping (for reader and previews) */
+.content-display,
+.book-content,
+.chapter-content {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  line-height: 1.8;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+/* Ensure all HTML content wraps properly */
+.content-display *,
+.book-content *,
+.chapter-content * {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
