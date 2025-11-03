@@ -15,6 +15,9 @@ import CollaboratorsPage from './pages/CollaboratorsPage';
 import ContentDetail from './pages/ContentDetail';
 import PurchaseSuccessPage from './pages/PurchaseSuccessPage';
 import { ReaderPage } from './pages/ReaderPage';
+import CollaborationDashboard from './pages/CollaborationDashboard';
+import CollaborativeProjectPage from './pages/CollaborativeProjectPage';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function Header() {
   const [q, setQ] = useState('');
@@ -94,6 +97,7 @@ function Header() {
             )}
           </Link>
         )}
+        {isAuthed && <Link to="/collaborations">Collaborations</Link>}
         {isAuthed && <Link to="/collaborators">Collaborators</Link>}
         {!isAuthed && <button onClick={goLogin} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Sign in</button>}
         {isAuthed && <button onClick={doLogout} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Logout</button>}
@@ -104,7 +108,7 @@ function Header() {
 
 export default function App() {
   const location = useLocation();
-  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/].some(r => r.test(location.pathname));
+  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/, /^\/collaborations/].some(r => r.test(location.pathname));
   const showLibrarySidebar = [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
   const isReaderPage = /^\/reader/.test(location.pathname);
 
@@ -139,6 +143,8 @@ export default function App() {
             <Route path="/content/:id" element={<ContentDetail />} />
             <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
             <Route path="/reader/:contentId" element={<ReaderPage />} />
+            <Route path="/collaborations" element={<ProtectedRoute><CollaborationDashboard /></ProtectedRoute>} />
+            <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
           </Routes>
         </div>
       </main>

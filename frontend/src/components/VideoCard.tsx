@@ -13,13 +13,24 @@ type Props = {
   price?: number;
   editions?: number;
   owned?: boolean;
+  collaborators?: string[]; // Array of collaborator usernames
+  isCollaborative?: boolean; // Flag for collaborative content
 };
 
-export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K views', timeText = '2 days ago', thumbnailUrl, teaser_link, price, editions, owned = false }: Props) {
+export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K views', timeText = '2 days ago', thumbnailUrl, teaser_link, price, editions, owned = false, collaborators, isCollaborative = false }: Props) {
   const priceNum = typeof price === 'string' ? parseFloat(price) : price;
   const editionsNum = typeof editions === 'string' ? parseInt(editions) : editions;
   const editionsText = editionsNum && editionsNum > 0 ? `${editionsNum} edition${editionsNum > 1 ? 's' : ''} available` : 'Sold out';
   const priceText = priceNum && priceNum > 0 ? `$${priceNum.toFixed(2)}` : 'Free';
+
+  // Build author display text
+  const authorDisplay = isCollaborative && collaborators && collaborators.length > 0
+    ? collaborators.length === 1
+      ? `By @${collaborators[0]}`
+      : collaborators.length === 2
+        ? `By @${collaborators[0]} & @${collaborators[1]}`
+        : `By @${collaborators[0]} & ${collaborators.length - 1} others`
+    : author;
 
   return (
     <div className="yt-card">
@@ -35,6 +46,27 @@ export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K vie
             left: 8,
           }}>
             <OwnedBadge owned={owned} />
+          </div>
+        )}
+        {/* Collaboration badge - bottom left */}
+        {isCollaborative && (
+          <div style={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            background: 'rgba(245, 158, 11, 0.9)',
+            backdropFilter: 'blur(4px)',
+            padding: '4px 8px',
+            borderRadius: 4,
+            fontSize: 11,
+            fontWeight: 700,
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}>
+            <span>🤝</span>
+            <span>Collab</span>
           </div>
         )}
         {/* Price badge - top right */}
@@ -57,7 +89,7 @@ export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K vie
       </Link>
       <div className="yt-info">
         <div className="yt-title" title={title}>{title}</div>
-        <div className="yt-meta">{author} • {viewsText} • {timeText}</div>
+        <div className="yt-meta">{authorDisplay} • {viewsText} • {timeText}</div>
         {editionsNum !== undefined && !isNaN(editionsNum) && (
           <div style={{
             fontSize: 11,

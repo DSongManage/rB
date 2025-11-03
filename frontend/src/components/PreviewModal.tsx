@@ -3,17 +3,25 @@ import React, { useEffect, useMemo, useState } from 'react';
 let DOMPurify: any = null;
 try { DOMPurify = require('dompurify'); } catch {}
 
-type Props = { 
-  open: boolean; 
-  onClose: ()=>void; 
-  teaserUrl?: string; 
+type Collaborator = {
+  username: string;
+  role: string;
+  revenuePercentage: number;
+};
+
+type Props = {
+  open: boolean;
+  onClose: ()=>void;
+  teaserUrl?: string;
   contentType?: 'book'|'art'|'film'|'music';
   contentId?: number;
   price?: number;
   editions?: number;
+  isCollaborative?: boolean;
+  collaborators?: Collaborator[];
 };
 
-export default function PreviewModal({ open, onClose, teaserUrl, contentType, contentId, price, editions }: Props){
+export default function PreviewModal({ open, onClose, teaserUrl, contentType, contentId, price, editions, isCollaborative = false, collaborators = [] }: Props){
   const type = contentType || 'book';
   const [html, setHtml] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -147,6 +155,22 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
         <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 16px', borderBottom:'1px solid #1f2937'}}>
           <div style={{display:'flex', alignItems:'center', gap:16}}>
             <div style={{fontWeight:600, fontSize:16, color:'#e5e7eb'}}>Teaser Preview</div>
+            {isCollaborative && (
+              <div style={{
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#fff',
+                padding: '4px 10px',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}>
+                <span>🤝</span>
+                <span>Collaborative Work</span>
+              </div>
+            )}
             {editions !== undefined && (
               <div style={{fontSize:12, color:'#94a3b8'}}>
                 {editions > 0 ? `${editions} edition${editions > 1 ? 's' : ''} available` : 'Sold out'}
@@ -199,6 +223,50 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
             </button>
           </div>
         </div>
+        {/* Collaborators Section */}
+        {isCollaborative && collaborators.length > 0 && (
+          <div style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid #1f2937',
+            background: '#0b1220',
+          }}>
+            <div style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#94a3b8',
+              marginBottom: 8,
+            }}>
+              Collaborators & Revenue Split:
+            </div>
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}>
+              {collaborators.map((collab, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: 6,
+                    padding: '6px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                  }}
+                >
+                  <span style={{ color: '#e5e7eb', fontWeight: 600 }}>@{collab.username}</span>
+                  <span style={{ color: '#64748b' }}>•</span>
+                  <span style={{ color: '#94a3b8' }}>{collab.role}</span>
+                  <span style={{ color: '#64748b' }}>•</span>
+                  <span style={{ color: '#f59e0b', fontWeight: 700 }}>{collab.revenuePercentage}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{padding:12, overflow:'auto'}}>
           {type==='book' && (
             <div style={{width:'100%', height:'65vh', overflow:'auto', padding:12, background:'#0b1220', borderRadius:8}}>

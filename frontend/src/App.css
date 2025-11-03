@@ -142,3 +142,13 @@ button:hover { background:#d97706; }
   word-break: break-word;
   max-width: 100%;
 }
+
+/* Loading animation for skeleton screens */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
