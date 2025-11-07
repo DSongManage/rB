@@ -70,6 +70,13 @@ export interface ProjectSection {
   updated_at: string;
 }
 
+export interface CommentReaction {
+  id: number;
+  user_id: number;
+  username: string;
+  emoji: string;
+}
+
 export interface ProjectComment {
   id: number;
   author: number;
@@ -77,9 +84,29 @@ export interface ProjectComment {
   author_avatar: string;
   content: string;
   parent_comment?: number;
+  section?: number;
+  section_title?: string;
   resolved: boolean;
+  resolved_by?: number;
+  resolved_by_username?: string;
+  resolved_at?: string;
   created_at: string;
+  updated_at?: string;
+  edited: boolean;
+  edit_history?: Array<{
+    content: string;
+    edited_at: string;
+  }>;
   replies_count: number;
+  replies?: ProjectComment[];
+  reactions?: CommentReaction[];
+  attachments?: Array<{
+    id: number;
+    filename: string;
+    file_url: string;
+    file_size: number;
+  }>;
+  mentions?: number[]; // User IDs mentioned in the comment
 }
 
 export interface Milestone {
@@ -126,6 +153,8 @@ export interface CreateCommentData {
   content: string;
   section?: number;
   parent_comment?: number;
+  mentions?: number[];
+  attachments?: File[];
 }
 
 // ===== Helper Functions =====
@@ -499,6 +528,32 @@ export const collaborationApi = {
    * Add a comment to project or section
    */
   async addComment(data: CreateCommentData): Promise<ProjectComment> {
+    // Use FormData if there are attachments
+    if (data.attachments && data.attachments.length > 0) {
+      const formData = new FormData();
+      formData.append('project', data.project.toString());
+      formData.append('content', data.content);
+      if (data.section) formData.append('section', data.section.toString());
+      if (data.parent_comment) formData.append('parent_comment', data.parent_comment.toString());
+      if (data.mentions) formData.append('mentions', JSON.stringify(data.mentions));
+
+      data.attachments.forEach((file, index) => {
+        formData.append(`attachment_${index}`, file);
+      });
+
+      const response = await fetch(`${API_BASE}/api/project-comments/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: formData,
+      });
+
+      return handleResponse<ProjectComment>(response);
+    }
+
+    // Regular JSON request without attachments
     const response = await fetch(`${API_BASE}/api/project-comments/`, {
       method: 'POST',
       credentials: 'include',
@@ -597,5 +652,227 @@ export const collaborationApi = {
     if (!response.ok) {
       throw new Error(`Failed to delete comment: ${response.statusText}`);
     }
+  },
+
+  /**
+   * Add reaction to a comment
+   */
+  async addReaction(commentId: number, emoji: string): Promise<CommentReaction> {
+    const response = await fetch(
+      `${API_BASE}/api/project-comments/${commentId}/add-reaction/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify({ emoji }),
+      }
+    );
+
+    return handleResponse<CommentReaction>(response);
+  },
+
+  /**
+   * Remove reaction from a comment
+   */
+  async removeReaction(commentId: number, reactionId: number): Promise<void> {
+    const response = await fetch(
+      `${API_BASE}/api/project-comments/${commentId}/remove-reaction/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify({ reaction_id: reactionId }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to remove reaction: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Get comment thread (with replies)
+   */
+  async getCommentThread(commentId: number): Promise<ProjectComment> {
+    const response = await fetch(
+      `${API_BASE}/api/project-comments/${commentId}/thread/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+
+    return handleResponse<ProjectComment>(response);
+  },
+
+  /**
+   * Get comments by section
+   */
+  async getCommentsBySection(
+    projectId: number,
+    includeResolved: boolean = false
+  ): Promise<{ [sectionId: string]: ProjectComment[] }> {
+    let url = `${API_BASE}/api/project-comments/by-section/?project=${projectId}`;
+    if (includeResolved) {
+      url += '&include_resolved=true';
+    }
+
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    return handleResponse<{ [sectionId: string]: ProjectComment[] }>(response);
+  },
+
+  /**
+   * Get unresolved comment count
+   */
+  async getUnresolvedCommentCount(projectId: number): Promise<number> {
+    const comments = await this.getComments(projectId);
+    return comments.filter(c => !c.resolved).length;
+  },
+
+  // ===== Minting Workflow =====
+
+  /**
+   * Request approval from specific collaborators
+   */
+  async requestApproval(
+    projectId: number,
+    data: {
+      collaborator_ids: number[];
+      message?: string;
+      deadline_days?: number;
+    }
+  ): Promise<{ message: string; notifications_sent: number }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/request_approval/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    return handleResponse<{ message: string; notifications_sent: number }>(response);
+  },
+
+  /**
+   * Approve project (both content and revenue split)
+   */
+  async approveProject(
+    projectId: number,
+    data: {
+      approve_content: boolean;
+      approve_revenue: boolean;
+      feedback?: string;
+    }
+  ): Promise<CollaborativeProject> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/approve_project/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    return handleResponse<CollaborativeProject>(response);
+  },
+
+  /**
+   * Mint project as NFT
+   */
+  async mintProject(
+    projectId: number,
+    forceMint: boolean = false
+  ): Promise<{
+    success: boolean;
+    nft_id: string;
+    token_id: string;
+    contract_address: string;
+    ipfs_hash: string;
+    transaction_hash: string;
+  }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/mint/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify({ force_mint: forceMint }),
+      }
+    );
+
+    return handleResponse<{
+      success: boolean;
+      nft_id: string;
+      token_id: string;
+      contract_address: string;
+      ipfs_hash: string;
+      transaction_hash: string;
+    }>(response);
+  },
+
+  /**
+   * Get minting status for a project
+   */
+  async getMintingStatus(projectId: number): Promise<{
+    status: 'not_started' | 'validating' | 'uploading' | 'creating_contract' | 'minting' | 'completed' | 'error';
+    stage: string;
+    progress: number;
+    error?: string;
+    nft_data?: {
+      id: string;
+      token_id: string;
+      contract_address: string;
+      ipfs_hash: string;
+    };
+  }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/minting-status/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+
+    return handleResponse(response);
+  },
+
+  /**
+   * Cancel approval (reset approval status)
+   */
+  async cancelApproval(projectId: number): Promise<CollaborativeProject> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/cancel_approval/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-CSRFToken': getCsrfToken(),
+        },
+      }
+    );
+
+    return handleResponse<CollaborativeProject>(response);
   },
 };

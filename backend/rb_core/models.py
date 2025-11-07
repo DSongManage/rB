@@ -546,14 +546,123 @@ class ProjectComment(models.Model):
         related_name='replies',
         help_text="For threaded discussions"
     )
+
+    # Enhanced features
+    mentions = models.ManyToManyField(
+        User,
+        related_name='mentioned_in_comments',
+        blank=True,
+        help_text="Users mentioned in this comment with @username"
+    )
+    edit_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="History of edits with timestamps and previous content"
+    )
+
+    # Status and timestamps
     resolved = models.BooleanField(default=False)
+    edited = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['project', '-created_at']),
+            models.Index(fields=['section', '-created_at']),
+            models.Index(fields=['parent_comment', '-created_at']),
+        ]
 
     def __str__(self):
         return f"Comment by {self.author.username} on {self.project.title}"
+
+    def get_thread_depth(self):
+        """Calculate the depth of this comment in the thread."""
+        depth = 0
+        current = self.parent_comment
+        while current is not None:
+            depth += 1
+            current = current.parent_comment
+        return depth
+
+    def get_reply_count(self):
+        """Get total number of replies (including nested)."""
+        count = self.replies.count()
+        for reply in self.replies.all():
+            count += reply.get_reply_count()
+        return count
+
+
+class CommentReaction(models.Model):
+    """Emoji reactions on comments.
+
+    - Users can react to comments with emojis
+    - One reaction type per user per comment
+    - Supports common emoji reactions
+    """
+
+    REACTION_TYPES = [
+        ('👍', 'Thumbs Up'),
+        ('👎', 'Thumbs Down'),
+        ('❤️', 'Heart'),
+        ('😊', 'Smile'),
+        ('😂', 'Laugh'),
+        ('🎉', 'Party'),
+        ('🚀', 'Rocket'),
+        ('👀', 'Eyes'),
+    ]
+
+    comment = models.ForeignKey(
+        ProjectComment,
+        on_delete=models.CASCADE,
+        related_name='reactions'
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    emoji = models.CharField(max_length=10, choices=REACTION_TYPES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['comment', 'user', 'emoji']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} reacted {self.emoji} to comment {self.comment.id}"
+
+
+class CommentAttachment(models.Model):
+    """File attachments on comments.
+
+    - Support for images, documents, and other files
+    - Tracks file metadata and upload info
+    """
+
+    comment = models.ForeignKey(
+        ProjectComment,
+        on_delete=models.CASCADE,
+        related_name='attachments'
+    )
+    file = models.FileField(upload_to='comment_attachments/%Y/%m/')
+    filename = models.CharField(max_length=255)
+    file_size = models.IntegerField(help_text="File size in bytes")
+    file_type = models.CharField(max_length=100, help_text="MIME type")
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"Attachment: {self.filename} on comment {self.comment.id}"
+
+    def get_file_size_display(self):
+        """Return human-readable file size."""
+        size = self.file_size
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size < 1024.0:
+                return f"{size:.1f} {unit}"
+            size /= 1024.0
+        return f"{size:.1f} TB"
 
 
 class Notification(models.Model):

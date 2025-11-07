@@ -10,6 +10,15 @@ import {
   CreateSectionData,
   CreateCommentData
 } from '../../services/collaborationApi';
+import { useActivity } from '../../hooks/useActivity';
+import { useComments } from '../../hooks/useComments';
+import { CurrentlyEditing } from '../../services/activityService';
+import { OnlineStatus } from './OnlineStatus';
+import { EditingIndicator, SectionHeaderWithStatus } from './EditingIndicator';
+import { ActivityFeed, ActivitySummary } from './ActivityFeed';
+import CommentComposer from './CommentComposer';
+import CommentThread from './CommentThread';
+import { MintingWorkflow } from './MintingWorkflow';
 
 // Simple User interface (extend as needed)
 interface User {
@@ -35,16 +44,54 @@ export default function CollaborativeEditor({
 }: CollaborativeEditorProps) {
   // State management
   const [sections, setSections] = useState<ProjectSection[]>(project.sections || []);
-  const [comments, setComments] = useState<ProjectComment[]>(project.recent_comments || []);
   const [collaborators, setCollaborators] = useState<CollaboratorRole[]>(project.collaborators || []);
   const [currentlyEditingSection, setCurrentlyEditingSection] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [error, setError] = useState<string>('');
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [commentText, setCommentText] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showActivityFeed, setShowActivityFeed] = useState(false);
+  const [showResolvedComments, setShowResolvedComments] = useState(false);
+  const [activeTab, setActiveTab] = useState<'comments' | 'activity' | 'minting'>('comments');
+
+  // Activity tracking
+  const {
+    activities,
+    onlineUsers,
+    currentlyEditing,
+    isPolling,
+    startEditing,
+    stopEditing,
+    logActivity,
+    startPolling,
+    stopPolling,
+  } = useActivity({
+    projectId: project.id,
+    autoStart: true, // Auto-start polling when component mounts
+  });
+
+  // Enhanced comment system
+  const {
+    comments,
+    commentsBySection,
+    unresolvedCount,
+    totalCount: commentTotalCount,
+    isLoading: commentsLoading,
+    addComment,
+    updateComment,
+    deleteComment,
+    resolveComment,
+    unresolveComment,
+    addReaction,
+    removeReaction,
+    refresh: refreshComments,
+  } = useComments({
+    projectId: project.id,
+    includeResolved: showResolvedComments,
+    pollingInterval: 30000, // Poll every 30 seconds
+  });
 
   // Find current user's collaborator role
   const currentUserRole = collaborators.find(c => c.user === currentUser.id);
@@ -61,10 +108,9 @@ export default function CollaborativeEditor({
     return section.owner === currentUser.id;
   }, [currentUser.id]);
 
-  // Load sections and comments
+  // Load sections
   useEffect(() => {
     loadSections();
-    loadComments();
   }, [project.id]);
 
   const loadSections = async () => {
@@ -73,15 +119,6 @@ export default function CollaborativeEditor({
       setSections(loadedSections);
     } catch (err: any) {
       setError(err.message || 'Failed to load sections');
-    }
-  };
-
-  const loadComments = async () => {
-    try {
-      const loadedComments = await collaborationApi.getComments(project.id);
-      setComments(loadedComments);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load comments');
     }
   };
 
@@ -119,6 +156,13 @@ export default function CollaborativeEditor({
       setSections(sections.map(s => s.id === sectionId ? updatedSection : s));
       setLastSaved(new Date());
       onSectionUpdate?.(updatedSection);
+
+      // Log activity
+      await logActivity(
+        'section_updated',
+        `Updated ${updatedSection.section_type} section: ${updatedSection.title}`,
+        { section_id: sectionId, section_type: updatedSection.section_type }
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to update section');
     } finally {
@@ -155,21 +199,37 @@ export default function CollaborativeEditor({
     }
   };
 
-  // Add comment
-  const handleAddComment = async () => {
-    if (!commentText.trim()) return;
-
+  // Handle comment submission
+  const handleAddComment = async (content: string, mentions: number[], attachments?: File[]) => {
     try {
-      const newComment = await collaborationApi.addComment({
-        project: project.id,
-        content: commentText,
-      });
-      setComments([newComment, ...comments]);
-      setCommentText('');
-      setShowCommentInput(false);
+      const newComment = await addComment(content, mentions, attachments);
       onCommentAdd?.(newComment);
+
+      // Log activity
+      await logActivity(
+        'comment_added',
+        `Added a comment: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+        { comment_id: newComment.id }
+      );
+
+      setShowCommentInput(false);
     } catch (err: any) {
       setError(err.message || 'Failed to add comment');
+    }
+  };
+
+  // Handle comment reply
+  const handleReplyComment = async (
+    parentId: number,
+    content: string,
+    mentions: number[],
+    attachments?: File[]
+  ) => {
+    try {
+      await addComment(content, mentions, attachments, parentId);
+      await logActivity('comment_added', `Replied to a comment`, { parent_comment_id: parentId });
+    } catch (err: any) {
+      setError(err.message || 'Failed to reply to comment');
     }
   };
 
@@ -179,8 +239,72 @@ export default function CollaborativeEditor({
       const updatedProject = await collaborationApi.approveCurrentVersion(project.id);
       onProjectUpdate?.(updatedProject);
       alert('Version approved! 🎉');
+
+      // Log activity
+      await logActivity(
+        'approval_given',
+        'Approved current version',
+        { project_status: updatedProject.status }
+      );
     } catch (err: any) {
       setError(err.message || 'Failed to approve version');
+    }
+  };
+
+  // Handle approval request
+  const handleApprovalRequest = async () => {
+    try {
+      // Refresh project to get updated approval status
+      const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+      onProjectUpdate?.(updatedProject);
+
+      // Log activity
+      await logActivity(
+        'approval_requested',
+        'Requested approval from collaborators'
+      );
+    } catch (err: any) {
+      setError(err.message || 'Failed to request approval');
+    }
+  };
+
+  // Handle project approval (full approval)
+  const handleApproveProject = async () => {
+    try {
+      const updatedProject = await collaborationApi.approveProject(project.id, {
+        approve_content: true,
+        approve_revenue: true,
+      });
+      onProjectUpdate?.(updatedProject);
+
+      // Log activity
+      await logActivity(
+        'approval_given',
+        'Approved project for minting'
+      );
+    } catch (err: any) {
+      setError(err.message || 'Failed to approve project');
+    }
+  };
+
+  // Handle minting
+  const handleMint = async () => {
+    try {
+      const result = await collaborationApi.mintProject(project.id);
+
+      // Refresh project to update status
+      const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+      onProjectUpdate?.(updatedProject);
+
+      // Log activity
+      await logActivity(
+        'project_minted',
+        `Project minted as NFT (Token ID: ${result.token_id})`
+      );
+
+      alert(`Project successfully minted! NFT Token ID: ${result.token_id}`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to mint project');
     }
   };
 
@@ -402,12 +526,12 @@ export default function CollaborativeEditor({
                     alignItems: 'center',
                     gap: 8,
                   }}>
-                    <div style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: collab.status === 'accepted' ? '#10b981' : '#94a3b8',
-                    }} />
+                    {/* Online Status Indicator */}
+                    <OnlineStatus
+                      userId={collab.user}
+                      onlineUsers={onlineUsers}
+                      size="small"
+                    />
                     <div style={{ flex: 1 }}>
                       <div style={{
                         fontSize: 13,
@@ -463,7 +587,7 @@ export default function CollaborativeEditor({
             </div>
           </div>
 
-          {/* Comments Panel */}
+          {/* Activity & Comments & Minting Tabs */}
           <div style={{
             background: 'var(--panel)',
             border: '1px solid var(--panel-border)',
@@ -473,61 +597,91 @@ export default function CollaborativeEditor({
             display: 'flex',
             flexDirection: 'column',
           }}>
+            {/* Tabs */}
             <div style={{
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              gap: 8,
               marginBottom: 12,
+              borderBottom: '1px solid var(--panel-border)',
+              paddingBottom: 8,
             }}>
-              <h3 style={{
-                margin: 0,
-                fontSize: 14,
-                fontWeight: 700,
-                color: 'var(--text)'
-              }}>
-                Comments ({comments.length})
-              </h3>
               <button
-                onClick={() => setShowCommentInput(!showCommentInput)}
+                onClick={() => setActiveTab('comments')}
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--panel-border)',
+                  background: activeTab === 'comments' ? '#3b82f6' : 'transparent',
+                  color: activeTab === 'comments' ? '#fff' : '#94a3b8',
+                  border: 'none',
                   borderRadius: 6,
-                  padding: '4px 8px',
-                  color: '#94a3b8',
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
                   cursor: 'pointer',
-                  fontSize: 11,
+                  flex: 1,
                 }}
               >
-                + Add
+                Comments ({commentTotalCount})
+                {unresolvedCount > 0 && (
+                  <span
+                    style={{
+                      marginLeft: 4,
+                      fontSize: 10,
+                      background: '#f59e0b',
+                      padding: '2px 5px',
+                      borderRadius: 8,
+                    }}
+                  >
+                    {unresolvedCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('activity')}
+                style={{
+                  background: activeTab === 'activity' ? '#3b82f6' : 'transparent',
+                  color: activeTab === 'activity' ? '#fff' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  flex: 1,
+                }}
+              >
+                Activity ({activities.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('minting')}
+                style={{
+                  background: activeTab === 'minting' ? '#10b981' : 'transparent',
+                  color: activeTab === 'minting' ? '#fff' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '6px 12px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  flex: 1,
+                }}
+              >
+                {isFullyApproved ? '✓' : '⏳'} Mint
               </button>
             </div>
 
-            {/* Comment Input */}
-            {showCommentInput && (
-              <div style={{ marginBottom: 12 }}>
-                <textarea
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Write a comment..."
-                  style={{
-                    width: '100%',
-                    minHeight: 60,
-                    background: 'var(--bg)',
-                    border: '1px solid var(--panel-border)',
-                    borderRadius: 8,
-                    padding: 8,
-                    color: 'var(--text)',
-                    fontSize: 12,
-                    resize: 'vertical',
-                    outline: 'none',
-                  }}
-                />
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            {/* Comments View */}
+            {activeTab === 'comments' && (
+              <>
+                {/* Comment controls */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 12,
+                  gap: 8,
+                }}>
                   <button
-                    onClick={handleAddComment}
+                    onClick={() => setShowCommentInput(!showCommentInput)}
                     style={{
-                      flex: 1,
                       background: '#3b82f6',
                       border: 'none',
                       borderRadius: 6,
@@ -536,15 +690,13 @@ export default function CollaborativeEditor({
                       cursor: 'pointer',
                       fontSize: 11,
                       fontWeight: 600,
+                      flex: 1,
                     }}
                   >
-                    Post
+                    + Add Comment
                   </button>
                   <button
-                    onClick={() => {
-                      setShowCommentInput(false);
-                      setCommentText('');
-                    }}
+                    onClick={() => setShowResolvedComments(!showResolvedComments)}
                     style={{
                       background: 'transparent',
                       border: '1px solid var(--panel-border)',
@@ -552,57 +704,124 @@ export default function CollaborativeEditor({
                       padding: '6px 12px',
                       color: '#94a3b8',
                       cursor: 'pointer',
-                      fontSize: 11,
+                      fontSize: 10,
+                      fontWeight: 600,
                     }}
                   >
-                    Cancel
+                    {showResolvedComments ? 'Hide' : 'Show'} Resolved
                   </button>
                 </div>
+
+                {/* Unresolved count */}
+                {unresolvedCount > 0 && (
+                  <div
+                    style={{
+                      marginBottom: 12,
+                      padding: '6px 10px',
+                      background: 'rgba(251, 191, 36, 0.1)',
+                      border: '1px solid #f59e0b',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      color: '#f59e0b',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {unresolvedCount} unresolved comment{unresolvedCount !== 1 ? 's' : ''}
+                  </div>
+                )}
+
+                {/* Comment Input */}
+                {showCommentInput && (
+                  <div style={{ marginBottom: 12 }}>
+                    <CommentComposer
+                      projectId={project.id}
+                      collaborators={collaborators}
+                      onSubmit={handleAddComment}
+                      onCancel={() => setShowCommentInput(false)}
+                      compact={true}
+                      autoFocus={true}
+                    />
+                  </div>
+                )}
+
+                {/* Comment List */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  overflow: 'auto',
+                  flex: 1,
+                }}>
+                  {commentsLoading && comments.length === 0 ? (
+                    <div style={{
+                      padding: 20,
+                      textAlign: 'center',
+                      color: '#94a3b8',
+                      fontSize: 12,
+                    }}>
+                      Loading comments...
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <div style={{
+                      padding: 20,
+                      textAlign: 'center',
+                      color: '#64748b',
+                      fontSize: 12,
+                    }}>
+                      <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
+                      <div>No comments yet</div>
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                        Be the first to comment!
+                      </div>
+                    </div>
+                  ) : (
+                    comments.map(comment => (
+                      <CommentThread
+                        key={comment.id}
+                        comment={comment}
+                        projectId={project.id}
+                        currentUserId={currentUser.id}
+                        collaborators={collaborators}
+                        onReply={handleReplyComment}
+                        onEdit={updateComment}
+                        onDelete={deleteComment}
+                        onResolve={resolveComment}
+                        onUnresolve={unresolveComment}
+                        onReaction={addReaction}
+                        onRemoveReaction={removeReaction}
+                      />
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Activity Feed View */}
+            {activeTab === 'activity' && (
+              <div style={{
+                overflow: 'auto',
+                flex: 1,
+              }}>
+                <ActivityFeed activities={activities} maxItems={20} compact={true} />
               </div>
             )}
 
-            {/* Comment List */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-              overflow: 'auto',
-            }}>
-              {comments.map(comment => (
-                <div
-                  key={comment.id}
-                  style={{
-                    padding: 10,
-                    background: 'var(--bg)',
-                    border: '1px solid var(--panel-border)',
-                    borderRadius: 8,
-                  }}
-                >
-                  <div style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--text)',
-                    marginBottom: 4,
-                  }}>
-                    @{comment.author_username}
-                  </div>
-                  <div style={{
-                    fontSize: 11,
-                    color: '#cbd5e1',
-                    lineHeight: 1.5,
-                  }}>
-                    {comment.content}
-                  </div>
-                  <div style={{
-                    fontSize: 10,
-                    color: '#64748b',
-                    marginTop: 6,
-                  }}>
-                    {formatTimeAgo(new Date(comment.created_at))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {/* Minting Workflow View */}
+            {activeTab === 'minting' && (
+              <div style={{
+                overflow: 'auto',
+                flex: 1,
+              }}>
+                <MintingWorkflow
+                  project={project}
+                  currentUserId={currentUser.id}
+                  onApprovalRequest={handleApprovalRequest}
+                  onApprove={handleApproveProject}
+                  onMint={handleMint}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -637,11 +856,22 @@ export default function CollaborativeEditor({
                 canEdit={ownsSection(section) || project.created_by === currentUser.id}
                 isOwner={ownsSection(section)}
                 isEditing={currentlyEditingSection === section.id}
-                onStartEdit={() => setCurrentlyEditingSection(section.id)}
+                onStartEdit={async () => {
+                  setCurrentlyEditingSection(section.id);
+                  await startEditing(section.id);
+                }}
+                onStopEdit={async () => {
+                  if (currentlyEditingSection === section.id) {
+                    await stopEditing(section.id);
+                    setCurrentlyEditingSection(null);
+                  }
+                }}
                 onUpdate={(updates) => handleUpdateSection(section.id, updates)}
                 onDelete={() => handleDeleteSection(section.id)}
                 onMediaUpload={(file) => handleMediaUpload(section.id, file)}
                 saving={saving}
+                currentlyEditing={currentlyEditing}
+                currentUserId={currentUser.id}
               />
             ))
           )}
@@ -726,10 +956,13 @@ interface SectionEditorProps {
   isOwner: boolean;
   isEditing: boolean;
   onStartEdit: () => void;
+  onStopEdit?: () => void;
   onUpdate: (updates: Partial<CreateSectionData>) => void;
   onDelete: () => void;
   onMediaUpload: (file: File) => void;
   saving: boolean;
+  currentlyEditing: CurrentlyEditing[];
+  currentUserId: number;
 }
 
 function SectionEditor({
@@ -739,13 +972,22 @@ function SectionEditor({
   isOwner,
   isEditing,
   onStartEdit,
+  onStopEdit,
   onUpdate,
   onDelete,
   onMediaUpload,
   saving,
+  currentlyEditing,
+  currentUserId,
 }: SectionEditorProps) {
   const [title, setTitle] = useState(section.title);
   const [content, setContent] = useState(section.content_html || '');
+
+  // Check if someone else is editing this section
+  const editors = currentlyEditing.filter(
+    e => e.section_id === section.id && e.user_id !== currentUserId
+  );
+  const isBeingEditedByOthers = editors.length > 0;
 
   // Debounced auto-save for text sections
   useEffect(() => {
@@ -795,10 +1037,12 @@ function SectionEditor({
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         marginBottom: 12,
+        flexWrap: 'wrap',
+        gap: 12,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
           <span style={{ fontSize: 20 }}>{getSectionIcon(section.section_type)}</span>
           <div>
             <div style={{
@@ -823,26 +1067,39 @@ function SectionEditor({
           </div>
         </div>
 
-        {/* Actions */}
-        {canEdit && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            style={{
-              background: 'transparent',
-              border: '1px solid #ef4444',
-              borderRadius: 6,
-              padding: '4px 12px',
-              color: '#ef4444',
-              cursor: 'pointer',
-              fontSize: 11,
-            }}
-          >
-            Delete
-          </button>
-        )}
+        {/* Editing Status & Actions */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Show editing indicator if someone else is editing */}
+          {isBeingEditedByOthers && (
+            <EditingIndicator
+              sectionId={section.id}
+              currentlyEditing={currentlyEditing}
+              currentUserId={currentUserId}
+            />
+          )}
+
+          {/* Delete button */}
+          {canEdit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onStopEdit) onStopEdit();
+                onDelete();
+              }}
+              style={{
+                background: 'transparent',
+                border: '1px solid #ef4444',
+                borderRadius: 6,
+                padding: '4px 12px',
+                color: '#ef4444',
+                cursor: 'pointer',
+                fontSize: 11,
+              }}
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Section Content */}
