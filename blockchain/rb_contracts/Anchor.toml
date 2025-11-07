@@ -3,14 +3,16 @@ seeds = false
 skip-lint = false
 [programs.localnet]
 rb_contracts = "4znujrwLsjKTNQxLRncUYdGLAHnqsVLQarNP9jVEA57n"
+renaiss_block = "9ZACvfz6GNqa7fvtXTbsWUKjgzHUeJwxg4qiG8oRB7eH"
 [programs.devnet]
 renaiss_block = "9ZACvfz6GNqa7fvtXTbsWUKjgzHUeJwxg4qiG8oRB7eH"
+rb_contracts = "4znujrwLsjKTNQxLRncUYdGLAHnqsVLQarNP9jVEA57n"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Devnet"
+cluster = "localnet"
 wallet = "/Users/davidsong/.config/solana/id.json"
 
 [scripts]
