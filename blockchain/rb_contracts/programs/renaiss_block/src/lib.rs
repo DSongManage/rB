@@ -14,6 +14,13 @@ pub mod math {
     }
 }
 
+/// Creator split data for collaborative NFTs
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct CreatorSplitData {
+    pub creator_pubkey: Pubkey,
+    pub percentage: u8,
+}
+
 /// Platform wallet configured at compile time (no private keys; public key only)
 /// If not provided or invalid, royalties will omit the platform recipient.
 pub fn get_platform_wallet() -> Option<Pubkey> {
@@ -74,6 +81,127 @@ pub mod renaiss_block {
         });
         Ok(())
     }
+
+    /// Mint collaborative NFT with automatic revenue splitting among multiple creators
+    pub fn mint_collaborative_nft<'info>(
+        ctx: Context<'_, '_, '_, 'info, MintCollaborativeNft<'info>>,
+        sale_amount_lamports: u64,
+        creator_splits: Vec<CreatorSplitData>,
+        metadata_uri: String,
+        title: String,
+    ) -> Result<()> {
+        // Validate number of creators
+        require!(
+            creator_splits.len() <= 10,
+            CollaborationError::TooManyCreators
+        );
+        require!(
+            !creator_splits.is_empty(),
+            CollaborationError::NoCreators
+        );
+
+        // Validate creator splits add up to 100%
+        let total_percentage: u16 = creator_splits.iter().map(|c| c.percentage as u16).sum();
+        require!(
+            total_percentage == 100,
+            CollaborationError::InvalidSplitPercentage
+        );
+
+        // Validate individual percentages
+        for split in creator_splits.iter() {
+            require!(
+                split.percentage > 0 && split.percentage < 100,
+                CollaborationError::InvalidCreatorPercentage
+            );
+        }
+
+        // Calculate platform fee (10%)
+        const PLATFORM_FEE_BPS: u16 = 1000; // 10%
+        let platform_fee = ((sale_amount_lamports as u128) * (PLATFORM_FEE_BPS as u128) / 10_000u128) as u64;
+        let remaining_amount = sale_amount_lamports.saturating_sub(platform_fee);
+
+        // Transfer platform fee to platform wallet if configured
+        if let Some(platform_pk) = get_platform_wallet() {
+            if platform_fee > 0 {
+                require_keys_eq!(
+                    ctx.accounts.platform.key(),
+                    platform_pk,
+                    CollaborationError::PlatformWalletMismatch
+                );
+
+                let transfer_platform_ix = anchor_lang::solana_program::system_instruction::transfer(
+                    &ctx.accounts.buyer.key(),
+                    &ctx.accounts.platform.key(),
+                    platform_fee,
+                );
+                anchor_lang::solana_program::program::invoke(
+                    &transfer_platform_ix,
+                    &[
+                        ctx.accounts.buyer.to_account_info(),
+                        ctx.accounts.platform.to_account_info(),
+                        ctx.accounts.system_program.to_account_info(),
+                    ],
+                )?;
+            }
+        }
+
+        // Distribute revenue among creators
+        for (i, creator_split) in creator_splits.iter().enumerate() {
+            let creator_amount = ((remaining_amount as u128) * (creator_split.percentage as u128) / 100u128) as u64;
+
+            if creator_amount > 0 {
+                // Get the creator account from remaining accounts
+                let creator_account = ctx.remaining_accounts.get(i)
+                    .ok_or(CollaborationError::MissingCreatorAccount)?;
+
+                require_keys_eq!(
+                    creator_account.key(),
+                    creator_split.creator_pubkey,
+                    CollaborationError::CreatorAccountMismatch
+                );
+
+                let transfer_creator_ix = anchor_lang::solana_program::system_instruction::transfer(
+                    &ctx.accounts.buyer.key(),
+                    &creator_account.key(),
+                    creator_amount,
+                );
+                anchor_lang::solana_program::program::invoke(
+                    &transfer_creator_ix,
+                    &[
+                        ctx.accounts.buyer.to_account_info(),
+                        creator_account.clone(),
+                        ctx.accounts.system_program.to_account_info(),
+                    ],
+                )?;
+            }
+        }
+
+        // Mint the NFT token
+        let cpi_accounts = MintTo {
+            mint: ctx.accounts.mint.to_account_info(),
+            to: ctx.accounts.buyer_token_account.to_account_info(),
+            authority: ctx.accounts.buyer.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+        token::mint_to(cpi_ctx, 1)?;
+
+        // Emit event
+        emit!(CollaborativeMinted {
+            buyer: ctx.accounts.buyer.key(),
+            mint: ctx.accounts.mint.key(),
+            buyer_token_account: ctx.accounts.buyer_token_account.key(),
+            platform_wallet: get_platform_wallet().unwrap_or(Pubkey::default()),
+            sale_amount_lamports,
+            platform_fee,
+            remaining_amount,
+            num_creators: creator_splits.len() as u8,
+            metadata_uri,
+            title,
+        });
+
+        msg!("Collaborative NFT minted successfully with {} creators", creator_splits.len());
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -91,6 +219,26 @@ pub struct MintNft<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct MintCollaborativeNft<'info> {
+    #[account(mut)]
+    pub buyer: Signer<'info>,
+
+    /// CHECK: validated against compile-time constant
+    #[account(mut)]
+    pub platform: UncheckedAccount<'info>,
+
+    #[account(mut)]
+    pub mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub buyer_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    // Creator accounts passed via remaining_accounts for dynamic number of creators
+}
+
 #[event]
 pub struct Minted {
     pub payer: Pubkey,
@@ -101,10 +249,48 @@ pub struct Minted {
     pub fee_bps: u16,
 }
 
+#[event]
+pub struct CollaborativeMinted {
+    pub buyer: Pubkey,
+    pub mint: Pubkey,
+    pub buyer_token_account: Pubkey,
+    pub platform_wallet: Pubkey,
+    pub sale_amount_lamports: u64,
+    pub platform_fee: u64,
+    pub remaining_amount: u64,
+    pub num_creators: u8,
+    pub metadata_uri: String,
+    pub title: String,
+}
+
 #[error_code]
 pub enum FeeError {
-    #[msg("Platform wallet account does not match configured pubkey")] 
+    #[msg("Platform wallet account does not match configured pubkey")]
     PlatformWalletMismatch,
+}
+
+#[error_code]
+pub enum CollaborationError {
+    #[msg("Creator split percentages must add up to 100")]
+    InvalidSplitPercentage,
+
+    #[msg("Maximum 10 creators allowed per NFT")]
+    TooManyCreators,
+
+    #[msg("Creator percentage must be between 1 and 99")]
+    InvalidCreatorPercentage,
+
+    #[msg("Platform wallet account does not match configured pubkey")]
+    PlatformWalletMismatch,
+
+    #[msg("Missing creator account in remaining_accounts")]
+    MissingCreatorAccount,
+
+    #[msg("Creator account pubkey does not match expected")]
+    CreatorAccountMismatch,
+
+    #[msg("At least one creator is required")]
+    NoCreators,
 }
 
 #[cfg(test)]
@@ -139,6 +325,61 @@ mod tests {
         let (fee, net) = split_fee(1_000_000, bps);
         assert_eq!(fee, 100_000);
         assert_eq!(net, 900_000);
+    }
+
+    #[test]
+    fn test_creator_split_validation_valid() {
+        // Test valid creator splits
+        let splits = vec![50u8, 30u8, 20u8];
+        let total: u16 = splits.iter().map(|&x| x as u16).sum();
+        assert_eq!(total, 100);
+    }
+
+    #[test]
+    fn test_creator_split_validation_invalid() {
+        // Test invalid creator splits (doesn't add to 100)
+        let splits = vec![50u8, 30u8, 25u8];
+        let total: u16 = splits.iter().map(|&x| x as u16).sum();
+        assert_ne!(total, 100);
+    }
+
+    #[test]
+    fn test_collaborative_revenue_distribution() {
+        // Test revenue distribution among 3 creators
+        let sale_amount: u64 = 1_000_000; // 1 SOL in lamports
+        let platform_fee = sale_amount * 10 / 100; // 10% platform fee
+        let remaining = sale_amount - platform_fee; // 900,000 lamports
+
+        let creator1_pct = 50u8;
+        let creator2_pct = 30u8;
+        let creator3_pct = 20u8;
+
+        let creator1_amount = remaining * creator1_pct as u64 / 100;
+        let creator2_amount = remaining * creator2_pct as u64 / 100;
+        let creator3_amount = remaining * creator3_pct as u64 / 100;
+
+        assert_eq!(creator1_amount, 450_000); // 50% of 900k
+        assert_eq!(creator2_amount, 270_000); // 30% of 900k
+        assert_eq!(creator3_amount, 180_000); // 20% of 900k
+
+        // Verify total distribution equals remaining amount
+        let total_distributed = creator1_amount + creator2_amount + creator3_amount;
+        assert_eq!(total_distributed, remaining);
+    }
+
+    #[test]
+    fn test_two_creator_equal_split() {
+        // Test 50/50 split between 2 creators
+        let sale_amount: u64 = 2_000_000; // 2 SOL
+        let platform_fee = sale_amount * 10 / 100;
+        let remaining = sale_amount - platform_fee;
+
+        let creator1_amount = remaining * 50 / 100;
+        let creator2_amount = remaining * 50 / 100;
+
+        assert_eq!(creator1_amount, 900_000);
+        assert_eq!(creator2_amount, 900_000);
+        assert_eq!(creator1_amount + creator2_amount, remaining);
     }
 }
 
