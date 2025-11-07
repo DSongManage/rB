@@ -15,11 +15,14 @@ import {
   Transaction,
   sendAndConfirmTransaction
 } from "@solana/web3.js";
+import {
+  TOKEN_PROGRAM_ID,
+  createMint,
+  getOrCreateAssociatedTokenAccount,
+  mintTo,
+  getAccount
+} from "@solana/spl-token";
 import { expect } from "chai";
-
-// Use require for spl-token to avoid ESM/CJS compatibility issues
-const splToken = require("@solana/spl-token");
-const { TOKEN_PROGRAM_ID, createMint, getOrCreateAssociatedTokenAccount, mintTo, getAccount } = splToken;
 
 describe("Collaborative NFT Minting", () => {
   // Configure the client to use the local cluster
