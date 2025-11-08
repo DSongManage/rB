@@ -6,6 +6,11 @@ venv/
 .env
 backend/.env
 
+# Solana Wallet Security - NEVER commit these files
+platform-wallet.json
+*-wallet.json
+PLATFORM_WALLET_BACKUP.md
+
 # Python
 __pycache__/
 **/__pycache__/**
