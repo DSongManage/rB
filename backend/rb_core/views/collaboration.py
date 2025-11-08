@@ -375,6 +375,142 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         return Response(preview_data)
 
+    @action(detail=True, methods=['post'])
+    def mint_collaborative_nft(self, request, pk=None):
+        """
+        Mint NFT for collaborative project with automatic revenue splits.
+
+        Validates that:
+        - All collaborators have approved the project
+        - All collaborators have wallet addresses set
+        - Revenue splits total 100%
+
+        Then calls the Solana smart contract to mint the NFT with
+        automatic revenue distribution.
+        """
+        project = self.get_object()
+
+        # Verify project is in the correct status
+        if project.status == 'minted':
+            return Response(
+                {'error': 'Project has already been minted'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if project.status == 'cancelled':
+            return Response(
+                {'error': 'Cannot mint a cancelled project'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify all collaborators have approved
+        if not project.is_fully_approved():
+            return Response(
+                {
+                    'error': 'All collaborators must approve before minting',
+                    'detail': 'Check that all collaborators have approved the current version and revenue split'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get accepted collaborators with wallet addresses
+        collaborators = project.collaborators.filter(status='accepted')
+
+        if not collaborators.exists():
+            return Response(
+                {'error': 'No accepted collaborators found'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check that all collaborators have wallet addresses
+        collaborators_without_wallets = []
+        for collab in collaborators:
+            if not hasattr(collab.user, 'userprofile') or not collab.user.userprofile.wallet_address:
+                collaborators_without_wallets.append({
+                    'user_id': collab.user.id,
+                    'username': collab.user.username,
+                    'role': collab.role
+                })
+
+        if collaborators_without_wallets:
+            return Response(
+                {
+                    'error': 'All collaborators must have wallet addresses set',
+                    'collaborators_without_wallets': collaborators_without_wallets
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Prepare creator splits for smart contract
+        creator_splits = []
+        for collab in collaborators:
+            creator_splits.append({
+                'user_id': collab.user.id,
+                'username': collab.user.username,
+                'wallet_address': collab.user.userprofile.wallet_address,
+                'percentage': float(collab.revenue_percentage),
+                'role': collab.role
+            })
+
+        # Validate splits total 100%
+        total_percentage = sum(split['percentage'] for split in creator_splits)
+        if abs(total_percentage - 100.0) > 0.01:
+            return Response(
+                {
+                    'error': f'Revenue splits must total 100%, got {total_percentage}%',
+                    'creator_splits': creator_splits
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # TODO: Get actual sale price from project
+        # For now, use a default price
+        sale_amount_usd = Decimal('10.00')
+
+        # Generate metadata URI
+        # TODO: Upload actual metadata to Arweave/IPFS
+        from ..utils.solana_integration import get_nft_metadata_uri
+        metadata_uri = get_nft_metadata_uri(project.id, project.content_type)
+
+        # Execute minting on Solana blockchain
+        from ..utils.solana_integration import mint_collaborative_nft
+
+        result = mint_collaborative_nft(
+            project_id=project.id,
+            sale_amount_usd=sale_amount_usd,
+            creator_splits=creator_splits,
+            metadata_uri=metadata_uri,
+            title=project.title
+        )
+
+        if result['success']:
+            # Update project status to minted
+            project.status = 'minted'
+            project.save()
+
+            # TODO: Create Content record for marketplace
+            # This allows the minted NFT to be listed and sold
+
+            return Response({
+                'success': True,
+                'message': 'Collaborative NFT minted successfully',
+                'transaction_signature': result['transaction_signature'],
+                'mint_address': result['mint_address'],
+                'sale_amount_lamports': result['sale_amount_lamports'],
+                'platform_fee_lamports': result['platform_fee_lamports'],
+                'creator_splits': result['creator_splits'],
+                'num_creators': result['num_creators'],
+                'project_id': project.id,
+                'project_title': project.title,
+            })
+        else:
+            return Response({
+                'success': False,
+                'error': result.get('error', 'Unknown error occurred'),
+                'error_type': result.get('error_type', 'UnknownError'),
+                'creator_splits': creator_splits
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
 class ProjectSectionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing project sections.

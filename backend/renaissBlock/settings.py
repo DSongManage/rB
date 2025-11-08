@@ -248,6 +248,13 @@ PLATFORM_WALLET_PUBKEY = os.getenv('PLATFORM_WALLET_PUBKEY', '')
 # Optional: dev-only keypair path for platform wallet signer on devnet
 PLATFORM_WALLET_KEYPAIR_PATH = os.getenv('PLATFORM_WALLET_KEYPAIR_PATH', '')
 
+# Collaborative NFT Minting Configuration
+SOLANA_PLATFORM_WALLET = os.getenv('SOLANA_PLATFORM_WALLET', PLATFORM_WALLET_PUBKEY or 'DawrJxixCJ2zbTCn83YRB5kZJC6zM6N36FYqGZUzNHDA')
+# SOL/USD price for converting USD amounts to lamports (should use oracle in production)
+SOL_PRICE_USD = os.getenv('SOL_PRICE_USD', '100.00')
+# Enable collaborative minting feature
+FEATURE_COLLABORATIVE_MINTING = os.getenv('FEATURE_COLLABORATIVE_MINTING', 'true').lower() in ('1', 'true', 'yes', 'on')
+
 # Stripe Payment Configuration
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
