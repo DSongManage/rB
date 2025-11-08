@@ -90,8 +90,8 @@ def get_platform_fee_account() -> str:
 
     if not platform_wallet:
         logger.warning("SOLANA_PLATFORM_WALLET not configured in settings")
-        # Return a default test wallet for development
-        return "DawrJxixCJ2zbTCn83YRB5kZJC6zM6N36FYqGZUzNHDA"
+        # Return configured platform wallet for development
+        return "C2WmvJjJgEWR84876nHCchUvAdC3Co3RMY42a7nAq3Rk"
 
     return platform_wallet
 
