@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage';
 import AuthPage from './pages/AuthPage';
 import WalletInfoPage from './pages/WalletInfoPage';
 import TermsPage from './pages/TermsPage';
+import BetaLanding from './pages/BetaLanding';
 import { CreatorSidebar } from './components/CreatorSidebar';
 import { LibrarySidebar } from './components/LibrarySidebar';
 import CollaboratorsPage from './pages/CollaboratorsPage';
@@ -122,6 +123,19 @@ export default function App() {
   const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/, /^\/collaborations/].some(r => r.test(location.pathname));
   const showLibrarySidebar = [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
   const isReaderPage = /^\/reader/.test(location.pathname);
+  const isBetaLanding = location.pathname === '/beta';
+
+  // Hide header and sidebars on beta landing page
+  if (isBetaLanding) {
+    return (
+      <div className="rb-app">
+        <Routes>
+          <Route path="/beta" element={<BetaLanding />} />
+        </Routes>
+        <NotificationToastContainer />
+      </div>
+    );
+  }
 
   return (
     <div className="rb-app">
@@ -141,6 +155,7 @@ export default function App() {
         <div style={{ width: isReaderPage ? '100%' : 'auto', maxWidth: isReaderPage ? 'none' : undefined }}>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/beta" element={<BetaLanding />} />
             <Route path="/login" element={<Navigate to="/auth" replace />} />
             <Route path="/signup" element={<Navigate to="/auth" replace />} />
             <Route path="/search" element={<SearchPage />} />
