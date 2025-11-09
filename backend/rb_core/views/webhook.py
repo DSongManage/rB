@@ -24,26 +24,25 @@ def stripe_webhook(request):
     payload = request.body
     sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
 
-    # For development: if no webhook secret set, skip verification
+    # SECURITY: Always require webhook secret - no bypass allowed
     webhook_secret = settings.STRIPE_WEBHOOK_SECRET
 
-    try:
-        if webhook_secret:
-            # Verify webhook signature
-            event = stripe.Webhook.construct_event(
-                payload, sig_header, webhook_secret
-            )
-        else:
-            # Development mode: parse without verification
-            event = json.loads(payload)
-            logger.warning('Webhook signature verification skipped (no STRIPE_WEBHOOK_SECRET set)')
+    if not webhook_secret:
+        logger.error('STRIPE_WEBHOOK_SECRET not configured - rejecting webhook')
+        return HttpResponse('Webhook secret not configured', status=500)
 
+    # Always verify webhook signature
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, webhook_secret
+        )
+        logger.info(f'Verified webhook: {event["type"]}')
     except ValueError as e:
         logger.error(f'Invalid payload: {e}')
-        return HttpResponse(status=400)
+        return HttpResponse('Invalid payload', status=400)
     except stripe.error.SignatureVerificationError as e:
         logger.error(f'Invalid signature: {e}')
-        return HttpResponse(status=400)
+        return HttpResponse('Invalid signature', status=400)
 
     # Handle the event
     if event['type'] == 'checkout.session.completed':

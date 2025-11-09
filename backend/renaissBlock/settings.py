@@ -42,15 +42,18 @@ except Exception:
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-your-secret-key-here'  # Change this in production; never store in repo (per GUIDELINES.md Security Focus)
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError(
+        'DJANGO_SECRET_KEY environment variable must be set. '
+        'Generate one with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"'
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = [
-    '127.0.0.1',
-    'localhost',
-]
+# ALLOWED_HOSTS - Configure for production
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
 
 # Application definition
@@ -122,13 +125,21 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+# Strengthened for production security
 
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'OPTIONS': {
+            'user_attributes': ('username', 'email', 'first_name', 'last_name'),
+            'max_similarity': 0.7,  # Stricter similarity check
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 12,  # Increased from default 8 to 12 characters
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -164,17 +175,21 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Security Settings (per GUIDELINES.md)
-SECURE_SSL_REDIRECT = False  # Enable in production for HTTPS (TLS 1.3+)
-SECURE_HSTS_SECONDS = 0  # Enable HSTS in production
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_BROWSER_XSS_FILTER = True
-X_FRAME_OPTIONS = 'DENY'
-# CSP: To be configured for XSS protection
-# Basic defaults for MVP; adjust per asset/CDN usage
+# Environment-aware HTTPS enforcement: strict in production, permissive in dev
+SECURE_SSL_REDIRECT = not DEBUG  # Redirect HTTP to HTTPS in production
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0  # 1 year HSTS in production
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG  # Apply HSTS to all subdomains in production
+SECURE_HSTS_PRELOAD = not DEBUG  # Enable HSTS preload list in production
+SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME type sniffing
+SECURE_BROWSER_XSS_FILTER = True  # Enable browser XSS protection
+X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking
+# Content Security Policy - XSS Protection
+# Remove 'unsafe-inline' for production security
 CSP_DEFAULT_SRC = "'self'"
 CSP_IMG_SRC = "'self' data: https://picsum.photos https://ipfs.io"
-CSP_SCRIPT_SRC = "'self' 'unsafe-inline'"
-CSP_STYLE_SRC = "'self' 'unsafe-inline'"
+CSP_SCRIPT_SRC = "'self'"  # Removed 'unsafe-inline' for security
+CSP_STYLE_SRC = "'self'"   # Removed 'unsafe-inline' for security
+CSP_CONNECT_SRC = "'self' wss://api.web3auth.io https://api.web3auth.io"
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 # No private key storage - rely on Web3Auth (FR3 in REQUIREMENTS.md)
@@ -187,9 +202,25 @@ IPFS_API_URL = 'https://ipfs.infura.io:5001'  # Free tier for MVP (FR4)
 # Future Expansion: Add moderation queue, analytics (FR7), collaboration logic (FR8)
 # Ensure compliance with regulations (e.g., GDPR minimization) - no unnecessary data storage
 
-WEB3AUTH_CLIENT_ID = os.getenv('WEB3AUTH_CLIENT_ID', 'your_client_id_here')  # For keyless wallet auth (FR3)
+# Web3Auth Configuration for Keyless Wallet Auth (FR3)
+# SECURITY: Rotate Client ID and configure domain whitelist on Web3Auth dashboard
+WEB3AUTH_CLIENT_ID = os.getenv('WEB3AUTH_CLIENT_ID', 'your_client_id_here')
+
+# Validate Web3Auth Client ID in production
+if not DEBUG and WEB3AUTH_CLIENT_ID == 'your_client_id_here':
+    raise ValueError(
+        'WEB3AUTH_CLIENT_ID must be set to a valid Client ID in production. '
+        'Get one from https://dashboard.web3auth.io/ and configure domain whitelist.'
+    )
+
 # Prefer the auth domain JWKS for Sapphire (supports ES256)
 WEB3AUTH_JWKS_URL = os.getenv('WEB3AUTH_JWKS_URL', 'https://api-auth.web3auth.io/.well-known/jwks.json')
+
+# Web3Auth Security Best Practices:
+# 1. Configure domain whitelist on Web3Auth dashboard to only allow your production domain
+# 2. Use separate Client IDs for development and production
+# 3. Enable session management and set appropriate timeout values
+# 4. Monitor Web3Auth dashboard for suspicious activity
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -214,25 +245,41 @@ FRONTEND_ORIGIN = os.getenv('FRONTEND_ORIGIN', 'http://127.0.0.1:3000')
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
-# CORS/CSRF for frontend
-CORS_ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-]
+# CORS/CSRF for frontend (environment-based for production)
+# In production, set CORS_ORIGINS env var to your production domain
+# Example: CORS_ORIGINS=https://renaissblock.com,https://www.renaissblock.com
+CORS_ORIGINS_ENV = os.getenv('CORS_ORIGINS', '')
+if CORS_ORIGINS_ENV:
+    # Production: use environment-specified origins
+    CORS_ALLOWED_ORIGINS = CORS_ORIGINS_ENV.split(',')
+    CSRF_TRUSTED_ORIGINS = CORS_ORIGINS_ENV.split(',')
+else:
+    # Development: default to localhost
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-]
 
 # Session cookie settings for cross-origin auth
-# Note: SameSite='None' requires Secure=True (HTTPS), but we're using HTTP in dev
-# Solution: Use 'Lax' for dev; frontend must be on same domain or use proxy
+# Environment-aware: secure in production, functional in dev
 SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' works with HTTP in dev
-SESSION_COOKIE_SECURE = False  # True in production with HTTPS
+SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS required)
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access (security)
+SESSION_COOKIE_AGE = 86400  # 24 hours (improve security vs infinite sessions)
+SESSION_SAVE_EVERY_REQUEST = True  # Extend session on activity
+SESSION_COOKIE_NAME = 'rb_sessionid'  # Custom name (security through obscurity)
+
+# CSRF cookie settings
 CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = not DEBUG  # True in production (HTTPS required)
+CSRF_COOKIE_HTTPONLY = False  # Must be False for SPA to read CSRF token
+CSRF_COOKIE_NAME = 'rb_csrftoken'  # Custom name
 # For true cross-origin: deploy both frontend and backend on same domain (e.g., api.example.com)
 
 """Feature flags and blockchain config
@@ -274,10 +321,21 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        # Relax throttles in DEBUG to accommodate SPA polling
+        # General API throttles (relaxed in DEBUG for SPA polling)
         'anon': '600/min' if DEBUG else '60/min',
         'user': '600/min' if DEBUG else '120/min',
+        # Strict auth endpoint throttles (prevent brute force attacks)
+        'auth_anon': '10/min' if DEBUG else '5/min',
+        'auth_user': '20/min' if DEBUG else '10/min',
+        'signup': '5/hour' if DEBUG else '3/hour',
+        'password_reset': '5/hour' if DEBUG else '3/hour',
     },
+    # Custom exception handler for generic error messages in production
+    'EXCEPTION_HANDLER': 'rb_core.exception_handlers.custom_exception_handler',
+    # Pagination for list views (prevent DoS via large result sets)
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 50,  # Default page size
+    'MAX_PAGE_SIZE': 100,  # Maximum allowed page size
 }
 
 # Upload constraints (bytes and MIME types)

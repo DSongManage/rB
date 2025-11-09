@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { libraryApi, type FullContent } from '../services/libraryApi';
+import DOMPurify from 'dompurify';
 
 export function ReaderPage() {
   const { contentId } = useParams<{ contentId: string }>();
@@ -244,7 +245,20 @@ export function ReaderPage() {
             lineHeight: 1.8,
             color: '#d1d5db',
           }}
-          dangerouslySetInnerHTML={{ __html: content.content_html }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(content.content_html, {
+              ALLOWED_TAGS: [
+                'p', 'br', 'strong', 'em', 'u', 'i', 'b',
+                'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
+                'a', 'img', 'div', 'span'
+              ],
+              ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id'],
+              FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input'],
+              FORBID_ATTR: ['onerror', 'onclick', 'onload', 'onmouseover'],
+              ALLOW_DATA_ATTR: false
+            })
+          }}
         />
       </div>
     </div>

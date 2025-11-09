@@ -116,6 +116,8 @@ class ContentListView(generics.ListCreateAPIView):
         return super().get_permissions()
 
     def perform_create(self, serializer):
+        from ..utils.file_validation import validate_upload
+
         file = self.request.FILES.get('file')
         text = self.request.data.get('text')
         ipfs_hash = ''
@@ -124,25 +126,9 @@ class ContentListView(generics.ListCreateAPIView):
         bad_words = { 'porn', 'explicit', 'illegal' }
         title = (self.request.data.get('title') or '').lower()
         flagged = any(w in title for w in bad_words)
-        # Validate upload if a file was provided
+        # Validate upload if a file was provided (with magic byte validation)
         if file:
-            # Size validation
-            try:
-                max_bytes = int(getattr(settings, 'MAX_UPLOAD_BYTES', 10 * 1024 * 1024))
-            except Exception:
-                max_bytes = 10 * 1024 * 1024
-            size_ok = True
-            try:
-                size_ok = file.size <= max_bytes
-            except Exception:
-                pass
-            if not size_ok:
-                raise serializers.ValidationError('File too large')
-            # Content-Type validation
-            ctype = getattr(file, 'content_type', '') or self.request.META.get('CONTENT_TYPE', '')
-            allowed = getattr(settings, 'ALLOWED_UPLOAD_CONTENT_TYPES', set())
-            if allowed and ctype not in allowed:
-                raise serializers.ValidationError('Unsupported file type')
+            validate_upload(file)
             # Try IPFS
             try:
                 # Prefer multiaddr form for Infura; fall back to settings URL
@@ -633,18 +619,33 @@ class ContentTextTeaserView(APIView):
         return HttpResponse(body, content_type='text/html')
 
 class SearchView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [permissions.AllowAny]  # Will use DRF default throttling
+
     def get(self, request):
         q = request.query_params.get('q', '').strip()
+
+        # Input validation
+        if len(q) < 2:
+            return Response({'error': 'Query must be at least 2 characters'}, status=400)
+        if len(q) > 100:
+            return Response({'error': 'Query too long (max 100 characters)'}, status=400)
+
         genre = request.query_params.get('genre')
         ctype = request.query_params.get('type')
-        qs = Content.objects.all()
+
+        # Only search minted (public) content
+        qs = Content.objects.filter(inventory_status='minted')
+
         if q:
             qs = qs.filter(models.Q(title__icontains=q) | models.Q(creator__username__icontains=q))
         if genre:
             qs = qs.filter(genre=genre)
         if ctype:
             qs = qs.filter(content_type=ctype)
-        data = ContentSerializer(qs.order_by('-created_at')[:100], many=True).data
+
+        # Limit results to prevent abuse
+        data = ContentSerializer(qs.order_by('-created_at')[:50], many=True).data
         return Response(data)
 
 class DashboardView(APIView):
@@ -674,6 +675,9 @@ class DashboardView(APIView):
         })
 
 class Web3AuthLoginView(APIView):
+    """Web3Auth login endpoint with strict rate limiting."""
+    throttle_classes = ['rb_core.throttling.AuthAnonRateThrottle']
+
     def post(self, request):
         token = request.data.get('token', '').strip()
         if not token:
@@ -939,7 +943,10 @@ class LogoutView(APIView):
 
 
 class SignupView(APIView):
+    """User signup endpoint with strict rate limiting."""
     permission_classes = [permissions.AllowAny]
+    throttle_classes = ['rb_core.throttling.SignupRateThrottle']
+
     def post(self, request):
         serializer = SignupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -963,14 +970,18 @@ class ProfileEditView(APIView):
         profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
         return Response(UserProfileSerializer(profile, context={'request': request}).data)
     def patch(self, request):
+        from ..utils.file_validation import validate_avatar, validate_banner
+
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
         # Support multipart form data for file uploads
         # Avoid deepcopy of uploaded files (causes BufferedRandom pickle error)
         data = request.data
         if 'avatar' in request.FILES:
+            validate_avatar(request.FILES['avatar'])
             profile.avatar_image = request.FILES['avatar']
         if 'banner' in request.FILES:
+            validate_banner(request.FILES['banner'])
             profile.banner_image = request.FILES['banner']
         serializer = ProfileEditSerializer(profile, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
