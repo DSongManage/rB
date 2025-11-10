@@ -5,6 +5,9 @@ node_modules/
 venv/
 .env
 backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.production.local
 
 # Solana Wallet Security - NEVER commit these files
 platform-wallet.json
@@ -18,6 +21,11 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+
+# Database
+backend/db.sqlite3
+*.sqlite3
+db.sqlite3
 
 # Solana/Anchor build outputs
 blockchain/rb_contracts/target/
