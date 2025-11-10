@@ -22,10 +22,15 @@ import ProtectedRoute from './components/ProtectedRoute';
 import NotificationBell from './components/notifications/NotificationBell';
 import NotificationToastContainer from './components/notifications/NotificationToastContainer';
 import notificationService from './services/notificationService';
+import { BetaBadge, TestModeBanner } from './components/BetaBadge';
+import { useAuth } from './hooks/useAuth';
+import FeedbackModal from './components/FeedbackModal';
+import BetaOnboarding from './components/BetaOnboarding';
 
 function Header() {
   const [q, setQ] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -99,6 +104,7 @@ function Header() {
     <nav className="rb-header">
       <div className="rb-header-left">
         <Link to="/" className="rb-logo-link"><img src="/rb-logo.jpeg" alt="renaissBlock" className="rb-logo-img"/></Link>
+        <BetaBadge variant="header" showTestMode={true} />
       </div>
       <div className="rb-header-center">
         <form onSubmit={submit} className="rb-search">
@@ -111,27 +117,78 @@ function Header() {
         {isAuthed && <Link to="/profile">Profile</Link>}
         {isAuthed && <Link to="/collaborations">Collaborations</Link>}
         {isAuthed && <Link to="/collaborators">Collaborators</Link>}
+        {isAuthed && (
+          <button
+            onClick={() => setShowFeedback(true)}
+            style={{
+              background: 'transparent',
+              border: '1px solid #f59e0b',
+              color: '#f59e0b',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              fontSize: '13px',
+            }}
+            title="Send feedback about the beta"
+          >
+            💬 Feedback
+          </button>
+        )}
         {!isAuthed && <button onClick={goLogin} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Sign in</button>}
         {isAuthed && <button onClick={doLogout} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Logout</button>}
       </div>
+      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </nav>
   );
 }
 
 export default function App() {
   const location = useLocation();
+  const { isAuthenticated, loading } = useAuth();
+
   const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/, /^\/collaborations/].some(r => r.test(location.pathname));
   const showLibrarySidebar = [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
   const isReaderPage = /^\/reader/.test(location.pathname);
-  const isBetaLanding = location.pathname === '/beta';
 
-  // Hide header and sidebars on beta landing page
+  // Public routes that don't require authentication
+  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta'];
+  const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="rb-app" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        background: 'var(--bg)',
+        color: 'var(--text)'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', marginBottom: '8px' }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show beta landing page for unauthenticated users (except on public routes)
+  if (!isAuthenticated && !isPublicRoute) {
+    return (
+      <div className="rb-app">
+        <BetaLanding />
+        <NotificationToastContainer />
+      </div>
+    );
+  }
+
+  // Special handling for explicit /beta route
+  const isBetaLanding = location.pathname === '/beta';
   if (isBetaLanding) {
     return (
       <div className="rb-app">
-        <Routes>
-          <Route path="/beta" element={<BetaLanding />} />
-        </Routes>
+        <BetaLanding />
         <NotificationToastContainer />
       </div>
     );
@@ -175,6 +232,8 @@ export default function App() {
         </div>
       </main>
       <NotificationToastContainer />
+      <TestModeBanner />
+      <BetaOnboarding />
     </div>
   );
 }

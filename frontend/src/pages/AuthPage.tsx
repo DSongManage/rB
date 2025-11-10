@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Web3Auth } from '@web3auth/modal';
 import { CHAIN_NAMESPACES, WALLET_ADAPTERS } from '@web3auth/base';
 import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
@@ -29,6 +29,13 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [web3authInstance, setWeb3authInstance] = useState<any>(null);
 
+  // Beta invite code handling
+  const [searchParams] = useSearchParams();
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteValid, setInviteValid] = useState<boolean | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [validatingInvite, setValidatingInvite] = useState(false);
+
   const refreshCsrf = async () => {
     try {
       const r = await fetch(`${apiBase}/api/auth/csrf/`, { credentials:'include' });
@@ -43,6 +50,54 @@ export default function AuthPage() {
   };
 
   useEffect(()=>{ refreshCsrf(); },[]);
+
+  // Validate invite code from URL parameter
+  useEffect(() => {
+    const inviteParam = searchParams.get('invite');
+    if (inviteParam) {
+      setInviteCode(inviteParam);
+      setMode('register'); // Switch to register mode if invite code is present
+      validateInviteCode(inviteParam);
+    }
+  }, [searchParams]);
+
+  const validateInviteCode = async (code: string) => {
+    if (!code || code.trim() === '') {
+      setInviteValid(null);
+      return;
+    }
+
+    setValidatingInvite(true);
+    try {
+      const response = await fetch('/api/beta/validate/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ invite_code: code.trim().toUpperCase() }),
+      });
+
+      const data = await response.json();
+
+      if (data.valid) {
+        setInviteValid(true);
+        setInviteEmail(data.email || '');
+        // Pre-populate email if provided by invite
+        if (data.email && !email) {
+          setEmail(data.email);
+        }
+      } else {
+        setInviteValid(false);
+        setMsg(data.error || 'Invalid invite code');
+      }
+    } catch (error) {
+      console.error('Invite validation error:', error);
+      setInviteValid(false);
+      setMsg('Failed to validate invite code');
+    } finally {
+      setValidatingInvite(false);
+    }
+  };
 
   const ensureAuthenticated = async () => {
     try {
@@ -68,57 +123,76 @@ export default function AuthPage() {
   const submitAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg('');
-    
+
+    // Beta mode: require invite code
+    if (!inviteCode || inviteCode.trim() === '') {
+      setMsg('Beta invite code is required. Please request access from the beta page.');
+      return;
+    }
+
+    if (!inviteValid) {
+      setMsg('Please provide a valid beta invite code.');
+      return;
+    }
+
     // Refresh CSRF token right before submission to avoid stale token issues
     const freshCsrf = await refreshCsrf();
     if (!freshCsrf) {
       setMsg('Failed to get CSRF token. Please refresh the page.');
       return;
     }
-    
-    const form = new URLSearchParams();
-    form.set('username', username);
-    form.set('email', email);
-    form.set('password1', password);
-    form.set('password2', password2);
-    form.set('next', '/');
-    
-    const res = await fetch(`${apiBase}/accounts/signup/`, {
-      method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': freshCsrf }, body:String(form)
-    });
-    
-    // Check if response is a redirect (302) - success
-    if (res.redirected || res.status === 302) {
-      // Refresh CSRF after signup (token may rotate) and ensure session is authenticated
-      await refreshCsrf();
-      const ok = await ensureAuthenticated();
-      if (!ok) {
-        setMsg('Signed up, but session is not authenticated. Please try signing in.');
-        return;
-      }
-      if (walletChoice === 'web3auth' || walletChoice === 'own') {
-        setStep('wallet');
+
+    // Use DRF signup endpoint with invite code
+    try {
+      const res = await fetch(`${apiBase}/api/users/signup/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': freshCsrf,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          username: username,
+          email: email || inviteEmail, // Use invite email if not provided
+          invite_code: inviteCode.trim().toUpperCase(),
+          // Note: DRF endpoint doesn't use password1/password2, handles auth differently
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Signup successful
+        await refreshCsrf();
+        const ok = await ensureAuthenticated();
+        if (!ok) {
+          setMsg('Signed up successfully! Please sign in with your credentials.');
+          setMode('login');
+          return;
+        }
+        if (walletChoice === 'web3auth' || walletChoice === 'own') {
+          setStep('wallet');
+        } else {
+          setStep('done');
+        }
       } else {
-        setStep('done');
+        // Handle errors from DRF
+        if (data.invite_code) {
+          setMsg(Array.isArray(data.invite_code) ? data.invite_code[0] : data.invite_code);
+        } else if (data.email) {
+          setMsg(Array.isArray(data.email) ? data.email[0] : data.email);
+        } else if (data.username) {
+          setMsg(Array.isArray(data.username) ? data.username[0] : data.username);
+        } else if (data.error) {
+          setMsg(data.error);
+        } else {
+          setMsg('Signup failed. Please check your information and try again.');
+        }
       }
-    } else {
-      // Got HTML error page - parse for errors
-      const text = await res.text();
-      if (text.includes('username') && text.includes('already')) {
-        setMsg('Username already exists. Please choose a different username.');
-      } else if (text.includes('email') && text.includes('already')) {
-        setMsg('Email already exists. Please use a different email or sign in.');
-      } else if (text.includes('email') && text.includes('invalid')) {
-        setMsg('Invalid email address. Please enter a valid email.');
-      } else if (text.includes('password') && text.includes('too common')) {
-        setMsg('Password is too common. Please choose a stronger password.');
-      } else if (text.includes('password') && text.includes('too short')) {
-        setMsg('Password is too short. Please use at least 8 characters.');
-      } else if (text.includes('password')) {
-        setMsg('Passwords do not match or are invalid.');
-      } else {
-        setMsg('Signup failed. Please check your information and try again.');
-      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      setMsg('Network error. Please try again.');
     }
   };
 
@@ -380,8 +454,42 @@ export default function AuthPage() {
         </div>
       ) : (
         <form onSubmit={submitAccount} style={{display:'grid', gap:12}}>
+          {/* Beta Invite Code */}
+          <div style={{display:'grid', gap:6}}>
+            <input
+              value={inviteCode}
+              onChange={(e)=> {
+                const code = e.target.value;
+                setInviteCode(code);
+                if (code.trim().length >= 8) {
+                  validateInviteCode(code);
+                }
+              }}
+              placeholder="Beta Invite Code (required)"
+              required
+              style={{
+                border: inviteValid === true ? '1px solid #10b981' : inviteValid === false ? '1px solid #ef4444' : undefined
+              }}
+            />
+            {validatingInvite && (
+              <div style={{fontSize:12, color:'#94a3b8'}}>Validating invite code...</div>
+            )}
+            {inviteValid === true && (
+              <div style={{fontSize:12, color:'#10b981'}}>✓ Valid invite code for {inviteEmail}</div>
+            )}
+            {inviteValid === false && (
+              <div style={{fontSize:12, color:'#ef4444'}}>✗ Invalid or expired invite code</div>
+            )}
+          </div>
+
           <input value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="Username" required />
-          <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="Email" required />
+          <input
+            type="email"
+            value={email}
+            onChange={(e)=>setEmail(e.target.value)}
+            placeholder={inviteEmail ? `Email (${inviteEmail})` : "Email"}
+            required
+          />
           <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Password" required />
           <input type="password" value={password2} onChange={(e)=>setPassword2(e.target.value)} placeholder="Confirm password" required />
 

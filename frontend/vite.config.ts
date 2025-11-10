@@ -54,9 +54,28 @@ export default defineConfig({
   // Build config
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    sourcemap: true, // Enable sourcemaps for production debugging
     // Increase chunk size warning limit for Web3Auth bundles
     chunkSizeWarningLimit: 1000,
+    // Optimize for production
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log in production
+        drop_debugger: true,
+      },
+    },
+    // Manual chunk splitting for better caching
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks for better caching
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          web3auth: ['@web3auth/modal', '@web3auth/base', '@web3auth/solana-provider', '@web3auth/openlogin-adapter'],
+        },
+      },
+    },
   },
   
   // Resolve config

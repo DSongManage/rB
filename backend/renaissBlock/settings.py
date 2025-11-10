@@ -52,8 +52,34 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
+# Beta Mode Settings
+BETA_MODE = os.getenv('BETA_MODE', 'false').lower() in ('true', '1', 'yes')
+ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
+
 # ALLOWED_HOSTS - Configure for production
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+
+# Beta Mode Configuration
+if BETA_MODE:
+    # Add production domains for beta testing
+    ALLOWED_HOSTS.extend(['renaissblock.com', 'api.renaissblock.com', 'www.renaissblock.com'])
+
+# Production: Always allow production domains when DEBUG=False
+if not DEBUG:
+    production_hosts = ['renaissblock.com', 'api.renaissblock.com', 'www.renaissblock.com', '.renaissblock.com']
+    for host in production_hosts:
+        if host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(host)
+
+    # Stripe test mode flag
+    STRIPE_TEST_MODE = True
+
+    # Email backend for beta (SMTP for real emails)
+    if os.getenv('EMAIL_BACKEND'):
+        EMAIL_BACKEND = os.getenv('EMAIL_BACKEND')
+
+    # Beta-specific logging or features can be added here
+    # Example: More verbose logging, special beta user tracking, etc.
 
 
 # Application definition
@@ -114,13 +140,27 @@ WSGI_APPLICATION = 'renaissBlock.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-# Using SQLite for MVP to avoid costs (per SCOPE.md constraints); switch to Postgres later (ARCHITECTURE.md)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),  # Local file-based DB
+# Supports both SQLite (dev) and PostgreSQL (production) based on environment
+if os.getenv('DATABASE_URL') or os.getenv('DB_NAME'):
+    # Production: PostgreSQL
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'renaissblock'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
+            'HOST': os.getenv('DB_HOST', 'localhost'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
     }
-}
+else:
+    # Development: SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
+    }
 
 
 # Password validation
@@ -165,9 +205,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Static files storage (use WhiteNoise in production for better performance)
+if not DEBUG:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -345,5 +392,32 @@ ALLOWED_UPLOAD_CONTENT_TYPES = set((
     'application/pdf',
     'video/mp4',
 ))
+
+# Email Configuration (for beta invites and notifications)
+# In development: emails are logged to console
+# In beta mode: use SMTP for real email delivery
+# In production: configure SMTP settings via environment variables
+if BETA_MODE:
+    # Beta mode: use SMTP from environment (for sending real beta invites)
+    EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+elif DEBUG:
+    # Development: console backend
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    # Production: SMTP
+    EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')  # Update this to your email
 
 ## Duplicate guard: the above variables are defined once; keep this footer clean.

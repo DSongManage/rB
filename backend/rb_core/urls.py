@@ -10,6 +10,8 @@ from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet
 )
 from .views.notifications import NotificationViewSet
+from .views import beta
+from .views.feedback import submit_feedback
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -72,6 +74,13 @@ urlpatterns = [
     path('api/chapters/<int:pk>/publish/', PublishChapterView.as_view(), name='publish_chapter'),
     path('api/book-projects/<int:pk>/prepare/', PrepareBookView.as_view(), name='prepare_book'),
     path('api/book-projects/<int:pk>/publish/', PublishBookView.as_view(), name='publish_book'),
+    # Beta access management
+    path('api/beta/request-access/', beta.request_beta_access, name='beta_request'),
+    path('api/beta/approve/', beta.approve_beta_request, name='beta_approve'),
+    path('api/beta/validate/', beta.validate_invite_code, name='beta_validate'),
+    path('api/beta/mark-used/', beta.mark_invite_used, name='beta_mark_used'),
+    # Beta feedback
+    path('api/feedback/', submit_feedback, name='submit_feedback'),
     # Collaboration API endpoints
     path('api/', include(router.urls)),
 ]

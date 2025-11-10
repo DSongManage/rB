@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
-    CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification
+    CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification,
+    BetaInvite
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -79,6 +80,27 @@ class SignupSerializer(serializers.Serializer):
     display_name = serializers.CharField(required=False, allow_blank=True, max_length=100)
     web3auth_token = serializers.CharField(required=False, allow_blank=True)
     wallet_address = serializers.CharField(required=False, allow_blank=True, max_length=44)
+    invite_code = serializers.CharField(required=True, max_length=32)  # REQUIRED for beta
+    email = serializers.EmailField(required=False, allow_blank=True)  # Optional, from invite
+
+    def validate_invite_code(self, value: str) -> str:
+        """Validate beta invite code is valid and unused."""
+        value = value.strip().upper()
+
+        if not value:
+            raise serializers.ValidationError('Beta invite code is required')
+
+        try:
+            invite = BetaInvite.objects.get(
+                invite_code=value,
+                status__in=['approved', 'sent'],
+                used_at__isnull=True
+            )
+            # Store invite in context for later use
+            self.context['beta_invite'] = invite
+            return value
+        except BetaInvite.DoesNotExist:
+            raise serializers.ValidationError('Invalid or expired beta invite code')
 
     def validate_username(self, value: str) -> str:
         value = value.strip()
@@ -89,17 +111,56 @@ class SignupSerializer(serializers.Serializer):
             raise serializers.ValidationError('Username already taken')
         return value
 
+    def validate_email(self, value: str) -> str:
+        """Validate email matches beta invite if provided."""
+        if not value:
+            return value
+
+        value = value.lower().strip()
+
+        # Check if email already registered
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('Email already registered')
+
+        return value
+
+    def validate(self, data):
+        """Cross-field validation: verify email matches invite."""
+        email = data.get('email', '').lower().strip()
+        beta_invite = self.context.get('beta_invite')
+
+        # If email provided, verify it matches the invite
+        if email and beta_invite and beta_invite.email.lower() != email:
+            raise serializers.ValidationError({
+                'email': 'Email does not match beta invite'
+            })
+
+        return data
+
     def create(self, validated_data):
+        from django.utils import timezone
+
         desired = validated_data.get('username', '').strip()
         display_name = validated_data.get('display_name', '').strip()
         wallet_address = validated_data.get('wallet_address', '').strip() or None
+        email = validated_data.get('email', '').strip() or None
+        invite_code = validated_data.get('invite_code', '').strip().upper()
+
+        # Get beta invite from context (validated earlier)
+        beta_invite = self.context.get('beta_invite')
+
+        # If no email provided, use email from invite
+        if not email and beta_invite:
+            email = beta_invite.email
+
         # Web3Auth: if token provided, verify and derive wallet (MVP stub)
         token = validated_data.get('web3auth_token', '').strip()
         if token and not wallet_address:
             # MVP: treat token as proof and skip verification; do not store token
             # Future: verify JWT with Web3Auth JWKs and extract wallet
             wallet_address = None
-        # Auto-generate if missing
+
+        # Auto-generate username if missing
         if not desired:
             import random
             base = 'renaiss'
@@ -108,9 +169,28 @@ class SignupSerializer(serializers.Serializer):
                 if not User.objects.filter(username=candidate).exists():
                     desired = candidate
                     break
-        user = User.objects.create_user(username=desired, password=None)
-        # Email hash skipped (no email in MVP); keep field empty
-        profile = UserProfile.objects.create(user=user, username=desired, display_name=display_name, wallet_address=wallet_address)
+
+        # Create user with email
+        user = User.objects.create_user(
+            username=desired,
+            email=email or '',
+            password=None
+        )
+
+        # Create profile
+        profile = UserProfile.objects.create(
+            user=user,
+            username=desired,
+            display_name=display_name,
+            wallet_address=wallet_address
+        )
+
+        # Mark beta invite as used
+        if beta_invite:
+            beta_invite.status = 'used'
+            beta_invite.used_at = timezone.now()
+            beta_invite.save()
+
         return profile
 
 
@@ -388,4 +468,19 @@ class NotificationSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'type', 'title', 'message', 'project_id',
             'from_user', 'action_url', 'created_at'
+        ]
+
+
+class BetaInviteSerializer(serializers.ModelSerializer):
+    """Serializer for beta invite management."""
+    invited_by_username = serializers.CharField(source='invited_by.username', read_only=True, allow_null=True)
+
+    class Meta:
+        model = BetaInvite
+        fields = [
+            'id', 'email', 'invite_code', 'status', 'message',
+            'invited_by_username', 'used_at', 'created_at'
+        ]
+        read_only_fields = [
+            'id', 'invite_code', 'invited_by_username', 'used_at', 'created_at'
         ]

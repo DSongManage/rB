@@ -746,3 +746,43 @@ class Notification(models.Model):
             self.read = True
             self.read_at = timezone.now()
             self.save(update_fields=['read', 'read_at'])
+
+
+class BetaInvite(models.Model):
+    """Beta access invitation management.
+
+    Tracks beta access requests, invite codes, and usage.
+    """
+    email = models.EmailField(unique=True)
+    invite_code = models.CharField(max_length=32, unique=True, null=True, blank=True)
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='beta_invites_sent')
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('requested', 'Requested'),
+            ('approved', 'Approved'),
+            ('sent', 'Invite Sent'),
+            ('used', 'Account Created'),
+            ('declined', 'Declined')
+        ],
+        default='requested',
+        db_index=True
+    )
+    message = models.TextField(blank=True, help_text='Why they want access')
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['invite_code']),
+        ]
+
+    def generate_invite_code(self):
+        """Generate a unique invite code."""
+        import uuid
+        self.invite_code = str(uuid.uuid4()).replace('-', '')[:16].upper()
+
+    def __str__(self):
+        return f'{self.email} - {self.status}'

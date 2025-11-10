@@ -8,6 +8,7 @@ import { CollaborativeProject } from '../../services/collaborationApi';
 import ApprovalRequestModal from './ApprovalRequestModal';
 import IndividualApprovalView from './IndividualApprovalView';
 import MintingProgressModal from './MintingProgressModal';
+import { useBetaMode } from '../../hooks/useBetaMode';
 
 interface MintingWorkflowProps {
   project: CollaborativeProject;
@@ -35,6 +36,7 @@ export function MintingWorkflow({
   const [showApprovalView, setShowApprovalView] = useState(false);
   const [showMintingProgress, setShowMintingProgress] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const { isSolanaDevnet } = useBetaMode();
 
   const isProjectCreator = project.created_by === currentUserId;
   const acceptedCollaborators = project.collaborators?.filter(c => c.status === 'accepted') || [];
@@ -162,6 +164,20 @@ export function MintingWorkflow({
         padding: 24,
       }}
     >
+      {isSolanaDevnet && (
+        <div style={{
+          padding: '12px 16px',
+          backgroundColor: '#dbeafe',
+          color: '#1e40af',
+          borderRadius: '8px',
+          fontSize: '13px',
+          marginBottom: '20px',
+          border: '1px solid #3b82f6',
+        }}>
+          🌐 <strong>Devnet Mode:</strong> This NFT will be minted on Solana devnet for testing. Not a real NFT.
+        </div>
+      )}
+
       <h2
         style={{
           margin: 0,

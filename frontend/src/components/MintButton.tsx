@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useBetaMode } from '../hooks/useBetaMode';
 
 type Props = {
   contentId: number;
@@ -9,6 +10,7 @@ export default function MintButton({ contentId }: Props) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState<string>('1000000');
+  const { isSolanaDevnet, getNetworkLabel } = useBetaMode();
 
   const parseLamports = (): number | null => {
     const trimmed = (amount || '').trim();
@@ -51,6 +53,20 @@ export default function MintButton({ contentId }: Props) {
 
   return (
     <div>
+      {isSolanaDevnet && (
+        <div style={{
+          padding: '8px 12px',
+          backgroundColor: '#dbeafe',
+          color: '#1e40af',
+          borderRadius: '6px',
+          fontSize: '12px',
+          marginBottom: '12px',
+          border: '1px solid #3b82f6',
+        }}>
+          🌐 <strong>Devnet:</strong> Using Solana devnet - NFTs are test-only
+        </div>
+      )}
+
       <div style={{ marginBottom: 8 }}>
         <label style={{ fontSize: 12, color: '#94a3b8' }}>
           Sale amount (lamports):
@@ -65,7 +81,7 @@ export default function MintButton({ contentId }: Props) {
         </label>
       </div>
       <button onClick={onClick} disabled={loading || !parseLamports()}>
-        {loading ? 'Minting…' : 'Mint (devnet)'}
+        {loading ? 'Minting…' : `Mint (${getNetworkLabel()})`}
       </button>
       {result && <div>tx: {result}</div>}
       {error && <div style={{ color: 'red' }}>error: {error}</div>}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useBetaMode } from '../hooks/useBetaMode';
 
 type Props = {
   contentId: number;
@@ -9,6 +10,7 @@ type Props = {
 export default function CheckoutButton({ contentId, price, editions }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { isTestMode } = useBetaMode();
 
   async function onClick() {
     setLoading(true);
@@ -108,6 +110,20 @@ export default function CheckoutButton({ contentId, price, editions }: Props) {
           fontSize: '14px',
         }}>
           {error}
+        </div>
+      )}
+
+      {isTestMode && (
+        <div style={{
+          padding: '8px 12px',
+          backgroundColor: '#fef3c7',
+          color: '#92400e',
+          borderRadius: '6px',
+          fontSize: '12px',
+          textAlign: 'center',
+          border: '1px solid #fbbf24',
+        }}>
+          🧪 <strong>Test Mode:</strong> Use test card 4242 4242 4242 4242 - No real charges
         </div>
       )}
     </div>

@@ -25,12 +25,28 @@ export default function BetaLanding() {
     setMessage('');
 
     try {
-      // TODO: Replace with actual API endpoint
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setMessage('✅ Thanks! We\'ll send you an invite soon.');
-      setEmail('');
+      const response = await fetch('http://127.0.0.1:8000/api/beta/request-access/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          message: `Requested via beta landing page at ${new Date().toISOString()}`
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage('✅ Thanks! We\'ll review your request and send an invite if approved.');
+        setEmail('');
+      } else {
+        setMessage(`❌ ${data.error || 'Something went wrong. Please try again.'}`);
+      }
     } catch (error) {
-      setMessage('❌ Something went wrong. Please try again.');
+      console.error('Beta request error:', error);
+      setMessage('❌ Unable to submit request. Please try again later.');
     } finally {
       setSubmitting(false);
     }

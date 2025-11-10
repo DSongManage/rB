@@ -944,8 +944,10 @@ class LogoutView(APIView):
 
 class SignupView(APIView):
     """User signup endpoint with strict rate limiting."""
+    from ..throttling import SignupRateThrottle
+
     permission_classes = [permissions.AllowAny]
-    throttle_classes = ['rb_core.throttling.SignupRateThrottle']
+    throttle_classes = [SignupRateThrottle]
 
     def post(self, request):
         serializer = SignupSerializer(data=request.data)
