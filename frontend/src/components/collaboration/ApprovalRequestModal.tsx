@@ -4,11 +4,11 @@
  */
 
 import React, { useState } from 'react';
-import { CollaborativeProject, Collaborator } from '../../services/collaborationApi';
+import { CollaborativeProject, CollaboratorRole } from '../../services/collaborationApi';
 
 interface ApprovalRequestModalProps {
   project: CollaborativeProject;
-  pendingCollaborators: Collaborator[];
+  pendingCollaborators: CollaboratorRole[];
   onClose: () => void;
   onSubmit: (selectedCollaboratorIds: number[], message: string, deadline: number) => void;
 }

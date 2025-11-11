@@ -262,7 +262,7 @@ export default function AuthPage() {
           clientId,
         },
       });
-      web3auth.configureAdapter(openloginAdapter);
+      web3auth.configureAdapter(openloginAdapter as any);
       console.log('[Web3Auth Debug] OpenLogin adapter configured');
       
       setWalletStatus('Initializing Web3Auth modal...');
@@ -365,7 +365,7 @@ export default function AuthPage() {
           clientId,
         },
       });
-      web3auth.configureAdapter(openloginAdapter);
+      web3auth.configureAdapter(openloginAdapter as any);
 
       setWalletStatus('Initializing Web3Auth modal...');
       await web3auth.initModal();

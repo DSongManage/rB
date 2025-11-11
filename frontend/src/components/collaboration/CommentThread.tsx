@@ -17,10 +17,10 @@ interface CommentThreadProps {
   depth?: number;
   maxDepth?: number;
   onReply: (parentId: number, content: string, mentions: number[], attachments?: File[]) => Promise<void>;
-  onEdit: (commentId: number, content: string) => Promise<void>;
-  onDelete: (commentId: number) => Promise<void>;
-  onResolve: (commentId: number) => Promise<void>;
-  onUnresolve: (commentId: number) => Promise<void>;
+  onEdit: (commentId: number, content: string) => Promise<ProjectComment | void>;
+  onDelete: (commentId: number) => Promise<ProjectComment | void>;
+  onResolve: (commentId: number) => Promise<ProjectComment | void>;
+  onUnresolve: (commentId: number) => Promise<ProjectComment | void>;
   onReaction: (commentId: number, emoji: string) => Promise<void>;
   onRemoveReaction: (commentId: number, reactionId: number) => Promise<void>;
 }

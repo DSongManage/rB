@@ -15,7 +15,9 @@ export type ActivityType =
   | 'collaborator_joined'
   | 'collaborator_left'
   | 'approval_given'
+  | 'approval_requested'
   | 'ready_for_mint'
+  | 'project_minted'
   | 'media_uploaded'
   | 'invitation_sent';
 

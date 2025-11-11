@@ -86,7 +86,7 @@ export function ProjectPreview({
 
   // Find current user's approval status
   const currentUserRole = project.collaborators?.find(c => c.user === currentUserId);
-  const hasUserApproved = currentUserRole?.approved_current_version && currentUserRole?.approved_revenue_split;
+  const hasUserApproved = Boolean(currentUserRole?.approved_current_version && currentUserRole?.approved_revenue_split);
 
   // Render content preview based on type
   const renderContentPreview = () => {
