@@ -1,96 +1,115 @@
 # renaissBlock Documentation
 
-This folder contains all project documentation, organized by category.
+Welcome to the renaissBlock documentation. This directory contains all essential documentation for the platform.
 
 ---
 
-## 🔒 Security Documentation
+## 📋 Documentation Index
 
-### Critical Security Reports
-- **[SECURITY_AUDIT_REPORT.md](SECURITY_AUDIT_REPORT.md)** - Complete security audit with all vulnerabilities identified
-- **[SECURITY_FIXES_SUMMARY.md](SECURITY_FIXES_SUMMARY.md)** - Detailed implementation of all 22 security fixes
+### Core Documentation
+
+**[FEATURES.md](./FEATURES.md)**
+- Complete feature documentation
+- Book management system
+- Collaboration features
+- NFT minting workflow
+- Payment and credit system
+- Authentication and security
+- Beta access management
+- Future roadmap
+
+**[../CHANGELOG.md](../CHANGELOG.md)**
+- Development history
+- Version history
+- Migration notes
+- Feature timeline
+- Known issues and limitations
+
+**[../README.md](../README.md)**
+- Project overview
+- Quick start guide
+- Technology stack
+- Repository structure
+
+### Deployment Documentation
+
+**[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)**
+- Comprehensive deployment guide
+- Backend deployment (Railway)
+- Frontend deployment (Vercel)
+- Database setup (PostgreSQL)
+- Environment variables
+- Platform-specific instructions
+- Troubleshooting
+- Post-deployment verification
+
+**[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)**
+- Step-by-step deployment checklist
+- API key setup (Stripe, Web3Auth, Email)
+- Domain configuration
+- DNS records
+- Production launch checklist
+- Security final checks
+
+### Security Documentation
+
+**[SECURITY_AUDIT_REPORT.md](./SECURITY_AUDIT_REPORT.md)**
+- Security audit findings
+- Vulnerability assessments
+- Security best practices
+- Compliance notes
+
+**[SECURITY_FIXES_SUMMARY.md](./SECURITY_FIXES_SUMMARY.md)**
+- Implemented security fixes
+- CSRF protection
+- Session management
+- Authentication security
+- Input validation
 
 **Status:** ✅ All CRITICAL and HIGH severity issues resolved - Ready for beta launch
+
+### Legal Documentation
+
+**[legal/terms_and_conditions.md](./legal/terms_and_conditions.md)**
+- Terms of service
+- Privacy policy
+- User agreements
+- Beta testing terms
+
+---
+
+## 🚀 Quick Links
+
+### For Developers
+- [Features Documentation](./FEATURES.md) - Understand what the platform does
+- [Deployment Guide](./DEPLOYMENT_GUIDE.md) - Deploy to production
+- [Security Audit](./SECURITY_AUDIT_REPORT.md) - Security considerations
+
+### For Beta Testers
+- [Features Documentation](./FEATURES.md) - See what you can test
+- [Changelog](../CHANGELOG.md) - What's new in this version
+
+### For DevOps/Deployment
+- [Deployment Checklist](./DEPLOYMENT_CHECKLIST.md) - Follow this for deployment
+- [Deployment Guide](./DEPLOYMENT_GUIDE.md) - Detailed instructions
 
 ---
 
 ## 📁 Documentation Structure
 
-### [features/](features/)
-Feature implementation documentation:
-- Collaboration system
-- NFT minting
-- Notifications
-- Book editor
-- Cover art generation
-- Beta landing page
-- Invite system
-
-### [fixes/](fixes/)
-Bug fix documentation:
-- Authentication improvements
-- CSRF fixes
-- Session handling
-- Book publishing fixes
-- Cover image fixes
-- Search page improvements
-- UI/UX enhancements
-
-### [guides/](guides/)
-Setup and usage guides:
-- Commands cheatsheet
-- Quick start guides
-- PR and CI commands
-
-### [dev-logs/](dev-logs/)
-Weekly development logs:
-- Week 5 completion logs
-- Vite migration
-- Solana integration
-- Platform wallet setup
-- Weekly finalization reports
-
-### [legal/](legal/)
-Legal documentation:
-- Terms and conditions
+```
+docs/
+├── README.md                      # This file
+├── FEATURES.md                    # Complete feature documentation
+├── DEPLOYMENT_GUIDE.md            # Technical deployment guide
+├── DEPLOYMENT_CHECKLIST.md        # Step-by-step deployment
+├── SECURITY_AUDIT_REPORT.md       # Security assessment
+├── SECURITY_FIXES_SUMMARY.md      # Security implementations
+└── legal/
+    └── terms_and_conditions.md    # Legal documents
+```
 
 ---
 
-## 🗂️ Quick Reference
-
-### Getting Started
-- **Main README:** [`../README.md`](../README.md)
-- **Quick Start:** [`guides/QUICK_START_WEEK5_TO_WEEK6.md`](guides/QUICK_START_WEEK5_TO_WEEK6.md)
-- **Commands:** [`guides/COMMANDS_CHEATSHEET.md`](guides/COMMANDS_CHEATSHEET.md)
-
-### Security
-- **Audit Report:** [`SECURITY_AUDIT_REPORT.md`](SECURITY_AUDIT_REPORT.md)
-- **Fixes Summary:** [`SECURITY_FIXES_SUMMARY.md`](SECURITY_FIXES_SUMMARY.md)
-
-### Latest Features
-- **Collaboration:** [`features/COLLABORATION_SYSTEM_SUMMARY.md`](features/COLLABORATION_SYSTEM_SUMMARY.md)
-- **NFT Minting:** [`features/COLLABORATIVE_NFT_MINTING.md`](features/COLLABORATIVE_NFT_MINTING.md)
-- **Notifications:** [`features/NOTIFICATIONS_FEATURE.md`](features/NOTIFICATIONS_FEATURE.md)
-- **Beta Landing:** [`features/BETA_LANDING_PAGE.md`](features/BETA_LANDING_PAGE.md)
-
-### Recent Fixes
-- **Authentication:** [`fixes/AUTHPAGE_IMPROVEMENTS.md`](fixes/AUTHPAGE_IMPROVEMENTS.md)
-- **CSRF:** [`fixes/CSRF_FIX_COMPLETE.md`](fixes/CSRF_FIX_COMPLETE.md)
-- **Sessions:** [`fixes/SESSION_COOKIE_FIX.md`](fixes/SESSION_COOKIE_FIX.md)
-
----
-
-## 📊 Documentation Index
-
-Total documents: 45+
-
-- Security: 2 documents
-- Features: 7 documents
-- Fixes: 20+ documents
-- Guides: 3 documents
-- Dev Logs: 13+ documents
-- Legal: 1 document
-
----
-
-**Last Updated:** November 8, 2025
+**Last Updated:** 2025-11-10
+**Version:** 1.0.0-beta
