@@ -548,7 +548,9 @@ export function getActivityIcon(type: ActivityType): string {
     collaborator_joined: '👋',
     collaborator_left: '👋',
     approval_given: '✅',
+    approval_requested: '🔔',
     ready_for_mint: '🎉',
+    project_minted: '🪙',
     media_uploaded: '📁',
     invitation_sent: '📬',
   };
@@ -565,7 +567,9 @@ export function getActivityColor(type: ActivityType): string {
     collaborator_joined: '#10b981',
     collaborator_left: '#64748b',
     approval_given: '#10b981',
+    approval_requested: '#f59e0b',
     ready_for_mint: '#ec4899',
+    project_minted: '#fbbf24',
     media_uploaded: '#8b5cf6',
     invitation_sent: '#f59e0b',
   };
