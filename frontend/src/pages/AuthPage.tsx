@@ -11,8 +11,6 @@ type Step = 'account' | 'wallet' | 'done';
 type WalletChoice = 'web3auth' | 'own' | 'later';
 
 export default function AuthPage() {
-  // Use relative URLs so CRA proxy keeps same-origin in dev
-  const apiBase = '';
   const [csrf, setCsrf] = useState('');
   const [mode, setMode] = useState<'login'|'register'>('register');
   const [username, setUsername] = useState('');
@@ -37,7 +35,7 @@ export default function AuthPage() {
 
   const refreshCsrf = async () => {
     try {
-      const r = await fetch(`${apiBase}/api/auth/csrf/`, { credentials:'include' });
+      const r = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' });
       const d = await r.json();
       const token = d?.csrfToken || '';
       setCsrf(token);
@@ -101,7 +99,7 @@ export default function AuthPage() {
 
   const ensureAuthenticated = async () => {
     try {
-      const st = await fetch(`${apiBase}/api/auth/status/`, { credentials:'include' });
+      const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' });
       const data = await st.json();
       if (data?.authenticated) return true;
       // Try programmatic login with provided credentials
@@ -109,7 +107,7 @@ export default function AuthPage() {
       form.set('login', username);
       form.set('password', password);
       form.set('next', '/');
-      const res = await fetch(`${apiBase}/accounts/login/`, {
+      const res = await fetch(`${API_URL}/accounts/login/`, {
         method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body:String(form)
       });
       if (res.ok) {
@@ -144,7 +142,7 @@ export default function AuthPage() {
 
     // Use DRF signup endpoint with invite code
     try {
-      const res = await fetch(`${apiBase}/api/users/signup/`, {
+      const res = await fetch(`${API_URL}/api/users/signup/`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -208,7 +206,7 @@ export default function AuthPage() {
     // Submit via top-level form to ensure cookies set reliably even if proxy is flaky
     const f = document.createElement('form');
     f.method = 'POST';
-    f.action = `${apiBase}/accounts/login/` || '/accounts/login/';
+    f.action = `${API_URL}/accounts/login/`;
     f.style.display = 'none';
     const add = (name:string, value:string) => { const i = document.createElement('input'); i.type='hidden'; i.name=name; i.value=value; f.appendChild(i); };
     add('login', username);
