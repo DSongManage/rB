@@ -4,8 +4,7 @@ import { Web3Auth } from '@web3auth/modal';
 import { CHAIN_NAMESPACES, WALLET_ADAPTERS } from '@web3auth/base';
 import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 import { OpenloginAdapter } from '@web3auth/openlogin-adapter';
-
-// Use relative URLs - setupProxy.js proxies to backend
+import { API_URL } from '../config';
 
 type Step = 'account' | 'wallet' | 'done';
 
@@ -69,11 +68,12 @@ export default function AuthPage() {
 
     setValidatingInvite(true);
     try {
-      const response = await fetch('/api/beta/validate/', {
+      const response = await fetch(`${API_URL}/api/beta/validate/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ invite_code: code.trim().toUpperCase() }),
       });
 
@@ -311,7 +311,7 @@ export default function AuthPage() {
       if (!idToken) { setWalletStatus('Error: Could not obtain Web3Auth token'); return; }
       
       setWalletStatus('Linking wallet to your account...');
-      const res = await fetch('/api/wallet/link/', {
+      const res = await fetch(`${API_URL}/api/wallet/link/', {
         method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ web3auth_token: idToken })
       });
       if (res.ok) {
@@ -379,7 +379,7 @@ export default function AuthPage() {
 
       setWalletStatus('Signing you in...');
       // Create a session using Web3Auth on the backend
-      const res = await fetch('/auth/web3/', {
+      const res = await fetch(`${API_URL}/auth/web3/', {
         method:'POST', credentials:'include',
         headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ token: idToken })
@@ -391,12 +391,12 @@ export default function AuthPage() {
       }
       await refreshCsrf();
       // Poll auth status once
-      const st = await fetch('/api/auth/status/', { credentials:'include' }).then(r=>r.json()).catch(()=>({authenticated:false}));
+      const st = await fetch(`${API_URL}/api/auth/status/', { credentials:'include' }).then(r=>r.json()).catch(()=>({authenticated:false}));
       if (st?.authenticated) {
         // If no wallet present, attempt linking via token (optional)
         if (!st.wallet_address && idToken) {
           try {
-            await fetch('/api/wallet/link/', {
+            await fetch(`${API_URL}/api/wallet/link/', {
               method:'POST', credentials:'include',
               headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
               body: JSON.stringify({ web3auth_token: idToken })
@@ -419,7 +419,7 @@ export default function AuthPage() {
     if (!csrf) { await refreshCsrf(); }
     const authOk = await ensureAuthenticated();
     if (!authOk) { setWalletStatus('Please sign in again, then retry.'); return; }
-    const res = await fetch('/api/wallet/link/', {
+    const res = await fetch(`${API_URL}/api/wallet/link/', {
       method:'POST', credentials:'include', headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ wallet_address: ownWallet })
     });
     if (res.ok) {
