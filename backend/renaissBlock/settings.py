@@ -217,6 +217,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Security Settings (per GUIDELINES.md)
 # Environment-aware HTTPS enforcement: strict in production, permissive in dev
+# Railway (and most platforms) terminates SSL at load balancer level
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Trust X-Forwarded-Proto header
 SECURE_SSL_REDIRECT = not DEBUG  # Redirect HTTP to HTTPS in production
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0  # 1 year HSTS in production
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG  # Apply HSTS to all subdomains in production
