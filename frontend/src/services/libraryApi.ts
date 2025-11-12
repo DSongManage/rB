@@ -4,7 +4,7 @@
  * Provides functions for accessing user's library and reading progress.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8000';
+import { API_URL as API_BASE } from '../config';
 
 export interface LibraryItem {
   id: number;

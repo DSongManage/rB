@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { API_URL } from '../config';
 import './BetaLanding.css';
 
 export default function BetaLanding() {
@@ -25,11 +26,12 @@ export default function BetaLanding() {
     setMessage('');
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/beta/request-access/', {
+      const response = await fetch(`${API_URL}/api/beta/request-access/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',  // Include cookies for CORS
         body: JSON.stringify({
           email: email,
           message: `Requested via beta landing page at ${new Date().toISOString()}`
