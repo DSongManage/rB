@@ -429,4 +429,7 @@ else:
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')  # Update this to your email
 
+# Email timeout to prevent worker hangs (Railway may block SMTP)
+EMAIL_TIMEOUT = 5  # Fail quickly if SMTP is blocked
+
 ## Duplicate guard: the above variables are defined once; keep this footer clean.
