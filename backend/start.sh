@@ -13,6 +13,14 @@ python manage.py migrate --noinput
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Start gunicorn
+# Start gunicorn with increased timeout and preload
 echo "Starting gunicorn..."
-exec gunicorn renaissBlock.wsgi --log-file - --workers 2
+exec gunicorn renaissBlock.wsgi \
+  --bind 0.0.0.0:8080 \
+  --workers 2 \
+  --timeout 120 \
+  --preload \
+  --log-file - \
+  --access-logfile - \
+  --error-logfile - \
+  --log-level info
