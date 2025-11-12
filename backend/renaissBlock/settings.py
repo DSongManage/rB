@@ -294,8 +294,8 @@ LOGOUT_REDIRECT_URL = '/'
 CORS_ORIGINS_ENV = os.getenv('CORS_ORIGINS', '')
 if CORS_ORIGINS_ENV:
     # Production: use environment-specified origins
-    CORS_ALLOWED_ORIGINS = CORS_ORIGINS_ENV.split(',')
-    CSRF_TRUSTED_ORIGINS = CORS_ORIGINS_ENV.split(',')
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_ENV.split(',')]
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_ENV.split(',')]
 else:
     # Development: default to localhost
     CORS_ALLOWED_ORIGINS = [
@@ -307,23 +307,36 @@ else:
         "http://127.0.0.1:3000",
     ]
 
-CORS_ALLOW_CREDENTIALS = True
+# CORS settings for cross-origin requests
+CORS_ALLOW_CREDENTIALS = True  # Required for cookies/sessions
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # Session cookie settings for cross-origin auth
-# Environment-aware: secure in production, functional in dev
-SESSION_COOKIE_SAMESITE = 'Lax'  # 'Lax' works with HTTP in dev
-SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS required)
+# For cross-origin (api.renaissblock.com -> www.renaissblock.com), use None
+SESSION_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'  # 'None' required for cross-origin
+SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS required for SameSite=None)
 SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access (security)
 SESSION_COOKIE_AGE = 86400  # 24 hours (improve security vs infinite sessions)
 SESSION_SAVE_EVERY_REQUEST = True  # Extend session on activity
 SESSION_COOKIE_NAME = 'rb_sessionid'  # Custom name (security through obscurity)
+SESSION_COOKIE_DOMAIN = '.renaissblock.com' if not DEBUG else None  # Share across subdomains
 
-# CSRF cookie settings
-CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = not DEBUG  # True in production (HTTPS required)
-CSRF_COOKIE_HTTPONLY = False  # Must be False for SPA to read CSRF token
-CSRF_COOKIE_NAME = 'rb_csrftoken'  # Custom name
-# For true cross-origin: deploy both frontend and backend on same domain (e.g., api.example.com)
+# CSRF cookie settings for cross-origin
+CSRF_COOKIE_SAMESITE = 'None' if not DEBUG else 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG  # True in production
+CSRF_COOKIE_HTTPONLY = False  # Must be False so JavaScript can read it
+CSRF_COOKIE_DOMAIN = '.renaissblock.com' if not DEBUG else None  # Share across subdomains
+CSRF_COOKIE_NAME = 'rb_csrftoken'
 
 """Feature flags and blockchain config
 
