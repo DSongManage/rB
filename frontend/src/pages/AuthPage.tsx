@@ -203,18 +203,45 @@ export default function AuthPage() {
       setMsg('Failed to get CSRF token. Please refresh the page.');
       return;
     }
-    // Submit via top-level form to ensure cookies set reliably even if proxy is flaky
-    const f = document.createElement('form');
-    f.method = 'POST';
-    f.action = `${API_URL}/accounts/login/`;
-    f.style.display = 'none';
-    const add = (name:string, value:string) => { const i = document.createElement('input'); i.type='hidden'; i.name=name; i.value=value; f.appendChild(i); };
-    add('login', username);
-    add('password', password);
-    add('next', '/');
-    add('csrfmiddlewaretoken', freshCsrf);
-    document.body.appendChild(f);
-    f.submit();
+
+    try {
+      // Use fetch instead of form submission for cross-domain setup
+      const form = new URLSearchParams();
+      form.set('login', username);
+      form.set('password', password);
+      form.set('next', '/');
+
+      const res = await fetch(`${API_URL}/accounts/login/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': freshCsrf,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: String(form),
+      });
+
+      if (res.ok) {
+        // Login successful, refresh CSRF and navigate
+        await refreshCsrf();
+        const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' });
+        const data = await st.json();
+        if (data?.authenticated) {
+          navigate('/profile');
+        } else {
+          setMsg('Login successful! Redirecting...');
+          setTimeout(() => navigate('/profile'), 500);
+        }
+      } else {
+        // Try to get error message from response
+        const text = await res.text();
+        setMsg('Invalid username or password');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setMsg('Network error. Please try again.');
+    }
   };
 
   const linkWalletWithWeb3Auth = async () => {
