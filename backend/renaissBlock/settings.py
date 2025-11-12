@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os  # For environment variables and paths (PEP 8 compliant)
+import dj_database_url  # For parsing DATABASE_URL in production
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -141,17 +142,10 @@ WSGI_APPLICATION = 'renaissBlock.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 # Supports both SQLite (dev) and PostgreSQL (production) based on environment
-if os.getenv('DATABASE_URL') or os.getenv('DB_NAME'):
-    # Production: PostgreSQL
+if os.getenv('DATABASE_URL'):
+    # Production: PostgreSQL (Railway/Heroku style DATABASE_URL)
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME', 'renaissblock'),
-            'USER': os.getenv('DB_USER', 'postgres'),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
-            'PORT': os.getenv('DB_PORT', '5432'),
-        }
+        'default': dj_database_url.parse(os.getenv('DATABASE_URL'))
     }
 else:
     # Development: SQLite
