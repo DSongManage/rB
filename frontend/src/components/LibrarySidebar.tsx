@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { libraryApi, type Library } from '../services/libraryApi';
 import { LibraryItemCard } from './LibraryItemCard';
+import { ChevronRight, ChevronLeft, Library as LibraryIcon } from 'lucide-react';
 
 export function LibrarySidebar() {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -66,16 +67,7 @@ export function LibrarySidebar() {
           }}
           aria-label="Expand library"
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M7 4l6 6-6 6" />
-          </svg>
+          <ChevronRight size={20} />
         </button>
         <div
           style={{
@@ -165,16 +157,7 @@ export function LibrarySidebar() {
           }}
           aria-label="Collapse library"
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M13 4l-6 6 6 6" />
-          </svg>
+          <ChevronLeft size={20} />
         </button>
       </div>
 

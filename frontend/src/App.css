@@ -152,3 +152,155 @@ button:hover { background:#d97706; }
     opacity: 0.5;
   }
 }
+
+/* Navigation Link Styles with Icons */
+.rb-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #cbd5e1;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+
+.rb-nav-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.rb-nav-link svg {
+  transition: transform 0.2s ease;
+}
+
+.rb-nav-link:hover svg {
+  transform: scale(1.1);
+}
+
+/* Special styling for feedback button */
+.rb-feedback-btn {
+  border: 1px solid #f59e0b;
+  color: #f59e0b;
+}
+
+.rb-feedback-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fb923c;
+}
+
+/* Mobile menu toggle (hidden by default) */
+.rb-mobile-menu-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.rb-mobile-menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* Mobile responsive navigation */
+@media (max-width: 768px) {
+  /* Show mobile menu toggle */
+  .rb-mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Header adjustments for mobile */
+  .rb-header {
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .rb-header-center {
+    order: 3;
+    grid-column: 1 / -1;
+    margin-top: 8px;
+  }
+
+  .rb-search {
+    width: 100%;
+  }
+
+  /* Hide navigation by default on mobile */
+  .rb-header-right {
+    position: fixed;
+    top: 72px;
+    right: 0;
+    bottom: 0;
+    width: 280px;
+    background: #0e1527;
+    border-left: 1px solid #2a3444;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 16px;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+    z-index: 100;
+  }
+
+  /* Show navigation when mobile menu is open */
+  .rb-nav-mobile-open {
+    transform: translateX(0);
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Navigation links in mobile menu */
+  .rb-nav-link {
+    justify-content: flex-start;
+    padding: 12px 16px;
+    width: 100%;
+    border-radius: 8px;
+  }
+
+  .rb-nav-link span {
+    font-size: 15px;
+  }
+
+  /* Beta badge smaller on mobile */
+  .rb-header-left {
+    gap: 8px;
+  }
+
+  /* Adjust library sidebar for mobile */
+  .rb-main {
+    margin-left: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .rb-header {
+    padding: 10px 12px;
+  }
+
+  .rb-logo-img {
+    height: 24px;
+  }
+
+  .rb-search input {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+
+  .rb-header-right {
+    width: 100%;
+    top: 68px;
+  }
+}

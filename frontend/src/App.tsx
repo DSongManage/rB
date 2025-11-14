@@ -27,11 +27,16 @@ import { useAuth } from './hooks/useAuth';
 import FeedbackModal from './components/FeedbackModal';
 import BetaOnboarding from './components/BetaOnboarding';
 import { API_URL } from './config';
+import {
+  Home, Search, User, Users, Bell, LogOut,
+  MessageSquare, Menu, X
+} from 'lucide-react';
 
 function Header() {
   const [q, setQ] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -104,40 +109,74 @@ function Header() {
   return (
     <nav className="rb-header">
       <div className="rb-header-left">
-        <Link to="/" className="rb-logo-link"><img src="/rb-logo.jpeg" alt="renaissBlock" className="rb-logo-img"/></Link>
+        <Link to="/" className="rb-logo-link">
+          <img src="/rb-logo.jpeg" alt="renaissBlock" className="rb-logo-img"/>
+        </Link>
         <BetaBadge variant="header" showTestMode={true} />
       </div>
       <div className="rb-header-center">
         <form onSubmit={submit} className="rb-search">
           <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search" />
-          <button type="submit">Search</button>
+          <button type="submit">
+            <Search size={18} />
+          </button>
         </form>
       </div>
-      <div className="rb-header-right rb-nav">
-        {isAuthed && <NotificationBell />}
-        {isAuthed && <Link to="/profile">Profile</Link>}
-        {isAuthed && <Link to="/collaborations">Collaborations</Link>}
-        {isAuthed && <Link to="/collaborators">Collaborators</Link>}
+
+      {/* Mobile Menu Toggle */}
+      <button
+        className="rb-mobile-menu-toggle"
+        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        aria-label="Toggle menu"
+      >
+        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
+      {/* Navigation Links */}
+      <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
-          <button
-            onClick={() => setShowFeedback(true)}
-            style={{
-              background: 'transparent',
-              border: '1px solid #f59e0b',
-              color: '#f59e0b',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: 500,
-              fontSize: '13px',
-            }}
-            title="Send feedback about the beta"
-          >
-            💬 Feedback
+          <>
+            <Link to="/" className="rb-nav-link" title="Home">
+              <Home size={20} />
+              <span>Home</span>
+            </Link>
+            <NotificationBell />
+            <Link to="/profile" className="rb-nav-link" title="Profile">
+              <User size={20} />
+              <span>Profile</span>
+            </Link>
+            <Link to="/collaborations" className="rb-nav-link" title="Collaborations">
+              <Users size={20} />
+              <span>Collaborations</span>
+            </Link>
+            <Link to="/collaborators" className="rb-nav-link" title="Collaborators">
+              <Users size={20} />
+              <span>Collaborators</span>
+            </Link>
+            <button
+              onClick={() => setShowFeedback(true)}
+              className="rb-nav-link rb-feedback-btn"
+              title="Send feedback about the beta"
+            >
+              <MessageSquare size={20} />
+              <span>Feedback</span>
+            </button>
+            <button
+              onClick={doLogout}
+              className="rb-nav-link rb-logout-btn"
+              title="Logout"
+            >
+              <LogOut size={20} />
+              <span>Logout</span>
+            </button>
+          </>
+        )}
+        {!isAuthed && (
+          <button onClick={goLogin} className="rb-nav-link rb-signin-btn">
+            <User size={20} />
+            <span>Sign in</span>
           </button>
         )}
-        {!isAuthed && <button onClick={goLogin} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Sign in</button>}
-        {isAuthed && <button onClick={doLogout} style={{background:'transparent', border:'none', color:'#cbd5e1', cursor:'pointer', fontWeight:500}}>Logout</button>}
       </div>
       <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </nav>
@@ -149,7 +188,8 @@ export default function App() {
   const { isAuthenticated, loading } = useAuth();
 
   const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/, /^\/collaborations/].some(r => r.test(location.pathname));
-  const showLibrarySidebar = [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
+  // Only show Library sidebar when authenticated AND on home or search pages
+  const showLibrarySidebar = isAuthenticated && [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
   const isReaderPage = /^\/reader/.test(location.pathname);
 
   // Public routes that don't require authentication
