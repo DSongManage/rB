@@ -190,10 +190,12 @@ export default function AuthPage() {
         }
         // Refresh auth state after successful signup and login
         refreshAuth();
+        // Continue with wallet setup or completion
         if (walletChoice === 'web3auth' || walletChoice === 'own') {
           setStep('wallet');
         } else {
-          setStep('done');
+          // Force reload to ensure auth state is synced before going to home
+          window.location.href = '/';
         }
       } else {
         // Handle errors from DRF
@@ -246,8 +248,13 @@ export default function AuthPage() {
       if (res.ok) {
         // Login successful, refresh CSRF and auth state
         await refreshCsrf();
-        refreshAuth();
-        navigate('/profile');
+        // Refresh auth and wait for it to complete before navigating
+        await new Promise(resolve => {
+          refreshAuth();
+          setTimeout(resolve, 500); // Give time for auth state to update
+        });
+        // Force a page reload to ensure App.tsx picks up the new auth state
+        window.location.href = '/profile';
       } else {
         // Show error from backend
         setMsg(data.error || 'Invalid username or password');
@@ -355,7 +362,8 @@ export default function AuthPage() {
       });
       if (res.ok) {
         setWalletStatus('✅ Wallet created and linked successfully!');
-        setTimeout(() => setStep('done'), 1500);
+        // Redirect to profile after wallet setup
+        setTimeout(() => window.location.href = '/profile', 1500);
       } else {
         const t = await res.text();
         setWalletStatus(`Error linking wallet: ${t}`);
@@ -429,8 +437,6 @@ export default function AuthPage() {
         return;
       }
       await refreshCsrf();
-      // Refresh auth state
-      refreshAuth();
       // Poll auth status once
       const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json()).catch(()=>({authenticated:false}));
       if (st?.authenticated) {
@@ -445,7 +451,7 @@ export default function AuthPage() {
           } catch {}
         }
         setWalletStatus('✅ Signed in successfully!');
-        setTimeout(() => navigate('/profile'), 1000);
+        setTimeout(() => window.location.href = '/profile', 1000);
       } else {
         setWalletStatus('Signed in, but session not detected yet. Please refresh the page.');
       }
@@ -465,7 +471,8 @@ export default function AuthPage() {
     });
     if (res.ok) {
       setWalletStatus('Wallet linked');
-      setStep('done');
+      // Redirect to profile after wallet setup
+      setTimeout(() => window.location.href = '/profile', 500);
     } else {
       const t = await res.text();
       setWalletStatus(`Failed: ${t}`);
@@ -587,11 +594,11 @@ export default function AuthPage() {
 
   const DoneStep = (
     <div className="page" style={{maxWidth:480, margin:'40px auto', textAlign:'center'}}>
-      <div style={{fontSize:18, fontWeight:700, color:'#e5e7eb', marginBottom:8}}>You’re all set</div>
+      <div style={{fontSize:18, fontWeight:700, color:'#e5e7eb', marginBottom:8}}>You're all set</div>
       <div style={{fontSize:13, color:'#94a3b8', marginBottom:16}}>Welcome to renaissBlock. You can link or update your wallet anytime from your profile.</div>
       <div style={{display:'flex', gap:8, justifyContent:'center'}}>
-        <button onClick={()=> navigate('/')}>Go to Home</button>
-        <button onClick={()=> navigate('/profile')}>Go to Profile</button>
+        <button onClick={()=> window.location.href = '/'}>Go to Home</button>
+        <button onClick={()=> window.location.href = '/profile'}>Go to Profile</button>
       </div>
     </div>
   );
