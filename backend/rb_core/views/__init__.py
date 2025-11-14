@@ -51,6 +51,8 @@ class AuthStatusView(APIView):
     def get(self, request):
         is_authed = request.user.is_authenticated
         wallet = None
+        user_data = None
+
         if is_authed:
             try:
                 core_user = CoreUser.objects.get(username=request.user.username)
@@ -59,15 +61,27 @@ class AuthStatusView(APIView):
                 try:
                     prof = core_user.profile
                     wallet = prof.wallet_address or wallet
+                    display_name = prof.display_name or request.user.username
                 except Exception:
-                    pass
+                    display_name = request.user.username
             except CoreUser.DoesNotExist:
                 wallet = None
+                display_name = request.user.username
+
+            # Build user object for frontend
+            user_data = {
+                'id': request.user.id,
+                'username': request.user.username,
+                'email': getattr(request.user, 'email', ''),
+                'display_name': display_name,
+            }
+
         return Response({
             'authenticated': is_authed,
             'user_id': request.user.id if is_authed else None,
             'username': request.user.username if is_authed else None,
             'wallet_address': wallet,
+            'user': user_data,  # Add user object for useAuth hook
         })
 
 class ContentListView(generics.ListCreateAPIView):

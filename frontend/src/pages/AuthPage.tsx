@@ -5,6 +5,7 @@ import { CHAIN_NAMESPACES, WALLET_ADAPTERS } from '@web3auth/base';
 import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 import { OpenloginAdapter } from '@web3auth/openlogin-adapter';
 import { API_URL } from '../config';
+import { useAuth } from '../hooks/useAuth';
 
 type Step = 'account' | 'wallet' | 'done';
 
@@ -25,6 +26,7 @@ export default function AuthPage() {
   const [walletStatus, setWalletStatus] = useState('');
   const navigate = useNavigate();
   const [web3authInstance, setWeb3authInstance] = useState<any>(null);
+  const { refreshAuth } = useAuth();
 
   // Beta invite code handling
   const [searchParams] = useSearchParams();
@@ -186,6 +188,8 @@ export default function AuthPage() {
           setMode('login');
           return;
         }
+        // Refresh auth state after successful signup and login
+        refreshAuth();
         if (walletChoice === 'web3auth' || walletChoice === 'own') {
           setStep('wallet');
         } else {
@@ -240,8 +244,9 @@ export default function AuthPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // Login successful, refresh CSRF and navigate
+        // Login successful, refresh CSRF and auth state
         await refreshCsrf();
+        refreshAuth();
         navigate('/profile');
       } else {
         // Show error from backend
@@ -424,6 +429,8 @@ export default function AuthPage() {
         return;
       }
       await refreshCsrf();
+      // Refresh auth state
+      refreshAuth();
       // Poll auth status once
       const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json()).catch(()=>({authenticated:false}));
       if (st?.authenticated) {
