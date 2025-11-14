@@ -43,16 +43,20 @@ export interface ReadingProgress {
 }
 
 /**
- * Get CSRF token from cookies
+ * Get fresh CSRF token from API
+ * This is more reliable than reading from cookies
  */
-function getCsrfToken(): string {
-  const name = 'csrftoken';
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=');
-    if (key === name) return value;
+async function getFreshCsrfToken(): Promise<string> {
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/csrf/`, {
+      credentials: 'include',
+    });
+    const data = await response.json();
+    return data?.csrfToken || '';
+  } catch (error) {
+    console.error('Failed to fetch CSRF token:', error);
+    return '';
   }
-  return '';
 }
 
 export const libraryApi = {
@@ -99,12 +103,14 @@ export const libraryApi = {
     progressPercentage: number,
     lastPosition: string = ''
   ): Promise<ReadingProgress> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/reading-progress/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({
         content_id: contentId,

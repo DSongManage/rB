@@ -160,16 +160,20 @@ export interface CreateCommentData {
 // ===== Helper Functions =====
 
 /**
- * Get CSRF token from cookies
+ * Get fresh CSRF token from API
+ * This is more reliable than reading from cookies
  */
-function getCsrfToken(): string {
-  const name = 'csrftoken';
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=');
-    if (key === name) return value;
+async function getFreshCsrfToken(): Promise<string> {
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/csrf/`, {
+      credentials: 'include',
+    });
+    const data = await response.json();
+    return data?.csrfToken || '';
+  } catch (error) {
+    console.error('Failed to fetch CSRF token:', error);
+    return '';
   }
-  return '';
 }
 
 /**
@@ -202,12 +206,14 @@ export const collaborationApi = {
    * Create a new collaborative project
    */
   async createCollaborativeProject(data: CreateProjectData): Promise<CollaborativeProject> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/collaborative-projects/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify(data),
     });
@@ -251,7 +257,8 @@ export const collaborationApi = {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify(data),
     });
@@ -267,7 +274,8 @@ export const collaborationApi = {
       method: 'DELETE',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
 
@@ -292,7 +300,8 @@ export const collaborationApi = {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(data),
       }
@@ -311,7 +320,8 @@ export const collaborationApi = {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
       }
     );
@@ -329,7 +339,8 @@ export const collaborationApi = {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
       }
     );
@@ -351,7 +362,8 @@ export const collaborationApi = {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ splits }),
       }
@@ -372,7 +384,8 @@ export const collaborationApi = {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
       }
     );
@@ -446,7 +459,8 @@ export const collaborationApi = {
       method: 'POST',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: formData,
     });
@@ -482,7 +496,8 @@ export const collaborationApi = {
       method: 'PATCH',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: formData,
     });
@@ -498,7 +513,8 @@ export const collaborationApi = {
       method: 'DELETE',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
 
@@ -545,7 +561,8 @@ export const collaborationApi = {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: formData,
       });
@@ -559,7 +576,8 @@ export const collaborationApi = {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify(data),
     });
@@ -594,7 +612,8 @@ export const collaborationApi = {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
       }
     );
@@ -612,7 +631,8 @@ export const collaborationApi = {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
       }
     );
@@ -629,7 +649,8 @@ export const collaborationApi = {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ content }),
     });
@@ -645,7 +666,8 @@ export const collaborationApi = {
       method: 'DELETE',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
 
@@ -665,7 +687,8 @@ export const collaborationApi = {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ emoji }),
       }
@@ -685,7 +708,8 @@ export const collaborationApi = {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ reaction_id: reactionId }),
       }
@@ -759,7 +783,8 @@ export const collaborationApi = {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(data),
       }
@@ -786,7 +811,8 @@ export const collaborationApi = {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(data),
       }
@@ -816,7 +842,8 @@ export const collaborationApi = {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ force_mint: forceMint }),
       }
@@ -868,7 +895,8 @@ export const collaborationApi = {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
         },
       }
     );

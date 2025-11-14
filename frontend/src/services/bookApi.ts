@@ -35,16 +35,20 @@ export interface ContentResponse {
 }
 
 /**
- * Get CSRF token from cookies
+ * Get fresh CSRF token from API
+ * This is more reliable than reading from cookies
  */
-function getCsrfToken(): string {
-  const name = 'csrftoken';
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=');
-    if (key === name) return value;
+async function getFreshCsrfToken(): Promise<string> {
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/csrf/`, {
+      credentials: 'include',
+    });
+    const data = await response.json();
+    return data?.csrfToken || '';
+  } catch (error) {
+    console.error('Failed to fetch CSRF token:', error);
+    return '';
   }
-  return '';
 }
 
 export const bookApi = {
@@ -52,20 +56,22 @@ export const bookApi = {
    * Create a new book project
    */
   async createProject(title: string, description: string): Promise<BookProject> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/book-projects/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ title, description }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to create project: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -105,20 +111,22 @@ export const bookApi = {
    * Update a book project
    */
   async updateProject(id: number, data: Partial<BookProject>): Promise<BookProject> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/book-projects/${id}/`, {
       method: 'PATCH',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to update project: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -126,22 +134,24 @@ export const bookApi = {
    * Upload cover image for a book project
    */
   async uploadCoverImage(id: number, imageFile: File): Promise<BookProject> {
+    const csrfToken = await getFreshCsrfToken();
     const formData = new FormData();
     formData.append('cover_image', imageFile);
-    
+
     const response = await fetch(`${API_BASE}/api/book-projects/${id}/`, {
       method: 'PATCH',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: formData,
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to upload cover image: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -149,14 +159,16 @@ export const bookApi = {
    * Delete a book project
    */
   async deleteProject(id: number): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/book-projects/${id}/`, {
       method: 'DELETE',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to delete project: ${response.statusText}`);
     }
@@ -166,20 +178,22 @@ export const bookApi = {
    * Create a new chapter in a project
    */
   async createChapter(projectId: number, title: string): Promise<Chapter> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/book-projects/${projectId}/chapters/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ title, content_html: '' }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to create chapter: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -187,20 +201,22 @@ export const bookApi = {
    * Update a chapter
    */
   async updateChapter(id: number, data: Partial<Chapter>): Promise<Chapter> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/chapters/${id}/`, {
       method: 'PATCH',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to update chapter: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -208,14 +224,16 @@ export const bookApi = {
    * Delete a chapter
    */
   async deleteChapter(id: number): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/chapters/${id}/`, {
       method: 'DELETE',
       credentials: 'include',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to delete chapter: ${response.statusText}`);
     }
@@ -225,19 +243,21 @@ export const bookApi = {
    * Publish a single chapter as Content/NFT
    */
   async publishChapter(chapterId: number): Promise<ContentResponse> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/chapters/${chapterId}/publish/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to publish chapter: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -245,19 +265,21 @@ export const bookApi = {
    * Publish entire book as Content/NFT
    */
   async publishBook(projectId: number): Promise<ContentResponse> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/book-projects/${projectId}/publish/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to publish book: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -281,19 +303,21 @@ export const bookApi = {
    * Prepare a chapter for minting (creates draft Content)
    */
   async prepareChapterForMint(chapterId: number): Promise<ContentResponse> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/chapters/${chapterId}/prepare/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to prepare chapter: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 
@@ -301,19 +325,21 @@ export const bookApi = {
    * Prepare entire book for minting (creates draft Content)
    */
   async prepareBookForMint(projectId: number): Promise<ContentResponse> {
+    const csrfToken = await getFreshCsrfToken();
     const response = await fetch(`${API_BASE}/api/book-projects/${projectId}/prepare/`, {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Failed to prepare book: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 };

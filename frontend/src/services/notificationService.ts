@@ -3,6 +3,8 @@
  * Handles collaboration notifications, activity tracking, and real-time updates
  */
 
+import { API_URL } from '../config';
+
 // ============================================================================
 // TypeScript Interfaces
 // ============================================================================
@@ -121,7 +123,7 @@ const CONFIG = {
 
 async function getCsrfToken(): Promise<string> {
   try {
-    const response = await fetch('/api/auth/csrf/', { credentials: 'include' });
+    const response = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' });
     const data = await response.json();
     return data?.csrfToken || '';
   } catch (error) {
@@ -134,7 +136,10 @@ async function apiRequest<T>(
   url: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const response = await fetch(url, {
+  // Prepend API_URL if url is relative (starts with /)
+  const fullUrl = url.startsWith('/') ? `${API_URL}${url}` : url;
+
+  const response = await fetch(fullUrl, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
