@@ -19,6 +19,7 @@
     "buffer": "^6.0.3",
     "dompurify": "3.3.0",
     "events": "^3.3.0",
+    "lucide-react": "^0.553.0",
     "process": "^0.11.10",
     "quill": "^2.0.3",
     "react": "^18.2.0",
