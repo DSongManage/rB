@@ -183,6 +183,8 @@ button:hover { background:#d97706; }
   transform: scale(1.1);
 }
 
+/* Navigation labels visible on all sizes for better UX */
+
 /* Special styling for feedback button */
 .rb-feedback-btn {
   border: 1px solid #f59e0b;

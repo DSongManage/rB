@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { Bell } from 'lucide-react';
 import { useUnreadCount } from '../../hooks/useNotifications';
 import { events } from '../../services/notificationService';
 import NotificationDropdown from './NotificationDropdown';
@@ -36,37 +37,20 @@ export function NotificationBell() {
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={isOpen}
         aria-haspopup="true"
+        className="rb-nav-link"
         style={{
-          background: 'transparent',
-          border: 'none',
-          color: '#cbd5e1',
-          cursor: 'pointer',
-          fontWeight: 500,
           position: 'relative',
-          padding: '8px 12px',
-          fontSize: 20,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          transition: 'all 0.2s',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = '#fff';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = '#cbd5e1';
         }}
         title="Notifications"
       >
-        <span
+        <Bell
+          size={20}
           style={{
-            display: 'inline-block',
             animation: isAnimating ? 'ring 1s ease-in-out' : 'none',
             transformOrigin: 'top center',
           }}
-        >
-          🔔
-        </span>
+        />
+        <span>Notifications</span>
         {unreadCount > 0 && (
           <span
             style={{

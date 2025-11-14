@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { libraryApi, type Library } from '../services/libraryApi';
 import { LibraryItemCard } from './LibraryItemCard';
 import { ChevronRight, ChevronLeft, Library as LibraryIcon } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 export function LibrarySidebar() {
   const [library, setLibrary] = useState<Library | null>(null);
@@ -9,10 +10,19 @@ export function LibrarySidebar() {
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedTab, setSelectedTab] = useState<keyof Library>('books');
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    loadLibrary();
-  }, []);
+    // Only load library if user is authenticated
+    if (isAuthenticated) {
+      loadLibrary();
+    } else {
+      // Reset state if user is not authenticated
+      setLibrary(null);
+      setLoading(false);
+      setError(null);
+    }
+  }, [isAuthenticated]);
 
   const loadLibrary = async () => {
     try {
@@ -27,6 +37,11 @@ export function LibrarySidebar() {
       setLoading(false);
     }
   };
+
+  // Don't render anything if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (!isExpanded) {
     return (
