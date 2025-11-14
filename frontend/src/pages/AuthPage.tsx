@@ -140,6 +140,17 @@ export default function AuthPage() {
       return;
     }
 
+    // Validate password match
+    if (password !== password2) {
+      setMsg('Passwords do not match');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setMsg('Password must be at least 6 characters');
+      return;
+    }
+
     // Use DRF signup endpoint with invite code
     try {
       const res = await fetch(`${API_URL}/api/users/signup/`, {
@@ -154,7 +165,7 @@ export default function AuthPage() {
           username: username,
           email: email || inviteEmail, // Use invite email if not provided
           invite_code: inviteCode.trim().toUpperCase(),
-          // Note: DRF endpoint doesn't use password1/password2, handles auth differently
+          password: password,
         }),
       });
 

@@ -82,6 +82,7 @@ class SignupSerializer(serializers.Serializer):
     wallet_address = serializers.CharField(required=False, allow_blank=True, max_length=44)
     invite_code = serializers.CharField(required=True, max_length=32)  # REQUIRED for beta
     email = serializers.EmailField(required=False, allow_blank=True)  # Optional, from invite
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True, min_length=6, max_length=128)
 
     def validate_invite_code(self, value: str) -> str:
         """Validate beta invite code is valid and unused."""
@@ -170,11 +171,14 @@ class SignupSerializer(serializers.Serializer):
                     desired = candidate
                     break
 
-        # Create user with email
+        # Get password from validated data
+        password = validated_data.get('password', '').strip() or None
+
+        # Create user with email and password
         user = User.objects.create_user(
             username=desired,
             email=email or '',
-            password=None
+            password=password
         )
 
         # Create profile
