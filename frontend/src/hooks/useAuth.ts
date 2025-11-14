@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_URL } from '../config';
 
 /**
  * Authentication hook
@@ -30,7 +31,7 @@ export const useAuth = () => {
 
   const checkAuth = useCallback(async () => {
     try {
-      const response = await fetch('/api/auth/status/', {
+      const response = await fetch(`${API_URL}/api/auth/status/`, {
         credentials: 'include',
       });
 
@@ -71,14 +72,14 @@ export const useAuth = () => {
   const logout = useCallback(async () => {
     try {
       // Get CSRF token
-      const csrfResponse = await fetch('/api/auth/csrf/', {
+      const csrfResponse = await fetch(`${API_URL}/api/auth/csrf/`, {
         credentials: 'include',
       });
       const csrfData = await csrfResponse.json();
       const csrfToken = csrfData?.csrfToken || '';
 
       // Logout
-      await fetch('/api/auth/logout/', {
+      await fetch(`${API_URL}/api/auth/logout/`, {
         method: 'POST',
         credentials: 'include',
         headers: {

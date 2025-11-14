@@ -26,6 +26,7 @@ import { BetaBadge, TestModeBanner } from './components/BetaBadge';
 import { useAuth } from './hooks/useAuth';
 import FeedbackModal from './components/FeedbackModal';
 import BetaOnboarding from './components/BetaOnboarding';
+import { API_URL } from './config';
 
 function Header() {
   const [q, setQ] = useState('');
@@ -35,7 +36,7 @@ function Header() {
   const location = useLocation();
 
   const checkAuth = React.useCallback(() => {
-    fetch('/api/auth/status/', { credentials: 'include' })
+    fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' })
       .then(r=>r.json())
       .then(d=> {
         const authed = !!d?.authenticated;
@@ -83,8 +84,8 @@ function Header() {
 
   const doLogout = async () => {
     try {
-      const t = await fetch('/api/auth/csrf/', { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
-      await fetch('/api/auth/logout/', { method:'POST', credentials:'include', headers:{ 'X-CSRFToken': t, 'X-Requested-With': 'XMLHttpRequest' } });
+      const t = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
+      await fetch(`${API_URL}/api/auth/logout/`, { method:'POST', credentials:'include', headers:{ 'X-CSRFToken': t, 'X-Requested-With': 'XMLHttpRequest' } });
     } catch {}
 
     // Stop notification polling and reset
