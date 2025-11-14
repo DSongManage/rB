@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { API_URL } from '../../config';
 import PreviewModal from '../PreviewModal';
 
 export default function ShareStep({ contentId, onPublish }:{ contentId?: number; onPublish?: ()=>void }){
@@ -9,19 +10,19 @@ export default function ShareStep({ contentId, onPublish }:{ contentId?: number;
   const [feePct, setFeePct] = useState<number>(10);
   useEffect(()=>{
     if (!contentId) return;
-    fetch(`/api/content/${contentId}/preview/`)
+    fetch(`${API_URL}/api/content/${contentId}/preview/`)
       .then(r=> r.ok? r.json(): null)
-      .then(d=> { 
+      .then(d=> {
         // For books, use the teaser API endpoint (not the cover image)
-        const teaserUrl = d?.content_type === 'book' 
-          ? `/api/content/${contentId}/teaser/` 
+        const teaserUrl = d?.content_type === 'book'
+          ? `${API_URL}/api/content/${contentId}/teaser/`
           : d?.teaser_link;
-        setTeaser(teaserUrl); 
-        setCtype(d?.content_type); 
+        setTeaser(teaserUrl);
+        setCtype(d?.content_type);
       })
       .catch(()=>{});
     // Get current platform fee from dashboard (already returns fee percent)
-    fetch('/api/dashboard/', { credentials:'include' })
+    fetch(`${API_URL}/api/dashboard/`, { credentials:'include' })
       .then(r=> r.ok? r.json(): null)
       .then(d=> { if (d && typeof d.fee === 'number') setFeePct(d.fee); })
       .catch(()=>{});

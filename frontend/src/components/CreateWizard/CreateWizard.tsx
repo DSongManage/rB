@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { API_URL } from '../../config';
 import TypeSelect from './TypeSelect';
 import CreateStep from './CreateStep';
 import CustomizeStep from './CustomizeStep';
@@ -42,7 +43,7 @@ export default function CreateWizard(){
 
   async function fetchCsrf(){
     try {
-      const t = await fetch('/api/auth/csrf/', { credentials:'include' }).then(r=>r.json());
+      const t = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' }).then(r=>r.json());
       return t?.csrfToken || '';
     } catch { return ''; }
   }
@@ -61,7 +62,7 @@ export default function CreateWizard(){
     // Provide a default genre to satisfy backend model expectations
     form.append('genre', 'other');
     const csrf = await fetchCsrf();
-    const res = await fetch('/api/content/', { method:'POST', headers:{ 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, body: form, credentials:'include' });
+    const res = await fetch(`${API_URL}/api/content/`, { method:'POST', headers:{ 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, body: form, credentials:'include' });
     if (res.ok) {
       const d = await res.json();
       setContentId(d.id || d.pk);
@@ -74,7 +75,7 @@ export default function CreateWizard(){
 
   const doMint = async () => {
     const csrf = await fetchCsrf();
-    const res = await fetch('/api/mint/', { method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest'}, body: JSON.stringify({ royalties: [] }), credentials:'include' });
+    const res = await fetch(`${API_URL}/api/mint/`, { method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest'}, body: JSON.stringify({ royalties: [] }), credentials:'include' });
     if (res.ok) setStep(4); else setMsg('Mint failed');
   };
 
@@ -163,7 +164,7 @@ export default function CreateWizard(){
               teaser_percent: c.teaserPercent,
               watermark_preview: c.watermark,
             });
-            await fetch(`/api/content/detail/${contentId}/`, {
+            await fetch(`${API_URL}/api/content/detail/${contentId}/`, {
               method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, credentials:'include', body
             });
           } catch (_) {}
@@ -176,7 +177,7 @@ export default function CreateWizard(){
       {step===4 && (
         <ShareStep contentId={contentId} onPublish={async ()=> {
           const csrf = await fetchCsrf();
-          const res = await fetch('/api/mint/', { method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest'}, body: JSON.stringify({ content_id: contentId }), credentials:'include' });
+          const res = await fetch(`${API_URL}/api/mint/`, { method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest'}, body: JSON.stringify({ content_id: contentId }), credentials:'include' });
           if (res.ok) { setMsg('Published'); }
         }} />
       )}
@@ -201,7 +202,7 @@ export default function CreateWizard(){
                   teaser_percent: c.teaserPercent,
                   watermark_preview: c.watermark,
                 });
-                await fetch(`/api/content/detail/${contentId}/`, {
+                await fetch(`${API_URL}/api/content/detail/${contentId}/`, {
                   method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With':'XMLHttpRequest' }, credentials:'include', body
                 });
               }

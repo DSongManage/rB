@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_URL } from '../config';
 import { useBetaMode } from '../hooks/useBetaMode';
 
 type Props = {
@@ -31,7 +32,7 @@ export default function MintButton({ contentId }: Props) {
       if (!lamports) {
         throw new Error('Enter a valid lamports amount (> 0)');
       }
-      const res = await fetch('/api/mint/', {
+      const res = await fetch(`${API_URL}/api/mint/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

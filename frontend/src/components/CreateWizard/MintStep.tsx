@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { API_URL } from '../../config';
 
 type Props = { onMint: ()=>void; price?: number; editions?: number };
 
@@ -6,7 +7,7 @@ export default function MintStep({ onMint, price, editions }: Props){
   const [agree, setAgree] = useState(false);
   const [feePct, setFeePct] = useState<number>(10);
   useEffect(()=>{
-    fetch('/api/dashboard/', { credentials:'include' })
+    fetch(`${API_URL}/api/dashboard/`, { credentials:'include' })
       .then(r=> r.ok? r.json(): null)
       .then(d=> { if (d && typeof d.fee === 'number') setFeePct(d.fee); })
       .catch(()=>{});
