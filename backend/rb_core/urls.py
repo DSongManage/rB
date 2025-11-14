@@ -1,7 +1,7 @@
 from django.urls import path, include
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
 from .views.checkout import CreateCheckoutSessionView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
@@ -49,6 +49,7 @@ urlpatterns = [
     path('api/auth/csrf/', CsrfTokenView.as_view(), name='csrf'),
     path('api/users/search/', UserSearchView.as_view(), name='user_search'),
     path('api/users/signup/', SignupView.as_view(), name='user_signup'),
+    path('api/users/login/', LoginView.as_view(), name='user_login'),
     path('api/users/profile/', ProfileEditView.as_view(), name='user_profile_edit'),
     path('api/profile/status/', ProfileStatusView.as_view(), name='profile_status_update'),
     path('api/notifications/', NotificationsView.as_view(), name='notifications'),

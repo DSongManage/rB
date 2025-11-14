@@ -102,13 +102,19 @@ export default function AuthPage() {
       const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' });
       const data = await st.json();
       if (data?.authenticated) return true;
-      // Try programmatic login with provided credentials
-      const form = new URLSearchParams();
-      form.set('login', username);
-      form.set('password', password);
-      form.set('next', '/');
-      const res = await fetch(`${API_URL}/accounts/login/`, {
-        method:'POST', credentials:'include', headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' }, body:String(form)
+      // Try programmatic login with provided credentials using custom endpoint
+      const res = await fetch(`${API_URL}/api/users/login/`, {
+        method:'POST',
+        credentials:'include',
+        headers:{
+          'Content-Type':'application/json',
+          'X-CSRFToken': csrf,
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          username: username,
+          password: password
+        })
       });
       if (res.ok) {
         await refreshCsrf();
@@ -216,38 +222,30 @@ export default function AuthPage() {
     }
 
     try {
-      // Use fetch instead of form submission for cross-domain setup
-      const form = new URLSearchParams();
-      form.set('login', username);
-      form.set('password', password);
-      form.set('next', '/');
-
-      const res = await fetch(`${API_URL}/accounts/login/`, {
+      // Use custom DRF login endpoint
+      const res = await fetch(`${API_URL}/api/users/login/`, {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
           'X-CSRFToken': freshCsrf,
           'X-Requested-With': 'XMLHttpRequest',
         },
-        body: String(form),
+        body: JSON.stringify({
+          username: username,
+          password: password,
+        }),
       });
+
+      const data = await res.json();
 
       if (res.ok) {
         // Login successful, refresh CSRF and navigate
         await refreshCsrf();
-        const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' });
-        const data = await st.json();
-        if (data?.authenticated) {
-          navigate('/profile');
-        } else {
-          setMsg('Login successful! Redirecting...');
-          setTimeout(() => navigate('/profile'), 500);
-        }
+        navigate('/profile');
       } else {
-        // Try to get error message from response
-        const text = await res.text();
-        setMsg('Invalid username or password');
+        // Show error from backend
+        setMsg(data.error || 'Invalid username or password');
       }
     } catch (error) {
       console.error('Login error:', error);

@@ -965,6 +965,37 @@ class SignupView(APIView):
         return Response(UserProfileSerializer(profile).data, status=201)
 
 
+class LoginView(APIView):
+    """Custom login endpoint for username/password authentication."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username', '').strip()
+        password = request.data.get('password', '').strip()
+
+        if not username or not password:
+            return Response({'error': 'Username and password are required'}, status=400)
+
+        # Authenticate user
+        user = authenticate(request, username=username, password=password)
+
+        if user is None:
+            return Response({'error': 'Invalid username or password'}, status=401)
+
+        if not user.is_active:
+            return Response({'error': 'Account is disabled'}, status=401)
+
+        # Log the user in
+        from django.contrib.auth import login as django_login
+        django_login(request, user)
+
+        return Response({
+            'message': 'Login successful',
+            'username': user.username,
+            'user_id': user.id
+        }, status=200)
+
+
 class ProfileEditView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
