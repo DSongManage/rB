@@ -110,7 +110,7 @@ function Header() {
     <nav className="rb-header">
       <div className="rb-header-left">
         <Link to="/" className="rb-logo-link">
-          <img src="/rb-logo.jpeg" alt="renaissBlock" className="rb-logo-img"/>
+          <img src="/rb-logo.png" alt="renaissBlock" className="rb-logo-img"/>
         </Link>
         <BetaBadge variant="header" showTestMode={true} />
       </div>

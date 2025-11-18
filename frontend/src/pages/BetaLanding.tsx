@@ -491,7 +491,7 @@ export default function BetaLanding() {
           <div className="footer-grid">
             <div className="footer-col">
               <div className="footer-logo">
-                <img src="/rb-logo.jpeg" alt="renaissBlock" />
+                <img src="/rb-logo.png" alt="renaissBlock" />
                 <span>renaissBlock</span>
               </div>
               <p className="footer-tagline">

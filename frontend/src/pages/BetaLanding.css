@@ -18,6 +18,33 @@
   overflow: hidden;
 }
 
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 800px;
+  background-image: url('/rb-logo.png');
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.03;
+  z-index: 1;
+  pointer-events: none;
+  animation: logoFloat 20s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -48%) scale(1.05);
+  }
+}
+
 .hero-content {
   position: relative;
   z-index: 2;
@@ -242,8 +269,10 @@
 
 /* Container */
 .container {
+  position: relative;
   max-width: 1200px;
   margin: 0 auto;
+  z-index: 1;
 }
 
 /* Section Titles */
@@ -317,8 +346,27 @@
 
 /* Solutions Section */
 .solutions-section {
+  position: relative;
   padding: 100px 24px;
   background: #0a0f1a;
+  overflow: hidden;
+}
+
+.solutions-section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(15deg);
+  width: 700px;
+  height: 700px;
+  background-image: url('/rb-logo.png');
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.025;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .solutions-grid {
@@ -641,8 +689,27 @@
 
 /* Beta Access Section */
 .beta-access-section {
+  position: relative;
   padding: 100px 24px;
   background: #0a0f1a;
+  overflow: hidden;
+}
+
+.beta-access-section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+  width: 600px;
+  height: 600px;
+  background-image: url('/rb-logo.png');
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.02;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .beta-access-card {
