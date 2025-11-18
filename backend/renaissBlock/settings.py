@@ -296,6 +296,16 @@ if CORS_ORIGINS_ENV:
     # Production: use environment-specified origins
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_ENV.split(',')]
     CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_ENV.split(',')]
+elif not DEBUG:
+    # Production fallback: allow production domains
+    CORS_ALLOWED_ORIGINS = [
+        "https://renaissblock.com",
+        "https://www.renaissblock.com",
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        "https://renaissblock.com",
+        "https://www.renaissblock.com",
+    ]
 else:
     # Development: default to localhost
     CORS_ALLOWED_ORIGINS = [
