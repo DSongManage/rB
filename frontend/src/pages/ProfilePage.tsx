@@ -391,7 +391,7 @@ export default function ProfilePage() {
             {inventory.map((it)=> (
               <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'100px 1fr auto', gap:16, alignItems:'center', padding:12}}>
                 <div style={{width:100, height:133, background:'#111', borderRadius:8, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'1px solid var(--panel-border)'}} onClick={()=> openPreview(it.id)}>
-                  <img src={it.teaser_link} alt="cover" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ e.currentTarget.style.display='none'; e.currentTarget.parentElement!.textContent='No Cover'; e.currentTarget.parentElement!.style.fontSize='11px'; e.currentTarget.parentElement!.style.color='#666'; }} />
+                  <img src={it.teaser_link} alt="cover" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ e.currentTarget.style.display='none'; if (e.currentTarget.parentElement) { e.currentTarget.parentElement.textContent='No Cover'; e.currentTarget.parentElement.style.fontSize='11px'; e.currentTarget.parentElement.style.color='#666'; } }} />
                 </div>
                 <div style={{minWidth: 0, cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
                   <div className="card-title" style={{fontSize:16, marginBottom:4}}>{it.title}</div>

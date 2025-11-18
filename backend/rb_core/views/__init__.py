@@ -1021,18 +1021,33 @@ class ProfileEditView(APIView):
 
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
-        # Support multipart form data for file uploads
-        # Avoid deepcopy of uploaded files (causes BufferedRandom pickle error)
-        data = request.data
+
+        # Handle file uploads separately (not part of ProfileEditSerializer)
+        files_updated = False
         if 'avatar' in request.FILES:
             validate_avatar(request.FILES['avatar'])
             profile.avatar_image = request.FILES['avatar']
+            files_updated = True
         if 'banner' in request.FILES:
             validate_banner(request.FILES['banner'])
             profile.banner_image = request.FILES['banner']
-        serializer = ProfileEditSerializer(profile, data=data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+            files_updated = True
+
+        # If only uploading files, save and return early
+        if files_updated and len(request.data) <= 2:  # Only file fields present
+            profile.save()
+            return Response(UserProfileSerializer(profile, context={'request': request}).data)
+
+        # Otherwise, update other fields via serializer
+        # Filter out file fields from data (serializer doesn't handle them)
+        data = {k: v for k, v in request.data.items() if k not in ['avatar', 'banner']}
+        if data:  # Only validate if there's non-file data
+            serializer = ProfileEditSerializer(profile, data=data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        elif files_updated:
+            profile.save()
+
         return Response(UserProfileSerializer(profile, context={'request': request}).data)
 
 class ProfileStatusView(APIView):
