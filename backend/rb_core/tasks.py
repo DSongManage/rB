@@ -29,7 +29,8 @@ def mint_and_distribute(purchase_id):
     1. Mint NFT (get ACTUAL gas cost from blockchain)
     2. Calculate distribution with ACTUAL Stripe + gas fees
     3. Update purchase record with final amounts
-    4. Queue creator payout (future)
+    4. Update creator sales tracking
+    5. Queue creator payout (future)
 
     Args:
         purchase_id: Purchase ID to process
@@ -37,7 +38,7 @@ def mint_and_distribute(purchase_id):
     Returns:
         dict: Result with success status and distribution details
     """
-    from .models import Purchase
+    from .models import Purchase, UserProfile, CoreUser
     from .views.payment_utils import calculate_distribution, get_solana_transaction_fee
 
     try:
@@ -86,7 +87,26 @@ def mint_and_distribute(purchase_id):
             f'platform=${distribution["platform_fee"]} (10%)'
         )
 
-        # 6. TODO: Queue creator payout via Stripe Connect
+        # 6. Update creator sales tracking
+        try:
+            creator = purchase.content.creator
+            core_user, _ = CoreUser.objects.get_or_create(username=creator.username)
+            profile, _ = UserProfile.objects.get_or_create(
+                user=core_user,
+                defaults={'username': creator.username}
+            )
+
+            # Add creator earnings to total sales
+            if purchase.creator_amount:
+                profile.total_sales_usd = (profile.total_sales_usd or 0) + float(purchase.creator_amount)
+                profile.save(update_fields=['total_sales_usd'])
+                logger.info(
+                    f'[Task] Updated creator {creator.username} total_sales_usd to ${profile.total_sales_usd}'
+                )
+        except Exception as e:
+            logger.error(f'[Task] Error updating creator sales for purchase {purchase_id}: {e}')
+
+        # 7. TODO: Queue creator payout via Stripe Connect
         # schedule_creator_payout.delay(purchase.id)
 
         return {

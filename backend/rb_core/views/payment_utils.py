@@ -161,21 +161,24 @@ def mint_and_distribute_sync(purchase_id):
     1. Mint NFT (get ACTUAL gas cost)
     2. Calculate distribution with ACTUAL fees
     3. Update purchase record
-    4. Queue creator payout (future)
+    4. Update creator sales tracking
+    5. Queue creator payout (future)
 
     Args:
         purchase_id: Purchase ID to process
     """
+    from ..models import UserProfile, CoreUser
+
     try:
         purchase = Purchase.objects.get(id=purchase_id)
         purchase.status = 'minting'
         purchase.save()
 
+        logger.info(f'[MintSync] Minting NFT for purchase {purchase_id}...')
+
         # 1. MINT NFT - Get ACTUAL gas cost
         # For MVP, we'll use the existing MintView logic
         # In production, this would call a dedicated minting service
-
-        logger.info(f'Minting NFT for purchase {purchase_id}...')
 
         # Simulate mint (replace with actual Solana mint call)
         mint_result = {
@@ -204,12 +207,31 @@ def mint_and_distribute_sync(purchase_id):
         purchase.save()
 
         logger.info(
-            f'Purchase {purchase_id} completed: '
+            f'[MintSync] Purchase {purchase_id} completed: '
             f'Creator gets ${purchase.creator_amount} ({Decimal("90")}%), '
             f'Platform gets ${purchase.platform_fee} ({Decimal("10")}%)'
         )
 
-        # 5. TODO: Queue creator payout via Stripe Connect
+        # 5. Update creator sales tracking
+        try:
+            creator = purchase.content.creator
+            core_user, _ = CoreUser.objects.get_or_create(username=creator.username)
+            profile, _ = UserProfile.objects.get_or_create(
+                user=core_user,
+                defaults={'username': creator.username}
+            )
+
+            # Add creator earnings to total sales
+            if purchase.creator_amount:
+                profile.total_sales_usd = (profile.total_sales_usd or 0) + float(purchase.creator_amount)
+                profile.save(update_fields=['total_sales_usd'])
+                logger.info(
+                    f'[MintSync] Updated creator {creator.username} total_sales_usd to ${profile.total_sales_usd}'
+                )
+        except Exception as e:
+            logger.error(f'[MintSync] Error updating creator sales for purchase {purchase_id}: {e}')
+
+        # 6. TODO: Queue creator payout via Stripe Connect
         # schedule_creator_payout(purchase.id)
 
         return {
@@ -219,10 +241,10 @@ def mint_and_distribute_sync(purchase_id):
         }
 
     except Purchase.DoesNotExist:
-        logger.error(f'Purchase {purchase_id} not found')
+        logger.error(f'[MintSync] Purchase {purchase_id} not found')
         return {'success': False, 'error': 'Purchase not found'}
     except Exception as e:
-        logger.error(f'Error minting for purchase {purchase_id}: {e}')
+        logger.error(f'[MintSync] Error minting for purchase {purchase_id}: {e}', exc_info=True)
         if purchase_id:
             try:
                 purchase = Purchase.objects.get(id=purchase_id)
