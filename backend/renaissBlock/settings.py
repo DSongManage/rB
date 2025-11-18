@@ -203,6 +203,9 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Media files
+# NOTE: Railway uses ephemeral storage - uploaded files are lost on container restart
+# TODO: For production, configure cloud storage (AWS S3, Cloudinary, etc.) using django-storages
+# For now, frontend handles missing files gracefully with fallback to initials
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
