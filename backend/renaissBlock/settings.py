@@ -432,4 +432,43 @@ ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')  # Update this to yo
 # Email timeout to prevent worker hangs (Railway may block SMTP)
 EMAIL_TIMEOUT = 5  # Fail quickly if SMTP is blocked
 
+# ============================================================================
+# Celery Configuration for Async Tasks
+# ============================================================================
+# Used for NFT minting, payment processing, and creator payouts
+
+# Celery broker (message queue)
+# For MVP: Use Redis or fallback to Django DB
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+
+# Result backend (for task results)
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+
+# Task settings
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TIMEZONE = 'UTC'
+CELERY_ENABLE_UTC = True
+
+# Task result expiration (7 days)
+CELERY_RESULT_EXPIRES = 60 * 60 * 24 * 7
+
+# Task time limits (prevent hanging tasks)
+CELERY_TASK_TIME_LIMIT = 300  # 5 minutes hard limit
+CELERY_TASK_SOFT_TIME_LIMIT = 240  # 4 minutes soft limit
+
+# Task routing (future: separate queues for different task types)
+CELERY_TASK_ROUTES = {
+    'rb_core.tasks.mint_and_distribute': {'queue': 'minting'},
+    'rb_core.tasks.schedule_creator_payout': {'queue': 'payouts'},
+}
+
+# Worker configuration
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # One task at a time for long-running mints
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100  # Restart worker after 100 tasks (prevent memory leaks)
+
+# Logging
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False  # Use Django logging config
+
 ## Duplicate guard: the above variables are defined once; keep this footer clean.

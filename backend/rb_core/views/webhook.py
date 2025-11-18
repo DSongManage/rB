@@ -48,21 +48,87 @@ def stripe_webhook(request):
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
         handle_checkout_session_completed(session)
+    elif event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']
+        handle_payment_intent_succeeded(payment_intent)
 
     return HttpResponse(status=200)
 
 
-def handle_checkout_session_completed(session):
-    """Process completed checkout session."""
+def handle_payment_intent_succeeded(payment_intent):
+    """
+    Handle successful payment - get ACTUAL fees from Stripe.
+    This is called AFTER payment succeeds and we have real fee data.
+    """
+    logger.info(f'Processing payment_intent: {payment_intent["id"]}')
 
+    payment_intent_id = payment_intent['id']
+
+    try:
+        # Get the purchase record (should exist from checkout.session.completed)
+        purchase = Purchase.objects.get(stripe_payment_intent_id=payment_intent_id)
+
+        # Get the charge to access balance_transaction
+        charges = payment_intent.get('charges', {}).get('data', [])
+        if not charges:
+            logger.error(f'No charges found for payment_intent {payment_intent_id}')
+            return
+
+        charge = charges[0]
+        charge_id = charge['id']
+        balance_txn_id = charge.get('balance_transaction')
+
+        if not balance_txn_id:
+            logger.error(f'No balance_transaction for charge {charge_id}')
+            return
+
+        # Retrieve balance transaction - contains ACTUAL fees
+        balance_txn = stripe.BalanceTransaction.retrieve(balance_txn_id)
+
+        # Update purchase with ACTUAL Stripe data
+        purchase.stripe_charge_id = charge_id
+        purchase.stripe_balance_txn_id = balance_txn_id
+        purchase.gross_amount = Decimal(str(balance_txn.amount)) / 100
+        purchase.stripe_fee = Decimal(str(balance_txn.fee)) / 100  # ACTUAL fee
+        purchase.net_after_stripe = Decimal(str(balance_txn.net)) / 100
+        purchase.status = 'payment_completed'
+        purchase.save()
+
+        logger.info(
+            f'Updated purchase {purchase.id} with ACTUAL fees: '
+            f'gross=${purchase.gross_amount}, '
+            f'stripe_fee=${purchase.stripe_fee}, '
+            f'net=${purchase.net_after_stripe}'
+        )
+
+        # Trigger NFT minting + distribution (async if Celery available)
+        try:
+            from ..tasks import mint_and_distribute
+            mint_and_distribute.delay(purchase.id)
+            logger.info(f'Queued minting task for purchase {purchase.id}')
+        except ImportError:
+            # Celery not available, do synchronous
+            logger.warning('Celery not available, minting synchronously')
+            from .payment_utils import mint_and_distribute_sync
+            mint_and_distribute_sync(purchase.id)
+
+    except Purchase.DoesNotExist:
+        logger.error(f'Purchase not found for payment_intent {payment_intent_id}')
+    except Exception as e:
+        logger.error(f'Error processing payment_intent {payment_intent_id}: {e}')
+        raise
+
+
+def handle_checkout_session_completed(session):
+    """
+    Create initial purchase record when checkout completes.
+    Actual fees will be populated later by payment_intent.succeeded.
+    """
     logger.info(f'Processing checkout session: {session["id"]}')
 
     # Extract metadata
     content_id = session['metadata'].get('content_id')
     user_id = session['metadata'].get('user_id')
-    stripe_fee = Decimal(session['metadata'].get('stripe_fee', '0'))
-    platform_fee = Decimal(session['metadata'].get('platform_fee', '0'))
-    creator_earnings = Decimal(session['metadata'].get('creator_earnings', '0'))
 
     payment_intent_id = session.get('payment_intent')
     session_id = session['id']
@@ -83,32 +149,36 @@ def handle_checkout_session_completed(session):
             content = Content.objects.select_for_update().get(id=content_id)
             user = User.objects.get(id=user_id)
 
-            # Verify editions available (shouldn't happen, but extra safety)
+            # Verify editions available
             if content.editions <= 0:
                 logger.error(f'Content {content_id} sold out during checkout')
                 # TODO: Handle refund here
                 return
 
-            # Create Purchase record
+            # Create Purchase record (actual fees will be filled by payment_intent.succeeded)
             purchase = Purchase.objects.create(
                 user=user,
                 content=content,
                 purchase_price_usd=amount_total,
-                stripe_fee_usd=stripe_fee,
-                platform_fee_usd=platform_fee,
-                creator_earnings_usd=creator_earnings,
+                gross_amount=amount_total,  # Initial value, will be updated with actual
                 stripe_payment_intent_id=payment_intent_id,
                 stripe_checkout_session_id=session_id,
+                status='payment_pending',
+                # Legacy fields for backward compatibility
+                stripe_fee_usd=Decimal('0'),
+                platform_fee_usd=Decimal('0'),
+                creator_earnings_usd=Decimal('0'),
             )
 
             # Decrement editions
             content.editions -= 1
             content.save()
 
-            logger.info(f'Purchase {purchase.id} created successfully. Content {content_id} now has {content.editions} editions left.')
-
-            # TODO: Send confirmation email (Phase 4)
-            # TODO: Trigger NFT minting job if eligible (Phase 3)
+            logger.info(
+                f'Purchase {purchase.id} created. '
+                f'Content {content_id} now has {content.editions} editions left. '
+                f'Waiting for payment_intent.succeeded for actual fees.'
+            )
 
     except Content.DoesNotExist:
         logger.error(f'Content {content_id} not found')

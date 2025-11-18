@@ -272,36 +272,117 @@ class Chapter(models.Model):
 
 
 class Purchase(models.Model):
-    """Track NFT purchases for ownership verification and revenue."""
-    
+    """
+    Track NFT purchases with ACTUAL fees from Stripe and blockchain.
+
+    Payment Flow:
+    1. Customer pays gross_amount
+    2. Stripe charges actual fee (from balance_transaction)
+    3. Net after Stripe = gross - stripe_fee
+    4. Platform pays gas to mint NFT (actual cost from blockchain)
+    5. Net after costs = net_after_stripe - mint_cost
+    6. Platform gets 10% of net_after_costs
+    7. Creator gets 90% of net_after_costs
+    """
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
     content = models.ForeignKey(Content, on_delete=models.PROTECT, related_name='purchases')
-    
-    # Payment details
+
+    # Stripe identifiers
+    stripe_payment_intent_id = models.CharField(max_length=255, unique=True)
+    stripe_checkout_session_id = models.CharField(max_length=255, blank=True, default='')
+    stripe_charge_id = models.CharField(max_length=255, blank=True, default='')
+    stripe_balance_txn_id = models.CharField(max_length=255, blank=True, default='')
+
+    # Payment amounts (ACTUAL only, no estimates)
+    gross_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="What customer paid"
+    )
+    stripe_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="ACTUAL fee from Stripe balance_transaction"
+    )
+    net_after_stripe = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Gross - Stripe fee"
+    )
+    mint_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="ACTUAL gas cost from blockchain transaction"
+    )
+    net_after_costs = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Net after Stripe AND gas"
+    )
+    platform_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="10% of net_after_costs"
+    )
+    creator_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="90% of net_after_costs"
+    )
+
+    # Legacy fields (kept for backward compatibility)
     purchase_price_usd = models.DecimalField(max_digits=10, decimal_places=2)
     stripe_fee_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     platform_fee_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     creator_earnings_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    
-    # Stripe identifiers
-    stripe_payment_intent_id = models.CharField(max_length=255, unique=True)
-    stripe_checkout_session_id = models.CharField(max_length=255, unique=True, blank=True, default='')
-    
+
     # Blockchain tracking
+    nft_mint_address = models.CharField(max_length=255, blank=True, default='')
     transaction_signature = models.CharField(max_length=128, blank=True, default='')
     nft_minted = models.BooleanField(default=False)
     nft_mint_eligible_at = models.DateTimeField(null=True, blank=True)
-    
+
+    # Status tracking
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('payment_pending', 'Payment Pending'),
+            ('payment_completed', 'Payment Completed'),
+            ('minting', 'Minting NFT'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed'),
+            ('refunded', 'Refunded'),
+        ],
+        default='payment_pending'
+    )
+
     purchased_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     refunded = models.BooleanField(default=False)
-    
+
     class Meta:
         ordering = ['-purchased_at']
         indexes = [
             models.Index(fields=['user', 'content']),
             models.Index(fields=['stripe_payment_intent_id']),
+            models.Index(fields=['status']),
         ]
-    
+
     def __str__(self):
         return f"{self.user.username} purchased {self.content.title}"
 
