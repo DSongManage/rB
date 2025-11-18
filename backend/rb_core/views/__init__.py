@@ -1102,6 +1102,7 @@ class BookProjectDetailView(APIView):
     
     def patch(self, request, pk):
         from ..utils.file_validation import validate_upload
+        from rest_framework import serializers as drf_serializers
 
         project = self.get_object(pk, request.user)
         if not project:
@@ -1110,12 +1111,17 @@ class BookProjectDetailView(APIView):
         # Handle cover_image upload separately to avoid serializer issues
         cover_image_updated = False
         if 'cover_image' in request.FILES:
-            # Validate cover image
-            allowed_types = {'image/jpeg', 'image/png', 'image/webp'}
-            max_size = 5 * 1024 * 1024  # 5MB for covers
-            validate_upload(request.FILES['cover_image'], allowed_types=allowed_types, max_size=max_size)
-            project.cover_image = request.FILES['cover_image']
-            cover_image_updated = True
+            try:
+                # Validate cover image
+                allowed_types = {'image/jpeg', 'image/png', 'image/webp'}
+                max_size = 5 * 1024 * 1024  # 5MB for covers
+                validate_upload(request.FILES['cover_image'], allowed_types=allowed_types, max_size=max_size)
+                project.cover_image = request.FILES['cover_image']
+                cover_image_updated = True
+            except drf_serializers.ValidationError as e:
+                return Response({'error': str(e.detail[0]) if isinstance(e.detail, list) else str(e.detail)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                return Response({'error': f'File upload failed: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
         # If only uploading cover image, save and return early
         if cover_image_updated and len(request.data) <= 1:  # Only cover_image field present
