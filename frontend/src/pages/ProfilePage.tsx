@@ -45,9 +45,20 @@ export default function ProfilePage() {
     setUser(d);
     // Also refresh profile so header shows latest wallet
     fetch(`${API_URL}/api/users/profile/`, { credentials:'include' })
-      .then(r=> r.ok ? r.json() : null)
-      .then(setProfile)
-      .catch(()=> {});
+      .then(r=> {
+        if (!r.ok) {
+          console.error('Profile fetch failed:', r.status, r.statusText);
+          return null;
+        }
+        return r.json();
+      })
+      .then(data => {
+        console.log('Profile data received:', data);
+        setProfile(data);
+      })
+      .catch((err)=> {
+        console.error('Profile fetch error:', err);
+      });
   }
 
   async function refreshCsrf() {
@@ -165,8 +176,23 @@ export default function ProfilePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
   const openPreview = async (id:number) => {
-    const d = await fetch(`${API_URL}/api/content/${id}/preview/`, { credentials: 'include' }).then(r=> r.ok? r.json(): null);
-    if (d) { setPreviewItem(d); setShowPreview(true); }
+    console.log('Opening preview for content:', id);
+    try {
+      const response = await fetch(`${API_URL}/api/content/${id}/preview/`, { credentials: 'include' });
+      console.log('Preview response:', response.status, response.statusText);
+      if (!response.ok) {
+        console.error('Preview fetch failed');
+        return;
+      }
+      const d = await response.json();
+      console.log('Preview data:', d);
+      if (d) {
+        setPreviewItem(d);
+        setShowPreview(true);
+      }
+    } catch (err) {
+      console.error('Preview fetch error:', err);
+    }
   };
 
   const onAvatarClick = () => {
@@ -180,6 +206,7 @@ export default function ProfilePage() {
   const onAvatarSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    console.log('Uploading avatar:', file.name, file.type, file.size);
     const token = csrf || await refreshCsrf();
     const fd = new FormData();
     fd.append('avatar', file);
@@ -189,11 +216,16 @@ export default function ProfilePage() {
       credentials: 'include',
       body: fd,
     });
+    console.log('Avatar upload response:', res.status, res.statusText);
     if (res.ok) {
+      const data = await res.json();
+      console.log('Avatar upload data:', data);
       setStatus('Avatar updated');
       await refreshStatus();
     } else {
-      setStatus(`Failed: ${await res.text()}`);
+      const text = await res.text();
+      console.error('Avatar upload failed:', text);
+      setStatus(`Failed: ${text}`);
     }
     e.target.value = '';
   };
@@ -391,7 +423,21 @@ export default function ProfilePage() {
             {inventory.map((it)=> (
               <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'100px 1fr auto', gap:16, alignItems:'center', padding:12}}>
                 <div style={{width:100, height:133, background:'#111', borderRadius:8, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'1px solid var(--panel-border)'}} onClick={()=> openPreview(it.id)}>
-                  <img src={it.teaser_link} alt="cover" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e:any)=>{ if (!e.currentTarget) return; e.currentTarget.style.display='none'; if (e.currentTarget.parentElement) { e.currentTarget.parentElement.textContent='No Cover'; e.currentTarget.parentElement.style.fontSize='11px'; e.currentTarget.parentElement.style.color='#666'; } }} />
+                  <img
+                    src={it.teaser_link}
+                    alt="cover"
+                    style={{width:'100%', height:'100%', objectFit:'cover'}}
+                    onError={(e)=>{
+                      const img = e.currentTarget;
+                      const parent = img.parentElement;
+                      if (img && parent) {
+                        img.style.display='none';
+                        parent.textContent='No Cover';
+                        parent.style.fontSize='11px';
+                        parent.style.color='#666';
+                      }
+                    }}
+                  />
                 </div>
                 <div style={{minWidth: 0, cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
                   <div className="card-title" style={{fontSize:16, marginBottom:4}}>{it.title}</div>
@@ -429,11 +475,14 @@ export default function ProfilePage() {
           </div>
         </div>
         {showPreview && previewItem && (
-          <PreviewModal 
-            open={showPreview} 
-            onClose={()=> setShowPreview(false)} 
-            teaserUrl={previewItem.teaser_link} 
+          <PreviewModal
+            open={showPreview}
+            onClose={()=> setShowPreview(false)}
+            teaserUrl={`${API_URL}/api/content/${previewItem.id}/teaser/`}
             contentType={previewItem.content_type}
+            contentId={previewItem.id}
+            price={previewItem.price_usd}
+            editions={previewItem.editions}
           />
         )}
       </div>

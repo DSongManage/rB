@@ -55,13 +55,21 @@ class UserProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['username', 'avatar', 'banner', 'content_count', 'total_sales_usd', 'tier', 'fee_bps']
 
     def get_avatar(self, obj: UserProfile) -> str:
+        import logging
+        logger = logging.getLogger(__name__)
+
         url = obj.resolved_avatar_url
+        logger.info(f'[Avatar] resolved_avatar_url for {obj.username}: {url}')
         try:
             request = self.context.get('request') if hasattr(self, 'context') else None
             if request and url and url.startswith('/'):
-                return request.build_absolute_uri(url)
-        except Exception:
+                absolute_url = request.build_absolute_uri(url)
+                logger.info(f'[Avatar] Built absolute URI: {absolute_url}')
+                return absolute_url
+        except Exception as e:
+            logger.error(f'[Avatar] Error building URL: {e}')
             pass
+        logger.info(f'[Avatar] Returning URL as-is: {url}')
         return url
 
     def get_banner(self, obj: UserProfile) -> str:

@@ -52,16 +52,22 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
     let active = true;
     if (open && type==='book' && teaserUrl) {
       setLoading(true);
+      console.log('Fetching teaser from:', teaserUrl);
       // Fetch internal teaser endpoint and render inline
       fetch(teaserUrl, { credentials:'include' })
-        .then(r=> r.ok ? r.text() : '')
-        .then(t=> { 
+        .then(r=> {
+          console.log('Teaser response:', r.status, r.statusText);
+          return r.ok ? r.text() : '';
+        })
+        .then(t=> {
+          console.log('Teaser content length:', t?.length || 0);
           if (active) {
             setHtml(String(t||''));
             setLoading(false);
           }
         })
-        .catch(()=> { 
+        .catch((err)=> {
+          console.error('Teaser fetch error:', err);
           if (active) {
             setHtml('<p>Preview unavailable</p>');
             setLoading(false);

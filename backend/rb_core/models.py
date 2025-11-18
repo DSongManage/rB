@@ -198,12 +198,23 @@ class UserProfile(models.Model):
 
     @property
     def resolved_avatar_url(self) -> str:
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
-            if self.avatar_image and hasattr(self.avatar_image, 'url'):
-                return self.avatar_image.url
-        except Exception:
+            if self.avatar_image:
+                logger.info(f'[UserProfile] {self.username} has avatar_image: {self.avatar_image.name if hasattr(self.avatar_image, "name") else "unknown"}')
+                if hasattr(self.avatar_image, 'url'):
+                    url = self.avatar_image.url
+                    logger.info(f'[UserProfile] {self.username} avatar URL: {url}')
+                    return url
+        except Exception as e:
+            logger.error(f'[UserProfile] Error getting avatar for {self.username}: {e}')
             pass
-        return self.avatar_url or ''
+
+        fallback = self.avatar_url or ''
+        logger.info(f'[UserProfile] {self.username} using fallback avatar_url: {fallback}')
+        return fallback
 
     @property
     def resolved_banner_url(self) -> str:
