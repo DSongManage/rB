@@ -68,15 +68,27 @@ def handle_payment_intent_succeeded(payment_intent):
         # Get the purchase record (should exist from checkout.session.completed)
         purchase = Purchase.objects.get(stripe_payment_intent_id=payment_intent_id)
 
-        # Get the charge to access balance_transaction
-        charges = payment_intent.get('charges', {}).get('data', [])
-        if not charges:
-            logger.error(f'No charges found for payment_intent {payment_intent_id}')
-            return
+        # Get the charge - use latest_charge if charges not expanded
+        charge_id = None
+        balance_txn_id = None
 
-        charge = charges[0]
-        charge_id = charge['id']
-        balance_txn_id = charge.get('balance_transaction')
+        # Try to get from expanded charges first
+        charges = payment_intent.get('charges', {}).get('data', [])
+        if charges:
+            charge = charges[0]
+            charge_id = charge['id']
+            balance_txn_id = charge.get('balance_transaction')
+        else:
+            # Charges not expanded - retrieve using latest_charge
+            latest_charge_id = payment_intent.get('latest_charge')
+            if latest_charge_id:
+                logger.info(f'Retrieving charge {latest_charge_id} from Stripe API')
+                charge = stripe.Charge.retrieve(latest_charge_id)
+                charge_id = charge['id']
+                balance_txn_id = charge.get('balance_transaction')
+            else:
+                logger.error(f'No charge information for payment_intent {payment_intent_id}')
+                return
 
         if not balance_txn_id:
             logger.error(f'No balance_transaction for charge {charge_id}')
