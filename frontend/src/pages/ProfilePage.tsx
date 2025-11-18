@@ -165,7 +165,7 @@ export default function ProfilePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
   const openPreview = async (id:number) => {
-    const d = await fetch(`${API_URL}/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null);
+    const d = await fetch(`${API_URL}/api/content/${id}/preview/`, { credentials: 'include' }).then(r=> r.ok? r.json(): null);
     if (d) { setPreviewItem(d); setShowPreview(true); }
   };
 

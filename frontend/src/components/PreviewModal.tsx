@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { API_URL } from '../config';
 // DOMPurify is used at runtime by consumers; keep optional import guard for tests
 let DOMPurify: any = null;
 try { DOMPurify = require('dompurify'); } catch {}
@@ -81,12 +82,12 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
     setPurchasing(true);
     try {
       // Get CSRF token
-      const csrfToken = await fetch('/api/auth/csrf/', { credentials: 'include' })
+      const csrfToken = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' })
         .then(r => r.json())
         .then(j => j?.csrfToken || '');
 
       // Call backend to create Stripe checkout session
-      const res = await fetch('/api/checkout/session/', {
+      const res = await fetch(`${API_URL}/api/checkout/session/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

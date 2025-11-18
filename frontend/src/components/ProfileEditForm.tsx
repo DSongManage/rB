@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_URL } from '../config';
 
 export default function ProfileEditForm({ initialDisplayName, onSaved }: { initialDisplayName?: string; onSaved?: () => void }) {
   const [displayName, setDisplayName] = useState(initialDisplayName || '');
@@ -11,7 +12,7 @@ export default function ProfileEditForm({ initialDisplayName, onSaved }: { initi
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Fetch CSRF token for authenticated PATCH
-    const csrfRes = await fetch('/api/auth/csrf/', { credentials: 'include' });
+    const csrfRes = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' });
     const csrfData = await csrfRes.json();
     const csrf = csrfData?.csrfToken || '';
     const body = {
@@ -20,7 +21,7 @@ export default function ProfileEditForm({ initialDisplayName, onSaved }: { initi
       roles: roles ? roles.split(',').map(s=>s.trim()).filter(Boolean) : [],
       genres: genres ? genres.split(',').map(s=>s.trim()).filter(Boolean) : [],
     };
-    const res = await fetch('/api/users/profile/', {
+    const res = await fetch(`${API_URL}/api/users/profile/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'include',
