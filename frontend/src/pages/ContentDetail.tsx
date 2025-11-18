@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
+import { API_URL } from '../config';
 
 export default function ContentDetail(){
   const { id } = useParams();
@@ -10,7 +11,16 @@ export default function ContentDetail(){
 
   useEffect(()=>{
     if (!id) return;
-    fetch(`/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null).then(setData);
+    console.log('[ContentDetail] Fetching preview for content:', id);
+    fetch(`${API_URL}/api/content/${id}/preview/`, { credentials: 'include' })
+      .then(r=> {
+        console.log('[ContentDetail] Preview response:', r.status, r.statusText);
+        return r.ok? r.json(): null;
+      })
+      .then(data => {
+        console.log('[ContentDetail] Preview data:', data);
+        setData(data);
+      });
   }, [id]);
 
   const handleClose = () => {
@@ -25,7 +35,7 @@ export default function ContentDetail(){
   // For books, always use the teaser API endpoint (not the cover image)
   // For other types (art, film, music), use the teaser_link directly
   const teaserUrl = data?.content_type === 'book'
-    ? `/api/content/${id}/teaser/`
+    ? `${API_URL}/api/content/${id}/teaser/`
     : data?.teaser_link;
 
   return (
