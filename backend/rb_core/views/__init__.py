@@ -1101,32 +1101,67 @@ class BookProjectDetailView(APIView):
         return Response(serializer.data)
     
     def patch(self, request, pk):
+        from ..utils.file_validation import validate_upload
+
         project = self.get_object(pk, request.user)
         if not project:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Check if cover_image is being updated
-        cover_image_updated = 'cover_image' in request.FILES
-        
-        serializer = BookProjectSerializer(project, data=request.data, partial=True, context={'request': request})
-        if serializer.is_valid():
-            updated_project = serializer.save()
-            
-            # If cover image was updated, update all published chapters' teaser_link
-            if cover_image_updated and updated_project.cover_image:
-                published_chapters = updated_project.chapters.filter(is_published=True)
+
+        # Handle cover_image upload separately to avoid serializer issues
+        cover_image_updated = False
+        if 'cover_image' in request.FILES:
+            # Validate cover image
+            allowed_types = {'image/jpeg', 'image/png', 'image/webp'}
+            max_size = 5 * 1024 * 1024  # 5MB for covers
+            validate_upload(request.FILES['cover_image'], allowed_types=allowed_types, max_size=max_size)
+            project.cover_image = request.FILES['cover_image']
+            cover_image_updated = True
+
+        # If only uploading cover image, save and return early
+        if cover_image_updated and len(request.data) <= 1:  # Only cover_image field present
+            project.save()
+
+            # Update teaser links for published content
+            if project.cover_image:
+                published_chapters = project.chapters.filter(is_published=True)
                 for chapter in published_chapters:
                     if chapter.published_content:
-                        chapter.published_content.teaser_link = updated_project.cover_image.url
+                        chapter.published_content.teaser_link = project.cover_image.url
                         chapter.published_content.save(update_fields=['teaser_link'])
-                
-                # Also update the book's published content if it exists
-                if updated_project.published_content:
-                    updated_project.published_content.teaser_link = updated_project.cover_image.url
-                    updated_project.published_content.save(update_fields=['teaser_link'])
-            
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+                if project.published_content:
+                    project.published_content.teaser_link = project.cover_image.url
+                    project.published_content.save(update_fields=['teaser_link'])
+
+            return Response(BookProjectSerializer(project, context={'request': request}).data)
+
+        # Otherwise, update other fields via serializer
+        # Filter out file fields from data (handle files separately above)
+        data = {k: v for k, v in request.data.items() if k not in ['cover_image']}
+        if data:  # Only validate if there's non-file data
+            serializer = BookProjectSerializer(project, data=data, partial=True, context={'request': request})
+            if serializer.is_valid():
+                updated_project = serializer.save()
+
+                # Update teaser links if needed
+                if cover_image_updated and updated_project.cover_image:
+                    published_chapters = updated_project.chapters.filter(is_published=True)
+                    for chapter in published_chapters:
+                        if chapter.published_content:
+                            chapter.published_content.teaser_link = updated_project.cover_image.url
+                            chapter.published_content.save(update_fields=['teaser_link'])
+
+                    if updated_project.published_content:
+                        updated_project.published_content.teaser_link = updated_project.cover_image.url
+                        updated_project.published_content.save(update_fields=['teaser_link'])
+
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        elif cover_image_updated:
+            project.save()
+            return Response(BookProjectSerializer(project, context={'request': request}).data)
+
+        return Response({'error': 'No data provided'}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, pk):
         project = self.get_object(pk, request.user)
