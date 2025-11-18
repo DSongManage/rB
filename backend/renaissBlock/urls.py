@@ -26,5 +26,10 @@ urlpatterns = [
 ]
 # Ensure all routes have input validation (GUIDELINES.md Security)
 
+# Serve media files in development
 if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # Temporary: Serve media files in production for beta
+    # TODO: Replace with cloud storage (S3, Cloudflare R2, etc) for production
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
