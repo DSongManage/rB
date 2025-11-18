@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { API_URL } from '../config';
 import { VideoCard } from '../components/VideoCard';
 
 type Item = {
@@ -21,7 +22,7 @@ export default function HomePage() {
   const [genre, setGenre] = useState('All');
 
   useEffect(()=>{
-    fetch('http://127.0.0.1:8000/api/content/', { credentials: 'include' })
+    fetch(`${API_URL}/api/content/`, { credentials: 'include' })
       .then(r=>r.json()).then(setItems).catch(()=>setItems([]));
   },[]);
 
