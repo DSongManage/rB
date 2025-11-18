@@ -7,6 +7,7 @@ import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 import ProfileEditForm from '../components/ProfileEditForm';
 import ProfileStatus from '../components/ProfileStatus';
 import StatusEditForm from '../components/StatusEditForm';
+import { API_URL } from '../config';
 
 type UserStatus = { user_id: number; username: string; wallet_address?: string } | null;
 type UserProfile = {
@@ -40,17 +41,17 @@ export default function ProfilePage() {
   const [notifications, setNotifications] = useState<any[]>([]);
 
   async function refreshStatus() {
-    const d = await fetch('/api/auth/status/', { credentials:'include' }).then(r=>r.json());
+    const d = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json());
     setUser(d);
     // Also refresh profile so header shows latest wallet
-    fetch('/api/users/profile/', { credentials:'include' })
+    fetch(`${API_URL}/api/users/profile/`, { credentials:'include' })
       .then(r=> r.ok ? r.json() : null)
       .then(setProfile)
       .catch(()=> {});
   }
 
   async function refreshCsrf() {
-    const t = await fetch('/api/auth/csrf/', { credentials:'include' }).then(r=>r.json());
+    const t = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' }).then(r=>r.json());
     setCsrf(t?.csrfToken || '');
     return t?.csrfToken || '';
   }
@@ -58,19 +59,28 @@ export default function ProfilePage() {
   useEffect(()=>{
     refreshStatus();
     refreshCsrf();
-    fetch('/api/content/')
+    fetch(`${API_URL}/api/content/`, { credentials: 'include' })
       .then(r=>r.json())
-      .then((d)=> Array.isArray(d) ? setContent(d) : setContent([]))
+      .then((d)=> {
+        // Handle paginated response from DRF
+        if (d && Array.isArray(d.results)) {
+          setContent(d.results);
+        } else if (Array.isArray(d)) {
+          setContent(d);
+        } else {
+          setContent([]);
+        }
+      })
       .catch(()=> setContent([]));
-    fetch('/api/dashboard/', { credentials:'include' })
+    fetch(`${API_URL}/api/dashboard/`, { credentials:'include' })
       .then(r=> r.ok ? r.json() : {content_count:0, sales:0})
       .then(setDash)
       .catch(()=> setDash({content_count:0, sales:0}));
-    fetch('/api/users/profile/', { credentials:'include' })
+    fetch(`${API_URL}/api/users/profile/`, { credentials:'include' })
       .then(r=> r.ok ? r.json() : null)
       .then(setProfile)
       .catch(()=> setProfile(null));
-    fetch('/api/notifications/', { credentials:'include' })
+    fetch(`${API_URL}/api/notifications/`, { credentials:'include' })
       .then(r=> r.ok ? r.json() : [])
       .then(setNotifications)
       .catch(()=> setNotifications([]));
@@ -78,7 +88,7 @@ export default function ProfilePage() {
 
   const runSearch = () => {
     if (!q.trim()) { setResults([]); return; }
-    fetch(`/api/users/search/?q=${encodeURIComponent(q)}`)
+    fetch(`${API_URL}/api/users/search/?q=${encodeURIComponent(q)}`)
       .then(r=>r.json()).then(setResults);
   };
 
@@ -86,7 +96,7 @@ export default function ProfilePage() {
     const manual = prompt('Enter your Solana public address');
     if (!manual) return;
     const token = csrf || await refreshCsrf();
-    const res = await fetch('/api/wallet/link/', {
+    const res = await fetch(`${API_URL}/api/wallet/link/`, {
       method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({wallet_address:manual})
     });
     if (res.ok) { setStatus('Wallet linked'); await refreshStatus(); } else { const t = await res.text(); setStatus(`Failed: ${t}`); }
@@ -119,7 +129,7 @@ export default function ProfilePage() {
       const idToken = info?.idToken || info?.id_token;
       if (!idToken) { setStatus('Could not obtain Web3Auth token'); return; }
       const token = csrf || await refreshCsrf();
-      const res = await fetch('/api/wallet/link/', {
+      const res = await fetch(`${API_URL}/api/wallet/link/`, {
         method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({ web3auth_token: idToken })
       });
       if (res.ok) {
@@ -138,15 +148,24 @@ export default function ProfilePage() {
   const myContent = Array.isArray(content) ? content.filter(c=> c.creator === user?.user_id) : [];
   const [inventory, setInventory] = useState<any[]>([]);
   useEffect(()=>{
-    fetch('/api/content/?inventory_status=minted&mine=1', { credentials:'include' })
+    fetch(`${API_URL}/api/content/?inventory_status=minted&mine=1`, { credentials:'include' })
       .then(r=> r.ok? r.json(): [])
-      .then(setInventory)
+      .then(data => {
+        // Handle paginated response from DRF
+        if (data && Array.isArray(data.results)) {
+          setInventory(data.results);
+        } else if (Array.isArray(data)) {
+          setInventory(data);
+        } else {
+          setInventory([]);
+        }
+      })
       .catch(()=> setInventory([]));
   }, [status]);
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
   const openPreview = async (id:number) => {
-    const d = await fetch(`/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null);
+    const d = await fetch(`${API_URL}/api/content/${id}/preview/`).then(r=> r.ok? r.json(): null);
     if (d) { setPreviewItem(d); setShowPreview(true); }
   };
 
@@ -164,7 +183,7 @@ export default function ProfilePage() {
     const token = csrf || await refreshCsrf();
     const fd = new FormData();
     fd.append('avatar', file);
-    const res = await fetch('/api/users/profile/', {
+    const res = await fetch(`${API_URL}/api/users/profile/`, {
       method: 'PATCH',
       headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'include',
@@ -185,7 +204,7 @@ export default function ProfilePage() {
     const token = csrf || await refreshCsrf();
     const fd = new FormData();
     fd.append('banner', file);
-    const res = await fetch('/api/users/profile/', {
+    const res = await fetch(`${API_URL}/api/users/profile/`, {
       method: 'PATCH',
       headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
       credentials: 'include',
@@ -230,7 +249,7 @@ export default function ProfilePage() {
             placeholder="Display name"
             onSave={async (val)=>{
               const token = csrf || await refreshCsrf();
-              const res = await fetch('/api/users/profile/', {
+              const res = await fetch(`${API_URL}/api/users/profile/`, {
                 method:'PATCH', headers:{'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({display_name: val})
               });
               if (res.ok) { await refreshStatus(); }
@@ -242,7 +261,7 @@ export default function ProfilePage() {
             placeholder="Location (e.g., New York, NY)"
             onSave={async (val)=>{
               const token = csrf || await refreshCsrf();
-              const res = await fetch('/api/users/profile/', {
+              const res = await fetch(`${API_URL}/api/users/profile/`, {
                 method:'PATCH', headers:{'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest', 'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({location: val})
               });
               if (res.ok) { await refreshStatus(); }
@@ -311,11 +330,11 @@ export default function ProfilePage() {
                 
                 {/* Actions */}
                 <div style={{display:'flex', gap:8}}>
-                  <button 
+                  <button
                     onClick={async () => {
                       // TODO: Implement accept logic
                       const token = csrf || await refreshCsrf();
-                      const res = await fetch(`/api/invite/${notif.id}/accept/`, {
+                      const res = await fetch(`${API_URL}/api/invite/${notif.id}/accept/`, {
                         method: 'POST',
                         headers: {'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'},
                         credentials: 'include',
@@ -329,11 +348,11 @@ export default function ProfilePage() {
                   >
                     Accept
                   </button>
-                  <button 
+                  <button
                     onClick={async () => {
                       // TODO: Implement decline logic
                       const token = csrf || await refreshCsrf();
-                      const res = await fetch(`/api/invite/${notif.id}/decline/`, {
+                      const res = await fetch(`${API_URL}/api/invite/${notif.id}/decline/`, {
                         method: 'POST',
                         headers: {'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'},
                         credentials: 'include',

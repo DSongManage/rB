@@ -23,7 +23,18 @@ export default function HomePage() {
 
   useEffect(()=>{
     fetch(`${API_URL}/api/content/`, { credentials: 'include' })
-      .then(r=>r.json()).then(setItems).catch(()=>setItems([]));
+      .then(r=>r.json())
+      .then(data => {
+        // Handle paginated response from DRF
+        if (data && Array.isArray(data.results)) {
+          setItems(data.results);
+        } else if (Array.isArray(data)) {
+          setItems(data);
+        } else {
+          setItems([]);
+        }
+      })
+      .catch(()=>setItems([]));
   },[]);
 
   const filtered = useMemo(()=>{
