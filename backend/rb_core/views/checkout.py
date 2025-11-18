@@ -1,4 +1,5 @@
 import stripe
+import logging
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,6 +9,8 @@ from django.db import transaction
 
 from ..models import Content
 from ..utils import calculate_fees
+
+logger = logging.getLogger(__name__)
 
 # Configure Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -57,6 +60,11 @@ class CreateCheckoutSessionView(APIView):
                 price = float(content.price_usd)
                 fees = calculate_fees(price)
 
+                logger.info(
+                    f'[Checkout] Creating session for content_id={content.id}, '
+                    f'user_id={request.user.id}, price=${price}, editions_before={content.editions}'
+                )
+
                 # Create Stripe Checkout Session
                 try:
                     checkout_session = stripe.checkout.Session.create(
@@ -76,12 +84,17 @@ class CreateCheckoutSessionView(APIView):
                         success_url=f"{settings.FRONTEND_URL}/purchase/success?session_id={{CHECKOUT_SESSION_ID}}",
                         cancel_url=f"{settings.FRONTEND_URL}/content/{content.id}",
                         metadata={
-                            'content_id': content.id,
-                            'user_id': request.user.id,
+                            'content_id': str(content.id),  # Convert to string for consistency
+                            'user_id': str(request.user.id),  # Convert to string for consistency
                             'stripe_fee': fees['stripe_fee'],
                             'platform_fee': fees['platform_fee'],
                             'creator_earnings': fees['creator_gets'],
                         },
+                    )
+
+                    logger.info(
+                        f'[Checkout] ✅ Session created: session_id={checkout_session.id}, '
+                        f'payment_intent={checkout_session.payment_intent}'
                     )
 
                     return Response({

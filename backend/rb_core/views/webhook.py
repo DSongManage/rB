@@ -124,34 +124,52 @@ def handle_checkout_session_completed(session):
     Create initial purchase record when checkout completes.
     Actual fees will be populated later by payment_intent.succeeded.
     """
-    logger.info(f'Processing checkout session: {session["id"]}')
+    logger.info(f'[Webhook] Processing checkout session: {session["id"]}')
 
-    # Extract metadata
-    content_id = session['metadata'].get('content_id')
-    user_id = session['metadata'].get('user_id')
+    # Extract metadata - Stripe returns all metadata as strings
+    content_id_str = session['metadata'].get('content_id')
+    user_id_str = session['metadata'].get('user_id')
 
     payment_intent_id = session.get('payment_intent')
     session_id = session['id']
     amount_total = Decimal(str(session['amount_total'])) / 100  # Convert cents to dollars
 
-    if not content_id or not user_id or not payment_intent_id:
-        logger.error(f'Missing required metadata in session {session_id}')
+    logger.info(
+        f'[Webhook] Session data: content_id={content_id_str}, user_id={user_id_str}, '
+        f'payment_intent={payment_intent_id}, amount=${amount_total}'
+    )
+
+    if not content_id_str or not user_id_str or not payment_intent_id:
+        logger.error(f'[Webhook] Missing required metadata in session {session_id}')
+        return
+
+    # Convert string IDs to integers
+    try:
+        content_id = int(content_id_str)
+        user_id = int(user_id_str)
+    except (ValueError, TypeError) as e:
+        logger.error(f'[Webhook] Invalid ID format in metadata: {e}')
         return
 
     try:
         with transaction.atomic():
             # Check for duplicate (idempotency)
             if Purchase.objects.filter(stripe_payment_intent_id=payment_intent_id).exists():
-                logger.info(f'Purchase already exists for payment_intent {payment_intent_id}')
+                logger.info(f'[Webhook] Purchase already exists for payment_intent {payment_intent_id}')
                 return
 
             # Get content and user
             content = Content.objects.select_for_update().get(id=content_id)
             user = User.objects.get(id=user_id)
 
+            logger.info(
+                f'[Webhook] Content: {content.title}, editions before: {content.editions}, '
+                f'user: {user.username}'
+            )
+
             # Verify editions available
             if content.editions <= 0:
-                logger.error(f'Content {content_id} sold out during checkout')
+                logger.error(f'[Webhook] Content {content_id} sold out during checkout')
                 # TODO: Handle refund here
                 return
 
@@ -175,15 +193,15 @@ def handle_checkout_session_completed(session):
             content.save()
 
             logger.info(
-                f'Purchase {purchase.id} created. '
+                f'[Webhook] ✅ Purchase {purchase.id} created successfully! '
                 f'Content {content_id} now has {content.editions} editions left. '
                 f'Waiting for payment_intent.succeeded for actual fees.'
             )
 
     except Content.DoesNotExist:
-        logger.error(f'Content {content_id} not found')
+        logger.error(f'[Webhook] ❌ Content {content_id} not found')
     except User.DoesNotExist:
-        logger.error(f'User {user_id} not found')
+        logger.error(f'[Webhook] ❌ User {user_id} not found')
     except Exception as e:
-        logger.error(f'Error processing checkout session {session_id}: {e}')
+        logger.error(f'[Webhook] ❌ Error processing checkout session {session_id}: {e}', exc_info=True)
         raise
