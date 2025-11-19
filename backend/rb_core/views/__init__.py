@@ -1198,11 +1198,18 @@ class ChapterListCreateView(APIView):
             project = BookProject.objects.get(pk=project_id, creator=core_user)
         except BookProject.DoesNotExist:
             return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Auto-assign order as the next available number
-        max_order = project.chapters.aggregate(models.Max('order'))['order__max']
-        order = (max_order + 1) if max_order is not None else 0
-        
+
+        # Compact chapter ordering to fix gaps from deletions
+        # This ensures chapters are always numbered sequentially (0, 1, 2, ...)
+        existing_chapters = list(project.chapters.all().order_by('order'))
+        for index, chapter in enumerate(existing_chapters):
+            if chapter.order != index:
+                chapter.order = index
+                chapter.save(update_fields=['order'])
+
+        # New chapter gets the next sequential number
+        order = len(existing_chapters)
+
         serializer = ChapterSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(book_project=project, order=order)

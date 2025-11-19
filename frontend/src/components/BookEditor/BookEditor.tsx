@@ -55,11 +55,15 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
 
   const handleAddChapter = async () => {
     if (!project) return;
-    
+
     try {
       const newChapter = await bookApi.createChapter(project.id, `Chapter ${chapters.length + 1}`);
-      setChapters([...chapters, newChapter]);
+      // Use functional update to ensure latest state
+      setChapters(prevChapters => [...prevChapters, newChapter]);
       setSelectedChapterId(newChapter.id);
+
+      // Force a small delay to ensure state updates complete before render
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (err: any) {
       setError(err.message || 'Failed to add chapter');
     }
