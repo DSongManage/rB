@@ -59,14 +59,38 @@ def handle_payment_intent_succeeded(payment_intent):
     """
     Handle successful payment - get ACTUAL fees from Stripe.
     This is called AFTER payment succeeds and we have real fee data.
+
+    NOTE: payment_intent.succeeded can arrive BEFORE checkout.session.completed
+    due to Stripe's async webhook delivery. We retry to handle this race condition.
     """
+    import time
+
     logger.info(f'Processing payment_intent: {payment_intent["id"]}')
 
     payment_intent_id = payment_intent['id']
 
+    # Retry logic: payment_intent.succeeded can arrive before checkout.session.completed
+    purchase = None
+    max_retries = 5
+    retry_delay = 1  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            purchase = Purchase.objects.get(stripe_payment_intent_id=payment_intent_id)
+            logger.info(f'Found purchase on attempt {attempt + 1}')
+            break
+        except Purchase.DoesNotExist:
+            if attempt < max_retries - 1:
+                logger.info(f'Purchase not found yet (attempt {attempt + 1}/{max_retries}), waiting {retry_delay}s...')
+                time.sleep(retry_delay)
+            else:
+                logger.error(f'Purchase not found after {max_retries} attempts for payment_intent {payment_intent_id}')
+                return
+
+    if not purchase:
+        return
+
     try:
-        # Get the purchase record (should exist from checkout.session.completed)
-        purchase = Purchase.objects.get(stripe_payment_intent_id=payment_intent_id)
 
         # Get the charge - use latest_charge if charges not expanded
         charge_id = None
@@ -123,9 +147,6 @@ def handle_payment_intent_succeeded(payment_intent):
             logger.warning('Celery not available, minting synchronously')
             from .payment_utils import mint_and_distribute_sync
             mint_and_distribute_sync(purchase.id)
-
-    except Purchase.DoesNotExist:
-        logger.error(f'Purchase not found for payment_intent {payment_intent_id}')
     except Exception as e:
         logger.error(f'Error processing payment_intent {payment_intent_id}: {e}')
         raise
