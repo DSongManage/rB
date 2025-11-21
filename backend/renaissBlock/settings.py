@@ -91,8 +91,10 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',  # Must be before staticfiles for media storage
     'django.contrib.staticfiles',
     'django.contrib.sites',
+    'cloudinary',  # Cloudinary integration for media files
     'rb_core',  # Custom app for core functionality (avoids conflict with Python's 'core' module)
     'rest_framework',  # For building APIs (e.g., content upload FR4, fiat callbacks FR2)
     'allauth',
@@ -203,11 +205,22 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Media files
-# NOTE: Railway uses ephemeral storage - uploaded files are lost on container restart
-# TODO: For production, configure cloud storage (AWS S3, Cloudinary, etc.) using django-storages
-# For now, frontend handles missing files gracefully with fallback to initials
+# Using Cloudinary for persistent storage (Railway uses ephemeral storage)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Cloudinary Configuration
+# Get credentials from environment variables
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME', ''),
+    'API_KEY': os.getenv('CLOUDINARY_API_KEY', ''),
+    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET', ''),
+}
+
+# Use Cloudinary for media storage in production
+# Falls back to local storage in development if Cloudinary not configured
+if os.getenv('CLOUDINARY_CLOUD_NAME'):
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Static files storage (use WhiteNoise in production for better performance)
 if not DEBUG:
