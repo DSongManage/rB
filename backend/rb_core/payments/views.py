@@ -163,16 +163,26 @@ class CircleCheckoutView(APIView):
 
 
 @csrf_exempt
-@require_POST
 def circle_webhook(request):
     """
     Handle Circle webhook events.
 
     Circle sends webhooks for payment status changes:
-    - payment.confirmed: Payment succeeded, USDC received
-    - payment.failed: Payment failed
-    - payment.canceled: Payment canceled by user
+    - GET/HEAD: Webhook verification (Circle checks endpoint exists)
+    - POST: Actual webhook events
+      - payment.confirmed: Payment succeeded, USDC received
+      - payment.failed: Payment failed
+      - payment.canceled: Payment canceled by user
     """
+    # Handle GET/HEAD requests for webhook verification
+    if request.method in ['GET', 'HEAD']:
+        logger.info('[Circle] Webhook verification request received')
+        return HttpResponse('Circle webhook endpoint ready', status=200)
+
+    # Only accept POST for actual webhooks
+    if request.method != 'POST':
+        return HttpResponse('Method not allowed', status=405)
+
     # Get webhook signature for verification
     signature = request.META.get('HTTP_X_CIRCLE_SIGNATURE', '')
 
