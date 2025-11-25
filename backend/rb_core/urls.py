@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
 from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
@@ -34,7 +34,8 @@ urlpatterns = [
     path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook'),
     # Circle payment processing (credit cards → USDC on Solana)
     path('api/checkout/circle/', CircleCheckoutView.as_view(), name='circle_checkout'),
-    path('api/checkout/circle/webhook/', circle_webhook, name='circle_webhook'),
+    # Use re_path to handle trailing slash flexibility (prevents 307 redirects from Circle webhooks)
+    re_path(r'^api/checkout/circle/webhook/?$', circle_webhook, name='circle_webhook'),
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
     # Library and reading
     path('api/library/', LibraryView.as_view(), name='library'),
