@@ -136,6 +136,28 @@ def mint_and_distribute(purchase_id):
 
 
 @shared_task
+def mint_and_distribute_circle(purchase_id):
+    """
+    Celery task: Mint NFT and distribute USDC for Circle payments.
+
+    Circle-specific flow:
+    1. Mint NFT to buyer's Solana wallet (get ACTUAL mint gas cost)
+    2. Transfer USDC to creator's Solana wallet (get ACTUAL transfer gas cost)
+    3. Calculate distribution with ACTUAL Circle fee + gas costs
+    4. Update purchase record with final amounts
+    5. Update creator sales tracking
+
+    Args:
+        purchase_id: Purchase ID to process
+
+    Returns:
+        dict: Result with success status and distribution details
+    """
+    from .views.payment_utils import mint_and_distribute_circle as mint_circle
+    return mint_circle(purchase_id)
+
+
+@shared_task
 def schedule_creator_payout(purchase_id):
     """
     Celery task: Pay creator their share via Stripe Connect.

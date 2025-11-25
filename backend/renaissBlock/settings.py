@@ -389,7 +389,14 @@ STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
 
-# Application URLs for Stripe redirects
+# Circle Payment Configuration (Credit Cards → USDC on Solana)
+# Circle enables fiat on-ramp: users pay with credit card, platform receives USDC on Solana
+CIRCLE_API_KEY = os.getenv('CIRCLE_API_KEY', '')
+CIRCLE_WEBHOOK_SECRET = os.getenv('CIRCLE_WEBHOOK_SECRET', '')
+# Platform wallet address to receive USDC settlements
+PLATFORM_USDC_WALLET_ADDRESS = os.getenv('PLATFORM_USDC_WALLET_ADDRESS', '')
+
+# Application URLs for payment redirects
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')
 

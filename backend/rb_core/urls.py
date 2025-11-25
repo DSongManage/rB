@@ -6,6 +6,7 @@ from .views.checkout import CreateCheckoutSessionView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView
+from .payments.views import CircleCheckoutView, circle_webhook
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet
 )
@@ -31,6 +32,9 @@ urlpatterns = [
     # Stripe checkout and payment processing
     path('api/checkout/session/', CreateCheckoutSessionView.as_view(), name='checkout_session'),
     path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook'),
+    # Circle payment processing (credit cards → USDC on Solana)
+    path('api/checkout/circle/', CircleCheckoutView.as_view(), name='circle_checkout'),
+    path('api/checkout/circle/webhook/', circle_webhook, name='circle_webhook'),
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
     # Library and reading
     path('api/library/', LibraryView.as_view(), name='library'),
