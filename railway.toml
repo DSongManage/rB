@@ -1,0 +1,10 @@
+# Railway configuration for Django backend
+
+[build]
+builder = "nixpacks"
+buildCommand = "cd backend && pip install -r requirements.txt"
+
+[deploy]
+startCommand = "cd backend && bash start.sh"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
