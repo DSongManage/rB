@@ -1,11 +1,13 @@
 from django.shortcuts import render
 from django.http import HttpResponse
 from django.db import models
+import logging
 from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser
 from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter
 from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer
 from ..utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
+from ..utils.ipfs_utils import upload_to_ipfs
 from rest_framework.response import Response
 from rest_framework.views import APIView
 import random
@@ -41,6 +43,9 @@ try:
     from PIL import Image, ImageDraw, ImageFont  # type: ignore
 except Exception:
     Image = None  # Pillow optional at runtime
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 
@@ -142,86 +147,140 @@ class ContentListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         from ..utils.file_validation import validate_upload
+        import cloudinary.uploader
+        import logging
+
+        logger = logging.getLogger(__name__)
 
         file = self.request.FILES.get('file')
         text = self.request.data.get('text')
-        ipfs_hash = ''
-        teaser_link = 'https://example.com/teaser'
+        ipfs_hash = ''  # Will store original file Cloudinary URL temporarily, then IPFS hash after minting
+        teaser_link = ''
+
         # Basic moderation: simple keyword filter on title
         bad_words = { 'porn', 'explicit', 'illegal' }
         title = (self.request.data.get('title') or '').lower()
         flagged = any(w in title for w in bad_words)
+
         # Validate upload if a file was provided (with magic byte validation)
         if file:
             validate_upload(file)
-            # Try IPFS
+
+            # Upload to Cloudinary (FAST!) instead of IPFS (slow)
+            # IPFS upload will happen later during minting
             try:
-                # Prefer multiaddr form for Infura; fall back to settings URL
-                try:
-                    client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
-                except Exception:
-                    client = ipfshttpclient.connect(settings.IPFS_API_URL)
-                # If this looks like an image and Pillow is available, make a watermarked teaser
                 content_type = (self.request.data.get('content_type') or '').strip()
                 name = getattr(file, 'name', '').lower()
                 is_image = any(name.endswith(ext) for ext in ('.png', '.jpg', '.jpeg', '.webp'))
+
                 if is_image and Image is not None:
+                    # First, upload original file (for later IPFS minting)
                     try:
+                        file.seek(0)
+                        original_result = cloudinary.uploader.upload(
+                            file,
+                            folder='content_originals',
+                            resource_type='image'
+                        )
+                        ipfs_hash = original_result['secure_url']  # Store temporarily in ipfs_hash
+                        logger.info(f'[Cloudinary] ✅ Original uploaded: {ipfs_hash}')
+                    except Exception as e:
+                        logger.error(f'[Cloudinary] Original upload failed: {e}')
+
+                    # Create watermarked version for preview
+                    try:
+                        # Reset file pointer
+                        file.seek(0)
                         img = Image.open(file)
+
+                        # Add watermark
                         draw = ImageDraw.Draw(img)
                         text_wm = 'renaissBlock'
                         w, h = img.size
-                        # Simple semi-transparent box + text at bottom-right
+
+                        # Semi-transparent watermark box at bottom-right
                         box_w = int(w * 0.35)
                         box_h = int(h * 0.08)
                         box_x = w - box_w - 10
                         box_y = h - box_h - 10
                         draw.rectangle([box_x, box_y, box_x+box_w, box_y+box_h], fill=(0,0,0,128))
+
                         try:
                             font = ImageFont.load_default()
                         except Exception:
                             font = None
+
                         draw.text((box_x+12, box_y+10), text_wm, fill=(255,255,255,200), font=font)
+
+                        # Save watermarked image to BytesIO
                         out = BytesIO()
                         fmt = 'PNG' if name.endswith('.png') else 'JPEG'
                         img.save(out, format=fmt)
                         out.seek(0)
-                        res = client.add(out)
-                    except Exception:
-                        out = None
-                        res = client.add(file)
+
+                        # Upload watermarked image to Cloudinary
+                        logger.info(f'[Cloudinary] Uploading watermarked image for content')
+                        result = cloudinary.uploader.upload(
+                            out,
+                            folder='content_previews',
+                            resource_type='image',
+                            quality='auto:good',
+                            fetch_format='auto'
+                        )
+
+                        teaser_link = result['secure_url']
+                        logger.info(f'[Cloudinary] ✅ Watermarked image uploaded: {teaser_link}')
+
+                    except Exception as e:
+                        # Fallback: upload original without watermark
+                        logger.error(f'[Cloudinary] Watermark failed, uploading original: {e}')
+                        file.seek(0)
+                        result = cloudinary.uploader.upload(
+                            file,
+                            folder='content_previews',
+                            resource_type='image'
+                        )
+                        teaser_link = result['secure_url']
+
                 else:
-                    res = client.add(file)
-                ipfs_hash = res.get('Hash', '')
-                teaser_link = f'https://ipfs.io/ipfs/{ipfs_hash}?teaser=true'
-            except Exception:
-                # Fallback to placeholder teaser link
-                ipfs_hash = ''
+                    # Non-image file (PDF, video, audio, etc.)
+                    # Upload original for later IPFS minting
+                    file.seek(0)
+                    logger.info(f'[Cloudinary] Uploading original non-image file: {name}')
+                    original_result = cloudinary.uploader.upload(
+                        file,
+                        folder='content_originals',
+                        resource_type='auto'  # Auto-detect file type
+                    )
+                    ipfs_hash = original_result['secure_url']  # Store temporarily
+                    logger.info(f'[Cloudinary] ✅ Original file uploaded: {ipfs_hash}')
+
+                    # For non-images, use the same file as preview (no watermarking)
+                    teaser_link = ipfs_hash
+                    logger.info(f'[Cloudinary] Using original as preview for non-image content')
+
+            except Exception as e:
+                logger.error(f'[Cloudinary] Upload failed: {e}')
+                # Fallback to placeholder
+                teaser_link = 'https://via.placeholder.com/400x300?text=Upload+Failed'
+
         elif text:
-            # No file; accept text-only content and persist HTML to IPFS (best-effort)
+            # Text-only content (books, articles)
+            # Build a teaser from first portion (watermarked preview)
             try:
-                try:
-                    client = ipfshttpclient.connect('/dns/ipfs.infura.io/tcp/5001/https')
-                except Exception:
-                    client = ipfshttpclient.connect(settings.IPFS_API_URL)
-                from io import BytesIO as _BytesIO
-                data = (text or '').encode('utf-8')
-                res = client.add(_BytesIO(data))
-                ipfs_hash = res.get('Hash', '')
-            except Exception:
-                ipfs_hash = ''
-            # Build a teaser fallback (first 15%, bounded) and store locally
-            try:
-                from bs4 import BeautifulSoup  # type: ignore
+                from bs4 import BeautifulSoup
                 soup = BeautifulSoup(text or '', 'lxml')
                 plain = soup.get_text(separator='\n')
+                # Take first ~15% of content for teaser
                 n = max(200, min(len(plain) // 6, 1500))
                 snippet = plain[:n]
-                teaser_html_local = f"<div style=\"white-space: pre-wrap;\">{snippet}</div>"
+                teaser_html_local = f"<div style=\"white-space: pre-wrap;\">{snippet}...</div>"
             except Exception:
                 teaser_html_local = ''
+
             # Set a temporary internal route; finalize after save when we have an ID
-            teaser_link = ''
+            teaser_link = ''  # Will be set to /api/content/{id}/teaser/ below
+
         else:
             raise serializers.ValidationError('File required')
         # Bridge auth user -> core user for FK consistency
@@ -349,6 +408,35 @@ class MintView(APIView):
         if content_id:
             try:
                 c = Content.objects.get(id=content_id)
+
+                # Upload to IPFS if not already done
+                # Check if ipfs_hash contains a Cloudinary URL (temporary storage)
+                if c.ipfs_hash and 'cloudinary.com' in c.ipfs_hash:
+                    try:
+                        import requests
+                        logger.info(f'[IPFS] Fetching original file from Cloudinary: {c.ipfs_hash}')
+
+                        # Fetch the original file from Cloudinary
+                        response = requests.get(c.ipfs_hash, timeout=30)
+                        response.raise_for_status()
+
+                        # Upload to IPFS
+                        file_data = BytesIO(response.content)
+                        file_data.seek(0)
+
+                        logger.info(f'[IPFS] Uploading to IPFS...')
+                        ipfs_result = upload_to_ipfs(file_data)
+
+                        if ipfs_result:
+                            c.ipfs_hash = ipfs_result  # Replace Cloudinary URL with IPFS hash
+                            logger.info(f'[IPFS] ✅ Uploaded successfully: {ipfs_result}')
+                        else:
+                            logger.error(f'[IPFS] Upload failed, keeping Cloudinary URL')
+
+                    except Exception as e:
+                        logger.error(f'[IPFS] Upload error: {e}')
+                        # Keep the Cloudinary URL as fallback
+
                 c.inventory_status = 'minted'
                 if not c.nft_contract:
                     c.nft_contract = getattr(settings, 'ANCHOR_PROGRAM_ID', '') or 'mock_contract_'+str(c.id)
