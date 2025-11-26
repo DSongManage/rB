@@ -15,11 +15,25 @@ class LibraryView(APIView):
 
     def get(self, request):
         """Get user's purchased content grouped by type."""
-        # Get all purchases for the user
+        from django.db.models import Prefetch
+
+        # Prefetch reading progress to avoid N+1 queries
+        progress_prefetch = Prefetch(
+            'content__reading_progress',
+            queryset=ReadingProgress.objects.filter(user=request.user),
+            to_attr='user_progress'
+        )
+
+        # Get all purchases with optimized query (1 query instead of N+1)
         purchases = Purchase.objects.filter(
             user=request.user,
             refunded=False
-        ).select_related('content', 'content__creator').order_by('-purchased_at')
+        ).select_related(
+            'content',
+            'content__creator'
+        ).prefetch_related(
+            progress_prefetch
+        ).order_by('-purchased_at')
 
         # Group by content type
         library = {
@@ -32,12 +46,10 @@ class LibraryView(APIView):
         for purchase in purchases:
             content = purchase.content
 
-            # Get reading progress if exists
-            try:
-                progress = ReadingProgress.objects.get(user=request.user, content=content)
-                progress_percentage = float(progress.progress_percentage)
-            except ReadingProgress.DoesNotExist:
-                progress_percentage = 0
+            # Get reading progress from prefetched data (no extra query!)
+            progress_percentage = 0
+            if hasattr(content, 'user_progress') and content.user_progress:
+                progress_percentage = float(content.user_progress[0].progress_percentage)
 
             item = {
                 'id': content.id,

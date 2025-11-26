@@ -131,17 +131,33 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             - unread: Unread notification count
             - by_type: Count grouped by notification type
         """
+        from django.db.models import Count, Q
+
         queryset = self.get_queryset()
 
-        stats = {
-            'total': queryset.count(),
-            'unread': queryset.filter(read=False).count(),
-            'by_type': {}
-        }
+        # Use aggregation to count total and unread in single query
+        counts = queryset.aggregate(
+            total=Count('id'),
+            unread=Count('id', filter=Q(read=False))
+        )
 
-        # Count by type
+        # Use values + annotate to group by type in single query
+        by_type_qs = queryset.values('notification_type').annotate(
+            count=Count('id')
+        ).values_list('notification_type', 'count')
+
+        # Convert to dict
+        by_type_dict = dict(by_type_qs)
+
+        # Ensure all notification types are present (even if count is 0)
         for notif_type, _ in Notification.NOTIFICATION_TYPES:
-            count = queryset.filter(notification_type=notif_type).count()
-            stats['by_type'][notif_type] = count
+            if notif_type not in by_type_dict:
+                by_type_dict[notif_type] = 0
+
+        stats = {
+            'total': counts['total'],
+            'unread': counts['unread'],
+            'by_type': by_type_dict
+        }
 
         return Response(stats)

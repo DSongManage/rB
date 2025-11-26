@@ -48,8 +48,16 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             return CollaborativeProject.objects.none()
 
         # Projects created by user OR where user is a collaborator
+        # Prefetch related objects to avoid N+1 queries
         return CollaborativeProject.objects.filter(
             Q(created_by=core_user) | Q(collaborators__user=core_user)
+        ).select_related(
+            'created_by',
+            'content'
+        ).prefetch_related(
+            'collaborators__user',
+            'sections',
+            'comments__author'
         ).distinct()
 
     def get_serializer_class(self):

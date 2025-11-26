@@ -86,7 +86,7 @@ class AuthStatusView(APIView):
 
 class ContentListView(generics.ListCreateAPIView):
     """API view for listing and creating Content (FR1/FR4 in REQUIREMENTS.md).
-    
+
     - Public for teasers (no auth); gate full access via NFT (client-side per ARCHITECTURE.md).
     - Future: Integrate with IPFS upload, mint trigger via Anchor (FR5).
     - Security: Rate limiting, input sanitization (GUIDELINES.md).
@@ -96,18 +96,29 @@ class ContentListView(generics.ListCreateAPIView):
     permission_classes = [permissions.AllowAny]  # Public browse (FR1)
     parser_classes = [MultiPartParser, FormParser]
 
+    # Add pagination to prevent loading all content at once
+    from rest_framework.pagination import PageNumberPagination
+
+    class ContentPagination(PageNumberPagination):
+        page_size = 20
+        page_size_query_param = 'page_size'
+        max_page_size = 100
+
+    pagination_class = ContentPagination
+
     # Filter by inventory status or mine
     def get_queryset(self):
-        qs = Content.objects.all()
-        
+        # Optimize with select_related to avoid N+1 queries on creator
+        qs = Content.objects.select_related('creator').all()
+
         # Exclude collaboration placeholder content from public listings (FR8 bug fix)
         # Collaboration invites create placeholder content with title starting with "Collaboration Invite"
         # These should only appear in collaboration management, not public browse
         qs = qs.exclude(title__startswith='Collaboration Invite')
-        
+
         status_f = self.request.query_params.get('inventory_status')
         mine = self.request.query_params.get('mine')
-        
+
         # Default to showing only minted content for public browsing
         # Allow explicit filtering via query params (e.g., ?inventory_status=draft for profile/studio)
         if status_f:
@@ -115,7 +126,7 @@ class ContentListView(generics.ListCreateAPIView):
         else:
             # If no status filter specified, default to minted for public home page
             qs = qs.filter(inventory_status='minted')
-        
+
         if mine and self.request.user.is_authenticated:
             try:
                 core_user = CoreUser.objects.get(username=self.request.user.username)

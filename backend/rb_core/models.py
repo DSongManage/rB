@@ -437,8 +437,8 @@ class Purchase(models.Model):
 class ReadingProgress(models.Model):
     """Track user's reading position in content."""
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reading_progress')
-    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='reading_progress')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reading_progress', db_index=True)
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='reading_progress', db_index=True)
 
     # Progress tracking
     progress_percentage = models.DecimalField(
@@ -460,6 +460,10 @@ class ReadingProgress(models.Model):
     class Meta:
         unique_together = ['user', 'content']
         ordering = ['-last_read_at']
+        indexes = [
+            models.Index(fields=['user', 'content']),
+            models.Index(fields=['user', '-last_read_at']),
+        ]
 
     def __str__(self):
         return f"{self.user.username} - {self.content.title} ({self.progress_percentage}%)"

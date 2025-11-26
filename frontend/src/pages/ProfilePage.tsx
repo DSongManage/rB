@@ -43,22 +43,6 @@ export default function ProfilePage() {
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json());
     setUser(d);
-    // Also refresh profile so header shows latest wallet
-    fetch(`${API_URL}/api/users/profile/`, { credentials:'include' })
-      .then(r=> {
-        if (!r.ok) {
-          console.error('Profile fetch failed:', r.status, r.statusText);
-          return null;
-        }
-        return r.json();
-      })
-      .then(data => {
-        console.log('Profile data received:', data);
-        setProfile(data);
-      })
-      .catch((err)=> {
-        console.error('Profile fetch error:', err);
-      });
   }
 
   async function refreshCsrf() {
@@ -68,33 +52,49 @@ export default function ProfilePage() {
   }
 
   useEffect(()=>{
-    refreshStatus();
-    refreshCsrf();
-    fetch(`${API_URL}/api/content/`, { credentials: 'include' })
-      .then(r=>r.json())
-      .then((d)=> {
-        // Handle paginated response from DRF
-        if (d && Array.isArray(d.results)) {
-          setContent(d.results);
-        } else if (Array.isArray(d)) {
-          setContent(d);
+    // Use AbortController for cleanup
+    const abortController = new AbortController();
+    const signal = abortController.signal;
+
+    // Batch all API calls efficiently with Promise.all
+    Promise.all([
+      fetch(`${API_URL}/api/auth/status/`, { credentials:'include', signal }).then(r => r.json()),
+      fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include', signal }).then(r => r.json()),
+      fetch(`${API_URL}/api/users/profile/`, { credentials:'include', signal }).then(r => r.ok ? r.json() : null),
+      fetch(`${API_URL}/api/content/`, { credentials: 'include', signal }).then(r => r.json()),
+      fetch(`${API_URL}/api/dashboard/`, { credentials:'include', signal }).then(r => r.ok ? r.json() : {content_count:0, sales:0}),
+      fetch(`${API_URL}/api/notifications/`, { credentials:'include', signal }).then(r => r.ok ? r.json() : [])
+    ])
+      .then(([authData, csrfData, profileData, contentData, dashData, notifData]) => {
+        // Set all state at once
+        setUser(authData);
+        setCsrf(csrfData?.csrfToken || '');
+        setProfile(profileData);
+
+        // Handle paginated content response
+        if (contentData && Array.isArray(contentData.results)) {
+          setContent(contentData.results);
+        } else if (Array.isArray(contentData)) {
+          setContent(contentData);
         } else {
           setContent([]);
         }
+
+        setDash(dashData);
+        setNotifications(notifData);
       })
-      .catch(()=> setContent([]));
-    fetch(`${API_URL}/api/dashboard/`, { credentials:'include' })
-      .then(r=> r.ok ? r.json() : {content_count:0, sales:0})
-      .then(setDash)
-      .catch(()=> setDash({content_count:0, sales:0}));
-    fetch(`${API_URL}/api/users/profile/`, { credentials:'include' })
-      .then(r=> r.ok ? r.json() : null)
-      .then(setProfile)
-      .catch(()=> setProfile(null));
-    fetch(`${API_URL}/api/notifications/`, { credentials:'include' })
-      .then(r=> r.ok ? r.json() : [])
-      .then(setNotifications)
-      .catch(()=> setNotifications([]));
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.error('Error loading profile data:', err);
+          // Set fallback values on error
+          setContent([]);
+          setDash({content_count:0, sales:0});
+          setNotifications([]);
+        }
+      });
+
+    // Cleanup: abort requests if component unmounts
+    return () => abortController.abort();
   },[]);
 
   const runSearch = () => {
