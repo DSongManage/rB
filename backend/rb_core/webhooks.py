@@ -315,21 +315,94 @@ def handle_payment_confirmed(event: dict):
     Handle confirmed Circle payment.
 
     This is called when payment succeeds and USDC is received on Solana.
-    Will trigger NFT minting and USDC distribution to creators.
+    Updates purchase status, decrements editions, and triggers NFT minting.
 
     Args:
         event: Full webhook event payload
     """
+    from decimal import Decimal
+    from django.db import transaction
+    from .models import Purchase, Content
+
     logger.info('[Circle] Processing payment confirmation')
     logger.info(f'[Circle] Event data: {json.dumps(event, indent=2)}')
 
-    # TODO: Implement payment confirmation logic
-    # This should:
-    # 1. Extract payment ID and metadata
-    # 2. Find corresponding Purchase record
-    # 3. Update purchase status and fees
-    # 4. Decrement content editions
-    # 5. Trigger NFT minting (Celery task)
-    # 6. Distribute USDC to creators
+    try:
+        # Extract payment data from Circle webhook
+        # Circle webhook structure may have payment data nested
+        payment_data = event.get('data', {})
+        payment_id = payment_data.get('id') or event.get('id')
 
-    logger.warning('[Circle] ⚠️  Payment confirmation handler not yet implemented')
+        if not payment_id:
+            logger.error('[Circle] No payment ID found in webhook event')
+            return
+
+        logger.info(f'[Circle] Looking for purchase with circle_payment_id={payment_id}')
+
+        # Find purchase by Circle payment ID
+        try:
+            purchase = Purchase.objects.select_for_update().get(circle_payment_id=payment_id)
+            logger.info(f'[Circle] Found purchase {purchase.id} for payment {payment_id}')
+        except Purchase.DoesNotExist:
+            logger.error(f'[Circle] Purchase not found for payment_id {payment_id}')
+            return
+
+        # Check if already processed (idempotency)
+        if purchase.status in ['payment_completed', 'completed']:
+            logger.info(f'[Circle] Purchase {purchase.id} already processed (status={purchase.status})')
+            return
+
+        # Extract payment amounts
+        amount_data = payment_data.get('amount', {})
+        fees_data = payment_data.get('fees', {})
+
+        gross_usd = Decimal(str(amount_data.get('amount', '0'))) / 100  # Convert cents to dollars
+        fees_usd = Decimal(str(fees_data.get('amount', '0'))) / 100
+
+        logger.info(f'[Circle] Payment amounts: gross=${gross_usd}, fees=${fees_usd}')
+
+        # Use transaction to ensure atomicity
+        with transaction.atomic():
+            # Update purchase with payment details
+            purchase.gross_amount = gross_usd
+            purchase.circle_fee = fees_usd
+            purchase.net_after_circle = gross_usd - fees_usd
+            purchase.status = 'payment_completed'
+            purchase.save()
+
+            logger.info(f'[Circle] Updated purchase {purchase.id} status to payment_completed')
+
+            # Decrement content editions
+            content = Content.objects.select_for_update().get(id=purchase.content.id)
+
+            if content.editions > 0:
+                content.editions -= 1
+                content.save(update_fields=['editions'])
+                logger.info(
+                    f'[Circle] ✅ Decremented editions for content {content.id} "{content.title}": '
+                    f'{content.editions + 1} → {content.editions} remaining'
+                )
+            else:
+                logger.warning(
+                    f'[Circle] ⚠️  Content {content.id} already at 0 editions, cannot decrement'
+                )
+
+        logger.info(
+            f'[Circle] ✅ Payment confirmed for purchase {purchase.id}: '
+            f'gross=${gross_usd}, fees=${fees_usd}, net=${purchase.net_after_circle}'
+        )
+
+        # Trigger NFT minting (if Celery is available)
+        try:
+            from ..tasks import mint_and_distribute_circle
+            mint_and_distribute_circle.delay(purchase.id)
+            logger.info(f'[Circle] Queued NFT minting task for purchase {purchase.id}')
+        except ImportError:
+            logger.warning('[Circle] Celery not available - skipping async NFT minting')
+            # TODO: Implement synchronous minting or queue for later processing
+            pass
+
+    except Exception as e:
+        logger.error(f'[Circle] Error handling payment confirmation: {e}')
+        logger.error(traceback.format_exc())
+        raise

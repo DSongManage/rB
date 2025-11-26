@@ -90,7 +90,12 @@ class Content(models.Model):
         """Check if user owns this content via purchase."""
         if not user or not user.is_authenticated:
             return False
-        return self.purchases.filter(user=user, refunded=False).exists()
+        # Only count completed purchases (payment succeeded and not refunded)
+        return self.purchases.filter(
+            user=user,
+            refunded=False,
+            status__in=['payment_completed', 'completed', 'minting']
+        ).exists()
 
     def purchases_count(self):
         """Count non-refunded purchases."""
