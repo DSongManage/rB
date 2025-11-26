@@ -92,15 +92,18 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
         .then(r => r.json())
         .then(j => j?.csrfToken || '');
 
-      // Call backend to create Stripe checkout session
-      const res = await fetch(`${API_URL}/api/checkout/session/`, {
+      // Call backend to create Circle checkout session
+      const res = await fetch(`${API_URL}/api/checkout/circle/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': csrfToken,
         },
         credentials: 'include',
-        body: JSON.stringify({ content_id: contentId }),
+        body: JSON.stringify({
+          content_id: contentId,
+          payment_method: 'card'
+        }),
       });
 
       const data = await res.json();
@@ -113,7 +116,11 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
           alert('This content is sold out');
         } else if (data?.code === 'ALREADY_OWNED') {
           alert('You already own this content');
-        } else if (data?.code === 'STRIPE_ERROR') {
+        } else if (data?.code === 'NO_BUYER_WALLET') {
+          alert('Please set up your wallet in your profile before purchasing');
+        } else if (data?.code === 'NO_CREATOR_WALLET') {
+          alert('Creator wallet not configured. Please contact support.');
+        } else if (data?.code === 'CIRCLE_ERROR') {
           alert('Payment system error. Please try again.');
         } else {
           alert(data?.error || 'Checkout failed');
@@ -121,7 +128,7 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
         return;
       }
 
-      // Redirect to Stripe Checkout
+      // Redirect to Circle Checkout
       if (data?.checkout_url) {
         window.location.href = data.checkout_url;
       } else {

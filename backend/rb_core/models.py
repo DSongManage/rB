@@ -284,14 +284,14 @@ class Chapter(models.Model):
 
 class Purchase(models.Model):
     """
-    Track NFT purchases with ACTUAL fees from Stripe and blockchain.
+    Track NFT purchases with ACTUAL fees from payment providers (Stripe/Circle) and blockchain.
 
     Payment Flow:
     1. Customer pays gross_amount
-    2. Stripe charges actual fee (from balance_transaction)
-    3. Net after Stripe = gross - stripe_fee
+    2. Payment provider (Stripe/Circle) charges actual fee
+    3. Net after fees = gross - payment_provider_fee
     4. Platform pays gas to mint NFT (actual cost from blockchain)
-    5. Net after costs = net_after_stripe - mint_cost
+    5. Net after costs = net_after_fees - mint_cost
     6. Platform gets 10% of net_after_costs
     7. Creator gets 90% of net_after_costs
     """
@@ -299,11 +299,26 @@ class Purchase(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
     content = models.ForeignKey(Content, on_delete=models.PROTECT, related_name='purchases')
 
+    # Payment provider tracking
+    payment_provider = models.CharField(
+        max_length=20,
+        choices=[
+            ('stripe', 'Stripe'),
+            ('circle', 'Circle'),
+        ],
+        default='stripe',
+        help_text='Payment provider used for this purchase'
+    )
+
     # Stripe identifiers
-    stripe_payment_intent_id = models.CharField(max_length=255, unique=True)
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True, default='')
     stripe_checkout_session_id = models.CharField(max_length=255, blank=True, default='')
     stripe_charge_id = models.CharField(max_length=255, blank=True, default='')
     stripe_balance_txn_id = models.CharField(max_length=255, blank=True, default='')
+
+    # Circle identifiers
+    circle_payment_id = models.CharField(max_length=255, blank=True, default='', help_text='Circle payment ID')
+    circle_tracking_ref = models.CharField(max_length=255, blank=True, default='', help_text='Circle tracking reference')
 
     # Payment amounts (ACTUAL only, no estimates)
     gross_amount = models.DecimalField(
@@ -326,6 +341,20 @@ class Purchase(models.Model):
         null=True,
         blank=True,
         help_text="Gross - Stripe fee"
+    )
+    circle_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Circle processing fee in USD"
+    )
+    net_after_circle = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Net amount after Circle fees (gross - circle_fee)"
     )
     mint_cost = models.DecimalField(
         max_digits=10,
@@ -391,7 +420,9 @@ class Purchase(models.Model):
         indexes = [
             models.Index(fields=['user', 'content']),
             models.Index(fields=['stripe_payment_intent_id']),
+            models.Index(fields=['circle_payment_id']),
             models.Index(fields=['status']),
+            models.Index(fields=['payment_provider']),
         ]
 
     def __str__(self):
