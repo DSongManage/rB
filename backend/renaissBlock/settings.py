@@ -121,6 +121,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'renaissBlock.urls'
 
+# Disable automatic trailing slash redirects (prevents 307 on webhook endpoints)
+APPEND_SLASH = False
+
 # Template configuration
 TEMPLATES = [
     {
