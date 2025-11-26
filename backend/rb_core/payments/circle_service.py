@@ -36,6 +36,12 @@ class CirclePaymentService:
         self.webhook_secret = settings.CIRCLE_WEBHOOK_SECRET
         self.platform_wallet = settings.PLATFORM_USDC_WALLET_ADDRESS
 
+        # Debug logging for API key
+        if self.api_key:
+            logger.info(f'[Circle] API key present: {self.api_key[:20]}... (length: {len(self.api_key)})')
+        else:
+            logger.error('[Circle] CIRCLE_API_KEY not configured!')
+
         if not self.api_key:
             raise CirclePaymentError("CIRCLE_API_KEY not configured")
         if not self.platform_wallet:
@@ -108,6 +114,8 @@ class CirclePaymentService:
                 f'[Circle] Creating payment intent: amount=${amount_usd}, '
                 f'content_id={content_id}, idempotency_key={idempotency_key}'
             )
+            logger.info(f'[Circle] API URL: {url}')
+            logger.info(f'[Circle] Using API base: {self.BASE_URL}')
 
             response = requests.post(
                 url,
@@ -116,11 +124,14 @@ class CirclePaymentService:
                 timeout=30
             )
 
+            logger.info(f'[Circle] Response status: {response.status_code}')
+
             if response.status_code not in (200, 201):
-                error_msg = response.json().get('message', response.text)
+                error_msg = response.json().get('message', response.text) if response.text else 'No error message'
                 logger.error(
                     f'[Circle] Payment intent creation failed: {response.status_code} - {error_msg}'
                 )
+                logger.error(f'[Circle] Full response: {response.text}')
                 raise CirclePaymentError(f"Circle API error: {error_msg}")
 
             data = response.json().get('data', {})
