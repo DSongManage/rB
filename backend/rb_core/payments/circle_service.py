@@ -28,8 +28,8 @@ class CirclePaymentService:
     This eliminates the need for users to have crypto or manage gas fees.
     """
 
-    BASE_URL = "https://api.circle.com"  # Production
-    # BASE_URL = "https://api-sandbox.circle.com"  # Sandbox/Testing
+    # BASE_URL = "https://api.circle.com"  # Production
+    BASE_URL = "https://api-sandbox.circle.com"  # Sandbox/Testing
 
     def __init__(self):
         self.api_key = settings.CIRCLE_API_KEY
