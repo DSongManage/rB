@@ -157,6 +157,8 @@ class UserProfile(models.Model):
     web3auth_sub = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None)
 
     # Circle Web3 Services (W3S) wallet fields
+    circle_user_id = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None,
+                                     help_text='Circle user account ID for user-controlled wallet system')
     circle_wallet_id = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None,
                                        help_text='Circle W3S wallet ID for user-controlled wallet')
     circle_wallet_address = models.CharField(max_length=44, null=True, blank=True, default=None,
@@ -164,12 +166,13 @@ class UserProfile(models.Model):
 
     # Wallet provider tracking
     WALLET_PROVIDER_CHOICES = [
+        ('circle_user_controlled', 'Circle User-Controlled Wallet'),
         ('circle_w3s', 'Circle Web3 Services'),
         ('external', 'External Wallet'),
         ('web3auth', 'Web3Auth (Deprecated)'),
     ]
-    wallet_provider = models.CharField(max_length=20, choices=WALLET_PROVIDER_CHOICES,
-                                      default='circle_w3s', blank=True)
+    wallet_provider = models.CharField(max_length=30, choices=WALLET_PROVIDER_CHOICES,
+                                      default='circle_user_controlled', blank=True)
     # Backward-compatible URL fields (kept); prefer uploaded images below
     avatar_url = models.URLField(blank=True, default='')
     banner_url = models.URLField(blank=True, default='')

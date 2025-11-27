@@ -499,12 +499,6 @@ export default function AuthPage() {
             <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Password" required />
             <button type="submit" style={{marginTop:6}}>Sign in</button>
           </form>
-          <div style={{display:'grid', gap:8}}>
-            <div style={{height:1, background:'#243048', margin:'6px 0'}}/>
-            <button type="button" onClick={continueWithWeb3Auth} style={{display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8}}>
-              <span>Continue with Web3Auth</span>
-            </button>
-          </div>
         </div>
       ) : (
         <form onSubmit={submitAccount} style={{display:'grid', gap:12}}>
@@ -641,7 +635,8 @@ export default function AuthPage() {
 
   return (
     <div>
-      {Stepper}
+      {/* Only show stepper on Create account flow */}
+      {mode === 'register' && Stepper}
       {step==='account' && AccountStep}
       {step==='wallet' && WalletStep}
       {step==='done' && DoneStep}
