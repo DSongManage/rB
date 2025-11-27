@@ -198,18 +198,20 @@ class SignupSerializer(serializers.Serializer):
         )
 
         # Create Circle W3S wallet for new user (async, non-blocking)
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
-            from ..tasks import create_circle_wallet_for_user_task
+            from rb_core.tasks import create_circle_wallet_for_user_task
             # Queue wallet creation as background task (non-blocking)
             create_circle_wallet_for_user_task.delay(user.id, email or '')
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f'[Signup] Queued Circle W3S wallet creation for user {user.id}')
+            logger.info(f'[Signup] ✅ Queued Circle W3S wallet creation for user {user.id}')
+        except ImportError as e:
+            # Celery not available or tasks module not found
+            logger.error(f'[Signup] ❌ Cannot import Celery task (Celery may not be running): {e}')
         except Exception as e:
-            # Don't fail signup if wallet creation fails - can be retried later
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f'[Signup] Failed to queue Circle W3S wallet creation: {e}')
+            # Other errors (Celery broker down, etc.)
+            logger.error(f'[Signup] ❌ Failed to queue Circle W3S wallet creation: {e}')
 
         # Mark beta invite as used
         if beta_invite:
