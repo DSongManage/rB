@@ -40,6 +40,7 @@ class CircleW3SService:
     def __init__(self):
         """Initialize Circle W3S service with API credentials."""
         self.api_key = getattr(settings, 'CIRCLE_W3S_API_KEY', '')
+        self.app_id = getattr(settings, 'CIRCLE_W3S_APP_ID', '')
         self.entity_id = getattr(settings, 'CIRCLE_W3S_ENTITY_ID', '')
         self.platform_wallet_id = getattr(settings, 'CIRCLE_W3S_PLATFORM_WALLET_ID', '')
 
@@ -50,6 +51,7 @@ class CircleW3SService:
         # Log configuration (redact sensitive data)
         if self.api_key:
             logger.info(f'[Circle W3S] Initialized with API key: {self.api_key[:30]}...')
+            logger.info(f'[Circle W3S] App ID: {self.app_id}')
             logger.info(f'[Circle W3S] Entity ID: {self.entity_id}')
             logger.info(f'[Circle W3S] Environment: {"Production" if self.is_production else "Sandbox"}')
         else:
@@ -119,7 +121,10 @@ class CircleW3SService:
         """
         Create a user-controlled Circle W3S wallet.
 
-        Users authenticate with PIN codes (no seed phrases needed).
+        This follows the Circle W3S API flow:
+        1. Create user with POST /users
+        2. Get user token with POST /users/token
+        3. Create wallet with POST /wallets
 
         Args:
             user_id: Internal user ID for reference
@@ -135,33 +140,67 @@ class CircleW3SService:
             }
         """
         try:
-            # Generate idempotency key to prevent duplicate wallet creation
-            idempotency_key = str(uuid.uuid5(uuid.NAMESPACE_DNS, f'user-{user_id}-wallet'))
+            # Step 1: Create Circle user (idempotent with userId)
+            circle_user_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f'renaissblock-user-{user_id}'))
 
-            data = {
+            logger.info(f'[Circle W3S] Step 1: Creating Circle user for user {user_id}')
+            user_data = {
+                'userId': circle_user_id
+            }
+            user_result = self._make_request('POST', '/users', data=user_data)
+            logger.info(f'[Circle W3S] ✅ Circle user created: {circle_user_id}')
+
+            # Step 2: Get user token (60-minute session token)
+            logger.info(f'[Circle W3S] Step 2: Getting user token')
+            token_data = {
+                'userId': circle_user_id
+            }
+            token_result = self._make_request('POST', '/users/token', data=token_data)
+            user_session_token = token_result.get('data', {}).get('userToken')
+            encryption_key = token_result.get('data', {}).get('encryptionKey')
+
+            if not user_session_token:
+                raise CircleW3SError('Failed to get user token from Circle')
+
+            logger.info(f'[Circle W3S] ✅ User token obtained')
+
+            # Step 3: Create wallet using user token
+            logger.info(f'[Circle W3S] Step 3: Creating wallet')
+            idempotency_key = str(uuid.uuid5(uuid.NAMESPACE_DNS, f'wallet-{user_id}'))
+
+            wallet_data_request = {
                 'idempotencyKey': idempotency_key,
-                'entitySecretCiphertext': user_token or f'user-{user_id}-secret',  # Encrypted user secret
-                'blockchains': ['SOL-DEVNET'] if not self.is_production else ['SOL'],  # Solana devnet or mainnet
-                'accountType': 'SCA',  # Smart Contract Account (user-controlled)
-                'metadata': [
-                    {'key': 'user_id', 'value': str(user_id)},
-                    {'key': 'email', 'value': email}
-                ]
+                'userId': circle_user_id,
+                'userToken': user_session_token,
+                'blockchains': ['SOL-DEVNET'] if not self.is_production else ['SOL'],
+                'accountType': 'SCA',  # Smart Contract Account
             }
 
-            result = self._make_request('POST', '/wallets', data=data)
+            wallet_result = self._make_request('POST', '/wallets', data=wallet_data_request)
 
             # Extract wallet info
-            wallet_data = result.get('data', {})
-            wallet_id = wallet_data.get('walletId')
+            wallet_data = wallet_result.get('data', {})
+            wallet_id = wallet_data.get('walletId') or wallet_data.get('wallet', {}).get('id')
 
-            # Get wallet address (may need separate call)
+            # Get wallet address
+            address = None
             if wallet_id:
-                address_info = self.get_wallet_address(wallet_id)
-                wallet_data['address'] = address_info.get('address')
+                try:
+                    address_info = self.get_wallet_address(wallet_id)
+                    address = address_info.get('address')
+                except Exception as e:
+                    logger.warning(f'[Circle W3S] Could not fetch address immediately: {e}')
 
-            logger.info(f'[Circle W3S] ✅ Created wallet for user {user_id}: {wallet_id}')
-            return wallet_data
+            result = {
+                'wallet_id': wallet_id,
+                'address': address,
+                'blockchain': 'SOL-DEVNET' if not self.is_production else 'SOL',
+                'state': wallet_data.get('state', 'PENDING'),
+                'circle_user_id': circle_user_id
+            }
+
+            logger.info(f'[Circle W3S] ✅ Wallet created for user {user_id}: {wallet_id}')
+            return result
 
         except Exception as e:
             logger.error(f'[Circle W3S] Failed to create wallet for user {user_id}: {e}')

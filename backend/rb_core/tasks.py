@@ -215,69 +215,65 @@ def schedule_creator_payout(purchase_id):
 @shared_task
 def create_circle_wallet_for_user_task(user_id, email):
     """
-    Create Circle W3S wallet for a new user (async, non-blocking).
+    Create Circle user account for a new user (async, non-blocking).
 
-    This runs as a background task during signup so wallet creation doesn't block the signup response.
+    This creates the Circle user account. The actual wallet will be created
+    by the user via frontend SDK when they set their PIN.
 
     Args:
-        user_id: User ID to create wallet for
+        user_id: User ID to create Circle account for
         email: User's email address
 
     Returns:
-        dict: Wallet creation result
+        dict: Circle user creation result
     """
     from .models import User, UserProfile
-    from blockchain.circle_w3s_service import get_circle_w3s_service, CircleW3SError
+    from blockchain.circle_user_controlled_service import (
+        get_circle_user_controlled_service,
+        CircleUserControlledError
+    )
 
     try:
         user = User.objects.get(id=user_id)
         profile = user.profile
 
-        logger.info(f'[Circle W3S Task] Creating wallet for user {user_id} ({user.username})')
+        logger.info(f'[Circle User-Controlled Task] Creating Circle user account for user {user_id} ({user.username})')
 
-        # Create Circle W3S wallet
-        circle_service = get_circle_w3s_service()
-        wallet_data = circle_service.create_user_wallet(user_id, email)
+        # Create Circle user account (backend step)
+        circle_service = get_circle_user_controlled_service()
+        user_data = circle_service.create_user_account(user_id, email)
 
-        # Update profile with wallet info
-        profile.circle_wallet_id = wallet_data.get('wallet_id')
-        profile.circle_wallet_address = wallet_data.get('address')
-        profile.wallet_provider = 'circle_w3s'
-
-        # Also update the main wallet_address field for backward compatibility
-        if wallet_data.get('address'):
-            profile.wallet_address = wallet_data.get('address')
+        # Store Circle user ID in profile
+        profile.circle_user_id = user_data.get('circle_user_id')
+        profile.wallet_provider = 'circle_user_controlled'
 
         profile.save(update_fields=[
-            'circle_wallet_id',
-            'circle_wallet_address',
-            'wallet_provider',
-            'wallet_address'
+            'circle_user_id',
+            'wallet_provider'
         ])
 
         logger.info(
-            f'[Circle W3S Task] ✅ Wallet created for user {user_id}: '
-            f'wallet_id={wallet_data.get("wallet_id")}, '
-            f'address={wallet_data.get("address")}'
+            f'[Circle User-Controlled Task] ✅ Circle user account created for user {user_id}: '
+            f'circle_user_id={user_data.get("circle_user_id")}'
         )
 
         return {
             'success': True,
             'user_id': user_id,
-            'wallet_id': wallet_data.get('wallet_id'),
-            'address': wallet_data.get('address')
+            'circle_user_id': user_data.get('circle_user_id'),
+            'status': user_data.get('status')
         }
 
     except User.DoesNotExist:
-        logger.error(f'[Circle W3S Task] User {user_id} not found')
+        logger.error(f'[Circle User-Controlled Task] User {user_id} not found')
         return {'success': False, 'error': 'User not found'}
 
-    except CircleW3SError as e:
-        logger.error(f'[Circle W3S Task] Circle API error for user {user_id}: {e}')
+    except CircleUserControlledError as e:
+        logger.error(f'[Circle User-Controlled Task] Circle API error for user {user_id}: {e}')
         return {'success': False, 'error': str(e)}
 
     except Exception as e:
-        logger.error(f'[Circle W3S Task] Unexpected error creating wallet for user {user_id}: {e}', exc_info=True)
+        logger.error(f'[Circle User-Controlled Task] Unexpected error creating Circle user for {user_id}: {e}', exc_info=True)
         return {'success': False, 'error': str(e)}
 
 

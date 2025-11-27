@@ -399,6 +399,14 @@ CIRCLE_WEBHOOK_SECRET = os.getenv('CIRCLE_WEBHOOK_SECRET', '')
 # Platform wallet address to receive USDC settlements
 PLATFORM_USDC_WALLET_ADDRESS = os.getenv('PLATFORM_USDC_WALLET_ADDRESS', '')
 
+# Circle Web3 Services (W3S) Configuration - Wallet Management
+# Circle W3S enables user-controlled wallets with PIN-based authentication
+CIRCLE_W3S_API_KEY = os.getenv('CIRCLE_W3S_API_KEY', '')
+CIRCLE_W3S_APP_ID = os.getenv('CIRCLE_W3S_APP_ID', '')
+CIRCLE_W3S_ENTITY_ID = os.getenv('CIRCLE_W3S_ENTITY_ID', '')
+CIRCLE_W3S_PLATFORM_WALLET_ID = os.getenv('CIRCLE_W3S_PLATFORM_WALLET_ID', '')
+CIRCLE_W3S_PRODUCTION = os.getenv('CIRCLE_W3S_PRODUCTION', 'false').lower() == 'true'
+
 # Application URLs for payment redirects
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')
