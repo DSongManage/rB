@@ -317,9 +317,13 @@ export default function ProfilePage() {
             })()}
           </div>
         </div>
-        <div style={{display:'flex', gap:8}}>
-          <button onClick={linkWalletWeb3Auth} style={{background:'#f59e0b', color:'#111827', border:'none', padding:'8px 12px', borderRadius:8, fontWeight:600}}> {user?.wallet_address? 'Update with Web3Auth' : 'Link with Web3Auth'} </button>
-          <button onClick={linkWalletManual} style={{background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'8px 12px', borderRadius:8}}>Use my address</button>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          {!user?.wallet_address && (
+            <div style={{fontSize:13, color:'#94a3b8', fontStyle:'italic'}}>
+              ⏳ Wallet being created automatically...
+            </div>
+          )}
+          <button onClick={linkWalletManual} style={{background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'8px 12px', borderRadius:8}}>Connect your own wallet</button>
         </div>
       </div>
       {/* Hidden file inputs for avatar/banner */}

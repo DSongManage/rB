@@ -190,11 +190,17 @@ export default function AuthPage() {
         }
         // Refresh auth state after successful signup and login
         refreshAuth();
-        // Continue with wallet setup or completion
-        if (walletChoice === 'web3auth' || walletChoice === 'own') {
+        // Circle W3S creates wallet automatically in background
+        // Skip wallet step and go directly to done
+        if (walletChoice === 'web3auth') {
+          // Show success message that wallet is being created
+          setMsg('Account created! Your Solana wallet is being set up automatically.');
+          setStep('done');
+        } else if (walletChoice === 'own') {
+          // User wants to link their own wallet
           setStep('wallet');
         } else {
-          // Force reload to ensure auth state is synced before going to home
+          // No wallet setup - go to home
           window.location.href = '/';
         }
       } else {
@@ -594,8 +600,17 @@ export default function AuthPage() {
 
   const DoneStep = (
     <div className="page" style={{maxWidth:480, margin:'40px auto', textAlign:'center'}}>
-      <div style={{fontSize:18, fontWeight:700, color:'#e5e7eb', marginBottom:8}}>You're all set</div>
-      <div style={{fontSize:13, color:'#94a3b8', marginBottom:16}}>Welcome to renaissBlock. You can link or update your wallet anytime from your profile.</div>
+      <div style={{fontSize:18, fontWeight:700, color:'#e5e7eb', marginBottom:8}}>Welcome to renaissBlock! 🎉</div>
+      <div style={{fontSize:13, color:'#94a3b8', marginBottom:8}}>
+        {walletChoice === 'web3auth'
+          ? 'Your Solana wallet is being created automatically. You\'ll be able to receive NFTs and USDC payments without any additional setup!'
+          : 'You can link a wallet anytime from your profile to receive NFTs and payments.'}
+      </div>
+      {walletChoice === 'web3auth' && (
+        <div style={{fontSize:12, color:'#60a5fa', marginBottom:16, padding:'8px', background:'rgba(96, 165, 250, 0.1)', borderRadius:'4px'}}>
+          ℹ️ Wallet creation happens in the background. Check your profile in a few seconds to see your wallet address.
+        </div>
+      )}
       <div style={{display:'flex', gap:8, justifyContent:'center'}}>
         <button onClick={()=> window.location.href = '/'}>Go to Home</button>
         <button onClick={()=> window.location.href = '/profile'}>Go to Profile</button>
