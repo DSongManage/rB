@@ -544,12 +544,12 @@ export default function AuthPage() {
           <div style={{display:'grid', gap:8, marginTop:8}}>
             <label style={{display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#cbd5e1'}}>
               <input type="checkbox" checked={walletChoice==='web3auth'} onChange={(e)=> setWalletChoice(e.target.checked? 'web3auth' : 'later')} />
-              Set up a free Web3Auth wallet for me
+              Set up a free Solana wallet for me (automatically created)
               <Link to="/wallet-info" style={{marginLeft:6, color:'#60a5fa'}}>Learn more</Link>
             </label>
             <div style={{display:'flex', gap:12, fontSize:13}}>
-              <button type="button" onClick={()=> setWalletChoice('own')} style={{background:'transparent', border:'none', color:'#94a3b8', textDecoration:'underline', cursor:'pointer'}}>I’ll use my own wallet</button>
-              <button type="button" onClick={()=> setWalletChoice('later')} style={{background:'transparent', border:'none', color:'#94a3b8', textDecoration:'underline', cursor:'pointer'}}>I’ll set up a wallet later</button>
+              <button type="button" onClick={()=> setWalletChoice('own')} style={{background:'transparent', border:'none', color:'#94a3b8', textDecoration:'underline', cursor:'pointer'}}>I'll use my own wallet</button>
+              <button type="button" onClick={()=> setWalletChoice('later')} style={{background:'transparent', border:'none', color:'#94a3b8', textDecoration:'underline', cursor:'pointer'}}>I'll set up a wallet later</button>
             </div>
             {walletChoice==='own' && (
               <input value={ownWallet} onChange={(e)=>setOwnWallet(e.target.value)} placeholder="Your Solana wallet address" />
@@ -569,7 +569,7 @@ export default function AuthPage() {
       <div style={{fontWeight:700, color:'#e5e7eb', marginBottom:8}}>Create your wallet</div>
       {walletChoice==='web3auth' && (
         <div style={{display:'grid', gap:10}}>
-          <div style={{fontSize:13, color:'#94a3b8'}}>We’ll create a keyless, non-custodial wallet using Web3Auth.</div>
+          <div style={{fontSize:13, color:'#94a3b8'}}>We'll automatically create a Solana wallet for you. No seed phrases needed!</div>
           <button onClick={linkWalletWithWeb3Auth}>Continue</button>
           <div style={{display:'flex', gap:12}}>
             <button onClick={()=> setStep('account')} style={{background:'transparent', border:'none', color:'#94a3b8', textDecoration:'underline', cursor:'pointer'}}>Back to account</button>
