@@ -153,8 +153,23 @@ class UserProfile(models.Model):
     display_name = models.CharField(max_length=100, blank=True, default='')
     email_hash = models.CharField(max_length=64, blank=True, default='')
     wallet_address = models.CharField(max_length=44, unique=True, null=True, blank=True, default=None)
-    # Web3Auth/OpenLogin subject identifier for deterministic identity mapping
+    # Web3Auth/OpenLogin subject identifier for deterministic identity mapping (DEPRECATED - migrating to Circle W3S)
     web3auth_sub = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None)
+
+    # Circle Web3 Services (W3S) wallet fields
+    circle_wallet_id = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None,
+                                       help_text='Circle W3S wallet ID for user-controlled wallet')
+    circle_wallet_address = models.CharField(max_length=44, null=True, blank=True, default=None,
+                                            help_text='Solana address from Circle W3S wallet')
+
+    # Wallet provider tracking
+    WALLET_PROVIDER_CHOICES = [
+        ('circle_w3s', 'Circle Web3 Services'),
+        ('external', 'External Wallet'),
+        ('web3auth', 'Web3Auth (Deprecated)'),
+    ]
+    wallet_provider = models.CharField(max_length=20, choices=WALLET_PROVIDER_CHOICES,
+                                      default='circle_w3s', blank=True)
     # Backward-compatible URL fields (kept); prefer uploaded images below
     avatar_url = models.URLField(blank=True, default='')
     banner_url = models.URLField(blank=True, default='')
@@ -397,10 +412,42 @@ class Purchase(models.Model):
     creator_earnings_usd = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     # Blockchain tracking
-    nft_mint_address = models.CharField(max_length=255, blank=True, default='')
-    transaction_signature = models.CharField(max_length=128, blank=True, default='')
+    nft_mint_address = models.CharField(max_length=255, blank=True, default='',
+                                       help_text='Solana NFT mint address')
+    transaction_signature = models.CharField(max_length=128, blank=True, default='',
+                                            help_text='Solana transaction signature for NFT mint')
     nft_minted = models.BooleanField(default=False)
     nft_mint_eligible_at = models.DateTimeField(null=True, blank=True)
+
+    # Circle W3S NFT tracking
+    circle_nft_id = models.CharField(max_length=255, blank=True, default='',
+                                     help_text='Circle W3S NFT ID from minting')
+    circle_mint_transaction_id = models.CharField(max_length=255, blank=True, default='',
+                                                  help_text='Circle W3S transaction ID for NFT mint')
+
+    # USDC distribution tracking (hybrid Stripe → USDC flow)
+    usdc_payment_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending_conversion', 'Pending USD → USDC Conversion'),
+            ('pending_distribution', 'Pending USDC Distribution'),
+            ('distributed', 'USDC Distributed'),
+            ('failed', 'Distribution Failed'),
+        ],
+        default='pending_conversion',
+        help_text='Status of USDC distribution to creator'
+    )
+    usdc_transfer_signature = models.CharField(max_length=128, blank=True, default='',
+                                               help_text='Solana transaction signature for USDC transfer')
+    usdc_distributed_at = models.DateTimeField(null=True, blank=True,
+                                               help_text='When USDC was transferred to creator')
+    usdc_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='Amount of USDC to distribute to creator (90% of net after gas)'
+    )
 
     # Status tracking
     status = models.CharField(

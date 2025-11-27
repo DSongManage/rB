@@ -137,16 +137,16 @@ def handle_payment_intent_succeeded(payment_intent):
             f'net=${purchase.net_after_stripe}'
         )
 
-        # Trigger NFT minting + distribution (async if Celery available)
+        # Trigger NFT minting via Circle W3S (async if Celery available)
         try:
-            from ..tasks import mint_and_distribute
-            mint_and_distribute.delay(purchase.id)
-            logger.info(f'Queued minting task for purchase {purchase.id}')
+            from ..tasks import process_purchase_with_circle_w3s_task
+            process_purchase_with_circle_w3s_task.delay(purchase.id)
+            logger.info(f'[Stripe Webhook] ✅ Queued Circle W3S NFT minting task for purchase {purchase.id}')
         except ImportError:
             # Celery not available, do synchronous
-            logger.warning('Celery not available, minting synchronously')
-            from .payment_utils import mint_and_distribute_sync
-            mint_and_distribute_sync(purchase.id)
+            logger.warning('[Stripe Webhook] Celery not available, minting synchronously')
+            # For now, just log - production should have Celery
+            logger.error('[Stripe Webhook] Circle W3S minting requires Celery - purchase will need manual processing')
     except Exception as e:
         logger.error(f'Error processing payment_intent {payment_intent_id}: {e}')
         raise

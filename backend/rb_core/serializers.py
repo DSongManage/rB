@@ -197,6 +197,20 @@ class SignupSerializer(serializers.Serializer):
             wallet_address=wallet_address
         )
 
+        # Create Circle W3S wallet for new user (async, non-blocking)
+        try:
+            from ..tasks import create_circle_wallet_for_user_task
+            # Queue wallet creation as background task (non-blocking)
+            create_circle_wallet_for_user_task.delay(user.id, email or '')
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f'[Signup] Queued Circle W3S wallet creation for user {user.id}')
+        except Exception as e:
+            # Don't fail signup if wallet creation fails - can be retried later
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'[Signup] Failed to queue Circle W3S wallet creation: {e}')
+
         # Mark beta invite as used
         if beta_invite:
             beta_invite.status = 'used'
