@@ -1,4 +1,6 @@
 # Generated migration for Circle W3S integration
+# NOTE: Migration 0026 already added some Circle fields (circle_payment_id, circle_fee, etc.)
+# This migration adds the NEW Circle W3S specific fields
 
 from django.db import migrations, models
 
@@ -10,6 +12,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Remove old transfer_gas_cost field (no longer used)
+        migrations.RemoveField(
+            model_name='purchase',
+            name='transfer_gas_cost',
+        ),
+
         # Add Circle W3S wallet fields to UserProfile
         migrations.AddField(
             model_name='userprofile',
@@ -106,7 +114,8 @@ class Migration(migrations.Migration):
                 null=True
             ),
         ),
-        migrations.AddField(
+        # NOTE: usdc_amount already exists from migration 0026, we'll alter it instead
+        migrations.AlterField(
             model_name='purchase',
             name='usdc_amount',
             field=models.DecimalField(
