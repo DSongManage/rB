@@ -14,6 +14,7 @@ from .views.collaboration import (
 from .views.notifications import NotificationViewSet
 from .views import beta
 from .views.feedback import submit_feedback
+from .views_circle import get_circle_user_token, save_wallet_address, get_wallet_status
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -37,6 +38,10 @@ urlpatterns = [
     path('api/checkout/circle/', CircleCheckoutView.as_view(), name='circle_checkout'),
     # Circle webhook endpoint - minimal, production-ready handler
     path('api/checkout/circle/webhook/', circle_webhook, name='circle_webhook'),
+    # Circle User-Controlled Wallets (frontend SDK integration)
+    path('api/circle/user-token/', get_circle_user_token, name='circle_user_token'),
+    path('api/circle/wallet/save/', save_wallet_address, name='save_wallet_address'),
+    path('api/circle/wallet/status/', get_wallet_status, name='wallet_status'),
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
     # Library and reading
     path('api/library/', LibraryView.as_view(), name='library'),

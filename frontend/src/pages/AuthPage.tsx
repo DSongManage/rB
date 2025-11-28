@@ -6,6 +6,7 @@ import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 import { OpenloginAdapter } from '@web3auth/openlogin-adapter';
 import { API_URL } from '../config';
 import { useAuth } from '../hooks/useAuth';
+import CircleWalletSetup from '../components/CircleWalletSetup';
 
 type Step = 'account' | 'wallet' | 'done';
 
@@ -594,21 +595,31 @@ export default function AuthPage() {
 
   const DoneStep = (
     <div className="page" style={{maxWidth:480, margin:'40px auto', textAlign:'center'}}>
-      <div style={{fontSize:18, fontWeight:700, color:'#e5e7eb', marginBottom:8}}>Welcome to renaissBlock! 🎉</div>
-      <div style={{fontSize:13, color:'#94a3b8', marginBottom:8}}>
-        {walletChoice === 'web3auth'
-          ? 'Your Solana wallet is being created automatically. You\'ll be able to receive NFTs and USDC payments without any additional setup!'
-          : 'You can link a wallet anytime from your profile to receive NFTs and payments.'}
-      </div>
-      {walletChoice === 'web3auth' && (
-        <div style={{fontSize:12, color:'#60a5fa', marginBottom:16, padding:'8px', background:'rgba(96, 165, 250, 0.1)', borderRadius:'4px'}}>
-          ℹ️ Wallet creation happens in the background. Check your profile in a few seconds to see your wallet address.
+      {walletChoice === 'web3auth' ? (
+        // Show Circle wallet setup component for PIN and wallet creation
+        <CircleWalletSetup
+          onComplete={() => {
+            // Redirect to profile after wallet creation
+            window.location.href = '/profile';
+          }}
+          onSkip={() => {
+            // Allow skipping wallet creation
+            window.location.href = '/profile';
+          }}
+        />
+      ) : (
+        // Show generic welcome for users who chose other options
+        <div>
+          <div style={{fontSize:18, fontWeight:700, color:'#e5e7eb', marginBottom:8}}>Welcome to renaissBlock! 🎉</div>
+          <div style={{fontSize:13, color:'#94a3b8', marginBottom:16}}>
+            You can link a wallet anytime from your profile to receive NFTs and payments.
+          </div>
+          <div style={{display:'flex', gap:8, justifyContent:'center'}}>
+            <button onClick={()=> window.location.href = '/'}>Go to Home</button>
+            <button onClick={()=> window.location.href = '/profile'}>Go to Profile</button>
+          </div>
         </div>
       )}
-      <div style={{display:'flex', gap:8, justifyContent:'center'}}>
-        <button onClick={()=> window.location.href = '/'}>Go to Home</button>
-        <button onClick={()=> window.location.href = '/profile'}>Go to Profile</button>
-      </div>
     </div>
   );
 
