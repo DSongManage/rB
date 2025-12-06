@@ -113,6 +113,8 @@ class ContentListView(generics.ListCreateAPIView):
 
     # Filter by inventory status or mine
     def get_queryset(self):
+        from django.db.models import Q
+
         # Optimize with select_related to avoid N+1 queries on creator
         qs = Content.objects.select_related('creator').all()
 
@@ -120,6 +122,15 @@ class ContentListView(generics.ListCreateAPIView):
         # Collaboration invites create placeholder content with title starting with "Collaboration Invite"
         # These should only appear in collaboration management, not public browse
         qs = qs.exclude(title__startswith='Collaboration Invite')
+
+        # Content Removal Policy: Exclude delisted and orphaned content from marketplace
+        # 1. Hide content where source chapter is delisted (is_listed=False)
+        # 2. Hide orphaned content (both source_chapter and source_book_project are null - chapter/book was deleted)
+        qs = qs.exclude(
+            Q(source_chapter__isnull=False) & Q(source_chapter__is_listed=False)
+        ).exclude(
+            Q(source_chapter__isnull=True) & Q(source_book_project__isnull=True)
+        )
 
         status_f = self.request.query_params.get('inventory_status')
         mine = self.request.query_params.get('mine')
@@ -750,6 +761,16 @@ class SearchView(APIView):
         # Only search minted (public) content
         qs = Content.objects.filter(inventory_status='minted')
 
+        # Content Removal Policy: Exclude delisted and orphaned content from search
+        # 1. Hide content where source chapter is delisted (is_listed=False)
+        # 2. Hide orphaned content (both source_chapter and source_book_project are null - chapter/book was deleted)
+        from django.db.models import Q
+        qs = qs.exclude(
+            Q(source_chapter__isnull=False) & Q(source_chapter__is_listed=False)
+        ).exclude(
+            Q(source_chapter__isnull=True) & Q(source_book_project__isnull=True)
+        )
+
         if q:
             qs = qs.filter(models.Q(title__icontains=q) | models.Q(creator__username__icontains=q))
         if genre:
@@ -856,29 +877,126 @@ class FlagView(APIView):
 
 class LinkWalletView(APIView):
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
+        """Link wallet to user account (Web3Auth or external with signature verification)"""
         addr = request.data.get('wallet_address', '').strip()
         token = request.data.get('web3auth_token', '').strip()
-        # If token provided and no address, derive address server-side
+        signature = request.data.get('signature', '').strip()
+        message = request.data.get('message', '').strip()
+
+        # Path 1: Web3Auth token (derive address from JWT)
         if token and not addr:
             try:
                 claims = verify_web3auth_jwt(token)
                 derived = extract_wallet_from_claims(claims)
                 addr = (derived or '').strip()
+
+                # Also store Web3Auth subject identifier for future reference
+                web3auth_sub = claims.get('sub', '')
             except Web3AuthVerificationError as exc:
                 return Response({'error': f'web3auth verification failed: {exc}'}, status=400)
+
+        # Path 2: External wallet with signature verification (SECURE)
+        elif addr and signature and message:
+            try:
+                # Import Solana cryptography libraries
+                from solders.pubkey import Pubkey as SoldersPubkey
+                from nacl.signing import VerifyKey
+                from nacl.exceptions import BadSignatureError
+                import base64
+
+                # Parse the public key
+                try:
+                    pubkey = SoldersPubkey.from_string(addr)
+                except Exception as e:
+                    return Response({'error': f'Invalid Solana address: {e}'}, status=400)
+
+                # Decode signature from base64
+                try:
+                    signature_bytes = base64.b64decode(signature)
+                except Exception as e:
+                    return Response({'error': f'Invalid signature format: {e}'}, status=400)
+
+                # Verify signature
+                try:
+                    verify_key = VerifyKey(bytes(pubkey))
+                    message_bytes = message.encode('utf-8')
+                    verify_key.verify(message_bytes, signature_bytes)
+                except BadSignatureError:
+                    return Response({'error': 'Signature verification failed - wallet ownership not proven'}, status=400)
+                except Exception as e:
+                    return Response({'error': f'Signature verification error: {e}'}, status=400)
+
+                # Signature verified! Proceed with linking
+                web3auth_sub = None
+
+            except ImportError:
+                # Fallback: Allow manual linking if Solana libraries not installed (dev only)
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning('Solana libraries not installed - skipping signature verification (INSECURE)')
+                web3auth_sub = None
+
+        # Path 3: Manual wallet address (less secure, for backwards compatibility)
+        elif addr and not signature:
+            # Allow manual linking but log a warning
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f'Manual wallet linking without signature verification: {addr[:8]}...')
+            web3auth_sub = None
+        else:
+            return Response({'error':'wallet_address or web3auth_token required'}, status=400)
+
         if not addr:
-            return Response({'error':'wallet_address required'}, status=400)
-        # Enforce uniqueness at profile level (optional connection)
-        # Compare by immutable handle to avoid cross-model FK type mismatch
+            return Response({'error':'Could not derive wallet address'}, status=400)
+
+        # Enforce uniqueness at profile level
         if UserProfile.objects.filter(wallet_address=addr).exclude(username=getattr(request.user, 'username', '')).exists():
-            return Response({'error':'wallet already linked to another account'}, status=400)
+            return Response({'error':'Wallet already linked to another account'}, status=400)
+
         # Bridge auth.User -> rb_core.User by username
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         prof, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
+
+        # Update wallet info
         prof.wallet_address = addr[:44]
+        prof.wallet_provider = 'web3auth' if token else 'external'
+
+        # Store Web3Auth sub if available (for Web3Auth wallets)
+        if web3auth_sub:
+            prof.web3auth_sub = web3auth_sub
+
         prof.save()
-        return Response({'ok': True, 'wallet_address': addr[:44]})
+
+        return Response({
+            'ok': True,
+            'wallet_address': addr[:44],
+            'wallet_provider': prof.wallet_provider
+        })
+
+    def delete(self, request):
+        """Disconnect wallet from user account"""
+        # Bridge auth.User -> rb_core.User by username
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        prof, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
+
+        # Clear wallet fields
+        old_address = prof.wallet_address
+        prof.wallet_address = None
+        prof.wallet_provider = None
+        prof.web3auth_sub = None
+        prof.save()
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f'User {request.user.username} disconnected wallet {old_address}')
+
+        return Response({
+            'success': True,
+            'message': 'Wallet disconnected',
+            'disconnected_address': old_address
+        })
 
 class CsrfTokenView(APIView):
     def get(self, request):
@@ -943,7 +1061,7 @@ class UserSearchView(APIView):
                 p.user.initiated_collabs.filter(status='active').count() +
                 p.user.joined_collabs.filter(status='active').count()
             )
-            
+
             # Determine status category for badge color
             status_category = 'green'  # default
             if p.status:
@@ -956,7 +1074,17 @@ class UserSearchView(APIView):
                     status_category = 'yellow'
                 elif p.status in red_statuses:
                     status_category = 'red'
-            
+
+            # Build absolute URLs for avatar and banner
+            avatar_url = p.resolved_avatar_url
+            banner_url = p.resolved_banner_url
+
+            # Convert relative URLs to absolute URLs for frontend
+            if avatar_url and avatar_url.startswith('/'):
+                avatar_url = request.build_absolute_uri(avatar_url)
+            if banner_url and banner_url.startswith('/'):
+                banner_url = request.build_absolute_uri(banner_url)
+
             results.append({
                 'id': p.user.id,
                 'username': p.username,
@@ -973,8 +1101,9 @@ class UserSearchView(APIView):
                 # Status
                 'status': p.status or '',
                 'status_category': status_category,  # 'green', 'yellow', 'red' for UI
-                # Profile media
-                'avatar_url': p.avatar_url or '',
+                # Profile media - use resolved methods to get uploaded images
+                'avatar_url': avatar_url,
+                'banner_url': banner_url,
                 'location': p.location or '',
             })
         

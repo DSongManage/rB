@@ -3,6 +3,7 @@ import { bookApi, BookProject, Chapter } from '../../services/bookApi';
 import ChapterList from './ChapterList';
 import ChapterEditor from './ChapterEditor';
 import PublishModal from './PublishModal';
+import ChapterManagement from '../ChapterManagement';
 
 interface BookEditorProps {
   onPublish: (contentId: number) => void;
@@ -47,7 +48,13 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
         setChapters(newProject.chapters || []);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to initialize project');
+      // If content was deleted (404), navigate back to studio home
+      if (err.message?.toLowerCase().includes('not found') || err.message?.includes('404')) {
+        console.log('[BookEditor] Content no longer exists, navigating back to studio');
+        onBack();
+      } else {
+        setError(err.message || 'Failed to initialize project');
+      }
     } finally {
       setLoading(false);
     }
@@ -295,9 +302,9 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
               marginBottom: 12,
             }}>
               {project?.cover_image_url ? (
-                <img 
-                  src={project.cover_image_url} 
-                  alt="Book cover" 
+                <img
+                  src={project.cover_image_url}
+                  alt="Book cover"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : (
@@ -332,7 +339,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
               />
             </label>
           </div>
-          
+
           {/* Chapter List */}
           <ChapterList
             chapters={chapters}
@@ -341,14 +348,51 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
             onAddChapter={handleAddChapter}
           />
         </div>
-        
-        {/* Right: Editor */}
-        <ChapterEditor
-          chapter={selectedChapter}
-          onUpdateChapter={handleUpdateChapter}
-          saving={saving}
-          lastSaved={lastSaved}
-        />
+
+        {/* Right: Editor + Management */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Chapter Editor */}
+          <ChapterEditor
+            chapter={selectedChapter}
+            onUpdateChapter={handleUpdateChapter}
+            saving={saving}
+            lastSaved={lastSaved}
+          />
+
+          {/* Chapter Management (Remove/Delist) - Only show for published chapters */}
+          {selectedChapter && selectedChapter.is_published && (
+            <ChapterManagement
+              chapter={selectedChapter}
+              onStatusChange={async () => {
+                // If chapter was removed completely, navigate back to studio home
+                // If just delisted, refresh the project
+                if (project?.id) {
+                  try {
+                    // Try to reload the project by its ID (not content ID)
+                    const updatedProject = await bookApi.getProject(project.id);
+                    setProject(updatedProject);
+                    setChapters(updatedProject.chapters || []);
+
+                    // Check if the current chapter still exists
+                    const chapterStillExists = updatedProject.chapters?.some(ch => ch.id === selectedChapterId);
+
+                    if (!chapterStillExists) {
+                      // Chapter was removed, select first chapter or clear selection
+                      if (updatedProject.chapters && updatedProject.chapters.length > 0) {
+                        setSelectedChapterId(updatedProject.chapters[0].id);
+                      } else {
+                        setSelectedChapterId(null);
+                      }
+                    }
+                  } catch (err) {
+                    // If we can't reload the project, go back to studio home
+                    onBack();
+                  }
+                }
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Publish Modal */}

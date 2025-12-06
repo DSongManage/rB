@@ -5,7 +5,7 @@ import HomePage from './pages/HomePage';
 import SearchPage from './pages/SearchPage';
 import StudioPage from './pages/StudioPage';
 import DashboardPage from './pages/DashboardPage';
-import ProfilePage from './pages/ProfilePage';
+import ProfilePage from './pages/ProfilePageRedesigned';
 import AuthPage from './pages/AuthPage';
 import WalletInfoPage from './pages/WalletInfoPage';
 import TermsPage from './pages/TermsPage';
@@ -144,14 +144,6 @@ function Header() {
             <Link to="/profile" className="rb-nav-link" title="Profile">
               <User size={20} />
               <span>Profile</span>
-            </Link>
-            <Link to="/collaborations" className="rb-nav-link" title="Collaborations">
-              <Users size={20} />
-              <span>Collaborations</span>
-            </Link>
-            <Link to="/collaborators" className="rb-nav-link" title="Collaborators">
-              <Users size={20} />
-              <span>Collaborators</span>
             </Link>
             <button
               onClick={() => setShowFeedback(true)}

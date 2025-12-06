@@ -92,8 +92,8 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
         .then(r => r.json())
         .then(j => j?.csrfToken || '');
 
-      // Call backend to create Circle checkout session
-      const res = await fetch(`${API_URL}/api/checkout/circle/`, {
+      // Call backend to create Stripe checkout session
+      const res = await fetch(`${API_URL}/api/checkout/session/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,8 +101,7 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
         },
         credentials: 'include',
         body: JSON.stringify({
-          content_id: contentId,
-          payment_method: 'card'
+          content_id: contentId
         }),
       });
 
@@ -120,7 +119,7 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
           alert('Please set up your wallet in your profile before purchasing');
         } else if (data?.code === 'NO_CREATOR_WALLET') {
           alert('Creator wallet not configured. Please contact support.');
-        } else if (data?.code === 'CIRCLE_ERROR') {
+        } else if (data?.code === 'STRIPE_ERROR') {
           alert('Payment system error. Please try again.');
         } else {
           alert(data?.error || 'Checkout failed');
@@ -128,7 +127,7 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
         return;
       }
 
-      // Redirect to Circle Checkout
+      // Redirect to Stripe Checkout
       if (data?.checkout_url) {
         window.location.href = data.checkout_url;
       } else {

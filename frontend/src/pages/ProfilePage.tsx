@@ -7,6 +7,7 @@ import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
 import ProfileEditForm from '../components/ProfileEditForm';
 import ProfileStatus from '../components/ProfileStatus';
 import StatusEditForm from '../components/StatusEditForm';
+import { WalletManagementPanel } from '../components/WalletManagementPanel';
 import { API_URL } from '../config';
 
 type UserStatus = { user_id: number; username: string; wallet_address?: string } | null;
@@ -15,6 +16,7 @@ type UserProfile = {
   username: string;
   display_name: string;
   wallet_address?: string;
+  wallet_provider?: 'web3auth' | 'external' | null;
   avatar?: string;
   avatar_url?: string;
   banner?: string;
@@ -101,59 +103,6 @@ export default function ProfilePage() {
     if (!q.trim()) { setResults([]); return; }
     fetch(`${API_URL}/api/users/search/?q=${encodeURIComponent(q)}`)
       .then(r=>r.json()).then(setResults);
-  };
-
-  const linkWalletManual = async () => {
-    const manual = prompt('Enter your Solana public address');
-    if (!manual) return;
-    const token = csrf || await refreshCsrf();
-    const res = await fetch(`${API_URL}/api/wallet/link/`, {
-      method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({wallet_address:manual})
-    });
-    if (res.ok) { setStatus('Wallet linked'); await refreshStatus(); } else { const t = await res.text(); setStatus(`Failed: ${t}`); }
-  };
-
-  const linkWalletWeb3Auth = async () => {
-    try {
-      setStatus('');
-      const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || '';
-      if (!clientId) { setStatus('Missing Web3Auth client id'); return; }
-      const chainConfig = {
-        chainNamespace: CHAIN_NAMESPACES.SOLANA,
-        chainId: "0x3", // Solana devnet
-        rpcTarget: "https://api.devnet.solana.com",
-      };
-      
-      const privateKeyProvider = new SolanaPrivateKeyProvider({
-        config: { chainConfig },
-      });
-
-      const web3auth = new Web3Auth({
-        clientId,
-        chainConfig,
-        privateKeyProvider,
-        web3AuthNetwork: 'sapphire_devnet',
-      });
-      await web3auth.init();
-      await web3auth.connect();
-      const info: any = await web3auth.getUserInfo();
-      const idToken = info?.idToken || info?.id_token;
-      if (!idToken) { setStatus('Could not obtain Web3Auth token'); return; }
-      const token = csrf || await refreshCsrf();
-      const res = await fetch(`${API_URL}/api/wallet/link/`, {
-        method:'POST', headers:{'Content-Type':'application/json', 'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'}, credentials:'include', body: JSON.stringify({ web3auth_token: idToken })
-      });
-      if (res.ok) {
-        const d = await res.json();
-        setStatus('Wallet created and linked');
-        await refreshStatus();
-      } else {
-        const t = await res.text();
-        setStatus(`Failed: ${t}`);
-      }
-    } catch (e:any) {
-      setStatus(`Error: ${e?.message || String(e)}`);
-    }
   };
 
   const myContent = Array.isArray(content) ? content.filter(c=> c.creator === user?.user_id) : [];
@@ -271,7 +220,8 @@ export default function ProfilePage() {
 
   return (
     <div className="page" style={{maxWidth: 1100, margin: '0 auto'}}>
-      <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16, marginBottom:16, display:'grid', gridTemplateColumns:'72px 1fr auto', gap:16, alignItems:'center', backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : undefined, backgroundSize:'cover', backgroundPosition:'center', cursor:(profile? 'pointer':'default')}} onClick={onBannerClick}>
+      {/* Profile Banner - Click to upload */}
+      <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16, marginBottom:16, display:'grid', gridTemplateColumns:'72px 1fr', gap:16, alignItems:'center', backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : undefined, backgroundSize:'cover', backgroundPosition:'center', cursor:(profile? 'pointer':'default')}} onClick={onBannerClick}>
         <div onClick={(e)=>{ e.stopPropagation(); onAvatarClick(); }} style={{width:56, height:56, borderRadius:12, background:'#111', overflow:'hidden', display:'grid', placeItems:'center', color:'var(--accent)', fontWeight:700, cursor:'pointer'}} title="Click to upload avatar">
           {(profile?.avatar || profile?.avatar_url) ? (<img src={(profile?.avatar || profile?.avatar_url) as string} alt="avatar" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e) => { if (profile) { profile.avatar = undefined; profile.avatar_url = undefined; } e.currentTarget.style.display = 'none'; }} />) : ((user?.username||'?').slice(0,1).toUpperCase())}
         </div>
@@ -311,28 +261,27 @@ export default function ProfilePage() {
               return (
                 <span className="chip" title={w}>
                   <span>{short}</span>
-                  <button onClick={()=> navigator.clipboard.writeText(w)}>Copy</button>
+                  <button onClick={(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(w); }}>Copy</button>
                 </span>
               );
             })()}
           </div>
-        </div>
-        <div style={{display:'flex', gap:8, alignItems:'center'}}>
-          {!user?.wallet_address && (
-            <div style={{fontSize:13, color:'#94a3b8', fontStyle:'italic'}}>
-              ⏳ Wallet being created automatically...
-            </div>
-          )}
-          <button onClick={linkWalletManual} style={{background:'transparent', border:'1px solid #334155', color:'#cbd5e1', padding:'8px 12px', borderRadius:8}}>Connect your own wallet</button>
         </div>
       </div>
       {/* Hidden file inputs for avatar/banner */}
       <input ref={avatarInputRef} onChange={onAvatarSelected} type="file" accept="image/jpeg,image/png,image/webp" style={{display:'none'}} />
       <input ref={bannerInputRef} onChange={onBannerSelected} type="file" accept="image/jpeg,image/png,image/webp" style={{display:'none'}} />
 
+      {/* Wallet Management Section */}
+      <WalletManagementPanel
+        walletAddress={profile?.wallet_address || null}
+        walletProvider={profile?.wallet_provider || null}
+        onWalletUpdate={refreshStatus}
+      />
+
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12, marginBottom:16}}>
         <StatCard label="Content" value={String(dash.content_count)} />
-        <StatCard label="Sales (USD)" value={`$${dash.sales}`} />
+        <StatCard label="Sales (USDC)" value={`$${dash.sales}`} />
         <StatCard label="Tier" value={dash.tier || '—'} />
         <StatCard label="Fee" value={dash.fee != null ? `${dash.fee}%` : '—'} />
       </div>
@@ -418,7 +367,13 @@ export default function ProfilePage() {
           <div style={{marginBottom:12}}>
             <StatusEditForm initialStatus={profile?.status} onSaved={refreshStatus} />
           </div>
-          <ProfileEditForm initialDisplayName={profile?.display_name || ''} onSaved={refreshStatus} />
+          <ProfileEditForm
+            initialDisplayName={profile?.display_name || ''}
+            initialLocation={profile?.location || ''}
+            initialRoles={profile?.roles || []}
+            initialGenres={profile?.genres || []}
+            onSaved={refreshStatus}
+          />
           <div style={{marginTop:8, fontSize:12, color:'#94a3b8'}}>{status}</div>
         </div>
         <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>

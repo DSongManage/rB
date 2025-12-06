@@ -306,3 +306,13 @@ button:hover { background:#d97706; }
     top: 68px;
   }
 }
+
+/* Spinner animation for loading states */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

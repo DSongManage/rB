@@ -23,6 +23,20 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
 
 
+# Celery Beat Schedule
+# Schedule periodic tasks to run at specific times
+from celery.schedules import crontab
+
+app.conf.beat_schedule = {
+    # Weekly treasury reconciliation - every Monday at 9am
+    'weekly-treasury-reconciliation': {
+        'task': 'rb_core.tasks.weekly_treasury_reconciliation',
+        'schedule': crontab(day_of_week='monday', hour=9, minute=0),
+    },
+    # Add more scheduled tasks here as needed
+}
+
+
 @app.task(bind=True, ignore_result=True)
 def debug_task(self):
     """Debug task to test Celery is working."""

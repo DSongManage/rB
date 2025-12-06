@@ -392,20 +392,17 @@ STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
 
-# Circle Payment Configuration (Credit Cards → USDC on Solana)
-# Circle enables fiat on-ramp: users pay with credit card, platform receives USDC on Solana
-CIRCLE_API_KEY = os.getenv('CIRCLE_API_KEY', '')
-CIRCLE_WEBHOOK_SECRET = os.getenv('CIRCLE_WEBHOOK_SECRET', '')
-# Platform wallet address to receive USDC settlements
+# Platform USDC wallet address for treasury operations
+# This is the Solana wallet that holds USDC treasury and fronts payments
 PLATFORM_USDC_WALLET_ADDRESS = os.getenv('PLATFORM_USDC_WALLET_ADDRESS', '')
 
-# Circle Web3 Services (W3S) Configuration - Wallet Management
-# Circle W3S enables user-controlled wallets with PIN-based authentication
-CIRCLE_W3S_API_KEY = os.getenv('CIRCLE_W3S_API_KEY', '')
-CIRCLE_W3S_APP_ID = os.getenv('CIRCLE_W3S_APP_ID', '')
-CIRCLE_W3S_ENTITY_ID = os.getenv('CIRCLE_W3S_ENTITY_ID', '')
-CIRCLE_W3S_PLATFORM_WALLET_ID = os.getenv('CIRCLE_W3S_PLATFORM_WALLET_ID', '')
-CIRCLE_W3S_PRODUCTION = os.getenv('CIRCLE_W3S_PRODUCTION', 'false').lower() == 'true'
+# USDC Token Mint Address
+# Devnet: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
+# Mainnet: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+USDC_MINT_ADDRESS = os.getenv('USDC_MINT_ADDRESS', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')
+
+# Solana Network
+SOLANA_NETWORK = os.getenv('SOLANA_NETWORK', 'devnet')
 
 # Application URLs for payment redirects
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')

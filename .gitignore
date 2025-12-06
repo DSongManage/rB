@@ -27,6 +27,14 @@ backend/db.sqlite3
 *.sqlite3
 db.sqlite3
 
+# Media uploads (user-generated content)
+backend/media/
+media/
+
+# Celery
+celerybeat-schedule.db
+celerybeat-schedule
+
 # Solana/Anchor build outputs
 blockchain/rb_contracts/target/
 blockchain/target/

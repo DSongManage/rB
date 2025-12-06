@@ -153,26 +153,16 @@ class UserProfile(models.Model):
     display_name = models.CharField(max_length=100, blank=True, default='')
     email_hash = models.CharField(max_length=64, blank=True, default='')
     wallet_address = models.CharField(max_length=44, unique=True, null=True, blank=True, default=None)
-    # Web3Auth/OpenLogin subject identifier for deterministic identity mapping (DEPRECATED - migrating to Circle W3S)
+    # Web3Auth/OpenLogin subject identifier for deterministic identity mapping
     web3auth_sub = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None)
-
-    # Circle Web3 Services (W3S) wallet fields
-    circle_user_id = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None,
-                                     help_text='Circle user account ID for user-controlled wallet system')
-    circle_wallet_id = models.CharField(max_length=128, unique=True, null=True, blank=True, default=None,
-                                       help_text='Circle W3S wallet ID for user-controlled wallet')
-    circle_wallet_address = models.CharField(max_length=44, null=True, blank=True, default=None,
-                                            help_text='Solana address from Circle W3S wallet')
 
     # Wallet provider tracking
     WALLET_PROVIDER_CHOICES = [
-        ('circle_user_controlled', 'Circle User-Controlled Wallet'),
-        ('circle_w3s', 'Circle Web3 Services'),
+        ('web3auth', 'Web3Auth'),
         ('external', 'External Wallet'),
-        ('web3auth', 'Web3Auth (Deprecated)'),
     ]
     wallet_provider = models.CharField(max_length=30, choices=WALLET_PROVIDER_CHOICES,
-                                      default='circle_user_controlled', blank=True)
+                                      default='web3auth', blank=True)
     # Backward-compatible URL fields (kept); prefer uploaded images below
     avatar_url = models.URLField(blank=True, default='')
     banner_url = models.URLField(blank=True, default='')
@@ -283,7 +273,7 @@ class BookProject(models.Model):
 
 class Chapter(models.Model):
     """Individual chapter within a book project.
-    
+
     - Each chapter has title and HTML content
     - Chapters are ordered within the book
     - Can be published individually as NFT or as part of complete book
@@ -296,13 +286,613 @@ class Chapter(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_published = models.BooleanField(default=False)
     published_content = models.ForeignKey(Content, null=True, blank=True, on_delete=models.SET_NULL, related_name='source_chapter')
-    
+
+    # Content removal and marketplace listing fields
+    is_listed = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Whether this chapter is visible in the marketplace (default: True)"
+    )
+    delisted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when chapter was delisted from marketplace"
+    )
+    delisted_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='delisted_chapters',
+        help_text="User who delisted this chapter"
+    )
+    delisted_reason = models.TextField(
+        blank=True,
+        default='',
+        help_text="Reason for delisting (visible to collaborators)"
+    )
+
     class Meta:
         ordering = ['order', 'created_at']
         unique_together = ['book_project', 'order']
-    
+        indexes = [
+            models.Index(fields=['is_listed', '-created_at']),
+            models.Index(fields=['book_project', 'is_listed']),
+        ]
+
     def __str__(self):
         return f"Chapter {self.order}: {self.title}"
+
+    def get_collaborators_with_wallets(self):
+        """
+        Get all collaborators with their Web3Auth wallet addresses and revenue split.
+
+        For now, returns the book project creator as the sole collaborator.
+        TODO: Implement chapter-level collaborator system with revenue splits.
+
+        Returns:
+            List of dicts: [
+                {
+                    'user': User object,
+                    'wallet': 'SolanaAddress...',
+                    'percentage': 90,  # 90% to creator, 10% to platform
+                    'role': 'author'
+                },
+                ...
+            ]
+
+        Raises:
+            ValueError: If user doesn't have a Web3Auth wallet
+        """
+        collaborators = []
+
+        # Get book project creator
+        creator = self.book_project.creator
+
+        # Verify creator has wallet
+        if not creator.wallet_address:
+            raise ValueError(f"User {creator.username} doesn't have a Web3Auth wallet")
+
+        # For now, creator gets 90% (platform gets 10%)
+        collaborators.append({
+            'user': creator,
+            'wallet': creator.wallet_address,
+            'percentage': 90,
+            'role': 'author'
+        })
+
+        # Validate total percentage doesn't exceed 90% (10% reserved for platform)
+        total_percentage = sum(c['percentage'] for c in collaborators)
+        if total_percentage > 90:
+            raise ValueError(f"Total collaborator percentage ({total_percentage}%) exceeds 90%")
+
+        return collaborators
+
+    def get_purchase_count(self):
+        """Count how many purchases (NFT mints) this chapter has."""
+        if not self.published_content:
+            return 0
+        return Purchase.objects.filter(
+            chapter=self,
+            refunded=False,
+            status__in=['payment_completed', 'completed', 'minting']
+        ).count()
+
+    def has_any_sales(self):
+        """Check if any NFTs have been minted/sold for this chapter."""
+        return self.get_purchase_count() > 0
+
+    def can_be_removed_completely(self):
+        """
+        Check if this chapter can be FULLY removed from the database.
+
+        Returns:
+            bool: True if chapter has zero sales, False otherwise
+        """
+        return not self.has_any_sales()
+
+    def can_be_delisted_by(self, user):
+        """
+        Check if a user has permission to delist this chapter.
+
+        For solo content: Only the creator can delist
+        For collaborative content: All collaborators must approve
+
+        Args:
+            user: User object attempting to delist
+
+        Returns:
+            bool: True if user can initiate/approve delisting
+        """
+        # Check if user is the book project creator
+        if self.book_project.creator == user:
+            return True
+
+        # TODO: Check if user is a collaborator when collaboration system is implemented
+        # For now, only creator can delist
+        return False
+
+    def is_collaborative(self):
+        """
+        Check if this chapter is collaborative content.
+
+        Returns:
+            bool: True if multiple collaborators, False if solo
+        """
+        # TODO: Implement when collaboration system is added
+        # For now, all chapters are solo (creator only)
+        return False
+
+    def get_all_collaborators(self):
+        """
+        Get all collaborators for this chapter.
+
+        Returns:
+            QuerySet of User objects
+        """
+        # For now, just return the creator
+        # TODO: Implement when collaboration system is added
+        return [self.book_project.creator]
+
+    def remove_completely(self, user, reason=''):
+        """
+        PERMANENTLY delete this chapter from the database.
+
+        Only allowed if:
+        1. No NFTs have been sold (zero purchases)
+        2. User has permission to remove
+
+        If the chapter's Content has purchases (can't be deleted due to PROTECT constraint),
+        the Content will be delisted instead of deleted.
+
+        Args:
+            user: User object attempting removal
+            reason: Optional reason for removal (for audit logs)
+
+        Returns:
+            dict: {'success': bool, 'message': str}
+
+        Raises:
+            ValueError: If chapter has sales or user lacks permission
+        """
+        if not self.can_be_removed_completely():
+            raise ValueError(
+                f"Cannot remove chapter '{self.title}': {self.get_purchase_count()} NFT(s) have been sold. "
+                "Use delist_from_marketplace() instead to hide from marketplace while preserving access for NFT holders."
+            )
+
+        if not self.can_be_delisted_by(user):
+            raise ValueError(
+                f"User {user.username} does not have permission to remove this chapter."
+            )
+
+        # Audit log
+        import logging
+        from django.db.models.deletion import ProtectedError
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"[Chapter Removal] User {user.username} is PERMANENTLY removing chapter {self.id} "
+            f"('{self.title}'). Reason: {reason or 'No reason provided'}"
+        )
+
+        # Get book project before deletion
+        book_project = self.book_project
+        chapter_title = self.title
+
+        # Delete the associated published Content if it exists
+        if self.published_content:
+            content_to_delete = self.published_content
+            content_id = content_to_delete.id
+            logger.info(f"[Chapter Removal] Attempting to delete associated Content {content_id}")
+
+            try:
+                content_to_delete.delete()
+                logger.info(f"[Chapter Removal] Successfully deleted Content {content_id}")
+            except ProtectedError as e:
+                # Content has Purchase records - cannot delete due to PROTECT constraint
+                # Delist it instead to hide from marketplace
+                logger.warning(
+                    f"[Chapter Removal] Cannot delete Content {content_id} due to existing purchases. "
+                    f"Delisting instead. Error: {e}"
+                )
+                content_to_delete.is_listed = False
+                content_to_delete.delisted_at = timezone.now()
+                content_to_delete.delisted_by = user
+                content_to_delete.delisted_reason = f"Chapter removed by {user.username}. {reason}"
+                content_to_delete.save()
+                logger.info(f"[Chapter Removal] Content {content_id} delisted instead of deleted")
+
+        # Delete the chapter
+        self.delete()
+
+        # Check if book project has any remaining chapters
+        remaining_chapters = book_project.chapters.count()
+        logger.info(f"[Chapter Removal] Book project '{book_project.title}' has {remaining_chapters} remaining chapters")
+
+        if remaining_chapters == 0:
+            # No chapters left - delete the entire book project and its published content
+            logger.info(f"[Chapter Removal] No chapters left in book project {book_project.id} - removing book project")
+
+            if book_project.published_content:
+                book_content_to_delete = book_project.published_content
+                book_content_id = book_content_to_delete.id
+                logger.info(f"[Chapter Removal] Attempting to delete book's published Content {book_content_id}")
+
+                try:
+                    book_content_to_delete.delete()
+                    logger.info(f"[Chapter Removal] Successfully deleted book Content {book_content_id}")
+                except ProtectedError as e:
+                    # Book Content has Purchase records - delist instead
+                    logger.warning(
+                        f"[Chapter Removal] Cannot delete book Content {book_content_id} due to existing purchases. "
+                        f"Delisting instead. Error: {e}"
+                    )
+                    book_content_to_delete.is_listed = False
+                    book_content_to_delete.delisted_at = timezone.now()
+                    book_content_to_delete.delisted_by = user
+                    book_content_to_delete.delisted_reason = f"Book project removed (no chapters). {reason}"
+                    book_content_to_delete.save()
+                    logger.info(f"[Chapter Removal] Book Content {book_content_id} delisted instead of deleted")
+
+            book_project.delete()
+            logger.info(f"[Chapter Removal] Book project '{book_project.title}' has been permanently deleted")
+
+        return {
+            'success': True,
+            'message': f"Chapter '{chapter_title}' has been permanently deleted."
+        }
+
+    def delist_from_marketplace(self, user, reason=''):
+        """
+        Hide this chapter from the marketplace (but preserve access for NFT holders).
+
+        For solo content: Immediate delisting
+        For collaborative content: Creates DelistApproval request for all collaborators
+
+        Args:
+            user: User object initiating delisting
+            reason: Reason for delisting (required)
+
+        Returns:
+            dict: {
+                'success': bool,
+                'message': str,
+                'requires_approval': bool,  # True if collaborative
+                'approval_id': int or None  # DelistApproval ID if collaborative
+            }
+
+        Raises:
+            ValueError: If chapter has no sales or user lacks permission
+        """
+        if not self.has_any_sales():
+            raise ValueError(
+                "Cannot delist chapter with zero sales. Use remove_completely() instead to permanently delete."
+            )
+
+        if not self.can_be_delisted_by(user):
+            raise ValueError(
+                f"User {user.username} does not have permission to delist this chapter."
+            )
+
+        if not reason:
+            raise ValueError("Reason is required for delisting.")
+
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Solo content: Immediate delisting
+        if not self.is_collaborative():
+            self.is_listed = False
+            self.delisted_at = timezone.now()
+            self.delisted_by = user
+            self.delisted_reason = reason
+            self.save(update_fields=['is_listed', 'delisted_at', 'delisted_by', 'delisted_reason'])
+
+            logger.info(
+                f"[Chapter Delist] User {user.username} delisted solo chapter {self.id} "
+                f"('{self.title}'). Reason: {reason}"
+            )
+
+            return {
+                'success': True,
+                'message': f"Chapter '{self.title}' has been delisted from the marketplace.",
+                'requires_approval': False,
+                'approval_id': None
+            }
+
+        # Collaborative content: Create approval request
+        else:
+            # Import here to avoid circular dependency
+            from .models import DelistApproval
+
+            # Check if there's already a pending request
+            existing = DelistApproval.objects.filter(
+                chapter=self,
+                status='pending'
+            ).first()
+
+            if existing:
+                raise ValueError(
+                    f"A delist request is already pending for this chapter (requested by {existing.requested_by.username})."
+                )
+
+            # Create delist approval request
+            approval = DelistApproval.objects.create(
+                chapter=self,
+                requested_by=user,
+                reason=reason
+            )
+
+            # Auto-approve for the requesting user
+            from .models import CollaboratorApproval
+            CollaboratorApproval.objects.create(
+                delist_request=approval,
+                collaborator=user,
+                approved=True,
+                responded_at=timezone.now()
+            )
+
+            logger.info(
+                f"[Chapter Delist] User {user.username} created delist request {approval.id} "
+                f"for collaborative chapter {self.id} ('{self.title}'). Awaiting collaborator approval."
+            )
+
+            # Send notifications to other collaborators
+            self._notify_collaborators_of_delist_request(approval, user)
+
+            return {
+                'success': True,
+                'message': f"Delist request created for '{self.title}'. Awaiting approval from all collaborators.",
+                'requires_approval': True,
+                'approval_id': approval.id
+            }
+
+    def relist_on_marketplace(self, user):
+        """
+        Restore this chapter to the marketplace (undo delisting).
+
+        Args:
+            user: User object attempting to relist
+
+        Returns:
+            dict: {'success': bool, 'message': str}
+
+        Raises:
+            ValueError: If chapter is not delisted or user lacks permission
+        """
+        if self.is_listed:
+            raise ValueError("Chapter is already listed on the marketplace.")
+
+        if not self.can_be_delisted_by(user):
+            raise ValueError(
+                f"User {user.username} does not have permission to relist this chapter."
+            )
+
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Relist the chapter
+        self.is_listed = True
+        self.delisted_at = None
+        self.delisted_by = None
+        self.delisted_reason = ''
+        self.save(update_fields=['is_listed', 'delisted_at', 'delisted_by', 'delisted_reason'])
+
+        logger.info(
+            f"[Chapter Relist] User {user.username} relisted chapter {self.id} ('{self.title}')."
+        )
+
+        return {
+            'success': True,
+            'message': f"Chapter '{self.title}' has been relisted on the marketplace."
+        }
+
+    def _notify_collaborators_of_delist_request(self, approval, requesting_user):
+        """
+        Send notifications to all collaborators about a delist request.
+
+        Args:
+            approval: DelistApproval object
+            requesting_user: User who requested the delist
+        """
+        # TODO: Implement notification service
+        # For now, this is a placeholder
+        pass
+
+
+class DelistApproval(models.Model):
+    """
+    Approval workflow for delisting collaborative chapters.
+
+    When a collaborator wants to delist collaborative content, all collaborators
+    must approve before the chapter is hidden from the marketplace.
+    """
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('approved', 'Approved (Delisted)'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    chapter = models.ForeignKey(
+        Chapter,
+        on_delete=models.CASCADE,
+        related_name='delist_requests',
+        help_text='Chapter to be delisted'
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='delist_requests_initiated',
+        help_text='Collaborator who initiated the delist request'
+    )
+    reason = models.TextField(
+        help_text='Reason for delisting (visible to all collaborators)'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    resolved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Timestamp when all approvals received or request was rejected'
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['chapter', 'status']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"Delist request for '{self.chapter.title}' by {self.requested_by.username} ({self.status})"
+
+    def check_and_apply_if_approved(self):
+        """
+        Check if all collaborators have approved. If yes, delist the chapter.
+
+        Returns:
+            dict: {'approved': bool, 'message': str}
+        """
+        # Get all collaborators for this chapter
+        all_collaborators = self.chapter.get_all_collaborators()
+        total_collaborators = len(all_collaborators)
+
+        # Count approvals
+        approvals = self.collaborator_responses.filter(approved=True).count()
+
+        # Check if all collaborators have approved
+        if approvals >= total_collaborators:
+            # Delist the chapter
+            self.chapter.is_listed = False
+            self.chapter.delisted_at = timezone.now()
+            self.chapter.delisted_by = self.requested_by
+            self.chapter.delisted_reason = self.reason
+            self.chapter.save(update_fields=['is_listed', 'delisted_at', 'delisted_by', 'delisted_reason'])
+
+            # Mark request as approved
+            self.status = 'approved'
+            self.resolved_at = timezone.now()
+            self.save(update_fields=['status', 'resolved_at'])
+
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(
+                f"[DelistApproval] Request {self.id} approved by all collaborators. "
+                f"Chapter {self.chapter.id} ('{self.chapter.title}') has been delisted."
+            )
+
+            return {
+                'approved': True,
+                'message': f"All collaborators approved. Chapter '{self.chapter.title}' has been delisted."
+            }
+
+        return {
+            'approved': False,
+            'message': f"Awaiting approval from {total_collaborators - approvals} more collaborator(s)."
+        }
+
+    def reject(self, rejecting_user):
+        """
+        Reject the delist request.
+
+        Args:
+            rejecting_user: User who rejected
+
+        Returns:
+            dict: {'success': bool, 'message': str}
+        """
+        self.status = 'rejected'
+        self.resolved_at = timezone.now()
+        self.save(update_fields=['status', 'resolved_at'])
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"[DelistApproval] Request {self.id} rejected by {rejecting_user.username}. "
+            f"Chapter '{self.chapter.title}' will remain listed."
+        )
+
+        return {
+            'success': True,
+            'message': f"Delist request rejected. Chapter '{self.chapter.title}' will remain on the marketplace."
+        }
+
+    def cancel(self, cancelling_user):
+        """
+        Cancel the delist request (can only be done by the requesting user).
+
+        Args:
+            cancelling_user: User attempting to cancel
+
+        Returns:
+            dict: {'success': bool, 'message': str}
+
+        Raises:
+            ValueError: If user is not the requester
+        """
+        if cancelling_user != self.requested_by:
+            raise ValueError("Only the requesting user can cancel this delist request.")
+
+        self.status = 'cancelled'
+        self.resolved_at = timezone.now()
+        self.save(update_fields=['status', 'resolved_at'])
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"[DelistApproval] Request {self.id} cancelled by {cancelling_user.username}."
+        )
+
+        return {
+            'success': True,
+            'message': 'Delist request cancelled.'
+        }
+
+
+class CollaboratorApproval(models.Model):
+    """
+    Individual collaborator's response to a delist request.
+
+    Tracks whether each collaborator approved or rejected the delist request.
+    """
+
+    delist_request = models.ForeignKey(
+        DelistApproval,
+        on_delete=models.CASCADE,
+        related_name='collaborator_responses'
+    )
+    collaborator = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='delist_responses'
+    )
+    approved = models.BooleanField(
+        help_text='True if approved, False if rejected'
+    )
+    response_note = models.TextField(
+        blank=True,
+        default='',
+        help_text='Optional note from collaborator'
+    )
+    responded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['delist_request', 'collaborator']
+        ordering = ['-responded_at']
+        indexes = [
+            models.Index(fields=['delist_request', 'approved']),
+        ]
+
+    def __str__(self):
+        status = 'Approved' if self.approved else 'Rejected'
+        return f"{self.collaborator.username} {status} delist request #{self.delist_request.id}"
 
 
 class Purchase(models.Model):
@@ -320,7 +910,8 @@ class Purchase(models.Model):
     """
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
-    content = models.ForeignKey(Content, on_delete=models.PROTECT, related_name='purchases')
+    content = models.ForeignKey(Content, on_delete=models.PROTECT, related_name='purchases', null=True, blank=True)
+    chapter = models.ForeignKey('Chapter', on_delete=models.PROTECT, related_name='purchases', null=True, blank=True)
 
     # Payment provider tracking
     payment_provider = models.CharField(
@@ -339,9 +930,6 @@ class Purchase(models.Model):
     stripe_charge_id = models.CharField(max_length=255, blank=True, default='')
     stripe_balance_txn_id = models.CharField(max_length=255, blank=True, default='')
 
-    # Circle identifiers
-    circle_payment_id = models.CharField(max_length=255, blank=True, default='', help_text='Circle payment ID')
-    circle_tracking_ref = models.CharField(max_length=255, blank=True, default='', help_text='Circle tracking reference')
 
     # Payment amounts (ACTUAL only, no estimates)
     gross_amount = models.DecimalField(
@@ -364,20 +952,6 @@ class Purchase(models.Model):
         null=True,
         blank=True,
         help_text="Gross - Stripe fee"
-    )
-    circle_fee = models.DecimalField(
-        max_digits=10,
-        decimal_places=4,
-        null=True,
-        blank=True,
-        help_text="Circle processing fee in USD"
-    )
-    net_after_circle = models.DecimalField(
-        max_digits=10,
-        decimal_places=4,
-        null=True,
-        blank=True,
-        help_text="Net amount after Circle fees (gross - circle_fee)"
     )
     mint_cost = models.DecimalField(
         max_digits=10,
@@ -422,34 +996,56 @@ class Purchase(models.Model):
     nft_minted = models.BooleanField(default=False)
     nft_mint_eligible_at = models.DateTimeField(null=True, blank=True)
 
-    # Circle W3S NFT tracking
-    circle_nft_id = models.CharField(max_length=255, blank=True, default='',
-                                     help_text='Circle W3S NFT ID from minting')
-    circle_mint_transaction_id = models.CharField(max_length=255, blank=True, default='',
-                                                  help_text='Circle W3S transaction ID for NFT mint')
-
-    # USDC distribution tracking (hybrid Stripe → USDC flow)
-    usdc_payment_status = models.CharField(
+    # USDC distribution tracking (ATOMIC SETTLEMENT)
+    # Platform fronts USDC immediately from treasury wallet
+    usdc_distribution_status = models.CharField(
         max_length=20,
         choices=[
-            ('pending_conversion', 'Pending USD → USDC Conversion'),
-            ('pending_distribution', 'Pending USDC Distribution'),
-            ('distributed', 'USDC Distributed'),
-            ('failed', 'Distribution Failed'),
+            ('pending', 'Pending'),
+            ('processing', 'Processing'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed'),
         ],
-        default='pending_conversion',
-        help_text='Status of USDC distribution to creator'
+        default='pending',
+        help_text='Status of atomic USDC distribution'
     )
-    usdc_transfer_signature = models.CharField(max_length=128, blank=True, default='',
-                                               help_text='Solana transaction signature for USDC transfer')
-    usdc_distributed_at = models.DateTimeField(null=True, blank=True,
-                                               help_text='When USDC was transferred to creator')
-    usdc_amount = models.DecimalField(
+    platform_usdc_fronted = models.DecimalField(
         max_digits=10,
         decimal_places=6,
         null=True,
         blank=True,
-        help_text='Amount of USDC to distribute to creator (90% of net after gas)'
+        help_text='Total USDC fronted from platform treasury for this purchase'
+    )
+    platform_usdc_earned = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='Platform 10% fee in USDC (stays in treasury)'
+    )
+    usdc_distribution_transaction = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text='Solana transaction signature for atomic USDC distribution'
+    )
+    usdc_distributed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Timestamp of atomic USDC distribution'
+    )
+
+    # Collaborator payment breakdown (JSON)
+    # Format: {
+    #   "collaborators": [
+    #     {"wallet": "Creator1...", "percentage": 40, "amount_usdc": 1.045, "role": "writer"},
+    #     {"wallet": "Creator2...", "percentage": 30, "amount_usdc": 0.784, "role": "artist"}
+    #   ]
+    # }
+    distribution_details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Breakdown of USDC distribution to collaborators'
     )
 
     # Status tracking
@@ -475,13 +1071,110 @@ class Purchase(models.Model):
         indexes = [
             models.Index(fields=['user', 'content']),
             models.Index(fields=['stripe_payment_intent_id']),
-            models.Index(fields=['circle_payment_id']),
             models.Index(fields=['status']),
             models.Index(fields=['payment_provider']),
         ]
 
     def __str__(self):
         return f"{self.user.username} purchased {self.content.title}"
+
+
+class CollaboratorPayment(models.Model):
+    """
+    Individual collaborator payment record for atomic USDC distribution.
+
+    Tracks each creator's payment in the atomic smart contract transaction.
+    All collaborators are paid simultaneously in one blockchain transaction.
+    """
+
+    purchase = models.ForeignKey(
+        Purchase,
+        on_delete=models.CASCADE,
+        related_name='collaborator_payments'
+    )
+    collaborator = models.ForeignKey(User, on_delete=models.CASCADE)
+    collaborator_wallet = models.CharField(max_length=255)
+    amount_usdc = models.DecimalField(max_digits=10, decimal_places=6)
+    percentage = models.IntegerField(help_text='Revenue percentage (e.g., 40 for 40%)')
+    role = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text='Collaborator role (writer, artist, editor, etc.)'
+    )
+    paid_at = models.DateTimeField(auto_now_add=True)
+    transaction_signature = models.CharField(
+        max_length=255,
+        help_text='Solana transaction signature (same for all collaborators in atomic tx)'
+    )
+
+    class Meta:
+        unique_together = ['purchase', 'collaborator']
+        ordering = ['-paid_at']
+
+    def __str__(self):
+        return f"{self.collaborator.username} - {self.amount_usdc} USDC ({self.percentage}%)"
+
+
+class TreasuryReconciliation(models.Model):
+    """
+    Weekly treasury reconciliation for tracking platform USDC treasury health.
+
+    Tracks:
+    - Total USDC fronted from treasury
+    - Platform fees earned
+    - Net USDC to replenish
+    - Treasury balance and runway
+    """
+
+    week_start = models.DateTimeField()
+    week_end = models.DateTimeField()
+    purchases_count = models.IntegerField()
+
+    # USDC flows
+    total_usdc_fronted = models.DecimalField(
+        max_digits=12,
+        decimal_places=6,
+        help_text='Total USDC fronted from treasury this week'
+    )
+    platform_fees_earned = models.DecimalField(
+        max_digits=12,
+        decimal_places=6,
+        help_text='Total platform fees (10%) earned this week'
+    )
+    net_usdc_to_replenish = models.DecimalField(
+        max_digits=12,
+        decimal_places=6,
+        help_text='Net USDC needed to replenish (fronted - fees)'
+    )
+
+    # Treasury status
+    stripe_balance_usd = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Stripe balance in USD at reconciliation time'
+    )
+
+    replenishment_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending Manual Replenishment'),
+            ('in_progress', 'ACH Transfer In Progress'),
+            ('completed', 'Completed'),
+        ],
+        default='pending'
+    )
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Treasury Reconciliation {self.week_start.date()} - {self.week_end.date()}"
 
 
 class ReadingProgress(models.Model):

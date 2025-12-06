@@ -137,16 +137,16 @@ def handle_payment_intent_succeeded(payment_intent):
             f'net=${purchase.net_after_stripe}'
         )
 
-        # Trigger NFT minting via Circle W3S (async if Celery available)
+        # Trigger ATOMIC PURCHASE PROCESSING (NFT mint + USDC distribution)
+        # This is the CRITICAL piece - platform fronts USDC immediately
         try:
-            from ..tasks import process_purchase_with_circle_w3s_task
-            process_purchase_with_circle_w3s_task.delay(purchase.id)
-            logger.info(f'[Stripe Webhook] ✅ Queued Circle W3S NFT minting task for purchase {purchase.id}')
+            from ..tasks import process_atomic_purchase
+            process_atomic_purchase.delay(purchase.id)
+            logger.info(f'[Stripe Webhook] ✅ Queued atomic purchase processing for purchase {purchase.id}')
         except ImportError:
-            # Celery not available, do synchronous
-            logger.warning('[Stripe Webhook] Celery not available, minting synchronously')
-            # For now, just log - production should have Celery
-            logger.error('[Stripe Webhook] Circle W3S minting requires Celery - purchase will need manual processing')
+            logger.error('[Stripe Webhook] ⚠️ Celery not available - atomic processing requires Celery')
+        except Exception as e:
+            logger.error(f'[Stripe Webhook] ❌ Failed to queue atomic processing: {e}')
     except Exception as e:
         logger.error(f'Error processing payment_intent {payment_intent_id}: {e}')
         raise
@@ -154,87 +154,34 @@ def handle_payment_intent_succeeded(payment_intent):
 
 def handle_checkout_session_completed(session):
     """
-    Create initial purchase record when checkout completes.
-    Actual fees will be populated later by payment_intent.succeeded.
+    Update purchase record when checkout completes.
+    Purchase record was already created in the checkout endpoint.
+    This just updates it with the payment_intent_id for later processing.
     """
     logger.info(f'[Webhook] Processing checkout session: {session["id"]}')
 
-    # Extract metadata - Stripe returns all metadata as strings
-    content_id_str = session['metadata'].get('content_id')
-    user_id_str = session['metadata'].get('user_id')
-
     payment_intent_id = session.get('payment_intent')
     session_id = session['id']
-    amount_total = Decimal(str(session['amount_total'])) / 100  # Convert cents to dollars
 
-    logger.info(
-        f'[Webhook] Session data: content_id={content_id_str}, user_id={user_id_str}, '
-        f'payment_intent={payment_intent_id}, amount=${amount_total}'
-    )
-
-    if not content_id_str or not user_id_str or not payment_intent_id:
-        logger.error(f'[Webhook] Missing required metadata in session {session_id}')
-        return
-
-    # Convert string IDs to integers
-    try:
-        content_id = int(content_id_str)
-        user_id = int(user_id_str)
-    except (ValueError, TypeError) as e:
-        logger.error(f'[Webhook] Invalid ID format in metadata: {e}')
+    if not payment_intent_id:
+        logger.error(f'[Webhook] No payment_intent in session {session_id}')
         return
 
     try:
-        with transaction.atomic():
-            # Check for duplicate (idempotency)
-            if Purchase.objects.filter(stripe_payment_intent_id=payment_intent_id).exists():
-                logger.info(f'[Webhook] Purchase already exists for payment_intent {payment_intent_id}')
-                return
+        # Find purchase by checkout session ID
+        purchase = Purchase.objects.get(stripe_checkout_session_id=session_id)
 
-            # Get content and user
-            content = Content.objects.select_for_update().get(id=content_id)
-            user = User.objects.get(id=user_id)
+        # Update with payment intent ID
+        purchase.stripe_payment_intent_id = payment_intent_id
+        purchase.save(update_fields=['stripe_payment_intent_id'])
 
-            logger.info(
-                f'[Webhook] Content: {content.title}, editions before: {content.editions}, '
-                f'user: {user.username}'
-            )
+        logger.info(
+            f'[Webhook] ✅ Updated purchase {purchase.id} with payment_intent {payment_intent_id}. '
+            f'Waiting for payment_intent.succeeded for actual fees and atomic processing.'
+        )
 
-            # Verify editions available
-            if content.editions <= 0:
-                logger.error(f'[Webhook] Content {content_id} sold out during checkout')
-                # TODO: Handle refund here
-                return
-
-            # Create Purchase record (actual fees will be filled by payment_intent.succeeded)
-            purchase = Purchase.objects.create(
-                user=user,
-                content=content,
-                purchase_price_usd=amount_total,
-                gross_amount=amount_total,  # Initial value, will be updated with actual
-                stripe_payment_intent_id=payment_intent_id,
-                stripe_checkout_session_id=session_id,
-                status='payment_pending',
-                # Legacy fields for backward compatibility
-                stripe_fee_usd=Decimal('0'),
-                platform_fee_usd=Decimal('0'),
-                creator_earnings_usd=Decimal('0'),
-            )
-
-            # Decrement editions
-            content.editions -= 1
-            content.save()
-
-            logger.info(
-                f'[Webhook] ✅ Purchase {purchase.id} created successfully! '
-                f'Content {content_id} now has {content.editions} editions left. '
-                f'Waiting for payment_intent.succeeded for actual fees.'
-            )
-
-    except Content.DoesNotExist:
-        logger.error(f'[Webhook] ❌ Content {content_id} not found')
-    except User.DoesNotExist:
-        logger.error(f'[Webhook] ❌ User {user_id} not found')
+    except Purchase.DoesNotExist:
+        logger.error(f'[Webhook] ❌ Purchase not found for session {session_id}')
     except Exception as e:
         logger.error(f'[Webhook] ❌ Error processing checkout session {session_id}: {e}', exc_info=True)
         raise

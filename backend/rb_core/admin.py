@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from .models import (
     User, UserProfile, Content, Collaboration, TestFeeLog, BookProject, Chapter,
-    CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, BetaInvite
+    CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, BetaInvite,
+    DelistApproval, CollaboratorApproval
 )
 from .views.beta import send_beta_invite_email
 
@@ -49,10 +50,11 @@ class BookProjectAdmin(admin.ModelAdmin):
 
 @admin.register(Chapter)
 class ChapterAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "book_project", "order", "is_published", "created_at")
-    list_filter = ("is_published",)
+    list_display = ("id", "title", "book_project", "order", "is_published", "is_listed", "delisted_by", "created_at")
+    list_filter = ("is_published", "is_listed")
     search_fields = ("title", "book_project__title")
     ordering = ("book_project", "order")
+    readonly_fields = ("delisted_at",)
 
 
 @admin.register(CollaborativeProject)
@@ -136,3 +138,35 @@ class BetaInviteAdmin(admin.ModelAdmin):
             f'Declined {count} beta request(s)',
             level='success'
         )
+
+    decline_selected.short_description = 'Decline selected beta requests'
+
+
+@admin.register(DelistApproval)
+class DelistApprovalAdmin(admin.ModelAdmin):
+    """Admin interface for delist approval workflow."""
+    list_display = ("id", "chapter", "requested_by", "status", "created_at", "resolved_at")
+    list_filter = ("status", "created_at")
+    search_fields = ("chapter__title", "requested_by__username", "reason")
+    readonly_fields = ("created_at", "resolved_at")
+    ordering = ("-created_at",)
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related."""
+        qs = super().get_queryset(request)
+        return qs.select_related('chapter', 'chapter__book_project', 'requested_by')
+
+
+@admin.register(CollaboratorApproval)
+class CollaboratorApprovalAdmin(admin.ModelAdmin):
+    """Admin interface for individual collaborator responses."""
+    list_display = ("id", "delist_request", "collaborator", "approved", "responded_at")
+    list_filter = ("approved", "responded_at")
+    search_fields = ("delist_request__chapter__title", "collaborator__username")
+    readonly_fields = ("responded_at",)
+    ordering = ("-responded_at",)
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related."""
+        qs = super().get_queryset(request)
+        return qs.select_related('delist_request', 'delist_request__chapter', 'collaborator')

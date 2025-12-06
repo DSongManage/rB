@@ -503,3 +503,355 @@ def distribute_usdc_to_creator_task(purchase_id):
         except:
             pass
         return {'success': False, 'error': str(e)}
+
+
+@shared_task(bind=True, max_retries=3)
+def process_atomic_purchase(self, purchase_id):
+    """
+    CRITICAL FUNCTION: Atomic NFT minting + USDC distribution
+
+    This function implements the core value proposition:
+    1. Calculates Stripe fees and net amount
+    2. Gets chapter/content collaborator split from metadata
+    3. Fronts USDC from platform treasury wallet
+    4. Calls Anchor smart contract to ATOMICALLY:
+       - Mint NFT to buyer's Web3Auth wallet
+       - Distribute USDC to all collaborators
+       - Keep platform fee (10%) in treasury
+    5. Records all transactions in database
+
+    ALL OF THIS HAPPENS IN ONE SOLANA TRANSACTION (~400ms)
+    This is the core value proposition: atomic, trustless settlement
+
+    Args:
+        purchase_id: Purchase ID to process
+
+    Returns:
+        dict: Result with success status and transaction details
+    """
+    from django.utils import timezone
+    from .models import Purchase, CollaboratorPayment
+    from blockchain.solana_service import mint_and_distribute_collaborative_nft
+
+    try:
+        # Get purchase
+        purchase = Purchase.objects.get(id=purchase_id)
+
+        # Determine if chapter or content purchase
+        if purchase.chapter:
+            item = purchase.chapter
+            item_type = 'chapter'
+            logger.info(f'[Atomic Purchase] Processing chapter purchase {purchase.id} for chapter "{item.title}"')
+        elif purchase.content:
+            item = purchase.content
+            item_type = 'content'
+            logger.info(f'[Atomic Purchase] Processing content purchase {purchase.id} for content "{item.title}"')
+        else:
+            raise ValueError(f'Purchase {purchase.id} has neither chapter nor content')
+
+        # Calculate fees
+        gross_amount = purchase.gross_amount or purchase.purchase_price_usd
+        stripe_fee = purchase.stripe_fee or (Decimal('0.029') * gross_amount + Decimal('0.30'))
+        net_amount = gross_amount - stripe_fee
+        mint_gas_fee = Decimal('0.026')  # Approximate Solana gas fee
+        amount_to_distribute = net_amount - mint_gas_fee
+
+        # Update purchase with fee details
+        purchase.stripe_fee = stripe_fee
+        purchase.net_after_stripe = net_amount
+        purchase.mint_cost = mint_gas_fee
+        purchase.status = 'payment_processing'
+        purchase.usdc_distribution_status = 'processing'
+        purchase.save()
+
+        logger.info(
+            f'[Atomic Purchase] Amount breakdown: '
+            f'Gross=${gross_amount}, Stripe fee=${stripe_fee}, '
+            f'Net=${net_amount}, To distribute=${amount_to_distribute}'
+        )
+
+        # Get collaborators (chapter has get_collaborators_with_wallets method)
+        try:
+            collaborators = item.get_collaborators_with_wallets()
+        except AttributeError:
+            # Fallback for content - use creator wallet
+            if not hasattr(item, 'creator') or not item.creator.wallet_address:
+                raise ValueError(f'Content/chapter creator has no wallet address')
+            collaborators = [{
+                'user': item.creator,
+                'wallet': item.creator.wallet_address,
+                'percentage': 90,
+                'role': 'creator'
+            }]
+
+        if not collaborators:
+            raise ValueError(f'No collaborators found for {item_type} {item.id}')
+
+        # Calculate USDC amounts for each collaborator
+        collaborator_payments = []
+        total_creator_percentage = 0
+
+        for collab in collaborators:
+            usdc_amount = amount_to_distribute * (Decimal(collab['percentage']) / 100)
+            collaborator_payments.append({
+                'user': collab['user'],
+                'wallet_address': collab['wallet'],
+                'amount_usdc': float(usdc_amount),
+                'percentage': collab['percentage'],
+                'role': collab.get('role', 'collaborator')
+            })
+            total_creator_percentage += collab['percentage']
+
+        # Platform fee (remaining percentage)
+        platform_percentage = 100 - total_creator_percentage
+        platform_usdc = amount_to_distribute * (Decimal(platform_percentage) / 100)
+
+        logger.info(f'[Atomic Purchase] Collaborators: {len(collaborator_payments)}')
+        logger.info(f'[Atomic Purchase] Platform fee: {platform_usdc} USDC ({platform_percentage}%)')
+        logger.info(f'[Atomic Purchase] Total to distribute from treasury: {amount_to_distribute} USDC')
+
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL: CALL ANCHOR SMART CONTRACT FOR ATOMIC SETTLEMENT
+        # Platform FRONTS the USDC from treasury wallet
+        # All payments happen in ONE Solana transaction
+        # ═══════════════════════════════════════════════════════════════════
+
+        # Get buyer wallet
+        buyer_wallet = purchase.user.wallet_address
+        if not buyer_wallet:
+            raise ValueError(f'User {purchase.user.username} has no wallet address')
+
+        # Get metadata URI (TODO: implement proper metadata storage)
+        metadata_uri = f'https://arweave.net/mock_{item_type}_{item.id}'
+
+        result = mint_and_distribute_collaborative_nft(
+            buyer_wallet_address=buyer_wallet,
+            chapter_metadata_uri=metadata_uri,
+            collaborator_payments=collaborator_payments,
+            platform_usdc_amount=float(platform_usdc),
+            total_usdc_amount=float(amount_to_distribute)
+        )
+
+        logger.info(f'[Atomic Purchase] ✅ Atomic transaction completed: {result["transaction_signature"]}')
+        logger.info(f'[Atomic Purchase] ✅ NFT minted: {result["nft_mint_address"]}')
+        logger.info(f'[Atomic Purchase] ✅ USDC fronted from treasury: {result["platform_usdc_fronted"]}')
+        logger.info(f'[Atomic Purchase] ✅ Platform earned: {result["platform_usdc_earned"]}')
+
+        # Update purchase record
+        purchase.nft_mint_address = result['nft_mint_address']
+        purchase.nft_transaction_signature = result['transaction_signature']
+        purchase.transaction_signature = result['transaction_signature']
+        purchase.nft_minted = True
+        purchase.platform_usdc_fronted = Decimal(str(result['platform_usdc_fronted']))
+        purchase.platform_usdc_earned = Decimal(str(result['platform_usdc_earned']))
+        purchase.usdc_distribution_transaction = result['transaction_signature']
+        purchase.usdc_distribution_status = 'completed'
+        purchase.usdc_distributed_at = timezone.now()
+        purchase.status = 'completed'
+        purchase.distribution_details = {
+            'collaborators': result['distributions']
+        }
+        purchase.save()
+
+        # Create CollaboratorPayment records
+        from .models import User as CoreUser
+        for dist in result['distributions']:
+            # dist['user'] is now a username string, look up the User object
+            collaborator_user = CoreUser.objects.get(username=dist['user'])
+            CollaboratorPayment.objects.create(
+                purchase=purchase,
+                collaborator=collaborator_user,
+                collaborator_wallet=dist['wallet'],
+                amount_usdc=Decimal(str(dist['amount'])),
+                percentage=dist['percentage'],
+                role=dist.get('role'),
+                transaction_signature=result['transaction_signature']
+            )
+
+        # ═══════════════════════════════════════════════════════════════════
+        # UPDATE EDITION COUNT (decrement available editions)
+        # ═══════════════════════════════════════════════════════════════════
+        if purchase.chapter:
+            # For chapter purchases, decrement chapter editions if tracked
+            # Currently chapters don't have editions field, but content does
+            pass
+        elif purchase.content:
+            # Decrement content editions
+            if purchase.content.editions > 0:
+                purchase.content.editions -= 1
+                purchase.content.save(update_fields=['editions'])
+                logger.info(f'[Atomic Purchase] ✅ Decremented editions for content {purchase.content.id}. Remaining: {purchase.content.editions}')
+
+        # ═══════════════════════════════════════════════════════════════════
+        # UPDATE CREATOR SALES TRACKING (add USDC earnings to profile)
+        # ═══════════════════════════════════════════════════════════════════
+        for dist in result['distributions']:
+            try:
+                creator_username = dist['user']  # This is now a string, not User object
+                usdc_earned = Decimal(str(dist['amount']))
+
+                # Get or create CoreUser and UserProfile
+                from .models import User as CoreUser, UserProfile
+                core_user, _ = CoreUser.objects.get_or_create(username=creator_username)
+                profile, _ = UserProfile.objects.get_or_create(
+                    user=core_user,
+                    defaults={'username': creator_username}
+                )
+
+                # Add to total_sales_usd (USDC earnings tracked here)
+                # Note: Field is named total_sales_usd but tracks USDC amounts
+                profile.total_sales_usd = (profile.total_sales_usd or Decimal('0')) + usdc_earned
+                profile.save(update_fields=['total_sales_usd'])
+
+                logger.info(
+                    f'[Atomic Purchase] ✅ Updated creator {creator_username} total_sales_usd '
+                    f'(USDC earnings) to ${profile.total_sales_usd}'
+                )
+            except Exception as e:
+                logger.error(f'[Atomic Purchase] ⚠️ Error updating sales for creator {creator_username}: {e}')
+
+        logger.info(f'[Atomic Purchase] ✅ Purchase {purchase.id} completed successfully!')
+        logger.info(f'[Atomic Purchase] ✅ All {len(collaborator_payments)} creators paid instantly via smart contract')
+
+        # TODO: Send notifications
+        # notify_buyer_purchase_complete(purchase)
+        # notify_creators_payment_received(purchase)
+
+        return {
+            'success': True,
+            'purchase_id': purchase.id,
+            'nft_mint': result['nft_mint_address'],
+            'tx_signature': result['transaction_signature'],
+            'usdc_fronted': float(result['platform_usdc_fronted']),
+            'usdc_earned': float(result['platform_usdc_earned'])
+        }
+
+    except Exception as e:
+        logger.error(f'[Atomic Purchase] ❌ Error processing purchase {purchase_id}: {e}')
+        logger.exception(e)
+
+        # Update purchase to failed
+        try:
+            purchase = Purchase.objects.get(id=purchase_id)
+            purchase.status = 'payment_failed'
+            purchase.usdc_distribution_status = 'failed'
+            purchase.save()
+        except:
+            pass
+
+        # Retry with exponential backoff
+        try:
+            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+        except:
+            # Max retries exceeded
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+
+@shared_task
+def weekly_treasury_reconciliation():
+    """
+    Weekly task to calculate USDC fronted vs platform fees earned.
+    Sends notification to admin to replenish treasury.
+
+    Runs every Monday at 9am.
+    Calculates:
+    - Total USDC fronted from treasury
+    - Platform fees earned (10%)
+    - Net USDC to replenish
+    - Treasury balance and runway
+
+    Returns:
+        dict: Reconciliation summary
+    """
+    from django.utils import timezone
+    from django.db.models import Sum, Count
+    from datetime import timedelta
+    from .models import Purchase, TreasuryReconciliation
+    from blockchain.solana_service import get_platform_usdc_balance
+
+    logger.info("=" * 80)
+    logger.info("WEEKLY TREASURY RECONCILIATION")
+    logger.info("=" * 80)
+
+    # Get date range (last 7 days)
+    week_end = timezone.now()
+    week_start = week_end - timedelta(days=7)
+
+    # Get all completed purchases from last week
+    weekly_purchases = Purchase.objects.filter(
+        created_at__gte=week_start,
+        created_at__lte=week_end,
+        usdc_distribution_status='completed'
+    )
+
+    purchases_count = weekly_purchases.count()
+
+    # Calculate totals
+    aggregates = weekly_purchases.aggregate(
+        total_fronted=Sum('platform_usdc_fronted'),
+        total_earned=Sum('platform_usdc_earned')
+    )
+
+    total_fronted = aggregates['total_fronted'] or Decimal('0')
+    total_earned = aggregates['total_earned'] or Decimal('0')
+    net_fronted = total_fronted - total_earned
+
+    # Get current treasury balance
+    current_balance = get_platform_usdc_balance()
+
+    logger.info(f"Week: {week_start.date()} to {week_end.date()}")
+    logger.info(f"Purchases: {purchases_count}")
+    logger.info(f"Total USDC fronted: {total_fronted}")
+    logger.info(f"Platform fees earned: {total_earned}")
+    logger.info(f"Net USDC to replenish: {net_fronted}")
+    logger.info(f"Current treasury balance: {current_balance} USDC")
+
+    # Calculate runway
+    if purchases_count > 0:
+        avg_usdc_per_purchase = total_fronted / purchases_count
+        daily_purchase_rate = purchases_count / 7
+        estimated_daily_spend = avg_usdc_per_purchase * daily_purchase_rate
+        days_of_runway = current_balance / estimated_daily_spend if estimated_daily_spend > 0 else 999
+    else:
+        days_of_runway = 999
+
+    logger.info(f"Estimated runway: {days_of_runway:.1f} days")
+
+    # Health check
+    if current_balance < 1000:
+        health_status = 'CRITICAL - Replenish immediately!'
+    elif days_of_runway < 7:
+        health_status = 'WARNING - Replenish soon'
+    else:
+        health_status = 'HEALTHY'
+
+    logger.info(f"Treasury health: {health_status}")
+
+    # Create reconciliation record
+    reconciliation = TreasuryReconciliation.objects.create(
+        week_start=week_start,
+        week_end=week_end,
+        purchases_count=purchases_count,
+        total_usdc_fronted=total_fronted,
+        platform_fees_earned=total_earned,
+        net_usdc_to_replenish=net_fronted,
+        replenishment_status='pending',
+        notes=f"Treasury balance: {current_balance} USDC. Runway: {days_of_runway:.1f} days. {health_status}"
+    )
+
+    # TODO: Send admin notification
+    # send_treasury_replenishment_notification(reconciliation)
+
+    logger.info(f"Reconciliation record created: ID {reconciliation.id}")
+    logger.info("=" * 80)
+
+    return {
+        'reconciliation_id': reconciliation.id,
+        'net_to_replenish': float(net_fronted),
+        'current_balance': current_balance,
+        'runway_days': days_of_runway,
+        'health': health_status
+    }

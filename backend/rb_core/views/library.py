@@ -25,9 +25,11 @@ class LibraryView(APIView):
         )
 
         # Get all purchases with optimized query (1 query instead of N+1)
+        # Only show purchases that are completed (same logic as ownership check)
         purchases = Purchase.objects.filter(
             user=request.user,
-            refunded=False
+            refunded=False,
+            status__in=['payment_completed', 'completed', 'minting']
         ).select_related(
             'content',
             'content__creator'
@@ -43,8 +45,17 @@ class LibraryView(APIView):
             'music': []
         }
 
+        # Track content IDs to prevent duplicates
+        seen_content_ids = set()
+
         for purchase in purchases:
             content = purchase.content
+
+            # Skip if we've already added this content
+            # (prevents duplicates from multiple purchase records)
+            if content.id in seen_content_ids:
+                continue
+            seen_content_ids.add(content.id)
 
             # Get reading progress from prefetched data (no extra query!)
             progress_percentage = 0

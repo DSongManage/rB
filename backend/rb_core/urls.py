@@ -2,19 +2,21 @@ from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
 from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
-from .views.checkout import CreateCheckoutSessionView
+from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView
-from .payments.views import CircleCheckoutView
-from .webhooks import circle_webhook
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet
 )
 from .views.notifications import NotificationViewSet
 from .views import beta
 from .views.feedback import submit_feedback
-from .views_circle import get_circle_user_token, save_wallet_address, get_wallet_status
+from .views.admin_treasury import treasury_dashboard, treasury_api
+from .views.chapter_management import (
+    RemoveChapterView, DelistChapterView, RelistChapterView,
+    ChapterRemovalStatusView, RespondToDelistRequestView, PendingDelistRequestsView
+)
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -32,16 +34,11 @@ urlpatterns = [
     path('api/content/<int:pk>/teaser/', ContentTextTeaserView.as_view(), name='content_teaser'),
     path('api/content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_view'),
     # Stripe checkout and payment processing
-    path('api/checkout/session/', CreateCheckoutSessionView.as_view(), name='checkout_session'),
-    path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook'),
-    # Circle payment processing (credit cards → USDC on Solana)
-    path('api/checkout/circle/', CircleCheckoutView.as_view(), name='circle_checkout'),
-    # Circle webhook endpoint - minimal, production-ready handler
-    path('api/checkout/circle/webhook/', circle_webhook, name='circle_webhook'),
-    # Circle User-Controlled Wallets (frontend SDK integration)
-    path('api/circle/user-token/', get_circle_user_token, name='circle_user_token'),
-    path('api/circle/wallet/save/', save_wallet_address, name='save_wallet_address'),
-    path('api/circle/wallet/status/', get_wallet_status, name='wallet_status'),
+    path('api/checkout/create/', CreateCheckoutSessionView.as_view(), name='checkout_create'),
+    path('api/checkout/session/', CreateCheckoutSessionView.as_view(), name='checkout_session'),  # Legacy alias
+    path('api/webhooks/stripe/', stripe_webhook, name='stripe_webhook'),
+    path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook_legacy'),  # Legacy alias
+    path('api/dev/process-purchase/', DevProcessPurchaseView.as_view(), name='dev_process_purchase'),
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
     # Library and reading
     path('api/library/', LibraryView.as_view(), name='library'),
@@ -86,6 +83,13 @@ urlpatterns = [
     path('api/chapters/<int:pk>/publish/', PublishChapterView.as_view(), name='publish_chapter'),
     path('api/book-projects/<int:pk>/prepare/', PrepareBookView.as_view(), name='prepare_book'),
     path('api/book-projects/<int:pk>/publish/', PublishBookView.as_view(), name='publish_book'),
+    # Chapter management - content removal policy
+    path('api/chapters/<int:pk>/remove/', RemoveChapterView.as_view(), name='remove_chapter'),
+    path('api/chapters/<int:pk>/delist/', DelistChapterView.as_view(), name='delist_chapter'),
+    path('api/chapters/<int:pk>/relist/', RelistChapterView.as_view(), name='relist_chapter'),
+    path('api/chapters/<int:pk>/removal-status/', ChapterRemovalStatusView.as_view(), name='chapter_removal_status'),
+    path('api/delist-approvals/<int:pk>/respond/', RespondToDelistRequestView.as_view(), name='respond_delist_request'),
+    path('api/delist-approvals/pending/', PendingDelistRequestsView.as_view(), name='pending_delist_requests'),
     # Beta access management
     path('api/beta/request-access/', beta.request_beta_access, name='beta_request'),
     path('api/beta/approve/', beta.approve_beta_request, name='beta_approve'),
@@ -93,6 +97,9 @@ urlpatterns = [
     path('api/beta/mark-used/', beta.mark_invite_used, name='beta_mark_used'),
     # Beta feedback
     path('api/feedback/', submit_feedback, name='submit_feedback'),
+    # Admin treasury dashboard
+    path('staff/treasury/', treasury_dashboard, name='admin_treasury_dashboard'),
+    path('api/staff/treasury/', treasury_api, name='admin_treasury_api'),
     # Collaboration API endpoints
     path('api/', include(router.urls)),
 ]
