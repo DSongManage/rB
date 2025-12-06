@@ -951,13 +951,14 @@ class LinkWalletView(APIView):
         if not addr:
             return Response({'error':'Could not derive wallet address'}, status=400)
 
-        # Enforce uniqueness at profile level
-        if UserProfile.objects.filter(wallet_address=addr).exclude(username=getattr(request.user, 'username', '')).exists():
-            return Response({'error':'Wallet already linked to another account'}, status=400)
-
         # Bridge auth.User -> rb_core.User by username
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         prof, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': request.user.username})
+
+        # Enforce uniqueness: wallet can't be linked to a DIFFERENT user's profile
+        # (Allow re-linking the same wallet to the same user)
+        if UserProfile.objects.filter(wallet_address=addr).exclude(user=core_user).exists():
+            return Response({'error':'Wallet already linked to another account'}, status=400)
 
         # Update wallet info
         prof.wallet_address = addr[:44]

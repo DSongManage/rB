@@ -38,6 +38,18 @@ class CreateCheckoutSessionView(APIView):
 
         try:
             with transaction.atomic():
+                # CRITICAL: Verify user has a wallet address before allowing purchase
+                # NFT minting requires a valid Solana wallet
+                if not request.user.wallet_address:
+                    return Response(
+                        {
+                            'error': 'You need a Web3Auth wallet to purchase NFTs. Please create one in your profile.',
+                            'code': 'NO_WALLET',
+                            'action': 'CREATE_WALLET'
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
                 # Handle chapter purchase
                 if chapter_id:
                     try:
