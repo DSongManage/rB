@@ -23,13 +23,19 @@ try:
     from solders.keypair import Keypair
     from solders.pubkey import Pubkey
     from solders.system_program import ID as SYS_PROGRAM_ID
+    from solders.transaction import Transaction
     from spl.token.constants import TOKEN_PROGRAM_ID
-    from spl.token.instructions import get_associated_token_address
+    from spl.token.instructions import get_associated_token_address, transfer_checked, TransferCheckedParams
+    from spl.token.client import Token
     # from anchorpy import Provider, Wallet, Program, Context
     SOLANA_AVAILABLE = True
-except ImportError:
-    logger.warning('Solana libraries not installed - using mock implementation')
+except ImportError as e:
+    logger.warning(f'Solana libraries not installed - using mock implementation: {e}')
     SOLANA_AVAILABLE = False
+    # Define dummy classes so the code doesn't crash
+    Transaction = None
+    Token = None
+    TransferCheckedParams = None
 
 
 def mint_and_distribute_collaborative_nft(
@@ -87,10 +93,6 @@ def mint_and_distribute_collaborative_nft(
 
     # Real Solana implementation
     try:
-        from solders.transaction import Transaction
-        from spl.token.instructions import transfer_checked, TransferCheckedParams
-        from spl.token.client import Token
-
         # Initialize Solana client
         client = Client(settings.SOLANA_RPC_URL)
         logger.info(f"Connected to Solana RPC: {settings.SOLANA_RPC_URL}")
