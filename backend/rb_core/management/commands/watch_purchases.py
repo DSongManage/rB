@@ -73,9 +73,9 @@ class Command(BaseCommand):
 
         try:
             while True:
-                # Find new pending purchases
+                # Find new pending purchases (only after Stripe webhook completes payment)
                 pending = Purchase.objects.filter(
-                    Q(status='payment_pending') | Q(status='payment_completed'),
+                    status='payment_completed',  # Only process after Stripe checkout completes
                     usdc_distribution_status='pending'
                 ).exclude(id__in=processed_ids).order_by('-purchased_at')
 
@@ -96,7 +96,7 @@ class Command(BaseCommand):
         """Process all pending purchases (for --once mode)."""
 
         pending = Purchase.objects.filter(
-            Q(status='payment_pending') | Q(status='payment_completed'),
+            status='payment_completed',  # Only process after Stripe checkout completes
             usdc_distribution_status='pending'
         ).order_by('-purchased_at')
 

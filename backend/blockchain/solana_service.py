@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 try:
     from solana.rpc.api import Client
     from solana.rpc.commitment import Confirmed
+    from solana.rpc.types import TxOpts
     from solders.keypair import Keypair
     from solders.pubkey import Pubkey
     from solders.system_program import ID as SYS_PROGRAM_ID
@@ -212,7 +213,7 @@ def mint_and_distribute_collaborative_nft(
             try:
                 response = client.send_transaction(
                     tx,
-                    opts={'skip_preflight': False}
+                    opts=TxOpts(skip_preflight=False)
                 )
 
                 tx_sig = response.value
