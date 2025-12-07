@@ -149,7 +149,8 @@ class Command(BaseCommand):
             if purchase.status == 'payment_pending':
                 purchase.status = 'payment_completed'
                 purchase.gross_amount = purchase.purchase_price_usd
-                purchase.stripe_fee = Decimal('0.09')  # Mock Stripe fee
+                # Calculate realistic Stripe fee (2.9% + $0.30)
+                purchase.stripe_fee = (purchase.purchase_price_usd * Decimal('0.029')) + Decimal('0.30')
                 purchase.net_after_stripe = purchase.purchase_price_usd - purchase.stripe_fee
                 purchase.save()
 

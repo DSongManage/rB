@@ -216,8 +216,9 @@ class DevProcessPurchaseView(APIView):
             # Simulate webhook: Mark as payment_completed
             purchase.status = 'payment_completed'
             purchase.gross_amount = purchase.purchase_price_usd
-            purchase.stripe_fee = Decimal('0.05')  # Mock fee
-            purchase.net_after_stripe = purchase.purchase_price_usd - Decimal('0.05')
+            # Calculate realistic Stripe fee (2.9% + $0.30)
+            purchase.stripe_fee = (purchase.purchase_price_usd * Decimal('0.029')) + Decimal('0.30')
+            purchase.net_after_stripe = purchase.purchase_price_usd - purchase.stripe_fee
             purchase.save()
 
             logger.info(f'[DEV] Updated purchase {purchase_id} to payment_completed')
