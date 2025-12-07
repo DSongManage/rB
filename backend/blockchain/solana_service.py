@@ -20,10 +20,13 @@ logger = logging.getLogger(__name__)
 # Solana imports - these will be installed later
 try:
     from solana.rpc.api import Client
+    from solana.rpc.commitment import Confirmed
     from solders.keypair import Keypair
     from solders.pubkey import Pubkey
     from solders.system_program import ID as SYS_PROGRAM_ID
     from solders.transaction import Transaction
+    from solders.message import Message
+    from solders.hash import Hash
     from spl.token.constants import TOKEN_PROGRAM_ID
     from spl.token.instructions import get_associated_token_address, transfer_checked, TransferCheckedParams
     from spl.token.client import Token
@@ -34,6 +37,8 @@ except ImportError as e:
     SOLANA_AVAILABLE = False
     # Define dummy classes so the code doesn't crash
     Transaction = None
+    Message = None
+    Hash = None
     Token = None
     TransferCheckedParams = None
 
@@ -191,13 +196,22 @@ def mint_and_distribute_collaborative_nft(
                 )
             )
 
-            # Create and send transaction
-            tx = Transaction().add(transfer_ix)
+            # Get recent blockhash
+            recent_blockhash_resp = client.get_latest_blockhash(Confirmed)
+            recent_blockhash = recent_blockhash_resp.value.blockhash
+
+            # Create message and transaction using Solders API
+            message = Message.new_with_blockhash(
+                [transfer_ix],
+                platform_keypair.pubkey(),
+                recent_blockhash
+            )
+            tx = Transaction.new_unsigned(message)
+            tx.sign([platform_keypair], recent_blockhash)
 
             try:
                 response = client.send_transaction(
                     tx,
-                    platform_keypair,
                     opts={'skip_preflight': False}
                 )
 
