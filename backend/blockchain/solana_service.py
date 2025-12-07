@@ -212,9 +212,11 @@ def mint_and_distribute_collaborative_nft(
             tx = Transaction([platform_keypair], message, recent_blockhash)
 
             try:
+                # Skip preflight simulation for devnet (blockhashes expire quickly)
+                # In production, preflight should be enabled for safety
                 response = client.send_transaction(
                     tx,
-                    opts=TxOpts(skip_preflight=False)
+                    opts=TxOpts(skip_preflight=True)
                 )
 
                 tx_sig = response.value
