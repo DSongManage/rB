@@ -173,8 +173,16 @@ class Command(BaseCommand):
 
                 self.stdout.write(f"     🎨 NFT Mint: {nft_mint[:20]}...")
                 self.stdout.write(f"     🔗 TX Sig: {tx_sig}")
-                self.stdout.write(f"     💸 USDC Fronted: ${result.get('usdc_fronted', 0):.6f}")
-                self.stdout.write(f"     💰 Platform Fee: ${result.get('usdc_earned', 0):.6f}")
+
+                # Calculate amounts for clearer display
+                total_usdc = result.get('usdc_fronted', 0)
+                platform_fee = result.get('usdc_earned', 0)
+                creator_gets = total_usdc - platform_fee
+
+                self.stdout.write(f"     💸 USDC Distribution:")
+                self.stdout.write(f"        Total pool:      ${total_usdc:.6f} USDC")
+                self.stdout.write(f"        To creator (90%): {creator_gets:.6f} USDC ← sent on-chain")
+                self.stdout.write(f"        Platform (10%):   {platform_fee:.6f} USDC ← kept in treasury")
 
                 # Refresh purchase to show updated status
                 purchase.refresh_from_db()
