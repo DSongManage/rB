@@ -20,6 +20,8 @@ Features:
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from django.db.models import Q
+from django.utils import timezone
+from datetime import timedelta
 from rb_core.models import Purchase
 from rb_core.tasks import process_atomic_purchase
 from decimal import Decimal
@@ -44,6 +46,12 @@ class Command(BaseCommand):
             action='store_true',
             help='Process pending purchases once and exit (no watching)',
         )
+        parser.add_argument(
+            '--delay',
+            type=int,
+            default=120,
+            help='Only process purchases older than this many seconds (default: 120 = 2 minutes)',
+        )
 
     def handle(self, *args, **options):
         if not settings.DEBUG:
@@ -54,29 +62,35 @@ class Command(BaseCommand):
 
         interval = options['interval']
         run_once = options['once']
+        delay_seconds = options['delay']
 
         self.stdout.write("=" * 70)
         self.stdout.write(self.style.SUCCESS("🔍 PURCHASE WATCHER STARTED"))
         self.stdout.write("=" * 70)
         self.stdout.write("")
         self.stdout.write("This will automatically process pending purchases for local testing.")
+        self.stdout.write(f"Purchases must be at least {delay_seconds} seconds old before processing.")
         self.stdout.write("Press Ctrl+C to stop.")
         self.stdout.write("")
 
         if run_once:
             self.stdout.write("Running once (--once mode)...")
             self.stdout.write("")
-            self.process_pending_purchases()
+            self.process_pending_purchases(delay_seconds)
             return
 
         processed_ids = set()
 
         try:
             while True:
-                # Find new pending purchases (only after Stripe webhook completes payment)
+                # Calculate cutoff time (only process purchases older than delay_seconds)
+                cutoff_time = timezone.now() - timedelta(seconds=delay_seconds)
+
+                # Find pending purchases that are old enough (gives user time to complete Stripe checkout)
                 pending = Purchase.objects.filter(
-                    status='payment_completed',  # Only process after Stripe checkout completes
-                    usdc_distribution_status='pending'
+                    status='payment_pending',  # Simulate webhook by finding pending purchases
+                    usdc_distribution_status='pending',
+                    purchased_at__lt=cutoff_time  # Only if older than cutoff
                 ).exclude(id__in=processed_ids).order_by('-purchased_at')
 
                 for purchase in pending:
@@ -92,12 +106,16 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("👋 Purchase watcher stopped"))
             self.stdout.write("=" * 70)
 
-    def process_pending_purchases(self):
+    def process_pending_purchases(self, delay_seconds=120):
         """Process all pending purchases (for --once mode)."""
 
+        # Calculate cutoff time
+        cutoff_time = timezone.now() - timedelta(seconds=delay_seconds)
+
         pending = Purchase.objects.filter(
-            status='payment_completed',  # Only process after Stripe checkout completes
-            usdc_distribution_status='pending'
+            status='payment_pending',  # Simulate webhook
+            usdc_distribution_status='pending',
+            purchased_at__lt=cutoff_time  # Only process old purchases
         ).order_by('-purchased_at')
 
         count = pending.count()
