@@ -207,8 +207,9 @@ def mint_and_distribute_collaborative_nft(
                 platform_keypair.pubkey(),
                 recent_blockhash
             )
-            tx = Transaction.new_unsigned(message)
-            tx.sign([platform_keypair], recent_blockhash)
+
+            # Create and sign transaction (sign returns a new signed transaction)
+            tx = Transaction([platform_keypair], message, recent_blockhash)
 
             try:
                 response = client.send_transaction(
