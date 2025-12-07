@@ -28,8 +28,13 @@ try:
     from solders.transaction import Transaction
     from solders.message import Message
     from solders.hash import Hash
-    from spl.token.constants import TOKEN_PROGRAM_ID
-    from spl.token.instructions import get_associated_token_address, transfer_checked, TransferCheckedParams
+    from spl.token.constants import TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+    from spl.token.instructions import (
+        get_associated_token_address,
+        transfer_checked,
+        TransferCheckedParams,
+        create_associated_token_account
+    )
     from spl.token.client import Token
     # from anchorpy import Provider, Wallet, Program, Context
     SOLANA_AVAILABLE = True
@@ -184,7 +189,37 @@ def mint_and_distribute_collaborative_nft(
                 f"({recipient_usdc_account})"
             )
 
-            # Create transfer instruction
+            # Check if recipient's ATA exists, create if needed
+            instructions = []
+
+            try:
+                # Try to get the account info
+                account_info = client.get_account_info(recipient_usdc_account)
+
+                if account_info.value is None:
+                    # ATA doesn't exist, need to create it
+                    logger.info(f"Creating USDC token account for {collab['user'].username}")
+
+                    create_ata_ix = create_associated_token_account(
+                        payer=platform_keypair.pubkey(),
+                        owner=recipient_wallet,
+                        mint=usdc_mint
+                    )
+                    instructions.append(create_ata_ix)
+                else:
+                    logger.info(f"USDC token account already exists for {collab['user'].username}")
+
+            except Exception as e:
+                logger.warning(f"Could not check ATA existence, will try to create: {e}")
+                # If check fails, try to create anyway (will fail gracefully if exists)
+                create_ata_ix = create_associated_token_account(
+                    payer=platform_keypair.pubkey(),
+                    owner=recipient_wallet,
+                    mint=usdc_mint
+                )
+                instructions.append(create_ata_ix)
+
+            # Add transfer instruction
             transfer_ix = transfer_checked(
                 TransferCheckedParams(
                     program_id=TOKEN_PROGRAM_ID,
@@ -196,6 +231,7 @@ def mint_and_distribute_collaborative_nft(
                     decimals=6,  # USDC has 6 decimals
                 )
             )
+            instructions.append(transfer_ix)
 
             # Get recent blockhash
             recent_blockhash_resp = client.get_latest_blockhash(Confirmed)
@@ -203,7 +239,7 @@ def mint_and_distribute_collaborative_nft(
 
             # Create message and transaction using Solders API
             message = Message.new_with_blockhash(
-                [transfer_ix],
+                instructions,
                 platform_keypair.pubkey(),
                 recent_blockhash
             )
