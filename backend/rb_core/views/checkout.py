@@ -10,6 +10,7 @@ from django.db import transaction
 
 from ..models import Content, Chapter, Purchase
 from ..utils import calculate_fees
+from ..payment_utils import calculate_payment_breakdown
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +68,18 @@ class CreateCheckoutSessionView(APIView):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-                    # TODO: Add chapter price field - for now use fixed $3
-                    price = Decimal('3.00')
+                    # Calculate payment breakdown with CC fee pass-through
+                    # Use chapter price or default to $3.00 for testing
+                    chapter_price = getattr(chapter, 'price', Decimal('3.00'))
+                    breakdown = calculate_payment_breakdown(chapter_price)
+
+                    price = breakdown['buyer_total']  # Buyer pays this amount (includes CC fee)
                     item_title = f'{chapter.book_project.title} - Chapter {chapter.order}: {chapter.title}'
-                    item_description = f'By {chapter.book_project.creator.username}'
+                    item_description = (
+                        f'By {chapter.book_project.creator.username} | '
+                        f'Chapter: ${breakdown["chapter_price"]:.2f} + '
+                        f'CC Fee: ${breakdown["credit_card_fee"]:.2f}'
+                    )
                     cancel_url = f"{settings.FRONTEND_URL}/chapters/{chapter.id}"
 
                 # Handle legacy content purchase
@@ -106,6 +115,21 @@ class CreateCheckoutSessionView(APIView):
                     f'user_id={request.user.id}, price=${price}'
                 )
 
+                # Prepare metadata for Stripe session
+                session_metadata = {
+                    'chapter_id': str(chapter_id) if chapter_id else '',
+                    'content_id': str(content_id) if content_id else '',
+                    'user_id': str(request.user.id),
+                }
+
+                # Add fee breakdown to metadata if this is a chapter purchase
+                if chapter_id:
+                    session_metadata.update({
+                        'chapter_price': str(breakdown['chapter_price']),
+                        'credit_card_fee': str(breakdown['credit_card_fee']),
+                        'buyer_total': str(breakdown['buyer_total']),
+                    })
+
                 # Create Stripe Checkout Session
                 try:
                     checkout_session = stripe.checkout.Session.create(
@@ -124,35 +148,48 @@ class CreateCheckoutSessionView(APIView):
                         mode='payment',
                         success_url=f"{settings.FRONTEND_URL}/purchase/success?session_id={{CHECKOUT_SESSION_ID}}",
                         cancel_url=cancel_url,
-                        metadata={
-                            'chapter_id': str(chapter_id) if chapter_id else '',
-                            'content_id': str(content_id) if content_id else '',
-                            'user_id': str(request.user.id),
-                        },
+                        metadata=session_metadata,
                     )
 
-                    # Create Purchase record immediately
-                    purchase = Purchase.objects.create(
-                        user=request.user,
-                        content=content if content_id else None,
-                        chapter=chapter if chapter_id else None,
-                        purchase_price_usd=price,
-                        gross_amount=price,
-                        stripe_checkout_session_id=checkout_session.id,
-                        status='payment_pending',
-                        payment_provider='stripe'
-                    )
+                    # Create Purchase record immediately with new fee breakdown fields
+                    purchase_data = {
+                        'user': request.user,
+                        'content': content if content_id else None,
+                        'chapter': chapter if chapter_id else None,
+                        'purchase_price_usd': price,
+                        'gross_amount': price,
+                        'stripe_checkout_session_id': checkout_session.id,
+                        'status': 'payment_pending',
+                        'payment_provider': 'stripe'
+                    }
+
+                    # Add new fee breakdown fields for chapter purchases
+                    if chapter_id:
+                        purchase_data.update({
+                            'chapter_price': breakdown['chapter_price'],
+                            'credit_card_fee': breakdown['credit_card_fee'],
+                            'buyer_total': breakdown['buyer_total'],
+                        })
+
+                    purchase = Purchase.objects.create(**purchase_data)
 
                     logger.info(
                         f'[Checkout] ✅ Session created: session_id={checkout_session.id}, '
                         f'purchase_id={purchase.id}'
                     )
 
-                    return Response({
+                    # Prepare response
+                    response_data = {
                         'checkout_url': checkout_session.url,
                         'session_id': checkout_session.id,
                         'purchase_id': purchase.id
-                    }, status=status.HTTP_200_OK)
+                    }
+
+                    # Add breakdown for chapter purchases
+                    if chapter_id:
+                        response_data['breakdown'] = breakdown['breakdown_display']
+
+                    return Response(response_data, status=status.HTTP_200_OK)
 
                 except stripe.error.StripeError as e:
                     logger.error(f'[Checkout] Stripe error: {e}')

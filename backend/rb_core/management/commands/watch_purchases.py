@@ -24,6 +24,7 @@ from django.utils import timezone
 from datetime import timedelta
 from rb_core.models import Purchase
 from rb_core.tasks import process_atomic_purchase
+from rb_core.payment_utils import calculate_payment_breakdown
 from decimal import Decimal
 import time
 import logging
@@ -148,13 +149,29 @@ class Command(BaseCommand):
             # Simulate webhook: Mark as payment_completed
             if purchase.status == 'payment_pending':
                 purchase.status = 'payment_completed'
-                purchase.gross_amount = purchase.purchase_price_usd
-                # Calculate realistic Stripe fee (2.9% + $0.30)
-                purchase.stripe_fee = (purchase.purchase_price_usd * Decimal('0.029')) + Decimal('0.30')
-                purchase.net_after_stripe = purchase.purchase_price_usd - purchase.stripe_fee
+
+                # If this is a new purchase with fee breakdown (chapter purchase)
+                if purchase.chapter_price is not None:
+                    # Use the pre-calculated breakdown
+                    breakdown = calculate_payment_breakdown(purchase.chapter_price)
+                    purchase.gross_amount = breakdown['buyer_total']
+                    purchase.stripe_fee = breakdown['stripe_fee']
+                    purchase.net_after_stripe = breakdown['platform_receives']
+                else:
+                    # Legacy content purchase - use old calculation
+                    purchase.gross_amount = purchase.purchase_price_usd
+                    purchase.stripe_fee = (purchase.purchase_price_usd * Decimal('0.029')) + Decimal('0.30')
+                    purchase.net_after_stripe = purchase.purchase_price_usd - purchase.stripe_fee
+
                 purchase.save()
 
                 self.stdout.write(f"  ✅ Updated to payment_completed")
+                if purchase.chapter_price:
+                    self.stdout.write(
+                        f"  💰 Chapter: ${purchase.chapter_price:.2f} + "
+                        f"CC Fee: ${purchase.credit_card_fee:.2f} = "
+                        f"Buyer Total: ${purchase.buyer_total:.2f}"
+                    )
 
             # Process atomic purchase (NFT mint + USDC distribution)
             self.stdout.write(f"  ⚙️  Running atomic settlement...")

@@ -930,6 +930,28 @@ class Purchase(models.Model):
     stripe_charge_id = models.CharField(max_length=255, blank=True, default='')
     stripe_balance_txn_id = models.CharField(max_length=255, blank=True, default='')
 
+    # NEW: Pricing breakdown with CC fee pass-through
+    chapter_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Chapter's list price (what creator set)"
+    )
+    credit_card_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Fee passed to buyer for credit card processing"
+    )
+    buyer_total = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total amount buyer paid (chapter_price + credit_card_fee)"
+    )
 
     # Payment amounts (ACTUAL only, no estimates)
     gross_amount = models.DecimalField(
