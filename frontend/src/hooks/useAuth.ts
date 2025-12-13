@@ -31,11 +31,17 @@ export const useAuth = () => {
 
   const checkAuth = useCallback(async () => {
     try {
+      console.log('[useAuth] Checking auth status...');
+      console.log('[useAuth] Cookies present:', document.cookie);
+
       const response = await fetch(`${API_URL}/api/auth/status/`, {
         credentials: 'include',
       });
 
+      console.log('[useAuth] Auth status response:', response.status, response.ok);
+
       if (!response.ok) {
+        console.log('[useAuth] Response not OK, setting unauthenticated');
         setAuthState({
           user: null,
           loading: false,
@@ -45,14 +51,17 @@ export const useAuth = () => {
       }
 
       const data = await response.json();
+      console.log('[useAuth] Auth status data:', JSON.stringify(data, null, 2));
 
       if (data?.authenticated && data?.user) {
+        console.log('[useAuth] User authenticated:', data.user.username);
         setAuthState({
           user: data.user,
           loading: false,
           isAuthenticated: true,
         });
       } else {
+        console.log('[useAuth] Not authenticated - authenticated:', data?.authenticated, 'user:', !!data?.user);
         setAuthState({
           user: null,
           loading: false,
@@ -60,7 +69,7 @@ export const useAuth = () => {
         });
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('[useAuth] Auth check failed:', error);
       setAuthState({
         user: null,
         loading: false,

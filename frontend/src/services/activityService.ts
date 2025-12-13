@@ -143,14 +143,21 @@ const retryCounts = new Map<number, number>();
 // API Helper Functions
 // ============================================================================
 
-function getCsrfToken(): string {
-  const name = 'csrftoken';
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=');
-    if (key === name) return value;
+/**
+ * Get fresh CSRF token from API
+ * This is more reliable than reading from cookies
+ */
+async function getFreshCsrfToken(): Promise<string> {
+  try {
+    const response = await fetch(`${API_BASE}/api/auth/csrf/`, {
+      credentials: 'include',
+    });
+    const data = await response.json();
+    return data?.csrfToken || '';
+  } catch (error) {
+    console.error('Failed to fetch CSRF token:', error);
+    return '';
   }
-  return '';
 }
 
 async function apiRequest<T>(
@@ -267,10 +274,11 @@ export async function getCurrentlyEditing(projectId: number): Promise<CurrentlyE
  */
 export async function sendHeartbeat(projectId: number): Promise<void> {
   try {
+    const csrfToken = await getFreshCsrfToken();
     await apiRequest(`${API_BASE}/api/collaborative-projects/${projectId}/heartbeat/`, {
       method: 'POST',
       headers: {
-        'X-CSRFToken': getCsrfToken(),
+        'X-CSRFToken': csrfToken,
       },
     });
   } catch (error) {
@@ -287,12 +295,13 @@ export async function startEditingSection(
   sectionId: number
 ): Promise<void> {
   try {
+    const csrfToken = await getFreshCsrfToken();
     await apiRequest(
       `${API_BASE}/api/collaborative-projects/${projectId}/start-editing/`,
       {
         method: 'POST',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': csrfToken,
         },
         body: JSON.stringify({ section_id: sectionId }),
       }
@@ -313,12 +322,13 @@ export async function stopEditingSection(
   sectionId: number
 ): Promise<void> {
   try {
+    const csrfToken = await getFreshCsrfToken();
     await apiRequest(
       `${API_BASE}/api/collaborative-projects/${projectId}/stop-editing/`,
       {
         method: 'POST',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': csrfToken,
         },
         body: JSON.stringify({ section_id: sectionId }),
       }
@@ -341,12 +351,13 @@ export async function logActivity(
   metadata?: Record<string, any>
 ): Promise<Activity | null> {
   try {
+    const csrfToken = await getFreshCsrfToken();
     const activity = await apiRequest<Activity>(
       `${API_BASE}/api/collaborative-projects/${projectId}/log-activity/`,
       {
         method: 'POST',
         headers: {
-          'X-CSRFToken': getCsrfToken(),
+          'X-CSRFToken': csrfToken,
         },
         body: JSON.stringify({
           activity_type: activityType,

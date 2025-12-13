@@ -50,8 +50,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--delay',
             type=int,
-            default=120,
-            help='Only process purchases older than this many seconds (default: 120 = 2 minutes)',
+            default=10,
+            help='Only process purchases older than this many seconds (default: 10)',
         )
 
     def handle(self, *args, **options):
@@ -94,7 +94,15 @@ class Command(BaseCommand):
                     purchased_at__lt=cutoff_time  # Only if older than cutoff
                 ).exclude(id__in=processed_ids).order_by('-purchased_at')
 
+                # Debug: Show what the query found
+                count = pending.count()
+                if count > 0:
+                    self.stdout.write(f"\n[DEBUG] Found {count} purchase(s) older than {delay_seconds}s")
+                    self.stdout.write(f"[DEBUG] Cutoff time: {cutoff_time}")
+                    self.stdout.write(f"[DEBUG] Current time: {timezone.now()}")
+
                 for purchase in pending:
+                    self.stdout.write(f"[DEBUG] Purchase #{purchase.id} purchased_at: {purchase.purchased_at}")
                     self.process_purchase(purchase)
                     processed_ids.add(purchase.id)
 
@@ -138,12 +146,31 @@ class Command(BaseCommand):
             purchase.content.title if purchase.content else 'Unknown'
         )
 
+        # Calculate age of purchase for debugging
+        age_seconds = (timezone.now() - purchase.purchased_at).total_seconds()
+
         self.stdout.write("─" * 70)
         self.stdout.write(f"Processing Purchase #{purchase.id}")
         self.stdout.write(f"  👤 User: {purchase.user.username}")
         self.stdout.write(f"  📖 Item: {chapter_name}")
         self.stdout.write(f"  💰 Amount: ${purchase.purchase_price_usd}")
+        self.stdout.write(f"  ⏰ Age: {age_seconds:.0f} seconds (created at {purchase.purchased_at})")
         self.stdout.write(f"  📊 Status: {purchase.status} → {purchase.usdc_distribution_status}")
+
+        # Debug: Show fee breakdown fields
+        self.stdout.write(f"  📋 chapter_price: {purchase.chapter_price}, credit_card_fee: {purchase.credit_card_fee}, buyer_total: {purchase.buyer_total}")
+
+        # SAFETY CHECK: Don't process purchases that are too new (user might still be paying)
+        # This is a backup check - the query should already filter these out
+        MIN_AGE_SECONDS = 10  # At minimum, wait 10 seconds (for dev testing)
+        if age_seconds < MIN_AGE_SECONDS:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  ⚠️  SKIPPING: Purchase is only {age_seconds:.0f}s old (min: {MIN_AGE_SECONDS}s). "
+                    f"User may still be completing payment."
+                )
+            )
+            return
 
         try:
             # Simulate webhook: Mark as payment_completed
@@ -168,9 +195,14 @@ class Command(BaseCommand):
                 self.stdout.write(f"  ✅ Updated to payment_completed")
                 if purchase.chapter_price:
                     self.stdout.write(
-                        f"  💰 Chapter: ${purchase.chapter_price:.2f} + "
+                        f"  💳 FEE PASS-THROUGH: Item: ${purchase.chapter_price:.2f} + "
                         f"CC Fee: ${purchase.credit_card_fee:.2f} = "
-                        f"Buyer Total: ${purchase.buyer_total:.2f}"
+                        f"Buyer Paid: ${purchase.buyer_total:.2f}"
+                    )
+                else:
+                    self.stdout.write(
+                        f"  💳 LEGACY FEE: Buyer Paid: ${purchase.purchase_price_usd:.2f}, "
+                        f"Stripe deducted from creator's share"
                     )
 
             # Process atomic purchase (NFT mint + USDC distribution)

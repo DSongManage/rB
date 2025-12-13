@@ -532,6 +532,7 @@ def process_atomic_purchase(self, purchase_id):
     from django.utils import timezone
     from .models import Purchase, CollaboratorPayment
     from blockchain.solana_service import mint_and_distribute_collaborative_nft
+    from .payment_utils import calculate_payment_breakdown
 
     try:
         # Get purchase
@@ -549,12 +550,43 @@ def process_atomic_purchase(self, purchase_id):
         else:
             raise ValueError(f'Purchase {purchase.id} has neither chapter nor content')
 
-        # Calculate fees
-        gross_amount = purchase.gross_amount or purchase.purchase_price_usd
-        stripe_fee = purchase.stripe_fee or (Decimal('0.029') * gross_amount + Decimal('0.30'))
-        net_amount = gross_amount - stripe_fee
-        mint_gas_fee = Decimal('0.026')  # Approximate Solana gas fee
-        amount_to_distribute = net_amount - mint_gas_fee
+        # Calculate fees - Check if using new fee structure (chapter_price field stores item price)
+        if purchase.chapter_price is not None:
+            # NEW FEE STRUCTURE: CC fee pass-through - buyer pays item price + CC fee
+            # chapter_price field is reused to store the item's list price for all purchase types
+            item_price = purchase.chapter_price
+            logger.info(f'[Atomic Purchase] Using FEE PASS-THROUGH structure')
+            breakdown = calculate_payment_breakdown(item_price)
+
+            gross_amount = breakdown['buyer_total']
+            stripe_fee = breakdown['stripe_fee']
+            net_amount = breakdown['platform_receives']  # Should equal item_price
+            mint_gas_fee = breakdown['gas_fee']
+            amount_to_distribute = breakdown['usdc_to_distribute']
+
+            logger.info(
+                f'[Atomic Purchase] FEE PASS-THROUGH breakdown: '
+                f'Item Price=${item_price}, '
+                f'CC Fee=${breakdown["credit_card_fee"]}, '
+                f'Buyer Paid=${breakdown["buyer_total"]}, '
+                f'Stripe Fee=${stripe_fee}, '
+                f'Platform Receives=${net_amount}, '
+                f'To Distribute=${amount_to_distribute}'
+            )
+        else:
+            # LEGACY FEE STRUCTURE: Old calculation for backward compatibility
+            logger.info(f'[Atomic Purchase] Using LEGACY fee structure')
+            gross_amount = purchase.gross_amount or purchase.purchase_price_usd
+            stripe_fee = purchase.stripe_fee or (Decimal('0.029') * gross_amount + Decimal('0.30'))
+            net_amount = gross_amount - stripe_fee
+            mint_gas_fee = Decimal('0.026')
+            amount_to_distribute = net_amount - mint_gas_fee
+
+            logger.info(
+                f'[Atomic Purchase] LEGACY breakdown: '
+                f'Gross=${gross_amount}, Stripe fee=${stripe_fee}, '
+                f'Net=${net_amount}, To distribute=${amount_to_distribute}'
+            )
 
         # Update purchase with fee details
         purchase.stripe_fee = stripe_fee
@@ -563,12 +595,6 @@ def process_atomic_purchase(self, purchase_id):
         purchase.status = 'payment_processing'
         purchase.usdc_distribution_status = 'processing'
         purchase.save()
-
-        logger.info(
-            f'[Atomic Purchase] Amount breakdown: '
-            f'Gross=${gross_amount}, Stripe fee=${stripe_fee}, '
-            f'Net=${net_amount}, To distribute=${amount_to_distribute}'
-        )
 
         # Get collaborators (chapter has get_collaborators_with_wallets method)
         try:

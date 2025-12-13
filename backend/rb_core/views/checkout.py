@@ -31,6 +31,8 @@ class CreateCheckoutSessionView(APIView):
         content_id = request.data.get('content_id')
         chapter_id = request.data.get('chapter_id')
 
+        print(f'[Checkout] Request received: chapter_id={chapter_id}, content_id={content_id}')
+
         if not content_id and not chapter_id:
             return Response(
                 {'error': 'Either content_id or chapter_id is required', 'code': 'MISSING_ID'},
@@ -69,9 +71,11 @@ class CreateCheckoutSessionView(APIView):
                         )
 
                     # Calculate payment breakdown with CC fee pass-through
-                    # Use chapter price or default to $3.00 for testing
-                    chapter_price = getattr(chapter, 'price', Decimal('3.00'))
+                    # chapter.price is a DecimalField on the Chapter model
+                    chapter_price = chapter.price
+                    print(f'[Checkout] Chapter price from model: ${chapter_price}')
                     breakdown = calculate_payment_breakdown(chapter_price)
+                    print(f'[Checkout] Fee breakdown: buyer_total=${breakdown["buyer_total"]}, chapter_price=${breakdown["chapter_price"]}')
 
                     price = breakdown['buyer_total']  # Buyer pays this amount (includes CC fee)
                     item_title = f'{chapter.book_project.title} - Chapter {chapter.order}: {chapter.title}'
@@ -82,7 +86,7 @@ class CreateCheckoutSessionView(APIView):
                     )
                     cancel_url = f"{settings.FRONTEND_URL}/chapters/{chapter.id}"
 
-                # Handle legacy content purchase
+                # Handle content purchase (art, music, film, books, etc.)
                 elif content_id:
                     content = Content.objects.select_for_update().get(id=content_id)
 
@@ -104,9 +108,19 @@ class CreateCheckoutSessionView(APIView):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-                    price = content.price_usd
+                    # Calculate payment breakdown with CC fee pass-through
+                    content_price = content.price_usd
+                    print(f'[Checkout] Content price from model: ${content_price}')
+                    breakdown = calculate_payment_breakdown(content_price)
+                    print(f'[Checkout] Fee breakdown: buyer_total=${breakdown["buyer_total"]}, content_price=${breakdown["chapter_price"]}')
+
+                    price = breakdown['buyer_total']  # Buyer pays this amount (includes CC fee)
                     item_title = content.title
-                    item_description = f'By {content.creator.username}'
+                    item_description = (
+                        f'By {content.creator.username} | '
+                        f'Price: ${breakdown["chapter_price"]:.2f} + '
+                        f'CC Fee: ${breakdown["credit_card_fee"]:.2f}'
+                    )
                     cancel_url = f"{settings.FRONTEND_URL}/content/{content.id}"
 
                 logger.info(
@@ -115,20 +129,15 @@ class CreateCheckoutSessionView(APIView):
                     f'user_id={request.user.id}, price=${price}'
                 )
 
-                # Prepare metadata for Stripe session
+                # Prepare metadata for Stripe session (includes fee breakdown for all purchases)
                 session_metadata = {
                     'chapter_id': str(chapter_id) if chapter_id else '',
                     'content_id': str(content_id) if content_id else '',
                     'user_id': str(request.user.id),
+                    'item_price': str(breakdown['chapter_price']),
+                    'credit_card_fee': str(breakdown['credit_card_fee']),
+                    'buyer_total': str(breakdown['buyer_total']),
                 }
-
-                # Add fee breakdown to metadata if this is a chapter purchase
-                if chapter_id:
-                    session_metadata.update({
-                        'chapter_price': str(breakdown['chapter_price']),
-                        'credit_card_fee': str(breakdown['credit_card_fee']),
-                        'buyer_total': str(breakdown['buyer_total']),
-                    })
 
                 # Create Stripe Checkout Session
                 try:
@@ -151,7 +160,7 @@ class CreateCheckoutSessionView(APIView):
                         metadata=session_metadata,
                     )
 
-                    # Create Purchase record immediately with new fee breakdown fields
+                    # Create Purchase record with fee breakdown fields (applies to ALL purchases)
                     purchase_data = {
                         'user': request.user,
                         'content': content if content_id else None,
@@ -160,23 +169,18 @@ class CreateCheckoutSessionView(APIView):
                         'gross_amount': price,
                         'stripe_checkout_session_id': checkout_session.id,
                         'status': 'payment_pending',
-                        'payment_provider': 'stripe'
+                        'payment_provider': 'stripe',
+                        # Fee breakdown fields (for all purchase types)
+                        'chapter_price': breakdown['chapter_price'],  # Reusing field name for item price
+                        'credit_card_fee': breakdown['credit_card_fee'],
+                        'buyer_total': breakdown['buyer_total'],
                     }
 
-                    # Add new fee breakdown fields for chapter purchases
-                    if chapter_id:
-                        purchase_data.update({
-                            'chapter_price': breakdown['chapter_price'],
-                            'credit_card_fee': breakdown['credit_card_fee'],
-                            'buyer_total': breakdown['buyer_total'],
-                        })
+                    print(f'[Checkout] Adding fee breakdown to purchase: item_price={breakdown["chapter_price"]}, cc_fee={breakdown["credit_card_fee"]}, buyer_total={breakdown["buyer_total"]}')
 
                     purchase = Purchase.objects.create(**purchase_data)
 
-                    logger.info(
-                        f'[Checkout] ✅ Session created: session_id={checkout_session.id}, '
-                        f'purchase_id={purchase.id}'
-                    )
+                    print(f'[Checkout] ✅ Purchase #{purchase.id} created with chapter_price={purchase.chapter_price}')
 
                     # Prepare response
                     response_data = {
@@ -207,6 +211,56 @@ class CreateCheckoutSessionView(APIView):
             logger.error(f'[Checkout] Error: {e}', exc_info=True)
             return Response(
                 {'error': str(e), 'code': 'INTERNAL_ERROR'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class FeeBreakdownView(APIView):
+    """
+    Calculate and return fee breakdown for a given chapter price.
+
+    Used by frontend to show transparent pricing before purchase.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Get fee breakdown for a chapter price."""
+        try:
+            chapter_price = request.query_params.get('chapter_price')
+
+            if not chapter_price:
+                return Response(
+                    {'error': 'chapter_price query parameter is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Convert to Decimal
+            chapter_price = Decimal(str(chapter_price))
+
+            # Calculate breakdown
+            breakdown = calculate_payment_breakdown(chapter_price)
+
+            return Response({
+                'breakdown_display': breakdown['breakdown_display'],
+                'raw_breakdown': {
+                    'chapter_price': str(breakdown['chapter_price']),
+                    'credit_card_fee': str(breakdown['credit_card_fee']),
+                    'buyer_total': str(breakdown['buyer_total']),
+                    'creator_share_90': str(breakdown['creator_share_90']),
+                    'platform_share_10': str(breakdown['platform_share_10']),
+                }
+            }, status=status.HTTP_200_OK)
+
+        except (ValueError, TypeError) as e:
+            return Response(
+                {'error': f'Invalid chapter_price: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f'[FeeBreakdown] Error: {e}', exc_info=True)
+            return Response(
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

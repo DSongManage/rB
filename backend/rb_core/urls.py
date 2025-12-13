@@ -1,13 +1,14 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
-from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
+from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView
 from .views.collaboration import (
-    CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet
+    CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
+    ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings
 )
 from .views.notifications import NotificationViewSet
 from .views import beta
@@ -36,6 +37,7 @@ urlpatterns = [
     # Stripe checkout and payment processing
     path('api/checkout/create/', CreateCheckoutSessionView.as_view(), name='checkout_create'),
     path('api/checkout/session/', CreateCheckoutSessionView.as_view(), name='checkout_session'),  # Legacy alias
+    path('api/checkout/fee-breakdown/', FeeBreakdownView.as_view(), name='fee_breakdown'),
     path('api/webhooks/stripe/', stripe_webhook, name='stripe_webhook'),
     path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook_legacy'),  # Legacy alias
     path('api/dev/process-purchase/', DevProcessPurchaseView.as_view(), name='dev_process_purchase'),
@@ -58,16 +60,19 @@ urlpatterns = [
     path('api/users/search/', UserSearchView.as_view(), name='user_search'),
     path('api/users/signup/', SignupView.as_view(), name='user_signup'),
     path('api/users/login/', LoginView.as_view(), name='user_login'),
+    path('api/test/session/', TestSessionView.as_view(), name='test_session'),  # Debug endpoint
     path('api/users/profile/', ProfileEditView.as_view(), name='user_profile_edit'),
     path('api/profile/status/', ProfileStatusView.as_view(), name='profile_status_update'),
-    path('api/notifications/', NotificationsView.as_view(), name='notifications'),
+    # Legacy notification endpoint moved - now using NotificationViewSet via router
+    # path('api/notifications/', NotificationsView.as_view(), name='notifications'),
+    path('api/legacy-notifications/', NotificationsView.as_view(), name='legacy_notifications'),
     path('api/auth/logout/', LogoutView.as_view(), name='auth_logout'),
     # Backward-compatible aliases (some clients may call without the /api prefix)
     path('auth/status/', AuthStatusView.as_view(), name='auth_status_alias'),
     path('auth/csrf/', CsrfTokenView.as_view(), name='csrf_alias'),
     path('auth/logout/', LogoutView.as_view(), name='auth_logout_alias'),
     # Non-API aliases for common endpoints used by the frontend when opened on :8000
-    path('notifications/', NotificationsView.as_view(), name='notifications_alias'),
+    # path('notifications/', NotificationsView.as_view(), name='notifications_alias'),  # Using router now
     path('users/profile/', ProfileEditView.as_view(), name='user_profile_edit_alias'),
     path('users/search/', UserSearchView.as_view(), name='user_search_alias'),
     path('dashboard/', DashboardView.as_view(), name='dashboard_alias'),
@@ -102,4 +107,23 @@ urlpatterns = [
     path('api/staff/treasury/', treasury_api, name='admin_treasury_api'),
     # Collaboration API endpoints
     path('api/', include(router.urls)),
+    # Nested routes for proposals and ratings under collaborative projects
+    path('api/collaborative-projects/<int:project_pk>/proposals/',
+         ProposalViewSet.as_view({'get': 'list', 'post': 'create'}),
+         name='project-proposals-list'),
+    path('api/collaborative-projects/<int:project_pk>/proposals/<int:pk>/',
+         ProposalViewSet.as_view({'get': 'retrieve'}),
+         name='project-proposals-detail'),
+    path('api/collaborative-projects/<int:project_pk>/proposals/<int:pk>/vote/',
+         ProposalViewSet.as_view({'post': 'vote'}),
+         name='project-proposals-vote'),
+    path('api/collaborative-projects/<int:project_pk>/proposals/<int:pk>/cancel/',
+         ProposalViewSet.as_view({'post': 'cancel'}),
+         name='project-proposals-cancel'),
+    path('api/collaborative-projects/<int:project_pk>/ratings/',
+         CollaboratorRatingViewSet.as_view({'get': 'list', 'post': 'create'}),
+         name='project-ratings-list'),
+    path('api/users/<int:user_id>/ratings/',
+         get_user_ratings,
+         name='user-ratings'),
 ]

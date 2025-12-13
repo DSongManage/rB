@@ -55,6 +55,18 @@ export interface CollaboratorRole {
   can_edit: string[];
   approved_current_version: boolean;
   approved_revenue_split: boolean;
+  // Counter-proposal fields
+  proposed_percentage?: number;
+  counter_message?: string;
+  // Deadline and accountability fields
+  delivery_deadline?: string;
+  deadline_extended_at?: string;
+  deadline_extension_reason?: string;
+  sections_due?: number[];
+  // Multi-party governance fields
+  is_lead: boolean;
+  can_invite_others: boolean;
+  voting_weight: number;
 }
 
 export interface ProjectSection {
@@ -246,6 +258,19 @@ export const collaborationApi = {
   },
 
   /**
+   * Get all pending collaboration invites for the current user
+   * Returns projects where user has status='invited'
+   */
+  async getPendingInvites(): Promise<{ project: CollaborativeProject; invite: CollaboratorRole }[]> {
+    const response = await fetch(`${API_BASE}/api/collaborative-projects/pending_invites/`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    return handleResponse<{ project: CollaborativeProject; invite: CollaboratorRole }[]>(response);
+  },
+
+  /**
    * Update collaborative project
    */
   async updateCollaborativeProject(
@@ -346,6 +371,30 @@ export const collaborationApi = {
     );
 
     return handleResponse<{ message: string }>(response);
+  },
+
+  /**
+   * Submit counter-proposal for collaboration invitation
+   */
+  async counterProposeInvite(
+    projectId: number,
+    data: { proposed_percentage: number; message: string }
+  ): Promise<{ message: string; invitation: CollaboratorRole }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/counter_propose/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    return handleResponse<{ message: string; invitation: CollaboratorRole }>(response);
   },
 
   /**
@@ -903,4 +952,211 @@ export const collaborationApi = {
 
     return handleResponse<CollaborativeProject>(response);
   },
+
+  // ===== Proposals & Voting =====
+
+  /**
+   * Get all proposals for a project
+   */
+  async getProposals(projectId: number): Promise<Proposal[]> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/proposals/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+
+    return handleResponse<Proposal[]>(response);
+  },
+
+  /**
+   * Create a new proposal
+   */
+  async createProposal(
+    projectId: number,
+    data: CreateProposalData
+  ): Promise<Proposal> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/proposals/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    return handleResponse<Proposal>(response);
+  },
+
+  /**
+   * Cast a vote on a proposal
+   */
+  async castVote(
+    projectId: number,
+    proposalId: number,
+    data: { vote: 'approve' | 'reject' | 'abstain'; comment?: string }
+  ): Promise<ProposalVote> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/proposals/${proposalId}/vote/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    return handleResponse<ProposalVote>(response);
+  },
+
+  /**
+   * Cancel a proposal (only proposer or owner can cancel)
+   */
+  async cancelProposal(projectId: number, proposalId: number): Promise<{ message: string }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/proposals/${proposalId}/cancel/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      }
+    );
+
+    return handleResponse<{ message: string }>(response);
+  },
+
+  // ===== Collaborator Ratings =====
+
+  /**
+   * Submit a rating for a collaborator
+   */
+  async rateCollaborator(
+    projectId: number,
+    ratedUserId: number,
+    data: CollaboratorRatingData
+  ): Promise<CollaboratorRating> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/rate_collaborator/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ rated_user_id: ratedUserId, ...data }),
+      }
+    );
+
+    return handleResponse<CollaboratorRating>(response);
+  },
+
+  /**
+   * Get ratings for a user
+   */
+  async getUserRatings(userId: number): Promise<{
+    ratings: CollaboratorRating[];
+    average_scores: {
+      quality: number;
+      deadline: number;
+      communication: number;
+      would_collab_again: number;
+      overall: number;
+    };
+    total_projects: number;
+  }> {
+    const response = await fetch(
+      `${API_BASE}/api/users/${userId}/ratings/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+
+    return handleResponse(response);
+  },
 };
+
+// ===== Additional TypeScript Interfaces =====
+
+export interface Proposal {
+  id: number;
+  proposal_type: string;
+  title: string;
+  description: string;
+  proposal_data: Record<string, any>;
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled';
+  voting_threshold: 'majority' | 'unanimous' | 'owner_decides';
+  proposer_id: number;
+  proposer_username: string;
+  expires_at?: string;
+  resolved_at?: string;
+  created_at: string;
+  votes: ProposalVote[];
+  vote_counts: {
+    approve: number;
+    reject: number;
+    abstain: number;
+    total: number;
+  };
+  total_voters: number;
+}
+
+export interface ProposalVote {
+  id: number;
+  voter_id: number;
+  voter_username: string;
+  vote: 'approve' | 'reject' | 'abstain';
+  comment?: string;
+  voted_at: string;
+}
+
+export interface CreateProposalData {
+  proposal_type: string;
+  title: string;
+  description?: string;
+  proposal_data: Record<string, any>;
+  voting_threshold?: 'majority' | 'unanimous' | 'owner_decides';
+  expires_in_days?: number;
+}
+
+export interface CollaboratorRating {
+  id: number;
+  project_id: number;
+  project_title: string;
+  rater_id: number;
+  rater_username: string;
+  rated_user_id: number;
+  rated_user_username: string;
+  quality_score: number;
+  deadline_score: number;
+  communication_score: number;
+  would_collab_again: number;
+  average_score: number;
+  private_note?: string;
+  public_feedback?: string;
+  created_at: string;
+}
+
+export interface CollaboratorRatingData {
+  quality_score: number;
+  deadline_score: number;
+  communication_score: number;
+  would_collab_again: number;
+  private_note?: string;
+  public_feedback?: string;
+}

@@ -4,7 +4,7 @@ from django.db import models
 import logging
 from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser
-from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter
+from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole
 from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer
 from ..utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from ..utils.ipfs_utils import upload_to_ipfs
@@ -27,6 +27,7 @@ from rest_framework import status
 from django.contrib.auth import authenticate
 from django.contrib.auth import get_user_model
 from ..models import Collaboration
+from ..notifications_utils import notify_collaboration_invitation
 import ipfshttpclient
 from django.conf import settings
 from rest_framework import permissions
@@ -54,6 +55,14 @@ def home(request):
 
 class AuthStatusView(APIView):
     def get(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f'[AuthStatus] Session key: {request.session.session_key}')
+        logger.info(f'[AuthStatus] Session data: {dict(request.session)}')
+        logger.info(f'[AuthStatus] Cookies received: {request.COOKIES}')
+        logger.info(f'[AuthStatus] User: {request.user}, Authenticated: {request.user.is_authenticated}')
+
         is_authed = request.user.is_authenticated
         wallet = None
         user_data = None
@@ -395,9 +404,67 @@ class InviteView(APIView):
         # Add all collaborators
         for collaborator in collaborators:
             collab.collaborators.add(collaborator)
-        
+
         collab.save()
-        
+
+        # === BRIDGE TO NEW COLLABORATION SYSTEM ===
+        # Also create CollaborativeProject and CollaboratorRole for the new invite system
+        # IMPORTANT: All foreign keys (created_by, user) expect Django User objects, NOT UserProfile
+        try:
+            # Create CollaborativeProject - created_by expects Django User
+            project = CollaborativeProject.objects.create(
+                title=content.title or f"Collaboration with {', '.join(c.username for c in collaborators)}",
+                description=message_clean,
+                content_type='book',  # Field is content_type, not project_type
+                created_by=request.user,  # Django User, not UserProfile
+                status='active',
+            )
+
+            # Add creator as accepted collaborator (owner)
+            # CollaboratorRole.user expects Django User
+            CollaboratorRole.objects.create(
+                project=project,
+                user=request.user,  # Django User, not UserProfile
+                role='creator',
+                status='accepted',
+                revenue_percentage=100 - equity_percent,
+                can_edit_text=True,
+                can_edit_images=True,
+                can_edit_audio=True,
+                can_edit_video=True,
+            )
+
+            # Add each invited collaborator
+            per_collaborator_equity = equity_percent // len(collaborators) if collaborators else equity_percent
+            for collaborator in collaborators:
+                # Create CollaboratorRole with 'invited' status
+                # collaborator is already a Django User object from AuthUser.objects.filter()
+                CollaboratorRole.objects.create(
+                    project=project,
+                    user=collaborator,  # Django User, not UserProfile
+                    role='collaborator',
+                    status='invited',  # THIS IS THE KEY - status must be 'invited'
+                    revenue_percentage=per_collaborator_equity,
+                    can_edit_text=True,
+                    can_edit_images=False,
+                    can_edit_audio=False,
+                    can_edit_video=False,
+                )
+
+                # Send notification via new system
+                # notify_collaboration_invitation expects Django User objects
+                notify_collaboration_invitation(
+                    request.user,      # Django User (inviter)
+                    collaborator,      # Django User (invitee)
+                    project,
+                    'collaborator'
+                )
+
+            logger.info(f"[Invite] Created CollaborativeProject #{project.id} with {len(collaborators)} invited collaborator(s)")
+        except Exception as e:
+            # Log but don't fail the request - legacy system still works
+            logger.error(f"[Invite] Failed to create CollaborativeProject bridge: {e}")
+
         # Return response with invite details
         return Response({
             'invite_id': collab.id,
@@ -816,6 +883,9 @@ class Web3AuthLoginView(APIView):
     throttle_classes = ['rb_core.throttling.AuthAnonRateThrottle']
 
     def post(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+
         token = request.data.get('token', '').strip()
         if not token:
             return Response({'error': 'token required'}, status=400)
@@ -852,19 +922,37 @@ class Web3AuthLoginView(APIView):
             prof.web3auth_sub = sub
             changed = True
         if addr and not prof.wallet_address:
-            # Only set if free; uniqueness is enforced at DB level
-            prof.wallet_address = addr
-            changed = True
+            # Check if this wallet is already linked to a DIFFERENT user
+            existing_wallet_profile = UserProfile.objects.filter(wallet_address=addr).exclude(user=core_user).first()
+            if existing_wallet_profile:
+                # This wallet belongs to a different account - log in as that account instead
+                logger.warning(
+                    f'Web3Auth wallet {addr[:20]}... already linked to {existing_wallet_profile.username}. '
+                    f'Logging in as {existing_wallet_profile.username} instead of {core_user.username}'
+                )
+                # Update the existing profile's web3auth_sub to link the identities
+                existing_wallet_profile.web3auth_sub = sub
+                try:
+                    existing_wallet_profile.save(update_fields=['web3auth_sub'])
+                except Exception as e:
+                    logger.error(f'Failed to save web3auth_sub for {existing_wallet_profile.username}: {e}')
+
+                # Log in as the account that owns this wallet
+                core_user = existing_wallet_profile.user
+            else:
+                # Wallet is free, link it
+                prof.wallet_address = addr
+                changed = True
         if changed:
             try:
                 prof.save()
-            except Exception:
-                # If wallet uniqueness blocks save, keep subject mapping only
-                prof.wallet_address = prof.wallet_address  # no-op safeguard
+            except Exception as e:
+                logger.error(f'Failed to save profile for {core_user.username}: {e}')
+                # Try to save just web3auth_sub
                 try:
                     prof.save(update_fields=['web3auth_sub'])
-                except Exception:
-                    pass
+                except Exception as e2:
+                    logger.error(f'Failed to save web3auth_sub for {core_user.username}: {e2}')
         from django.contrib.auth import login as django_login
         django_login(request, core_user)
         return Response({'message': 'Login successful'})
@@ -883,6 +971,9 @@ class LinkWalletView(APIView):
 
     def post(self, request):
         """Link wallet to user account (Web3Auth or external with signature verification)"""
+        import logging
+        logger = logging.getLogger(__name__)
+
         addr = request.data.get('wallet_address', '').strip()
         token = request.data.get('web3auth_token', '').strip()
         signature = request.data.get('signature', '').strip()
@@ -936,16 +1027,12 @@ class LinkWalletView(APIView):
 
             except ImportError:
                 # Fallback: Allow manual linking if Solana libraries not installed (dev only)
-                import logging
-                logger = logging.getLogger(__name__)
                 logger.warning('Solana libraries not installed - skipping signature verification (INSECURE)')
                 web3auth_sub = None
 
         # Path 3: Manual wallet address (less secure, for backwards compatibility)
         elif addr and not signature:
             # Allow manual linking but log a warning
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f'Manual wallet linking without signature verification: {addr[:8]}...')
             web3auth_sub = None
         else:
@@ -960,8 +1047,20 @@ class LinkWalletView(APIView):
 
         # Enforce uniqueness: wallet can't be linked to a DIFFERENT user's profile
         # (Allow re-linking the same wallet to the same user)
-        if UserProfile.objects.filter(wallet_address=addr).exclude(user=core_user).exists():
-            return Response({'error':'Wallet already linked to another account'}, status=400)
+        existing_profile = UserProfile.objects.filter(wallet_address=addr).exclude(user=core_user).first()
+        if existing_profile:
+            logger.warning(
+                f'Wallet link conflict: User {request.user.username} tried to link wallet {addr[:20]}... '
+                f'but it is already linked to user {existing_profile.username}'
+            )
+            return Response({
+                'error': f'This wallet is already linked to the account "{existing_profile.username}". Please log out and log in as {existing_profile.username} to access that account.',
+                'code': 'WALLET_ALREADY_LINKED',
+                'conflicting_wallet': addr[:20] + '...',
+                'linked_to': existing_profile.username,
+                'current_user': request.user.username,
+                'suggestion': f'Log out and log in as {existing_profile.username}'
+            }, status=400)
 
         # Update wallet info
         prof.wallet_address = addr[:44]
@@ -1008,13 +1107,15 @@ class CsrfTokenView(APIView):
         token = get_token(request)
         response = Response({'csrfToken': token})
         # Explicitly set the CSRF cookie for cross-origin requests
+        # Use settings to get the correct cookie name and settings
         response.set_cookie(
-            'csrftoken',
+            settings.CSRF_COOKIE_NAME,  # 'rb_csrftoken' from settings
             token,
             max_age=31449600,  # 1 year
-            secure=False,  # True in production with HTTPS
-            httponly=False,  # Must be False so JS can read it
-            samesite='Lax'
+            secure=settings.CSRF_COOKIE_SECURE,
+            httponly=settings.CSRF_COOKIE_HTTPONLY,
+            samesite=settings.CSRF_COOKIE_SAMESITE,
+            domain=settings.CSRF_COOKIE_DOMAIN
         )
         return response
 
@@ -1211,6 +1312,28 @@ class SignupView(APIView):
         return Response(UserProfileSerializer(profile).data, status=201)
 
 
+class TestSessionView(APIView):
+    """Test endpoint to verify session creation works."""
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Set a test value in session
+        request.session['test_key'] = 'test_value'
+        request.session.save()
+
+        logger.info(f'Test session created: {request.session.session_key}')
+        logger.info(f'Session data: {dict(request.session)}')
+
+        return Response({
+            'session_key': request.session.session_key,
+            'session_data': dict(request.session),
+            'cookies_will_be_set': True
+        })
+
+
 class LoginView(APIView):
     """Custom login endpoint for username/password authentication."""
     permission_classes = [permissions.AllowAny]
@@ -1233,7 +1356,15 @@ class LoginView(APIView):
 
         # Log the user in
         from django.contrib.auth import login as django_login
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f'Logging in user: {user.username}')
         django_login(request, user)
+
+        # Verify session was created
+        logger.info(f'Session key after login: {request.session.session_key}')
+        logger.info(f'Session data: {dict(request.session)}')
 
         return Response({
             'message': 'Login successful',

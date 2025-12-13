@@ -287,6 +287,14 @@ class Chapter(models.Model):
     is_published = models.BooleanField(default=False)
     published_content = models.ForeignKey(Content, null=True, blank=True, on_delete=models.SET_NULL, related_name='source_chapter')
 
+    # Pricing
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=1.00,
+        help_text="Price in USD for purchasing this chapter"
+    )
+
     # Content removal and marketplace listing fields
     is_listed = models.BooleanField(
         default=True,
@@ -1346,6 +1354,54 @@ class CollaboratorRole(models.Model):
     approved_current_version = models.BooleanField(default=False)
     approved_revenue_split = models.BooleanField(default=False)
 
+    # Counter-proposal fields (for invitee to propose different terms)
+    proposed_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Counter-proposed revenue percentage"
+    )
+    counter_message = models.TextField(
+        blank=True,
+        help_text="Message explaining the counter-proposal"
+    )
+
+    # Deadline and accountability fields
+    delivery_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Deadline for collaborator to complete their sections"
+    )
+    deadline_extended_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When deadline was last extended"
+    )
+    deadline_extension_reason = models.TextField(
+        blank=True,
+        help_text="Reason for deadline extension"
+    )
+    sections_due = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of section IDs the collaborator is responsible for"
+    )
+
+    # Multi-party governance fields
+    is_lead = models.BooleanField(
+        default=False,
+        help_text="Lead collaborator with additional permissions"
+    )
+    can_invite_others = models.BooleanField(
+        default=False,
+        help_text="Can invite additional collaborators to the project"
+    )
+    voting_weight = models.IntegerField(
+        default=1,
+        help_text="Weight of vote in proposals (default 1)"
+    )
+
     class Meta:
         unique_together = ['project', 'user']
         ordering = ['-revenue_percentage']
@@ -1574,6 +1630,7 @@ class Notification(models.Model):
     NOTIFICATION_TYPES = [
         ('invitation', 'Collaboration Invitation'),
         ('invitation_response', 'Invitation Response'),
+        ('counter_proposal', 'Counter Proposal'),
         ('comment', 'Comment'),
         ('approval', 'Approval Status Change'),
         ('section_update', 'Section Update'),
@@ -1643,6 +1700,252 @@ class Notification(models.Model):
             self.read = True
             self.read_at = timezone.now()
             self.save(update_fields=['read', 'read_at'])
+
+
+class Proposal(models.Model):
+    """Proposal for multi-party decisions in collaborative projects.
+
+    - Revenue split changes
+    - Adding/removing collaborators
+    - Project changes requiring consensus
+    - Supports different voting thresholds
+    """
+
+    PROPOSAL_TYPES = [
+        ('revenue_split', 'Revenue Split Change'),
+        ('new_member', 'Invite New Collaborator'),
+        ('remove_member', 'Remove Collaborator'),
+        ('project_change', 'Project Change'),
+        ('deadline_extension', 'Deadline Extension'),
+        ('exit_collaborator', 'Exit Collaborator'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending Votes'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('expired', 'Expired'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    THRESHOLD_CHOICES = [
+        ('majority', 'Majority (>50%)'),
+        ('unanimous', 'Unanimous (100%)'),
+        ('owner_decides', 'Owner Decides'),
+    ]
+
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        related_name='proposals'
+    )
+    proposer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='proposals_created'
+    )
+    proposal_type = models.CharField(max_length=30, choices=PROPOSAL_TYPES)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    proposal_data = models.JSONField(
+        default=dict,
+        help_text="JSON data containing the actual proposal content"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+    voting_threshold = models.CharField(
+        max_length=20,
+        choices=THRESHOLD_CHOICES,
+        default='majority'
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the proposal expires if not enough votes"
+    )
+    resolved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the proposal was approved/rejected"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_proposal_type_display()}: {self.title}"
+
+    def get_vote_counts(self):
+        """Get counts of approve/reject/abstain votes."""
+        votes = self.votes.all()
+        return {
+            'approve': votes.filter(vote='approve').count(),
+            'reject': votes.filter(vote='reject').count(),
+            'abstain': votes.filter(vote='abstain').count(),
+            'total': votes.count(),
+        }
+
+    def get_weighted_votes(self):
+        """Get weighted vote totals based on collaborator voting_weight."""
+        votes = self.votes.all()
+        approve_weight = sum(
+            v.voter_role.voting_weight for v in votes.filter(vote='approve')
+            if hasattr(v, 'voter_role') and v.voter_role
+        )
+        reject_weight = sum(
+            v.voter_role.voting_weight for v in votes.filter(vote='reject')
+            if hasattr(v, 'voter_role') and v.voter_role
+        )
+        return {'approve': approve_weight, 'reject': reject_weight}
+
+    def check_and_resolve(self):
+        """Check if proposal should be resolved based on votes."""
+        if self.status != 'pending':
+            return
+
+        votes = self.get_vote_counts()
+        total_collaborators = self.project.collaborators.filter(
+            status='accepted'
+        ).count()
+
+        if self.voting_threshold == 'unanimous':
+            if votes['approve'] == total_collaborators:
+                self.status = 'approved'
+                self.resolved_at = timezone.now()
+                self.save()
+            elif votes['reject'] > 0:
+                self.status = 'rejected'
+                self.resolved_at = timezone.now()
+                self.save()
+
+        elif self.voting_threshold == 'majority':
+            needed = (total_collaborators // 2) + 1
+            if votes['approve'] >= needed:
+                self.status = 'approved'
+                self.resolved_at = timezone.now()
+                self.save()
+            elif votes['reject'] >= needed:
+                self.status = 'rejected'
+                self.resolved_at = timezone.now()
+                self.save()
+
+        elif self.voting_threshold == 'owner_decides':
+            # Check if owner has voted
+            owner_vote = self.votes.filter(voter=self.project.created_by).first()
+            if owner_vote:
+                self.status = 'approved' if owner_vote.vote == 'approve' else 'rejected'
+                self.resolved_at = timezone.now()
+                self.save()
+
+
+class ProposalVote(models.Model):
+    """Individual vote on a proposal."""
+
+    VOTE_CHOICES = [
+        ('approve', 'Approve'),
+        ('reject', 'Reject'),
+        ('abstain', 'Abstain'),
+    ]
+
+    proposal = models.ForeignKey(
+        Proposal,
+        on_delete=models.CASCADE,
+        related_name='votes'
+    )
+    voter = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='proposal_votes'
+    )
+    vote = models.CharField(max_length=10, choices=VOTE_CHOICES)
+    comment = models.TextField(
+        blank=True,
+        help_text="Optional comment explaining the vote"
+    )
+    voted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['proposal', 'voter']
+        ordering = ['-voted_at']
+
+    def __str__(self):
+        return f"{self.voter.username}: {self.vote} on {self.proposal.title}"
+
+    @property
+    def voter_role(self):
+        """Get the voter's CollaboratorRole for this project."""
+        return CollaboratorRole.objects.filter(
+            project=self.proposal.project,
+            user=self.voter
+        ).first()
+
+
+class CollaboratorRating(models.Model):
+    """Post-completion rating between collaborators.
+
+    - Quality of work
+    - Meeting deadlines
+    - Communication
+    - Would collaborate again?
+    """
+
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        related_name='ratings'
+    )
+    rater = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='ratings_given'
+    )
+    rated_user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='ratings_received'
+    )
+    quality_score = models.IntegerField(
+        help_text="Quality of work (1-5)"
+    )
+    deadline_score = models.IntegerField(
+        help_text="Meeting deadlines (1-5)"
+    )
+    communication_score = models.IntegerField(
+        help_text="Communication quality (1-5)"
+    )
+    would_collab_again = models.IntegerField(
+        help_text="Would collaborate again (1-5)"
+    )
+    private_note = models.TextField(
+        blank=True,
+        help_text="Private note only visible to rated user"
+    )
+    public_feedback = models.TextField(
+        blank=True,
+        help_text="Public feedback visible on profile"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['project', 'rater', 'rated_user']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Rating: {self.rater.username} -> {self.rated_user.username}"
+
+    @property
+    def average_score(self):
+        """Calculate average of all rating categories."""
+        return (
+            self.quality_score +
+            self.deadline_score +
+            self.communication_score +
+            self.would_collab_again
+        ) / 4
 
 
 class BetaInvite(models.Model):

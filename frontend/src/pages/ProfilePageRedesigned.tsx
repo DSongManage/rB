@@ -2,10 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 import { WalletManagementPanel } from '../components/WalletManagementPanel';
+import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
+import { collaborationApi, CollaborativeProject, CollaboratorRole } from '../services/collaborationApi';
 import { API_URL } from '../config';
 import {
   Settings, MapPin, Wallet, CheckCircle, BookOpen, Users,
-  BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X
+  BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X,
+  Check, XCircle
 } from 'lucide-react';
 
 type UserStatus = { user_id: number; username: string; wallet_address?: string } | null;
@@ -44,6 +47,15 @@ export default function ProfilePageRedesigned() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
 
+  // Collaboration invite state
+  const [pendingInvites, setPendingInvites] = useState<{ project: CollaborativeProject; invite: CollaboratorRole }[]>([]);
+  const [selectedInviteProjectId, setSelectedInviteProjectId] = useState<number | null>(null);
+  // Active collaborations state
+  const [collaborations, setCollaborations] = useState<any[]>([]);
+  const [collaborationsLoading, setCollaborationsLoading] = useState(false);
+  // Processing state for accept/decline buttons
+  const [processingInvites, setProcessingInvites] = useState<Set<number>>(new Set());
+
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' }).then(r => r.json());
     setUser(d);
@@ -55,6 +67,86 @@ export default function ProfilePageRedesigned() {
     const token = j?.csrfToken || '';
     setCsrf(token);
     return token;
+  }
+
+  async function loadPendingInvites() {
+    try {
+      const invites = await collaborationApi.getPendingInvites();
+      setPendingInvites(invites);
+    } catch (err) {
+      console.error('Failed to load pending invites:', err);
+      setPendingInvites([]);
+    }
+  }
+
+  async function loadCollaborations() {
+    setCollaborationsLoading(true);
+    try {
+      const projects = await collaborationApi.getCollaborativeProjects();
+      setCollaborations(projects);
+    } catch (err) {
+      console.error('Failed to load collaborations:', err);
+      setCollaborations([]);
+    } finally {
+      setCollaborationsLoading(false);
+    }
+  }
+
+  // Accept invitation handler
+  async function handleAcceptInvite(projectId: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    setProcessingInvites(prev => new Set(prev).add(projectId));
+    try {
+      await collaborationApi.acceptInvitation(projectId);
+      setStatus('Invitation accepted!');
+      // Refresh both lists
+      await Promise.all([loadPendingInvites(), loadCollaborations()]);
+    } catch (err: any) {
+      console.error('Failed to accept invitation:', err);
+      setStatus(`Failed to accept: ${err.message || 'Unknown error'}`);
+    } finally {
+      setProcessingInvites(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
+    }
+  }
+
+  // Decline invitation handler
+  async function handleDeclineInvite(projectId: number, e: React.MouseEvent) {
+    e.stopPropagation();
+    setProcessingInvites(prev => new Set(prev).add(projectId));
+    try {
+      await collaborationApi.declineInvitation(projectId);
+      setStatus('Invitation declined');
+      // Refresh both lists
+      await Promise.all([loadPendingInvites(), loadCollaborations()]);
+    } catch (err: any) {
+      console.error('Failed to decline invitation:', err);
+      setStatus(`Failed to decline: ${err.message || 'Unknown error'}`);
+    } finally {
+      setProcessingInvites(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
+    }
+  }
+
+  // Helper function to get content type icon
+  function getContentTypeIcon(contentType: string, size: number = 24) {
+    switch (contentType) {
+      case 'book':
+        return <BookOpen size={size} />;
+      case 'music':
+        return <Music size={size} />;
+      case 'video':
+        return <Film size={size} />;
+      case 'art':
+      default:
+        return <Palette size={size} />;
+    }
   }
 
   useEffect(() => {
@@ -75,6 +167,10 @@ export default function ProfilePageRedesigned() {
         setCsrf(csrfResp?.csrfToken || '');
         setProfile(profileResp);
         setDash(dashResp);
+
+        // Load pending collaboration invites and active collaborations
+        loadPendingInvites();
+        loadCollaborations();
       })
       .catch(() => { });
 
@@ -348,6 +444,161 @@ export default function ProfilePageRedesigned() {
         </button>
       </div>
 
+      {/* PENDING COLLABORATION INVITES */}
+      {pendingInvites.length > 0 && (
+        <div style={{
+          background: '#0f172a',
+          border: '1px solid #f59e0b40',
+          borderRadius: 16,
+          padding: 24,
+          marginBottom: 24,
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 20,
+          }}>
+            <span style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              padding: '6px 14px',
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#000',
+            }}>
+              {pendingInvites.length}
+            </span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#f8fafc' }}>
+              Collaboration Invites
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gap: 16 }}>
+            {pendingInvites.map(({ project, invite }) => {
+              const isProcessing = processingInvites.has(project.id);
+              return (
+              <div key={project.id} style={{
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 12,
+                padding: 20,
+                opacity: isProcessing ? 0.7 : 1,
+                transition: 'all 0.2s',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                  {/* Project Type Icon */}
+                  <div style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 12,
+                    background: '#f59e0b20',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#f59e0b',
+                    flexShrink: 0,
+                  }}>
+                    {getContentTypeIcon(project.content_type, 28)}
+                  </div>
+
+                  {/* Invite Details */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+                      {project.title}
+                    </div>
+                    <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 10 }}>
+                      <span style={{ color: '#cbd5e1' }}>@{project.created_by_username}</span> invited you as{' '}
+                      <span style={{ color: '#f59e0b', fontWeight: 600 }}>{invite.role}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 20, fontSize: 13 }}>
+                      <div>
+                        <span style={{ color: '#64748b' }}>Revenue Split:</span>{' '}
+                        <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b' }}>Team:</span>{' '}
+                        <span style={{ color: '#e2e8f0' }}>{project.total_collaborators} people</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{
+                  display: 'flex',
+                  gap: 12,
+                  marginTop: 16,
+                  paddingTop: 16,
+                  borderTop: '1px solid #334155',
+                }}>
+                  <button
+                    onClick={(e) => handleAcceptInvite(project.id, e)}
+                    disabled={isProcessing}
+                    style={{
+                      flex: 1,
+                      background: '#10b981',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '12px 20px',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontWeight: 700,
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <Check size={18} />
+                    {isProcessing ? 'Processing...' : 'Accept Invite'}
+                  </button>
+                  <button
+                    onClick={(e) => handleDeclineInvite(project.id, e)}
+                    disabled={isProcessing}
+                    style={{
+                      background: 'transparent',
+                      color: '#ef4444',
+                      border: '1px solid #ef4444',
+                      padding: '12px 20px',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <XCircle size={18} />
+                    Decline
+                  </button>
+                  <button
+                    onClick={() => setSelectedInviteProjectId(project.id)}
+                    disabled={isProcessing}
+                    style={{
+                      background: 'transparent',
+                      color: '#94a3b8',
+                      border: '1px solid #334155',
+                      padding: '12px 20px',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
+            );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* TABS NAVIGATION */}
       <div style={{
         display: 'flex',
@@ -406,13 +657,204 @@ export default function ProfilePageRedesigned() {
       )}
 
       {activeTab === 'collaborations' && (
-        <EmptyState
-          icon={<Users size={64} />}
-          title="No collaborations yet"
-          description="Find collaborators to work on projects together"
-          actionLabel="Find Collaborators"
-          onAction={() => navigate('/collaborators')}
-        />
+        <div>
+          {/* Loading state */}
+          {collaborationsLoading && (
+            <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+              Loading collaborations...
+            </div>
+          )}
+
+          {/* Active Collaborations Section - includes both pending invites and active projects */}
+          {!collaborationsLoading && (pendingInvites.length > 0 || collaborations.length > 0) && (
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#e2e8f0', marginBottom: 16 }}>
+                Active Collaborations ({pendingInvites.length + collaborations.length})
+              </h3>
+              <div style={{ display: 'grid', gap: 12 }}>
+                {/* Pending Invites - shown first with invite status */}
+                {pendingInvites.map(({ project, invite }) => {
+                  const isProcessing = processingInvites.has(project.id);
+                  return (
+                    <div
+                      key={`invite-${project.id}`}
+                      style={{
+                        background: '#1e293b',
+                        border: '1px solid #f59e0b40',
+                        borderRadius: 12,
+                        padding: 16,
+                        cursor: 'pointer',
+                        opacity: isProcessing ? 0.7 : 1,
+                        transition: 'all 0.2s',
+                      }}
+                      onClick={() => !isProcessing && setSelectedInviteProjectId(project.id)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 8,
+                          background: '#f59e0b20',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#f59e0b',
+                          flexShrink: 0,
+                        }}>
+                          {getContentTypeIcon(project.content_type, 20)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: '#f8fafc', marginBottom: 2 }}>{project.title}</div>
+                          <div style={{ fontSize: 13, color: '#94a3b8' }}>
+                            {project.total_collaborators} collaborator{project.total_collaborators !== 1 ? 's' : ''} · {invite.revenue_percentage}% revenue
+                          </div>
+                        </div>
+                        {/* Action buttons */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            onClick={(e) => handleAcceptInvite(project.id, e)}
+                            disabled={isProcessing}
+                            style={{
+                              background: '#10b981',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '8px 12px',
+                              borderRadius: 6,
+                              fontWeight: 600,
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 13,
+                              transition: 'all 0.2s',
+                            }}
+                            title="Accept invitation"
+                          >
+                            <Check size={16} />
+                            {isProcessing ? '...' : 'Accept'}
+                          </button>
+                          <button
+                            onClick={(e) => handleDeclineInvite(project.id, e)}
+                            disabled={isProcessing}
+                            style={{
+                              background: 'transparent',
+                              color: '#ef4444',
+                              border: '1px solid #ef4444',
+                              padding: '8px 12px',
+                              borderRadius: 6,
+                              fontWeight: 600,
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 13,
+                              transition: 'all 0.2s',
+                            }}
+                            title="Decline invitation"
+                          >
+                            <XCircle size={16} />
+                            Deny
+                          </button>
+                          <div style={{
+                            background: '#f59e0b20',
+                            color: '#f59e0b',
+                            padding: '4px 12px',
+                            borderRadius: 12,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            marginLeft: 4,
+                          }}>
+                            Invite
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Active Collaborations */}
+                {collaborations.map((project: any) => (
+                  <div
+                    key={`collab-${project.id}`}
+                    style={{
+                      background: '#1e293b',
+                      border: '1px solid #334155',
+                      borderRadius: 12,
+                      padding: 16,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onClick={() => navigate(`/collaborations/${project.id}`)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 8,
+                        background: project.status === 'active' ? '#10b98120' : '#64748b20',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: project.status === 'active' ? '#10b981' : '#94a3b8',
+                        flexShrink: 0,
+                      }}>
+                        {getContentTypeIcon(project.content_type, 20)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: '#f8fafc', marginBottom: 2 }}>{project.title}</div>
+                        <div style={{ fontSize: 13, color: '#94a3b8' }}>
+                          {project.total_collaborators} collaborator{project.total_collaborators !== 1 ? 's' : ''} · {project.status}
+                        </div>
+                      </div>
+                      <div style={{
+                        background: project.status === 'active' ? '#10b98120' : '#64748b20',
+                        color: project.status === 'active' ? '#10b981' : '#94a3b8',
+                        padding: '4px 12px',
+                        borderRadius: 12,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textTransform: 'capitalize',
+                      }}>
+                        {project.status === 'active' ? 'Active' : project.status}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State - only show if no invites and no collaborations */}
+          {!collaborationsLoading && pendingInvites.length === 0 && collaborations.length === 0 && (
+            <EmptyState
+              icon={<Users size={64} />}
+              title="No collaborations yet"
+              description="Find collaborators to work on projects together"
+              actionLabel="Find Collaborators"
+              onAction={() => navigate('/collaborators')}
+            />
+          )}
+
+          {/* Find Collaborators button - always show if there are collaborations */}
+          {!collaborationsLoading && (pendingInvites.length > 0 || collaborations.length > 0) && (
+            <div style={{ textAlign: 'center', marginTop: 24 }}>
+              <button
+                onClick={() => navigate('/collaborators')}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #334155',
+                  color: '#94a3b8',
+                  padding: '10px 24px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Find More Collaborators
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === 'analytics' && (
@@ -475,6 +917,18 @@ export default function ProfilePageRedesigned() {
           contentId={previewItem.id}
           price={previewItem.price_usd}
           editions={previewItem.editions}
+        />
+      )}
+
+      {/* Invite Response Modal */}
+      {selectedInviteProjectId && (
+        <InviteResponseModal
+          open={true}
+          onClose={() => {
+            setSelectedInviteProjectId(null);
+            loadPendingInvites(); // Refresh after closing
+          }}
+          projectId={selectedInviteProjectId}
         />
       )}
 

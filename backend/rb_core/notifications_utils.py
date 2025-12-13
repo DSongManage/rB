@@ -307,6 +307,37 @@ def notify_revenue_proposal(
     return notifications
 
 
+def notify_counter_proposal(
+    proposer: User,
+    project: CollaborativeProject,
+    proposed_percentage: float,
+    message: str
+) -> Notification:
+    """
+    Notify project creator of a counter-proposal from an invited collaborator.
+
+    Args:
+        proposer: User who is counter-proposing
+        project: Collaborative project
+        proposed_percentage: The counter-proposed revenue percentage
+        message: Message explaining the counter-proposal
+
+    Returns:
+        Created Notification instance
+    """
+    message_preview = message[:100] + '...' if len(message) > 100 else message
+
+    return create_notification(
+        recipient=project.created_by,
+        from_user=proposer,
+        notification_type='counter_proposal',
+        title=f'Counter Proposal: {project.title}',
+        message=f'{proposer.username} proposed {proposed_percentage}% revenue: "{message_preview}"',
+        project=project,
+        action_url=f'/collaborations/{project.id}'
+    )
+
+
 def bulk_mark_as_read(user: User, notification_ids: List[int]) -> int:
     """
     Mark multiple notifications as read.

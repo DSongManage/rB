@@ -229,6 +229,7 @@ export default function AuthPage() {
     setMsg('');
     // Get fresh CSRF token
     const freshCsrf = await refreshCsrf();
+    console.log('[Login] Got CSRF token:', freshCsrf ? 'yes' : 'no');
     if (!freshCsrf) {
       setMsg('Failed to get CSRF token. Please refresh the page.');
       return;
@@ -236,6 +237,7 @@ export default function AuthPage() {
 
     try {
       // Use custom DRF login endpoint
+      console.log('[Login] Sending login request...');
       const res = await fetch(`${API_URL}/api/users/login/`, {
         method: 'POST',
         credentials: 'include',
@@ -250,18 +252,23 @@ export default function AuthPage() {
         }),
       });
 
+      console.log('[Login] Response status:', res.status);
+      console.log('[Login] Response headers:', [...res.headers.entries()]);
+
       const data = await res.json();
+      console.log('[Login] Response data:', data);
 
       if (res.ok) {
-        // Login successful, refresh CSRF and auth state
-        await refreshCsrf();
-        // Refresh auth and wait for it to complete before navigating
-        await new Promise(resolve => {
-          refreshAuth();
-          setTimeout(resolve, 500); // Give time for auth state to update
-        });
-        // Force a page reload to ensure App.tsx picks up the new auth state
-        window.location.href = '/profile';
+        // Login successful
+        setMsg('Login successful! Redirecting...');
+        console.log('[Login] Cookies after login:', document.cookie);
+
+        // Wait a moment for session to be fully established, then hard reload to profile
+        // Hard reload ensures fresh auth state check
+        setTimeout(() => {
+          console.log('[Login] Redirecting to /profile...');
+          window.location.href = '/profile';
+        }, 500);
       } else {
         // Show error from backend
         setMsg(data.error || 'Invalid username or password');

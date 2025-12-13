@@ -4,23 +4,39 @@ import {
   collaborationApi,
   CollaborativeProjectListItem,
   CollaborativeProject,
+  CollaboratorRole,
 } from '../services/collaborationApi';
+import { PendingInviteCard } from '../components/collaboration/PendingInviteCard';
+import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
+import { useAuth } from '../hooks/useAuth';
 
 type FilterType = 'all' | 'book' | 'music' | 'video' | 'art';
 type SortType = 'recent' | 'oldest' | 'title';
 
+interface PendingInvite {
+  project: CollaborativeProject;
+  invite: CollaboratorRole;
+}
+
 export default function CollaborationDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [projects, setProjects] = useState<CollaborativeProjectListItem[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingInvites, setLoadingInvites] = useState(true);
   const [error, setError] = useState<string>('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [sort, setSort] = useState<SortType>('recent');
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
 
-  // Load projects on mount
+  // Modal state for viewing invite details
+  const [selectedInviteProjectId, setSelectedInviteProjectId] = useState<number | null>(null);
+
+  // Load projects and invites on mount
   useEffect(() => {
     loadProjects();
+    loadPendingInvites();
   }, []);
 
   const loadProjects = async () => {
@@ -33,6 +49,21 @@ export default function CollaborationDashboard() {
       setError(err.message || 'Failed to load projects');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load pending invites using dedicated API endpoint
+  const loadPendingInvites = async () => {
+    setLoadingInvites(true);
+    try {
+      // Use the efficient API that returns only pending invites for current user
+      const invites = await collaborationApi.getPendingInvites();
+      setPendingInvites(invites);
+    } catch (err: any) {
+      console.error('Failed to load pending invites:', err);
+      setPendingInvites([]);
+    } finally {
+      setLoadingInvites(false);
     }
   };
 
@@ -291,6 +322,79 @@ export default function CollaborationDashboard() {
             </div>
           )}
 
+          {/* Pending Invites Section */}
+          {pendingInvites.length > 0 && (
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: 'var(--text)',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                <span style={{
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  padding: '4px 12px',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: '#fff',
+                  animation: 'pulse 2s ease-in-out infinite',
+                }}>
+                  {pendingInvites.length}
+                </span>
+                Pending Invites
+              </h2>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+                gap: 16,
+              }}>
+                {pendingInvites.map(({ project, invite }) => (
+                  <PendingInviteCard
+                    key={project.id}
+                    project={project}
+                    myInvite={invite}
+                    onAction={() => {
+                      loadProjects();
+                      loadPendingInvites();
+                    }}
+                    onViewDetails={(id) => setSelectedInviteProjectId(id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Loading indicator for pending invites */}
+          {loadingInvites && pendingInvites.length === 0 && (
+            <div style={{
+              background: '#f59e0b10',
+              border: '1px dashed #f59e0b40',
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 24,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  border: '2px solid #f59e0b40',
+                  borderTopColor: '#f59e0b',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}
+              />
+              <span style={{ color: '#f59e0b', fontSize: 14 }}>
+                Checking for pending invites...
+              </span>
+            </div>
+          )}
+
           {/* Ready to Mint Projects */}
           {readyToMintProjects.length > 0 && (
             <div style={{ marginBottom: 32 }}>
@@ -424,6 +528,19 @@ export default function CollaborationDashboard() {
             loadProjects();
             navigate(`/collaborations/${project.id}`);
           }}
+        />
+      )}
+
+      {/* Invite Response Modal */}
+      {selectedInviteProjectId && (
+        <InviteResponseModal
+          open={true}
+          onClose={() => {
+            setSelectedInviteProjectId(null);
+            loadProjects();
+            loadPendingInvites();
+          }}
+          projectId={selectedInviteProjectId}
         />
       )}
     </div>

@@ -8,6 +8,8 @@ import ProfileEditForm from '../components/ProfileEditForm';
 import ProfileStatus from '../components/ProfileStatus';
 import StatusEditForm from '../components/StatusEditForm';
 import { WalletManagementPanel } from '../components/WalletManagementPanel';
+import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
+import { collaborationApi, CollaborativeProject, CollaboratorRole } from '../services/collaborationApi';
 import { API_URL } from '../config';
 
 type UserStatus = { user_id: number; username: string; wallet_address?: string } | null;
@@ -42,6 +44,10 @@ export default function ProfilePage() {
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
 
+  // Collaboration invite state
+  const [pendingInvites, setPendingInvites] = useState<{ project: CollaborativeProject; invite: CollaboratorRole }[]>([]);
+  const [selectedInviteProjectId, setSelectedInviteProjectId] = useState<number | null>(null);
+
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json());
     setUser(d);
@@ -51,6 +57,16 @@ export default function ProfilePage() {
     const t = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' }).then(r=>r.json());
     setCsrf(t?.csrfToken || '');
     return t?.csrfToken || '';
+  }
+
+  async function loadPendingInvites() {
+    try {
+      const invites = await collaborationApi.getPendingInvites();
+      setPendingInvites(invites);
+    } catch (err) {
+      console.error('Failed to load pending invites:', err);
+      setPendingInvites([]);
+    }
   }
 
   useEffect(()=>{
@@ -84,6 +100,9 @@ export default function ProfilePage() {
 
         setDash(dashData);
         setNotifications(notifData);
+
+        // Also load pending collaboration invites
+        loadPendingInvites();
       })
       .catch((err) => {
         if (err.name !== 'AbortError') {
@@ -287,75 +306,97 @@ export default function ProfilePage() {
       </div>
 
       {/* Collaboration Invites Section */}
-      {notifications.length > 0 && (
-        <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16, marginBottom:16}}>
-          <div style={{fontWeight:600, color:'var(--text)', marginBottom:12, fontSize:16}}>
-            Collaboration Invites ({notifications.length})
+      {pendingInvites.length > 0 && (
+        <div style={{background:'var(--panel)', border:'1px solid #f59e0b40', borderRadius:12, padding:16, marginBottom:16}}>
+          <div style={{fontWeight:600, color:'var(--text)', marginBottom:12, fontSize:16, display:'flex', alignItems:'center', gap:8}}>
+            <span style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              padding: '4px 10px',
+              borderRadius: 6,
+              fontSize: 12,
+              color: '#fff',
+            }}>
+              {pendingInvites.length}
+            </span>
+            Collaboration Invites
           </div>
           <div style={{display:'grid', gap:12}}>
-            {notifications.map((notif) => (
-              <div key={notif.id} style={{background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:12, display:'grid', gridTemplateColumns:'48px 1fr auto', gap:12, alignItems:'center'}}>
-                {/* Sender Avatar */}
-                <div style={{width:48, height:48, borderRadius:8, background: notif.sender_avatar ? `url(${notif.sender_avatar})` : '#111', backgroundSize:'cover', display:'grid', placeItems:'center', color:'#f59e0b', fontWeight:700}}>
-                  {!notif.sender_avatar && notif.sender_username.slice(0,1).toUpperCase()}
+            {pendingInvites.map(({ project, invite }) => (
+              <div key={project.id} style={{background:'#1e293b', border:'1px solid #334155', borderRadius:8, padding:16}}>
+                <div style={{display:'flex', alignItems:'flex-start', gap:12}}>
+                  {/* Project Type Icon */}
+                  <div style={{
+                    width:48, height:48, borderRadius:10,
+                    background:'#f59e0b20',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:24, flexShrink:0
+                  }}>
+                    {project.content_type === 'book' ? '📖' :
+                     project.content_type === 'music' ? '🎵' :
+                     project.content_type === 'video' ? '🎬' : '🎨'}
+                  </div>
+
+                  {/* Invite Details */}
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{fontSize:15, fontWeight:700, color:'#f8fafc', marginBottom:4}}>
+                      {project.title}
+                    </div>
+                    <div style={{fontSize:13, color:'#94a3b8', marginBottom:8}}>
+                      @{project.created_by_username} invited you as <span style={{color:'#f59e0b', fontWeight:600}}>{invite.role}</span>
+                    </div>
+                    <div style={{display:'flex', gap:16, fontSize:12}}>
+                      <div>
+                        <span style={{color:'#64748b'}}>Revenue Split:</span>{' '}
+                        <span style={{color:'#10b981', fontWeight:700}}>{invite.revenue_percentage}%</span>
+                      </div>
+                      <div>
+                        <span style={{color:'#64748b'}}>Collaborators:</span>{' '}
+                        <span style={{color:'#e2e8f0'}}>{project.total_collaborators}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                
-                {/* Invite Details */}
-                <div>
-                  <div style={{fontSize:14, fontWeight:600, color:'#f8fafc', marginBottom:4}}>
-                    @{notif.sender_username} <span style={{fontWeight:400, color:'#94a3b8'}}>wants to collaborate</span>
-                  </div>
-                  <div style={{fontSize:12, color:'#cbd5e1', marginBottom:6}}>
-                    {notif.message}
-                  </div>
-                  <div style={{fontSize:11, color:'#f59e0b', fontWeight:600}}>
-                    Revenue Split: {notif.equity_percent}% for you
-                  </div>
-                </div>
-                
+
                 {/* Actions */}
-                <div style={{display:'flex', gap:8}}>
+                <div style={{display:'flex', gap:8, marginTop:12, borderTop:'1px solid #334155', paddingTop:12}}>
                   <button
-                    onClick={async () => {
-                      // TODO: Implement accept logic
-                      const token = csrf || await refreshCsrf();
-                      const res = await fetch(`${API_URL}/api/invite/${notif.id}/accept/`, {
-                        method: 'POST',
-                        headers: {'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'},
-                        credentials: 'include',
-                      });
-                      if (res.ok) {
-                        setNotifications(notifications.filter(n => n.id !== notif.id));
-                        setStatus('Invite accepted!');
-                      }
+                    onClick={() => setSelectedInviteProjectId(project.id)}
+                    style={{
+                      flex:1, background:'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color:'#000', border:'none', padding:'10px 16px', borderRadius:8,
+                      fontSize:13, fontWeight:700, cursor:'pointer',
+                      display:'flex', alignItems:'center', justifyContent:'center', gap:6
                     }}
-                    style={{background:'#10b981', color:'#fff', border:'none', padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer'}}
                   >
-                    Accept
+                    View Details & Respond
                   </button>
                   <button
-                    onClick={async () => {
-                      // TODO: Implement decline logic
-                      const token = csrf || await refreshCsrf();
-                      const res = await fetch(`${API_URL}/api/invite/${notif.id}/decline/`, {
-                        method: 'POST',
-                        headers: {'X-CSRFToken': token, 'X-Requested-With':'XMLHttpRequest'},
-                        credentials: 'include',
-                      });
-                      if (res.ok) {
-                        setNotifications(notifications.filter(n => n.id !== notif.id));
-                        setStatus('Invite declined.');
-                      }
+                    onClick={() => navigate(`/collaborations`)}
+                    style={{
+                      background:'transparent', color:'#94a3b8',
+                      border:'1px solid #334155', padding:'10px 16px', borderRadius:8,
+                      fontSize:13, fontWeight:600, cursor:'pointer'
                     }}
-                    style={{background:'transparent', color:'#94a3b8', border:'1px solid #334155', padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer'}}
                   >
-                    Decline
+                    Dashboard
                   </button>
                 </div>
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {/* Invite Response Modal */}
+      {selectedInviteProjectId && (
+        <InviteResponseModal
+          open={true}
+          onClose={() => {
+            setSelectedInviteProjectId(null);
+            loadPendingInvites(); // Refresh after closing
+          }}
+          projectId={selectedInviteProjectId}
+        />
       )}
 
       <div style={{display:'grid', gridTemplateColumns:'360px 1fr', gap:16}}>

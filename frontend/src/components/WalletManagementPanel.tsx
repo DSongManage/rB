@@ -94,11 +94,22 @@ export function WalletManagementPanel({
         },
       });
 
-      // Initialize the modal (not just init())
+      // Initialize the modal
       await web3auth.initModal();
 
+      // CRITICAL: Clear any cached session to force fresh login
+      // This ensures each user gets a NEW wallet, not reusing a previous one
+      try {
+        if (web3auth.status === 'connected') {
+          console.log('Clearing previous Web3Auth session...');
+          await web3auth.logout();
+        }
+      } catch (e) {
+        console.log('No previous session to clear');
+      }
+
       // Connect will open the modal for user to select login method
-      await web3auth.connect();
+      const provider = await web3auth.connect();
 
       const userInfo: any = await web3auth.getUserInfo();
       const idToken = userInfo?.idToken || userInfo?.id_token;
@@ -121,8 +132,12 @@ export function WalletManagementPanel({
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to link wallet');
+        const data = await res.json().catch(() => ({}));
+        const errorMsg = data.error || data.message || 'Failed to link wallet';
+
+        // Show more helpful error messages
+        console.error('Wallet link error:', data);
+        throw new Error(errorMsg);
       }
 
       setSuccess('Wallet created and linked!');
@@ -179,8 +194,12 @@ export function WalletManagementPanel({
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to link wallet');
+        const data = await res.json().catch(() => ({}));
+        const errorMsg = data.error || data.message || 'Failed to link wallet';
+
+        // Show more helpful error messages
+        console.error('Wallet link error:', data);
+        throw new Error(errorMsg);
       }
 
       setSuccess('External wallet connected!');

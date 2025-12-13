@@ -26,7 +26,7 @@ from ..serializers import (
 from ..notifications_utils import (
     notify_collaboration_invitation, notify_invitation_response,
     notify_section_update, notify_comment_added, notify_approval_status_change,
-    notify_revenue_proposal
+    notify_revenue_proposal, notify_counter_proposal
 )
 
 
@@ -38,6 +38,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = CollaborativeProjectSerializer
+    pagination_class = None  # Disable pagination for collaboration views
 
     def get_queryset(self):
         """Return projects where user is creator or accepted collaborator."""
@@ -52,8 +53,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         return CollaborativeProject.objects.filter(
             Q(created_by=core_user) | Q(collaborators__user=core_user)
         ).select_related(
-            'created_by',
-            'content'
+            'created_by'
         ).prefetch_related(
             'collaborators__user',
             'sections',
@@ -248,6 +248,72 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Invitation declined'})
 
     @action(detail=True, methods=['post'])
+    def counter_propose(self, request, pk=None):
+        """Submit a counter-proposal for a collaboration invitation.
+
+        POST data:
+        - proposed_percentage: decimal (0-100) - the counter-proposed revenue percentage
+        - message: str - message explaining the counter-proposal
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Find invitation
+        try:
+            invitation = project.collaborators.get(user=core_user, status='invited')
+        except CollaboratorRole.DoesNotExist:
+            return Response(
+                {'error': 'No pending invitation found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get counter-proposal details
+        proposed_percentage = request.data.get('proposed_percentage')
+        message = request.data.get('message', '')
+
+        if proposed_percentage is None:
+            return Response(
+                {'error': 'proposed_percentage is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            proposed_percentage = Decimal(str(proposed_percentage))
+        except Exception:
+            return Response(
+                {'error': 'Invalid proposed_percentage value'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate percentage
+        if proposed_percentage < 0 or proposed_percentage > 100:
+            return Response(
+                {'error': 'proposed_percentage must be between 0 and 100'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Store counter-proposal
+        invitation.proposed_percentage = proposed_percentage
+        invitation.counter_message = message
+        invitation.save()
+
+        # Notify project creator
+        notify_counter_proposal(core_user, project, float(proposed_percentage), message)
+
+        serializer = CollaboratorRoleSerializer(invitation)
+        return Response({
+            'message': 'Counter-proposal submitted',
+            'invitation': serializer.data
+        })
+
+    @action(detail=True, methods=['post'])
     def approve_version(self, request, pk=None):
         """Approve current version for minting."""
         project = self.get_object()
@@ -353,6 +419,46 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         serializer = CollaborativeProjectSerializer(project)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def pending_invites(self, request):
+        """Get all projects where current user has a pending invitation.
+
+        Returns list of projects with the user's invitation details.
+        This is more efficient than loading each project individually.
+        """
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Find all projects where current user has status='invited'
+        pending_projects = CollaborativeProject.objects.filter(
+            collaborators__user=core_user,
+            collaborators__status='invited'
+        ).select_related(
+            'created_by'
+        ).prefetch_related(
+            'collaborators__user',
+            'sections',
+        ).distinct()
+
+        results = []
+        for project in pending_projects:
+            # Get the user's specific invitation
+            try:
+                my_invite = project.collaborators.get(user=core_user, status='invited')
+                results.append({
+                    'project': CollaborativeProjectSerializer(project, context={'request': request}).data,
+                    'invite': CollaboratorRoleSerializer(my_invite).data
+                })
+            except CollaboratorRole.DoesNotExist:
+                continue
+
+        return Response(results)
 
     @action(detail=True, methods=['get'])
     def preview(self, request, pk=None):
@@ -519,6 +625,88 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 'creator_splits': creator_splits
             }, status=status.HTTP_400_BAD_REQUEST)
 
+    # ========== Real-time Collaboration Stub Endpoints ==========
+    # These are placeholder endpoints to prevent 404 errors.
+    # Full implementation requires WebSocket/real-time infrastructure.
+
+    @action(detail=True, methods=['get'])
+    def activities(self, request, pk=None):
+        """Get recent activity feed for the project (stub)."""
+        # TODO: Implement activity tracking with timestamps
+        return Response([])
+
+    @action(detail=True, methods=['get'], url_path='online-users')
+    def online_users(self, request, pk=None):
+        """Get list of users currently online in this project (stub)."""
+        # TODO: Implement presence tracking with WebSockets
+        return Response([])
+
+    @action(detail=True, methods=['get'], url_path='currently-editing')
+    def currently_editing(self, request, pk=None):
+        """Get sections currently being edited by users (stub)."""
+        # TODO: Implement edit locks with WebSockets
+        # Returns array of CurrentlyEditing objects
+        return Response([])
+
+    @action(detail=True, methods=['get', 'post'])
+    def heartbeat(self, request, pk=None):
+        """Update user's online status / heartbeat (stub).
+
+        Accepts both GET and POST to avoid CSRF issues with background polling.
+        """
+        # TODO: Implement presence heartbeat
+        return Response({'status': 'ok'})
+
+    @action(detail=True, methods=['post'], url_path='start-editing')
+    def start_editing(self, request, pk=None):
+        """Notify that user started editing a section (stub).
+
+        POST data:
+        - section_id: int
+        """
+        # TODO: Implement real-time edit locks
+        section_id = request.data.get('section_id')
+        return Response({
+            'status': 'ok',
+            'section_id': section_id,
+            'message': 'Editing started (stub)'
+        })
+
+    @action(detail=True, methods=['post'], url_path='stop-editing')
+    def stop_editing(self, request, pk=None):
+        """Notify that user stopped editing a section (stub).
+
+        POST data:
+        - section_id: int
+        """
+        # TODO: Implement real-time edit locks
+        section_id = request.data.get('section_id')
+        return Response({
+            'status': 'ok',
+            'section_id': section_id,
+            'message': 'Editing stopped (stub)'
+        })
+
+    @action(detail=True, methods=['post'], url_path='log-activity')
+    def log_activity(self, request, pk=None):
+        """Log a new activity for the project (stub).
+
+        POST data:
+        - activity_type: str
+        - description: str
+        - metadata: dict (optional)
+        """
+        # TODO: Implement activity logging
+        activity_type = request.data.get('activity_type', 'unknown')
+        description = request.data.get('description', '')
+        return Response({
+            'id': 0,  # Stub ID
+            'project_id': pk,
+            'activity_type': activity_type,
+            'description': description,
+            'created_at': timezone.now().isoformat()
+        })
+
 
 class ProjectSectionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing project sections.
@@ -527,6 +715,7 @@ class ProjectSectionViewSet(viewsets.ModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSectionSerializer
+    pagination_class = None  # Disable pagination for section lists
 
     def get_queryset(self):
         """Return sections from projects where user is a collaborator."""
@@ -628,6 +817,7 @@ class ProjectCommentViewSet(viewsets.ModelViewSet):
     """ViewSet for managing project comments and discussions."""
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectCommentSerializer
+    pagination_class = None  # Disable pagination for comment lists
 
     def get_queryset(self):
         """Return comments from projects where user is a collaborator."""
@@ -727,3 +917,350 @@ class ProjectCommentViewSet(viewsets.ModelViewSet):
 # Import timezone for timestamps
 from django.utils import timezone
 from rest_framework import serializers
+from datetime import timedelta
+
+from ..models import Proposal, ProposalVote, CollaboratorRating
+
+
+# ===== Proposal & Voting Endpoints =====
+
+class ProposalViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing proposals in collaborative projects."""
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """Return proposals for a specific project."""
+        project_id = self.kwargs.get('project_pk')
+        if not project_id:
+            return Proposal.objects.none()
+        return Proposal.objects.filter(project_id=project_id).prefetch_related('votes')
+
+    def get_serializer_class(self):
+        # Use inline serializer for now
+        from rest_framework import serializers as drf_serializers
+
+        class ProposalVoteSerializer(drf_serializers.ModelSerializer):
+            voter_username = drf_serializers.CharField(source='voter.username', read_only=True)
+            voter_id = drf_serializers.IntegerField(source='voter.id', read_only=True)
+
+            class Meta:
+                model = ProposalVote
+                fields = ['id', 'voter_id', 'voter_username', 'vote', 'comment', 'voted_at']
+
+        class ProposalSerializer(drf_serializers.ModelSerializer):
+            proposer_username = drf_serializers.CharField(source='proposer.username', read_only=True)
+            proposer_id = drf_serializers.IntegerField(source='proposer.id', read_only=True)
+            votes = ProposalVoteSerializer(many=True, read_only=True)
+            vote_counts = drf_serializers.SerializerMethodField()
+            total_voters = drf_serializers.SerializerMethodField()
+
+            class Meta:
+                model = Proposal
+                fields = [
+                    'id', 'proposal_type', 'title', 'description', 'proposal_data',
+                    'status', 'voting_threshold', 'proposer_id', 'proposer_username',
+                    'expires_at', 'resolved_at', 'created_at', 'votes', 'vote_counts',
+                    'total_voters'
+                ]
+
+            def get_vote_counts(self, obj):
+                return obj.get_vote_counts()
+
+            def get_total_voters(self, obj):
+                return obj.project.collaborators.filter(status='accepted').count()
+
+        return ProposalSerializer
+
+    def perform_create(self, serializer):
+        """Create a new proposal."""
+        user = self.request.user
+        project_id = self.kwargs.get('project_pk')
+
+        try:
+            core_user = CoreUser.objects.get(username=user.username)
+            project = CollaborativeProject.objects.get(id=project_id)
+        except (CoreUser.DoesNotExist, CollaborativeProject.DoesNotExist):
+            raise serializers.ValidationError('User or project not found')
+
+        # Verify user is a collaborator
+        if not project.collaborators.filter(user=core_user, status='accepted').exists():
+            raise serializers.ValidationError('Only collaborators can create proposals')
+
+        # Set expiration (default 7 days)
+        expires_in_days = self.request.data.get('expires_in_days', 7)
+        expires_at = timezone.now() + timedelta(days=expires_in_days)
+
+        serializer.save(
+            project=project,
+            proposer=core_user,
+            expires_at=expires_at
+        )
+
+    @action(detail=True, methods=['post'])
+    def vote(self, request, project_pk=None, pk=None):
+        """Cast a vote on a proposal."""
+        proposal = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify user is a collaborator
+        if not proposal.project.collaborators.filter(user=core_user, status='accepted').exists():
+            return Response(
+                {'error': 'Only collaborators can vote'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check proposal is still pending
+        if proposal.status != 'pending':
+            return Response(
+                {'error': 'Proposal is no longer accepting votes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get vote data
+        vote_choice = request.data.get('vote')
+        comment = request.data.get('comment', '')
+
+        if vote_choice not in ['approve', 'reject', 'abstain']:
+            return Response(
+                {'error': 'Invalid vote. Must be approve, reject, or abstain'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create or update vote
+        vote, created = ProposalVote.objects.update_or_create(
+            proposal=proposal,
+            voter=core_user,
+            defaults={'vote': vote_choice, 'comment': comment}
+        )
+
+        # Check if proposal should be resolved
+        proposal.check_and_resolve()
+
+        return Response({
+            'id': vote.id,
+            'voter_id': core_user.id,
+            'voter_username': core_user.username,
+            'vote': vote.vote,
+            'comment': vote.comment,
+            'voted_at': vote.voted_at.isoformat(),
+            'proposal_status': proposal.status,
+        })
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, project_pk=None, pk=None):
+        """Cancel a proposal."""
+        proposal = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only proposer or project owner can cancel
+        if proposal.proposer != core_user and proposal.project.created_by != core_user:
+            return Response(
+                {'error': 'Only the proposer or project owner can cancel'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if proposal.status != 'pending':
+            return Response(
+                {'error': 'Can only cancel pending proposals'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        proposal.status = 'cancelled'
+        proposal.save()
+
+        return Response({'message': 'Proposal cancelled'})
+
+
+# ===== Collaborator Rating Endpoint =====
+
+class CollaboratorRatingViewSet(viewsets.ViewSet):
+    """ViewSet for collaborator ratings."""
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, project_pk=None):
+        """
+        Rate a collaborator after project completion.
+
+        POST data:
+        - rated_user_id: int
+        - quality_score: int (1-5)
+        - deadline_score: int (1-5)
+        - communication_score: int (1-5)
+        - would_collab_again: int (1-5)
+        - private_note: str (optional)
+        - public_feedback: str (optional)
+        """
+        try:
+            project = CollaborativeProject.objects.get(pk=project_pk)
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except (CollaborativeProject.DoesNotExist, CoreUser.DoesNotExist):
+            return Response(
+                {'error': 'Project or user not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify rater is a collaborator
+        if not project.collaborators.filter(user=core_user, status='accepted').exists():
+            return Response(
+                {'error': 'Only collaborators can rate'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Get rated user
+        rated_user_id = request.data.get('rated_user_id')
+        try:
+            rated_user = CoreUser.objects.get(id=rated_user_id)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'Rated user not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Cannot rate yourself
+        if rated_user == core_user:
+            return Response(
+                {'error': 'Cannot rate yourself'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify rated user is also a collaborator
+        if not project.collaborators.filter(user=rated_user, status='accepted').exists():
+            return Response(
+                {'error': 'Rated user is not a collaborator on this project'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate scores
+        scores = ['quality_score', 'deadline_score', 'communication_score', 'would_collab_again']
+        for score_field in scores:
+            score = request.data.get(score_field)
+            if score is None or not isinstance(score, int) or score < 1 or score > 5:
+                return Response(
+                    {'error': f'{score_field} must be an integer between 1 and 5'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Create or update rating
+        rating, created = CollaboratorRating.objects.update_or_create(
+            project=project,
+            rater=core_user,
+            rated_user=rated_user,
+            defaults={
+                'quality_score': request.data.get('quality_score'),
+                'deadline_score': request.data.get('deadline_score'),
+                'communication_score': request.data.get('communication_score'),
+                'would_collab_again': request.data.get('would_collab_again'),
+                'private_note': request.data.get('private_note', ''),
+                'public_feedback': request.data.get('public_feedback', ''),
+            }
+        )
+
+        return Response({
+            'id': rating.id,
+            'project_id': project.id,
+            'project_title': project.title,
+            'rater_id': core_user.id,
+            'rater_username': core_user.username,
+            'rated_user_id': rated_user.id,
+            'rated_user_username': rated_user.username,
+            'quality_score': rating.quality_score,
+            'deadline_score': rating.deadline_score,
+            'communication_score': rating.communication_score,
+            'would_collab_again': rating.would_collab_again,
+            'average_score': rating.average_score,
+            'public_feedback': rating.public_feedback,
+            'created_at': rating.created_at.isoformat(),
+        })
+
+    def list(self, request, project_pk=None):
+        """List ratings for a project."""
+        try:
+            project = CollaborativeProject.objects.get(pk=project_pk)
+        except CollaborativeProject.DoesNotExist:
+            return Response(
+                {'error': 'Project not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        ratings = CollaboratorRating.objects.filter(project=project)
+        return Response([{
+            'id': r.id,
+            'rater_id': r.rater.id,
+            'rater_username': r.rater.username,
+            'rated_user_id': r.rated_user.id,
+            'rated_user_username': r.rated_user.username,
+            'quality_score': r.quality_score,
+            'deadline_score': r.deadline_score,
+            'communication_score': r.communication_score,
+            'would_collab_again': r.would_collab_again,
+            'average_score': r.average_score,
+            'public_feedback': r.public_feedback,
+            'created_at': r.created_at.isoformat(),
+        } for r in ratings])
+
+
+from rest_framework.decorators import api_view, permission_classes as drf_permission_classes
+
+@api_view(['GET'])
+@drf_permission_classes([IsAuthenticated])
+def get_user_ratings(request, user_id):
+    """Get all public ratings for a user across all projects."""
+    try:
+        user = CoreUser.objects.get(id=user_id)
+    except CoreUser.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    ratings = CollaboratorRating.objects.filter(rated_user=user)
+
+    # Calculate aggregate stats
+    if ratings.exists():
+        avg_quality = sum(r.quality_score for r in ratings) / len(ratings)
+        avg_deadline = sum(r.deadline_score for r in ratings) / len(ratings)
+        avg_communication = sum(r.communication_score for r in ratings) / len(ratings)
+        avg_would_collab = sum(r.would_collab_again for r in ratings) / len(ratings)
+        overall_avg = (avg_quality + avg_deadline + avg_communication + avg_would_collab) / 4
+    else:
+        avg_quality = avg_deadline = avg_communication = avg_would_collab = overall_avg = 0
+
+    return Response({
+        'user_id': user.id,
+        'username': user.username,
+        'total_ratings': ratings.count(),
+        'average_scores': {
+            'quality': round(avg_quality, 1),
+            'deadline': round(avg_deadline, 1),
+            'communication': round(avg_communication, 1),
+            'would_collab_again': round(avg_would_collab, 1),
+            'overall': round(overall_avg, 1),
+        },
+        'ratings': [{
+            'id': r.id,
+            'project_id': r.project.id,
+            'project_title': r.project.title,
+            'rater_username': r.rater.username,
+            'quality_score': r.quality_score,
+            'deadline_score': r.deadline_score,
+            'communication_score': r.communication_score,
+            'would_collab_again': r.would_collab_again,
+            'average_score': r.average_score,
+            'public_feedback': r.public_feedback,
+            'created_at': r.created_at.isoformat(),
+        } for r in ratings]
+    })

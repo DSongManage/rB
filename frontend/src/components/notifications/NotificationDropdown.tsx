@@ -3,10 +3,12 @@
  * Dropdown panel showing recent notifications (last 10)
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../hooks/useNotifications';
+import { Notification } from '../../services/notificationService';
 import NotificationItem from './NotificationItem';
+import { InviteResponseModal } from '../collaboration/InviteResponseModal';
 
 interface NotificationDropdownProps {
   isOpen: boolean;
@@ -17,6 +19,10 @@ interface NotificationDropdownProps {
 export function NotificationDropdown({ isOpen, onClose, anchorEl }: NotificationDropdownProps) {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // State for invite modal
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [selectedInvite, setSelectedInvite] = useState<Notification | null>(null);
 
   const {
     notifications,
@@ -30,6 +36,23 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
 
   // Get last 10 notifications
   const recentNotifications = notifications.slice(0, 10);
+
+  // Handle viewing an invite
+  const handleViewInvite = async (notification: Notification) => {
+    // Mark as read
+    if (!notification.read) {
+      await markAsRead(notification.id);
+    }
+    setSelectedInvite(notification);
+    setInviteModalOpen(true);
+  };
+
+  // Close invite modal
+  const handleCloseInviteModal = () => {
+    setInviteModalOpen(false);
+    setSelectedInvite(null);
+    refresh(); // Refresh notifications after modal closes
+  };
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -245,6 +268,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
                 notification={notification}
                 onClick={() => handleNotificationClick(notification)}
                 onDelete={(e) => handleDelete(e, notification.id)}
+                onViewInvite={handleViewInvite}
               />
             ))}
           </div>
@@ -288,6 +312,16 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
             </button>
           )}
         </div>
+      )}
+
+      {/* Invite Response Modal */}
+      {selectedInvite && selectedInvite.project_id && (
+        <InviteResponseModal
+          open={inviteModalOpen}
+          onClose={handleCloseInviteModal}
+          projectId={selectedInvite.project_id}
+          notificationMessage={selectedInvite.message}
+        />
       )}
     </div>
   );

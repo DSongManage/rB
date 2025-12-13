@@ -15,12 +15,14 @@ interface NotificationItemProps {
   notification: Notification;
   onClick: () => void;
   onDelete: (e: React.MouseEvent) => void;
+  onViewInvite?: (notification: Notification) => void;
 }
 
-export function NotificationItem({ notification, onClick, onDelete }: NotificationItemProps) {
+export function NotificationItem({ notification, onClick, onDelete, onViewInvite }: NotificationItemProps) {
   const icon = getNotificationIcon(notification.type);
   const color = getNotificationColor(notification.type);
   const timeAgo = getTimeAgo(notification.created_at);
+  const isInvitation = notification.type === 'invitation';
 
   return (
     <div
@@ -104,6 +106,39 @@ export function NotificationItem({ notification, onClick, onDelete }: Notificati
             <span>•</span>
             <span>{timeAgo}</span>
           </div>
+
+          {/* View Invite button for invitation notifications */}
+          {isInvitation && onViewInvite && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewInvite(notification);
+              }}
+              style={{
+                marginTop: 10,
+                background: '#f59e0b',
+                color: '#000',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#fbbf24';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#f59e0b';
+              }}
+            >
+              View Invite →
+            </button>
+          )}
         </div>
 
         {/* Delete button */}

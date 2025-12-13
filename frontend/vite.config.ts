@@ -32,16 +32,20 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        cookieDomainRewrite: '',  // Remove domain so cookies work on localhost:3000
+        cookiePathRewrite: '/',
       },
       '/auth': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        cookieDomainRewrite: '',
       },
       '/accounts': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        cookieDomainRewrite: '',
       },
       '/media': {
         target: 'http://127.0.0.1:8000',

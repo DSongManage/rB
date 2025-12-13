@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { libraryApi, type FullContent } from '../services/libraryApi';
+import { KindleReader } from '../components/reader';
 import DOMPurify from 'dompurify';
 
 export function ReaderPage() {
@@ -9,8 +10,6 @@ export function ReaderPage() {
   const [content, setContent] = useState<FullContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const contentRef = useRef<HTMLDivElement>(null);
   const progressUpdateTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Load content
@@ -23,25 +22,6 @@ export function ReaderPage() {
         setError(null);
         const data = await libraryApi.getFullContent(parseInt(contentId));
         setContent(data);
-
-        // Load existing progress
-        try {
-          const progressData = await libraryApi.getProgress(parseInt(contentId));
-          setProgress(parseFloat(progressData.progress_percentage.toString()));
-
-          // Restore scroll position if available
-          if (progressData.last_position) {
-            const position = JSON.parse(progressData.last_position);
-            if (position.scroll) {
-              setTimeout(() => {
-                window.scrollTo({ top: position.scroll });
-              }, 100);
-            }
-          }
-        } catch (err) {
-          // Progress doesn't exist yet, that's okay
-          console.log('No existing progress found');
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load content');
         console.error('Content load error:', err);
@@ -51,54 +31,78 @@ export function ReaderPage() {
     };
 
     loadContent();
-  }, [contentId]);
 
-  // Calculate and update progress on scroll
-  const updateProgress = useCallback(() => {
-    if (!contentRef.current || !contentId) return;
-
-    const scrollTop = window.scrollY;
-    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-    const scrollPercent = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-    const newProgress = Math.min(Math.max(scrollPercent, 0), 100);
-
-    setProgress(newProgress);
-
-    // Debounce API calls
-    if (progressUpdateTimer.current) {
-      clearTimeout(progressUpdateTimer.current);
-    }
-
-    progressUpdateTimer.current = setTimeout(() => {
-      libraryApi
-        .updateProgress(
-          parseInt(contentId),
-          newProgress,
-          JSON.stringify({ scroll: scrollTop })
-        )
-        .catch((err) => console.error('Failed to update progress:', err));
-    }, 2000); // Update every 2 seconds after scrolling stops
-  }, [contentId]);
-
-  // Track scroll
-  useEffect(() => {
-    const handleScroll = () => {
-      updateProgress();
-    };
-
-    window.addEventListener('scroll', handleScroll);
+    // Cleanup on unmount
     return () => {
-      window.removeEventListener('scroll', handleScroll);
       if (progressUpdateTimer.current) {
         clearTimeout(progressUpdateTimer.current);
       }
     };
-  }, [updateProgress]);
+  }, [contentId]);
+
+  // Handle page changes for progress tracking
+  const handlePageChange = useCallback(
+    (page: number, totalPages: number) => {
+      if (!contentId) return;
+
+      const progress = totalPages > 1 ? ((page + 1) / totalPages) * 100 : 100;
+
+      // Debounce API calls
+      if (progressUpdateTimer.current) {
+        clearTimeout(progressUpdateTimer.current);
+      }
+
+      progressUpdateTimer.current = setTimeout(() => {
+        libraryApi
+          .updateProgress(
+            parseInt(contentId),
+            progress,
+            JSON.stringify({ page, totalPages })
+          )
+          .catch((err) => console.error('Failed to update progress:', err));
+      }, 2000);
+    },
+    [contentId]
+  );
+
+  // Handle back navigation
+  const handleBack = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
 
   if (loading) {
     return (
-      <div style={{ padding: 48, textAlign: 'center', color: '#94a3b8' }}>
-        Loading content...
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#0a0f1a',
+          color: '#94a3b8',
+          fontSize: 16,
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              border: '3px solid #1f2937',
+              borderTopColor: '#f59e0b',
+              borderRadius: '50%',
+              margin: '0 auto 16px',
+              animation: 'spin 1s linear infinite',
+            }}
+          />
+          Loading content...
+        </div>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -107,13 +111,18 @@ export function ReaderPage() {
     return (
       <div
         style={{
-          padding: 48,
-          maxWidth: 600,
-          margin: '0 auto',
+          position: 'fixed',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#0a0f1a',
+          padding: 24,
         }}
       >
         <div
           style={{
+            maxWidth: 400,
             background: '#ef444420',
             border: '1px solid #ef4444',
             borderRadius: 12,
@@ -121,7 +130,14 @@ export function ReaderPage() {
             textAlign: 'center',
           }}
         >
-          <div style={{ fontSize: 18, fontWeight: 600, color: '#fca5a5', marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              color: '#fca5a5',
+              marginBottom: 8,
+            }}
+          >
             {error || 'Content not found'}
           </div>
           <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 16 }}>
@@ -146,121 +162,53 @@ export function ReaderPage() {
     );
   }
 
+  // Sanitize the HTML content
+  const sanitizedContent = DOMPurify.sanitize(content.content_html, {
+    ALLOWED_TAGS: [
+      'p',
+      'br',
+      'strong',
+      'em',
+      'u',
+      'i',
+      'b',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'ul',
+      'ol',
+      'li',
+      'blockquote',
+      'pre',
+      'code',
+      'a',
+      'img',
+      'div',
+      'span',
+    ],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id'],
+    FORBID_TAGS: [
+      'script',
+      'style',
+      'iframe',
+      'object',
+      'embed',
+      'form',
+      'input',
+    ],
+    FORBID_ATTR: ['onerror', 'onclick', 'onload', 'onmouseover'],
+    ALLOW_DATA_ATTR: false,
+  });
+
   return (
-    <div style={{ paddingBottom: 80 }}>
-      {/* Progress bar fixed at top */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 64,
-          left: 0,
-          right: 0,
-          height: 4,
-          background: '#1f2937',
-          zIndex: 50,
-        }}
-      >
-        <div
-          style={{
-            height: '100%',
-            width: `${progress}%`,
-            background: '#f59e0b',
-            transition: 'width 0.1s ease',
-          }}
-        />
-      </div>
-
-      {/* Header */}
-      <div
-        style={{
-          position: 'sticky',
-          top: 64,
-          background: '#0a0f1a',
-          borderBottom: '1px solid #1f2937',
-          padding: '16px 24px',
-          zIndex: 40,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <button
-          onClick={() => navigate('/')}
-          style={{
-            background: 'transparent',
-            border: '1px solid #2a3444',
-            color: '#cbd5e1',
-            padding: '8px 16px',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontWeight: 600,
-            fontSize: 14,
-          }}
-        >
-          ← Back
-        </button>
-        <div style={{ fontSize: 14, color: '#94a3b8', fontWeight: 600 }}>
-          {Math.round(progress)}% Complete
-        </div>
-      </div>
-
-      {/* Content */}
-      <div
-        ref={contentRef}
-        style={{
-          maxWidth: 800,
-          margin: '0 auto',
-          padding: '48px 24px',
-        }}
-      >
-        {/* Title */}
-        <h1
-          style={{
-            fontSize: 36,
-            fontWeight: 700,
-            color: '#e5e7eb',
-            marginBottom: 12,
-            lineHeight: 1.2,
-          }}
-        >
-          {content.title}
-        </h1>
-
-        {/* Creator */}
-        <div
-          style={{
-            fontSize: 16,
-            color: '#94a3b8',
-            marginBottom: 32,
-          }}
-        >
-          by {content.creator}
-        </div>
-
-        {/* HTML Content */}
-        <div
-          className="content-display"
-          style={{
-            fontSize: 18,
-            lineHeight: 1.8,
-            color: '#d1d5db',
-          }}
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(content.content_html, {
-              ALLOWED_TAGS: [
-                'p', 'br', 'strong', 'em', 'u', 'i', 'b',
-                'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-                'ul', 'ol', 'li', 'blockquote', 'pre', 'code',
-                'a', 'img', 'div', 'span'
-              ],
-              ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'id'],
-              FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input'],
-              FORBID_ATTR: ['onerror', 'onclick', 'onload', 'onmouseover'],
-              ALLOW_DATA_ATTR: false
-            })
-          }}
-        />
-      </div>
-    </div>
+    <KindleReader
+      contentId={contentId || ''}
+      title={content.title}
+      htmlContent={sanitizedContent}
+      onBack={handleBack}
+    />
   );
 }
