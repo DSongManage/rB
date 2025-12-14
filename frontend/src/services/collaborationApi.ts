@@ -16,6 +16,11 @@ export interface CollaborativeProject {
   description: string;
   status: 'draft' | 'active' | 'ready_for_mint' | 'minted' | 'cancelled';
   milestones: Milestone[];
+  price_usd: number;
+  editions: number;
+  teaser_percent: number;
+  watermark_preview: boolean;
+  estimated_earnings?: { [userId: number]: number };
   created_by: number;
   created_by_username: string;
   created_at: string;
@@ -36,6 +41,7 @@ export interface CollaborativeProjectListItem {
   created_by_username: string;
   total_collaborators: number;
   created_at: string;
+  price_usd: number;
 }
 
 export interface CollaboratorRole {
@@ -864,6 +870,61 @@ export const collaborationApi = {
         'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(data),
+      }
+    );
+
+    return handleResponse<CollaborativeProject>(response);
+  },
+
+  /**
+   * Set the NFT price for a project (project owner only)
+   */
+  async setPrice(
+    projectId: number,
+    priceUsd: number
+  ): Promise<CollaborativeProject> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/set_price/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ price_usd: priceUsd }),
+      }
+    );
+
+    return handleResponse<CollaborativeProject>(response);
+  },
+
+  /**
+   * Update customization settings (price, editions, teaser)
+   * Only project owner can update these settings.
+   * Updating these settings resets revenue split approvals.
+   */
+  async updateCustomization(
+    projectId: number,
+    settings: {
+      price_usd?: number;
+      editions?: number;
+      teaser_percent?: number;
+      watermark_preview?: boolean;
+    }
+  ): Promise<CollaborativeProject> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/update_customization/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(settings),
       }
     );
 

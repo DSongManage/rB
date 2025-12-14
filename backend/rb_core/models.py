@@ -1270,6 +1270,24 @@ class CollaborativeProject(models.Model):
     content_type = models.CharField(max_length=16, choices=CONTENT_TYPE_CHOICES)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    price_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('10.00'),
+        help_text="NFT sale price in USD"
+    )
+    editions = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of editions available for sale"
+    )
+    teaser_percent = models.PositiveIntegerField(
+        default=10,
+        help_text="Percentage of content shown as teaser (0-100)"
+    )
+    watermark_preview = models.BooleanField(
+        default=False,
+        help_text="Show watermark on teaser preview"
+    )
     milestones = models.JSONField(default=list, help_text="Milestone definitions and tracking")
     created_by = models.ForeignKey(
         User,
@@ -1279,6 +1297,15 @@ class CollaborativeProject(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Link to Content record for marketplace listing (set when minted)
+    published_content = models.ForeignKey(
+        'Content',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='source_collaborative_project',
+        help_text="Content record created when project is minted"
+    )
 
     class Meta:
         ordering = ['-created_at']

@@ -134,14 +134,16 @@ class ContentListView(generics.ListCreateAPIView):
 
         # Content Removal Policy: Exclude delisted and orphaned content from marketplace
         # 1. Hide content where source chapter is delisted (is_listed=False)
-        # 2. Hide orphaned BOOK content (chapter/book was deleted)
+        # 2. Hide orphaned BOOK content (chapter/book/collaborative project was deleted)
         #    - Only apply to books, as art/music/film can be standalone uploads
+        #    - Include collaborative projects as valid book sources
         qs = qs.exclude(
             Q(source_chapter__isnull=False) & Q(source_chapter__is_listed=False)
         ).exclude(
             Q(content_type='book') &
             Q(source_chapter__isnull=True) &
-            Q(source_book_project__isnull=True)
+            Q(source_book_project__isnull=True) &
+            Q(source_collaborative_project__isnull=True)
         )
 
         status_f = self.request.query_params.get('inventory_status')

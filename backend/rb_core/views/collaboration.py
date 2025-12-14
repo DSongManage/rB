@@ -13,11 +13,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.db.models import Q
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from ..models import (
     CollaborativeProject, CollaboratorRole, ProjectSection,
-    ProjectComment, User as CoreUser
+    ProjectComment, User as CoreUser, Content
 )
 from ..serializers import (
     CollaborativeProjectSerializer, CollaborativeProjectListSerializer,
@@ -351,6 +351,56 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
+    def approve_project(self, request, pk=None):
+        """Approve content and/or revenue split for the project.
+
+        POST data:
+        - approve_content: bool - approve the current content version
+        - approve_revenue: bool - approve the revenue split
+        - feedback: str (optional) - feedback message
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Find collaborator role
+        try:
+            collaborator = project.collaborators.get(user=core_user, status='accepted')
+        except CollaboratorRole.DoesNotExist:
+            return Response(
+                {'error': 'You are not a collaborator on this project'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        approve_content = request.data.get('approve_content', False)
+        approve_revenue = request.data.get('approve_revenue', False)
+
+        # Update approvals based on request
+        if approve_content:
+            collaborator.approved_current_version = True
+            notify_approval_status_change(collaborator, 'version')
+
+        if approve_revenue:
+            collaborator.approved_revenue_split = True
+            notify_approval_status_change(collaborator, 'revenue')
+
+        collaborator.save()
+
+        # Check if all collaborators approved
+        if project.is_fully_approved():
+            project.status = 'ready_for_mint'
+            project.save()
+
+        serializer = CollaborativeProjectSerializer(project)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
     def propose_revenue_split(self, request, pk=None):
         """Propose new revenue split percentages.
 
@@ -416,6 +466,158 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         # Notify collaborators about revenue split proposal
         notify_revenue_proposal(core_user, project, changes_summary)
+
+        serializer = CollaborativeProjectSerializer(project)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def set_price(self, request, pk=None):
+        """Set the NFT price for this project.
+
+        POST data:
+        - price_usd: decimal - the price in USD
+
+        Only project creator can set price.
+        Setting price resets all revenue split approvals (since earnings change).
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only project creator can set price
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only project creator can set price'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        price_usd = request.data.get('price_usd')
+        if price_usd is None:
+            return Response(
+                {'error': 'price_usd is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            price_usd = Decimal(str(price_usd))
+            if price_usd <= 0:
+                raise ValueError("Price must be positive")
+        except (ValueError, InvalidOperation) as e:
+            return Response(
+                {'error': f'Invalid price: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update price
+        old_price = project.price_usd
+        project.price_usd = price_usd
+        project.save()
+
+        # Reset revenue split approvals if price changed (earnings are now different)
+        if old_price != price_usd:
+            project.collaborators.filter(status='accepted').update(approved_revenue_split=False)
+            if project.status == 'ready_for_mint':
+                project.status = 'active'
+                project.save()
+
+        serializer = CollaborativeProjectSerializer(project)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def update_customization(self, request, pk=None):
+        """Update customization settings for the project.
+
+        POST data:
+        - price_usd: decimal (optional) - the price in USD
+        - editions: int (optional) - number of editions
+        - teaser_percent: int (optional) - percentage of content shown as teaser (0-100)
+        - watermark_preview: bool (optional) - show watermark on teaser
+
+        Only project creator can update these settings.
+        Updating price or editions resets all revenue split approvals.
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only project creator can update customization
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only project creator can update customization settings'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Track if price or editions changed (requires re-approval)
+        old_price = project.price_usd
+        old_editions = project.editions
+
+        # Update price
+        price_usd = request.data.get('price_usd')
+        if price_usd is not None:
+            try:
+                price_usd = Decimal(str(price_usd))
+                if price_usd <= 0:
+                    raise ValueError("Price must be positive")
+                project.price_usd = price_usd
+            except (ValueError, InvalidOperation) as e:
+                return Response(
+                    {'error': f'Invalid price: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Update editions
+        editions = request.data.get('editions')
+        if editions is not None:
+            try:
+                editions = int(editions)
+                if editions < 1:
+                    raise ValueError("Editions must be at least 1")
+                project.editions = editions
+            except ValueError as e:
+                return Response(
+                    {'error': f'Invalid editions: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Update teaser_percent
+        teaser_percent = request.data.get('teaser_percent')
+        if teaser_percent is not None:
+            try:
+                teaser_percent = int(teaser_percent)
+                if teaser_percent < 0 or teaser_percent > 100:
+                    raise ValueError("Teaser percent must be between 0 and 100")
+                project.teaser_percent = teaser_percent
+            except ValueError as e:
+                return Response(
+                    {'error': f'Invalid teaser_percent: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Update watermark_preview
+        watermark_preview = request.data.get('watermark_preview')
+        if watermark_preview is not None:
+            project.watermark_preview = bool(watermark_preview)
+
+        project.save()
+
+        # Reset revenue split approvals if price or editions changed
+        if old_price != project.price_usd or old_editions != project.editions:
+            project.collaborators.filter(status='accepted').update(approved_revenue_split=False)
+            if project.status == 'ready_for_mint':
+                project.status = 'active'
+                project.save()
 
         serializer = CollaborativeProjectSerializer(project)
         return Response(serializer.data)
@@ -489,12 +691,13 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         return Response(preview_data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='mint')
     def mint_collaborative_nft(self, request, pk=None):
         """
         Mint NFT for collaborative project with automatic revenue splits.
 
         Validates that:
+        - Only the project owner can mint
         - All collaborators have approved the project
         - All collaborators have wallet addresses set
         - Revenue splits total 100%
@@ -503,6 +706,21 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         automatic revenue distribution.
         """
         project = self.get_object()
+
+        # Verify requester is the project owner
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can mint the NFT'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         # Verify project is in the correct status
         if project.status == 'minted':
@@ -539,7 +757,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         # Check that all collaborators have wallet addresses
         collaborators_without_wallets = []
         for collab in collaborators:
-            if not hasattr(collab.user, 'userprofile') or not collab.user.userprofile.wallet_address:
+            if not hasattr(collab.user, 'profile') or not collab.user.profile.wallet_address:
                 collaborators_without_wallets.append({
                     'user_id': collab.user.id,
                     'username': collab.user.username,
@@ -561,7 +779,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             creator_splits.append({
                 'user_id': collab.user.id,
                 'username': collab.user.username,
-                'wallet_address': collab.user.userprofile.wallet_address,
+                'wallet_address': collab.user.profile.wallet_address,
                 'percentage': float(collab.revenue_percentage),
                 'role': collab.role
             })
@@ -577,9 +795,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # TODO: Get actual sale price from project
-        # For now, use a default price
-        sale_amount_usd = Decimal('10.00')
+        # Get sale price from project
+        sale_amount_usd = project.price_usd
 
         # Generate metadata URI
         # TODO: Upload actual metadata to Arweave/IPFS
@@ -602,8 +819,42 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             project.status = 'minted'
             project.save()
 
-            # TODO: Create Content record for marketplace
-            # This allows the minted NFT to be listed and sold
+            # Create Content record for marketplace listing
+            # This allows the minted NFT to be listed and sold on the home page
+            content = Content.objects.create(
+                creator=core_user,
+                title=project.title,
+                teaser_link='',  # Will be set below
+                content_type=project.content_type,
+                price_usd=project.price_usd,
+                editions=project.editions,
+                teaser_percent=project.teaser_percent,
+                watermark_preview=project.watermark_preview,
+                inventory_status='minted',
+                nft_contract=result.get('mint_address', ''),
+            )
+            # Set teaser link to the content's teaser endpoint
+            content.teaser_link = f'/api/content/{content.id}/teaser/'
+
+            # Build teaser_html from project sections (for book content)
+            if project.content_type == 'book':
+                sections = project.sections.order_by('order')
+                teaser_parts = []
+                for section in sections:
+                    if section.section_type == 'text' and section.content_html:
+                        teaser_parts.append(section.content_html)
+                if teaser_parts:
+                    full_html = '\n'.join(teaser_parts)
+                    # Calculate teaser based on teaser_percent
+                    teaser_ratio = project.teaser_percent / 100.0
+                    teaser_length = int(len(full_html) * teaser_ratio)
+                    content.teaser_html = full_html[:teaser_length]
+
+            content.save()
+
+            # Link the project to the content
+            project.published_content = content
+            project.save(update_fields=['published_content'])
 
             return Response({
                 'success': True,
@@ -616,6 +867,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 'num_creators': result['num_creators'],
                 'project_id': project.id,
                 'project_title': project.title,
+                'content_id': content.id,  # Content ID for marketplace listing
             })
         else:
             return Response({

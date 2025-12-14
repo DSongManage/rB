@@ -357,10 +357,10 @@ class ProjectSectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectSection
         fields = [
-            'id', 'section_type', 'title', 'content_html', 'media_file',
+            'id', 'project', 'section_type', 'title', 'content_html', 'media_file',
             'owner', 'owner_username', 'order', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_username']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'owner_username', 'owner']
 
 
 class ProjectCommentSerializer(serializers.ModelSerializer):
@@ -372,10 +372,10 @@ class ProjectCommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectComment
         fields = [
-            'id', 'author', 'author_username', 'author_avatar', 'content',
+            'id', 'project', 'author', 'author_username', 'author_avatar', 'content',
             'parent_comment', 'resolved', 'created_at', 'replies_count'
         ]
-        read_only_fields = ['id', 'created_at', 'author_username', 'author_avatar', 'replies_count']
+        read_only_fields = ['id', 'created_at', 'author_username', 'author_avatar', 'replies_count', 'author']
 
     def get_author_avatar(self, obj):
         """Get author's avatar URL."""
@@ -402,18 +402,20 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
     is_fully_approved = serializers.SerializerMethodField()
     total_collaborators = serializers.SerializerMethodField()
     progress_percentage = serializers.SerializerMethodField()
+    estimated_earnings = serializers.SerializerMethodField()
 
     class Meta:
         model = CollaborativeProject
         fields = [
             'id', 'title', 'content_type', 'description', 'status', 'milestones',
+            'price_usd', 'editions', 'teaser_percent', 'watermark_preview',
             'created_by', 'created_by_username', 'created_at', 'updated_at',
             'collaborators', 'sections', 'recent_comments', 'is_fully_approved',
-            'total_collaborators', 'progress_percentage'
+            'total_collaborators', 'progress_percentage', 'estimated_earnings'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'created_by_username',
-            'is_fully_approved', 'total_collaborators'
+            'is_fully_approved', 'total_collaborators', 'estimated_earnings'
         ]
 
     def get_recent_comments(self, obj):
@@ -442,6 +444,18 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
         except Exception:
             return 0
 
+    def get_estimated_earnings(self, obj):
+        """Calculate estimated earnings per collaborator based on price and splits."""
+        if not obj.price_usd:
+            return {}
+
+        earnings = {}
+        # 90% goes to creators (platform takes 10%)
+        creator_pool = float(obj.price_usd) * 0.90
+        for collab in obj.collaborators.filter(status='accepted'):
+            earnings[collab.user_id] = round(creator_pool * float(collab.revenue_percentage) / 100, 2)
+        return earnings
+
 
 class CollaborativeProjectListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for project list views (performance optimized)."""
@@ -452,7 +466,7 @@ class CollaborativeProjectListSerializer(serializers.ModelSerializer):
         model = CollaborativeProject
         fields = [
             'id', 'title', 'content_type', 'status', 'created_by_username',
-            'total_collaborators', 'created_at'
+            'total_collaborators', 'created_at', 'price_usd'
         ]
         read_only_fields = ['id', 'created_at', 'created_by_username', 'total_collaborators']
 

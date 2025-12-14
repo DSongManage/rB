@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { CollaborativeEditor } from '../components/collaboration';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import TabNavigation, { TabId } from '../components/collaboration/tabs/TabNavigation';
+import OverviewTab from '../components/collaboration/tabs/OverviewTab';
+import TeamTab from '../components/collaboration/tabs/TeamTab';
+import ActivityTab from '../components/collaboration/tabs/ActivityTab';
+import PublishTab from '../components/collaboration/tabs/PublishTab';
+import ContentTab from '../components/collaboration/tabs/ContentTab';
 import {
   collaborationApi,
   CollaborativeProject,
@@ -18,10 +23,19 @@ interface User {
 export default function CollaborativeProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [project, setProject] = useState<CollaborativeProject | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+
+  // Tab state from URL or default to 'overview'
+  const activeTab = (searchParams.get('tab') as TabId) || 'overview';
+
+  const setActiveTab = (tab: TabId) => {
+    setSearchParams({ tab });
+  };
 
   useEffect(() => {
     loadProjectAndUser();
@@ -105,7 +119,7 @@ export default function CollaborativeProjectPage() {
           color: '#ef4444',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>&#9888;&#65039;</div>
           <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
             Error Loading Project
           </div>
@@ -125,7 +139,7 @@ export default function CollaborativeProjectPage() {
               fontSize: 14,
             }}
           >
-            ← Back to Dashboard
+            Back to Dashboard
           </button>
         </div>
       </div>
@@ -136,37 +150,131 @@ export default function CollaborativeProjectPage() {
     return null;
   }
 
+  // Calculate badges for tabs
+  const unresolvedComments = project.recent_comments?.filter(c => !c.resolved).length || 0;
+  const pendingApprovals = project.collaborators?.filter(
+    c => c.status === 'accepted' && (!c.approved_current_version || !c.approved_revenue_split)
+  ).length || 0;
+
   return (
     <div className="page" style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
-      {/* Back Button */}
-      <div style={{ marginBottom: 16 }}>
-        <button
-          onClick={() => navigate('/collaborations')}
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--panel-border)',
-            borderRadius: 8,
-            padding: '8px 16px',
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 20,
+      }}>
+        <div>
+          <button
+            onClick={() => navigate('/collaborations')}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--panel-border)',
+              borderRadius: 8,
+              padding: '8px 16px',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              fontSize: 14,
+              marginBottom: 12,
+            }}
+          >
+            &larr; Back to Dashboard
+          </button>
+          <h1 style={{
+            margin: 0,
+            fontSize: 28,
+            fontWeight: 700,
             color: 'var(--text)',
-            cursor: 'pointer',
-            fontSize: 14,
+          }}>
+            {project.title}
+          </h1>
+          <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-          }}
-        >
-          ← Back to Dashboard
-        </button>
+            gap: 12,
+            marginTop: 8,
+          }}>
+            <span style={{
+              background: 'rgba(139, 92, 246, 0.1)',
+              color: '#8b5cf6',
+              padding: '4px 10px',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+            }}>
+              {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} Project
+            </span>
+            <span style={{
+              background: project.status === 'ready_for_mint'
+                ? 'rgba(16, 185, 129, 0.1)'
+                : 'rgba(245, 158, 11, 0.1)',
+              color: project.status === 'ready_for_mint' ? '#10b981' : '#f59e0b',
+              padding: '4px 10px',
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+            }}>
+              {project.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Collaborative Editor */}
-      <CollaborativeEditor
-        project={project}
-        currentUser={currentUser}
-        onSectionUpdate={handleSectionUpdate}
-        onCommentAdd={handleCommentAdd}
-        onProjectUpdate={handleProjectUpdate}
-      />
+      {/* Tab Navigation */}
+      <div style={{ marginBottom: 20 }}>
+        <TabNavigation
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          badges={{
+            activity: unresolvedComments,
+            team: pendingApprovals,
+          }}
+          isFullyApproved={project.is_fully_approved}
+        />
+      </div>
+
+      {/* Tab Content */}
+      <div style={{ minHeight: '60vh' }}>
+        {activeTab === 'overview' && (
+          <OverviewTab
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={handleProjectUpdate}
+          />
+        )}
+
+        {activeTab === 'content' && (
+          <ContentTab
+            project={project}
+            currentUser={currentUser}
+            onSectionUpdate={handleSectionUpdate}
+            onCommentAdd={handleCommentAdd}
+            onProjectUpdate={handleProjectUpdate}
+          />
+        )}
+
+        {activeTab === 'team' && (
+          <TeamTab
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={handleProjectUpdate}
+          />
+        )}
+
+        {activeTab === 'activity' && (
+          <ActivityTab project={project} currentUser={currentUser} />
+        )}
+
+        {activeTab === 'publish' && (
+          <PublishTab
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={handleProjectUpdate}
+          />
+        )}
+      </div>
     </div>
   );
 }
+
