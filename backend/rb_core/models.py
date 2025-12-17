@@ -173,6 +173,10 @@ class UserProfile(models.Model):
     location = models.CharField(max_length=120, blank=True, default='')
     roles = models.JSONField(default=list, blank=True)  # e.g., ["author", "artist"]
     genres = models.JSONField(default=list, blank=True)  # e.g., ["fantasy", "drama"]
+    # Bio and extended profile information
+    bio = models.TextField(max_length=2000, blank=True, default='')
+    skills = models.JSONField(default=list, blank=True)  # e.g., ["illustration", "character design", "watercolor"]
+    social_links = models.JSONField(default=dict, blank=True)  # e.g., {"behance": "url", "twitter": "url"}
     # Collaboration visibility and status
     is_private = models.BooleanField(default=True)
     STATUS_CHOICES = [
@@ -237,6 +241,45 @@ class UserProfile(models.Model):
         except Exception:
             pass
         return self.banner_url or ''
+
+class ExternalPortfolioItem(models.Model):
+    """External portfolio item for showcasing work not on the platform.
+
+    - Allows creators to showcase projects from Behance, personal sites, etc.
+    - Supports image uploads for project thumbnails
+    - Links to external project URLs
+    - Orderable for custom portfolio arrangement
+    """
+
+    PROJECT_TYPE_CHOICES = [
+        ('book', 'Book'),
+        ('art', 'Art'),
+        ('music', 'Music'),
+        ('film', 'Film'),
+        ('other', 'Other'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='portfolio_items')
+    title = models.CharField(max_length=200)
+    description = models.TextField(max_length=1000, blank=True, default='')
+    image = models.ImageField(upload_to='portfolio/', blank=True, null=True)
+    external_url = models.URLField(blank=True, default='')
+    project_type = models.CharField(max_length=50, choices=PROJECT_TYPE_CHOICES, default='other')
+    role = models.CharField(max_length=100, blank=True, default='')  # e.g., "Lead Illustrator", "Co-Author"
+    created_date = models.DateField(null=True, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', '-created_at']
+        indexes = [
+            models.Index(fields=['user', 'order']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} by {self.user.username}"
+
 
 class TestFeeLog(models.Model):
     """MVP fee log for integration testing and mock minting.
@@ -1429,12 +1472,46 @@ class CollaboratorRole(models.Model):
         help_text="Weight of vote in proposals (default 1)"
     )
 
+    # Contract management fields (for task-based collaboration)
+    contract_version = models.PositiveIntegerField(
+        default=1,
+        help_text="Version of the contract, incremented on acceptance"
+    )
+    contract_locked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when contract was locked (on acceptance)"
+    )
+    has_active_breach = models.BooleanField(
+        default=False,
+        help_text="Whether collaborator has an active deadline breach"
+    )
+    cancellation_eligible = models.BooleanField(
+        default=False,
+        help_text="Whether owner can cancel due to breach"
+    )
+
+    # Denormalized task counters for performance
+    tasks_total = models.PositiveIntegerField(
+        default=0,
+        help_text="Total number of contract tasks"
+    )
+    tasks_signed_off = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of tasks signed off by owner"
+    )
+
     class Meta:
         unique_together = ['project', 'user']
         ordering = ['-revenue_percentage']
 
     def __str__(self):
         return f"{self.user.username} - {self.role} ({self.revenue_percentage}%)"
+
+    @property
+    def all_tasks_complete(self):
+        """Check if all contract tasks have been signed off."""
+        return self.tasks_total > 0 and self.tasks_signed_off == self.tasks_total
 
     def can_edit_section(self, section_type):
         """Check if this collaborator can edit a specific section type."""
@@ -1445,6 +1522,196 @@ class CollaboratorRole(models.Model):
             'video': self.can_edit_video,
         }
         return permission_map.get(section_type, False)
+
+    def update_task_counts(self):
+        """Update denormalized task counters from actual ContractTask records."""
+        self.tasks_total = self.contract_tasks.count()
+        self.tasks_signed_off = self.contract_tasks.filter(status='signed_off').count()
+        self.save(update_fields=['tasks_total', 'tasks_signed_off'])
+
+
+class ContractTask(models.Model):
+    """Individual task within a collaboration contract.
+
+    Tasks are defined during invite and become immutable once accepted.
+    Changes require a Proposal with unanimous approval.
+
+    Lifecycle:
+    - pending: Task defined but contract not yet accepted
+    - in_progress: Contract accepted, collaborator working on task
+    - complete: Collaborator marked task as done, awaiting owner sign-off
+    - signed_off: Owner verified and approved the completed work
+    - cancelled: Task cancelled via unanimous Proposal
+    """
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),           # Before contract acceptance
+        ('in_progress', 'In Progress'),   # Default after acceptance
+        ('complete', 'Marked Complete'),  # Collaborator marked done
+        ('signed_off', 'Signed Off'),     # Owner verified and approved
+        ('cancelled', 'Cancelled'),       # Task cancelled via Proposal
+    ]
+
+    collaborator_role = models.ForeignKey(
+        CollaboratorRole,
+        on_delete=models.CASCADE,
+        related_name='contract_tasks',
+        help_text="The collaborator responsible for this task"
+    )
+    title = models.CharField(
+        max_length=200,
+        help_text="Brief title describing the deliverable"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Detailed description of what's expected"
+    )
+    deadline = models.DateTimeField(
+        help_text="Deadline for task completion"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+
+    # Completion tracking (two-step approval)
+    marked_complete_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When collaborator marked task complete"
+    )
+    marked_complete_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks_marked_complete',
+        help_text="User who marked the task complete"
+    )
+    completion_notes = models.TextField(
+        blank=True,
+        help_text="Notes from collaborator when marking complete"
+    )
+
+    # Sign-off tracking (owner approval)
+    signed_off_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When owner signed off on the task"
+    )
+    signed_off_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tasks_signed_off',
+        help_text="Owner who signed off on the task"
+    )
+    signoff_notes = models.TextField(
+        blank=True,
+        help_text="Notes from owner when signing off"
+    )
+
+    # Rejection tracking (for when owner rejects completion)
+    rejection_notes = models.TextField(
+        blank=True,
+        help_text="Reason for rejecting the completion"
+    )
+    rejected_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the completion was rejected"
+    )
+
+    # Breach tracking
+    is_overdue = models.BooleanField(
+        default=False,
+        help_text="Whether task has passed its deadline without sign-off"
+    )
+    overdue_notified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When overdue notification was sent"
+    )
+
+    # Ordering within the contract
+    order = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order of task in contract"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order', 'deadline']
+        indexes = [
+            models.Index(fields=['collaborator_role', 'status']),
+            models.Index(fields=['deadline', 'status']),
+            models.Index(fields=['is_overdue']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_status_display()})"
+
+    def mark_complete(self, user, notes=''):
+        """Collaborator marks their task as complete."""
+        if self.status != 'in_progress':
+            raise ValueError(f"Cannot mark task complete: current status is {self.status}")
+
+        self.status = 'complete'
+        self.marked_complete_at = timezone.now()
+        self.marked_complete_by = user
+        self.completion_notes = notes
+        self.save()
+
+    def sign_off(self, owner, notes=''):
+        """Owner signs off on completed task."""
+        if self.status != 'complete':
+            raise ValueError(f"Cannot sign off: task status is {self.status}, expected 'complete'")
+
+        self.status = 'signed_off'
+        self.signed_off_at = timezone.now()
+        self.signed_off_by = owner
+        self.signoff_notes = notes
+        self.save()
+
+        # Update denormalized counters on CollaboratorRole
+        self.collaborator_role.update_task_counts()
+
+    def reject_completion(self, owner, reason):
+        """Owner rejects the completion and sends back for revision."""
+        if self.status != 'complete':
+            raise ValueError(f"Cannot reject: task status is {self.status}, expected 'complete'")
+
+        self.status = 'in_progress'
+        self.rejection_notes = reason
+        self.rejected_at = timezone.now()
+        # Clear completion tracking
+        self.marked_complete_at = None
+        self.marked_complete_by = None
+        self.completion_notes = ''
+        self.save()
+
+    def check_overdue(self):
+        """Check if task is overdue and update breach status if needed."""
+        if self.status in ['signed_off', 'cancelled']:
+            return False  # Already resolved
+
+        if timezone.now() > self.deadline and not self.is_overdue:
+            self.is_overdue = True
+            self.overdue_notified_at = timezone.now()
+            self.save()
+
+            # Update CollaboratorRole breach status
+            role = self.collaborator_role
+            role.has_active_breach = True
+            role.cancellation_eligible = True
+            role.save(update_fields=['has_active_breach', 'cancellation_eligible'])
+
+            return True  # Newly overdue
+        return self.is_overdue
 
 
 class ProjectSection(models.Model):
@@ -1745,6 +2012,7 @@ class Proposal(models.Model):
         ('project_change', 'Project Change'),
         ('deadline_extension', 'Deadline Extension'),
         ('exit_collaborator', 'Exit Collaborator'),
+        ('contract_amendment', 'Contract Task Amendment'),
     ]
 
     STATUS_CHOICES = [

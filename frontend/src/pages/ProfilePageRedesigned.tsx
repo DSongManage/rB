@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 import { WalletManagementPanel } from '../components/WalletManagementPanel';
 import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
@@ -8,8 +8,21 @@ import { API_URL } from '../config';
 import {
   Settings, MapPin, Wallet, CheckCircle, BookOpen, Users,
   BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X,
-  Check, XCircle
+  Check, XCircle, Plus, Trash2, ExternalLink, Edit2, Briefcase
 } from 'lucide-react';
+
+interface ExternalPortfolioItem {
+  id: number;
+  title: string;
+  description: string;
+  image: string | null;
+  image_url: string | null;
+  external_url: string;
+  project_type: string;
+  role: string;
+  created_date: string | null;
+  order: number;
+}
 
 type UserStatus = { user_id: number; username: string; wallet_address?: string } | null;
 type UserProfile = {
@@ -29,7 +42,8 @@ type UserProfile = {
 };
 type Dashboard = { content_count: number; sales: number; tier?: string; fee?: number };
 
-type TabType = 'content' | 'collaborations' | 'analytics';
+type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics';
+type ContentFilterType = 'all' | 'book' | 'art' | 'music' | 'film';
 
 export default function ProfilePageRedesigned() {
   const navigate = useNavigate();
@@ -40,9 +54,16 @@ export default function ProfilePageRedesigned() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [csrf, setCsrf] = useState('');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+
+  // External portfolio state
+  const [externalPortfolio, setExternalPortfolio] = useState<ExternalPortfolioItem[]>([]);
+  const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
+  const [editingPortfolioItem, setEditingPortfolioItem] = useState<ExternalPortfolioItem | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('content');
+  const [contentFilter, setContentFilter] = useState<ContentFilterType>('all');
   const [inventory, setInventory] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
@@ -89,6 +110,66 @@ export default function ProfilePageRedesigned() {
       setCollaborations([]);
     } finally {
       setCollaborationsLoading(false);
+    }
+  }
+
+  async function loadExternalPortfolio() {
+    try {
+      const res = await fetch(`${API_URL}/api/portfolio/`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setExternalPortfolio(data);
+      }
+    } catch (err) {
+      console.error('Failed to load external portfolio:', err);
+    }
+  }
+
+  async function deletePortfolioItem(id: number) {
+    const token = csrf || await refreshCsrf();
+    try {
+      const res = await fetch(`${API_URL}/api/portfolio/${id}/`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setExternalPortfolio(prev => prev.filter(item => item.id !== id));
+        setStatus('Portfolio item deleted');
+      }
+    } catch (err) {
+      console.error('Failed to delete portfolio item:', err);
+      setStatus('Failed to delete item');
+    }
+  }
+
+  async function savePortfolioItem(item: Partial<ExternalPortfolioItem>) {
+    const token = csrf || await refreshCsrf();
+    const isEdit = !!editingPortfolioItem;
+    const url = isEdit
+      ? `${API_URL}/api/portfolio/${editingPortfolioItem!.id}/`
+      : `${API_URL}/api/portfolio/`;
+
+    try {
+      const res = await fetch(url, {
+        method: isEdit ? 'PATCH' : 'POST',
+        headers: {
+          'X-CSRFToken': token,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(item)
+      });
+      if (res.ok) {
+        await loadExternalPortfolio();
+        setPortfolioModalOpen(false);
+        setEditingPortfolioItem(null);
+        setStatus(isEdit ? 'Portfolio item updated' : 'Portfolio item added');
+      }
+    } catch (err) {
+      console.error('Failed to save portfolio item:', err);
+      setStatus('Failed to save item');
     }
   }
 
@@ -168,9 +249,10 @@ export default function ProfilePageRedesigned() {
         setProfile(profileResp);
         setDash(dashResp);
 
-        // Load pending collaboration invites and active collaborations
+        // Load pending collaboration invites, active collaborations, and external portfolio
         loadPendingInvites();
         loadCollaborations();
+        loadExternalPortfolio();
       })
       .catch(() => { });
 
@@ -219,6 +301,32 @@ export default function ProfilePageRedesigned() {
     e.target.value = '';
   };
 
+  const onBannerClick = () => {
+    bannerInputRef.current?.click();
+  };
+
+  const onBannerSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const token = csrf || await refreshCsrf();
+    const fd = new FormData();
+    fd.append('banner', file);
+    const res = await fetch(`${API_URL}/api/users/profile/`, {
+      method: 'PATCH',
+      headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
+      credentials: 'include',
+      body: fd,
+    });
+    if (res.ok) {
+      setStatus('Banner updated');
+      const profileResp = await fetch(`${API_URL}/api/users/profile/`, { credentials: 'include' });
+      if (profileResp.ok) setProfile(await profileResp.json());
+    } else {
+      setStatus(`Failed: ${await res.text()}`);
+    }
+    e.target.value = '';
+  };
+
   const openPreview = (contentId: number) => {
     const item = inventory.find(i => i.id === contentId);
     if (item) {
@@ -238,69 +346,105 @@ export default function ProfilePageRedesigned() {
       margin: '0 auto',
       padding: '40px 24px',
     }}>
-      {/* Hidden file input for avatar */}
+      {/* Hidden file inputs for avatar and banner */}
       <input ref={avatarInputRef} onChange={onAvatarSelected} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} />
+      <input ref={bannerInputRef} onChange={onBannerSelected} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} />
 
       {/* HERO SECTION */}
-      <div style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
-        borderRadius: 16,
-        padding: 32,
-        marginBottom: 24,
-        position: 'relative',
-      }}>
-        {/* Settings Button - Top Right */}
-        <button
-          onClick={() => setShowSettingsModal(true)}
-          style={{
-            position: 'absolute',
-            top: 24,
-            right: 24,
-            background: 'transparent',
-            border: '1px solid #334155',
-            color: '#cbd5e1',
-            width: 40,
-            height: 40,
-            borderRadius: 8,
-            display: 'grid',
-            placeItems: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#1e293b';
-            e.currentTarget.style.borderColor = '#475569';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.borderColor = '#334155';
-          }}
-          title="Settings"
-        >
-          <Settings size={20} />
-        </button>
-
-        {/* Avatar + User Info */}
-        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', marginBottom: 32 }}>
-          <div
-            onClick={onAvatarClick}
+      <div
+        onClick={onBannerClick}
+        style={{
+          background: (profile?.banner || profile?.banner_url)
+            ? `linear-gradient(rgba(15,23,42,0.7), rgba(15,23,42,0.9)), url(${profile?.banner || profile?.banner_url}) center/cover`
+            : '#0f172a',
+          border: '1px solid #1e293b',
+          borderRadius: 16,
+          padding: 32,
+          marginBottom: 24,
+          position: 'relative',
+          cursor: 'pointer',
+        }}
+        title="Click to update banner"
+      >
+        {/* Top Right Buttons */}
+        <div style={{
+          position: 'absolute',
+          top: 24,
+          right: 24,
+          display: 'flex',
+          gap: 8,
+        }}>
+          {/* View Public Profile Button */}
+          <Link
+            to={`/profile/${profile?.username || user?.username}`}
+            onClick={(e) => e.stopPropagation()}
             style={{
-              width: 120,
-              height: 120,
-              borderRadius: '50%',
-              background: profile?.avatar || profile?.avatar_url ? `url(${profile?.avatar || profile?.avatar_url})` : '#1e293b',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
+              background: 'rgba(245,158,11,0.15)',
+              border: '1px solid rgba(245,158,11,0.3)',
+              color: '#f59e0b',
+              height: 40,
+              padding: '0 14px',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              textDecoration: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              transition: 'all 0.2s',
+            }}
+          >
+            <Eye size={18} />
+            View Public Profile
+          </Link>
+
+          {/* Settings Button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowSettingsModal(true); }}
+            style={{
+              background: 'transparent',
+              border: '1px solid #334155',
+              color: '#cbd5e1',
+              width: 40,
+              height: 40,
+              borderRadius: 8,
               display: 'grid',
               placeItems: 'center',
-              color: '#f59e0b',
-              fontWeight: 700,
-              fontSize: 48,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#1e293b';
+              e.currentTarget.style.borderColor = '#475569';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.borderColor = '#334155';
+            }}
+            title="Settings"
+          >
+            <Settings size={20} />
+          </button>
+        </div>
+
+        {/* Avatar + User Info */}
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', marginBottom: 16 }}>
+          <div
+            onClick={(e) => { e.stopPropagation(); onAvatarClick(); }}
+            style={{
+              width: 100,
+              height: 100,
+              borderRadius: '50%',
+              overflow: 'hidden',
               cursor: 'pointer',
               border: '3px solid #1e293b',
               flexShrink: 0,
               transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#1e293b',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = '#f59e0b';
@@ -310,7 +454,21 @@ export default function ProfilePageRedesigned() {
             }}
             title="Click to upload avatar"
           >
-            {!(profile?.avatar || profile?.avatar_url) && (user?.username || '?').slice(0, 1).toUpperCase()}
+            {(profile?.avatar || profile?.avatar_url) ? (
+              <img
+                src={profile?.avatar || profile?.avatar_url}
+                alt={profile?.display_name || user?.username || 'Avatar'}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            ) : (
+              <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 40 }}>
+                {(user?.username || '?').slice(0, 1).toUpperCase()}
+              </span>
+            )}
           </div>
 
           <div style={{ flex: 1 }}>
@@ -359,18 +517,6 @@ export default function ProfilePageRedesigned() {
               <span style={{ color: '#94a3b8' }}>@{profile?.username || user?.username || ''}</span>
             </div>
           </div>
-        </div>
-
-        {/* Stats Row */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 16,
-        }}>
-          <StatCard label="Content" value={String(dash.content_count)} />
-          <StatCard label="Sales (USDC)" value={`$${dash.sales}`} />
-          <StatCard label="Tier" value={dash.tier || 'Basic'} />
-          <StatCard label="Fee" value={dash.fee != null ? `${dash.fee}%` : '10%'} />
         </div>
       </div>
 
@@ -604,19 +750,27 @@ export default function ProfilePageRedesigned() {
         display: 'flex',
         gap: 4,
         borderBottom: '1px solid #1e293b',
-        marginBottom: 32,
+        marginBottom: 16,
       }}>
         <Tab
           icon={<BookOpen size={18} />}
           label="My Content"
+          count={inventory.length}
           active={activeTab === 'content'}
           onClick={() => setActiveTab('content')}
         />
         <Tab
           icon={<Users size={18} />}
           label="Collaborations"
+          count={pendingInvites.length + collaborations.length}
           active={activeTab === 'collaborations'}
           onClick={() => setActiveTab('collaborations')}
+        />
+        <Tab
+          icon={<Briefcase size={18} />}
+          label="External Portfolio"
+          active={activeTab === 'portfolio'}
+          onClick={() => setActiveTab('portfolio')}
         />
         <Tab
           icon={<BarChart3 size={18} />}
@@ -625,6 +779,47 @@ export default function ProfilePageRedesigned() {
           onClick={() => setActiveTab('analytics')}
         />
       </div>
+
+      {/* Content Type Sub-filters */}
+      {activeTab === 'content' && inventory.length > 0 && (
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          marginBottom: 24,
+          flexWrap: 'wrap',
+        }}>
+          <FilterChip
+            label="All"
+            count={inventory.length}
+            active={contentFilter === 'all'}
+            onClick={() => setContentFilter('all')}
+          />
+          <FilterChip
+            label="Books"
+            count={inventory.filter(i => i.content_type === 'book').length}
+            active={contentFilter === 'book'}
+            onClick={() => setContentFilter('book')}
+          />
+          <FilterChip
+            label="Art"
+            count={inventory.filter(i => i.content_type === 'art').length}
+            active={contentFilter === 'art'}
+            onClick={() => setContentFilter('art')}
+          />
+          <FilterChip
+            label="Music"
+            count={inventory.filter(i => i.content_type === 'music').length}
+            active={contentFilter === 'music'}
+            onClick={() => setContentFilter('music')}
+          />
+          <FilterChip
+            label="Film"
+            count={inventory.filter(i => i.content_type === 'film' || i.content_type === 'video').length}
+            active={contentFilter === 'film'}
+            onClick={() => setContentFilter('film')}
+          />
+        </div>
+      )}
 
       {/* TAB CONTENT */}
       {activeTab === 'content' && (
@@ -635,23 +830,40 @@ export default function ProfilePageRedesigned() {
               title="No content yet"
               description="Create your first piece of content to get started"
               actionLabel="+ Create Content"
-              onAction={() => navigate('/upload')}
+              onAction={() => navigate('/studio')}
             />
           ) : (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: 24,
-            }}>
-              {inventory.map((item) => (
-                <ContentCard
-                  key={item.id}
-                  item={item}
-                  onView={() => openPreview(item.id)}
-                  onEdit={() => navigate(`/studio?editContent=${item.id}`)}
-                />
-              ))}
-            </div>
+            (() => {
+              const filteredInventory = contentFilter === 'all'
+                ? inventory
+                : contentFilter === 'film'
+                  ? inventory.filter(i => i.content_type === 'film' || i.content_type === 'video')
+                  : inventory.filter(i => i.content_type === contentFilter);
+
+              return filteredInventory.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 24px', color: '#64748b' }}>
+                  <FileText size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
+                  <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8' }}>
+                    No {contentFilter} content yet
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                  gap: 24,
+                }}>
+                  {filteredInventory.map((item) => (
+                    <ContentCard
+                      key={item.id}
+                      item={item}
+                      onView={() => openPreview(item.id)}
+                      onEdit={() => navigate(`/studio?editContent=${item.id}`)}
+                    />
+                  ))}
+                </div>
+              );
+            })()
           )}
         </div>
       )}
@@ -857,14 +1069,300 @@ export default function ProfilePageRedesigned() {
         </div>
       )}
 
+      {/* External Portfolio Tab */}
+      {activeTab === 'portfolio' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <div>
+              <h3 style={{ color: '#f8fafc', fontSize: 18, fontWeight: 700, margin: 0 }}>External Portfolio</h3>
+              <p style={{ color: '#94a3b8', fontSize: 14, margin: '4px 0 0' }}>
+                Showcase your past work and external projects on your public profile
+              </p>
+            </div>
+            <button
+              onClick={() => { setEditingPortfolioItem(null); setPortfolioModalOpen(true); }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#000',
+                border: 'none',
+                padding: '10px 18px',
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={18} />
+              Add Project
+            </button>
+          </div>
+
+          {externalPortfolio.length === 0 ? (
+            <EmptyState
+              icon={<Briefcase size={64} />}
+              title="No portfolio items yet"
+              description="Add your past work, side projects, or external collaborations to showcase on your public profile"
+              actionLabel="+ Add Your First Project"
+              onAction={() => { setEditingPortfolioItem(null); setPortfolioModalOpen(true); }}
+            />
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: 20,
+            }}>
+              {externalPortfolio.map(item => (
+                <div key={item.id} style={{
+                  background: '#0f172a',
+                  border: '1px solid #1e293b',
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+                  e.currentTarget.style.borderColor = '#334155';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                  e.currentTarget.style.borderColor = '#1e293b';
+                }}
+                >
+                  {/* Cover Image */}
+                  <div style={{
+                    width: '100%',
+                    paddingTop: '56.25%',
+                    background: item.image_url
+                      ? `url(${item.image_url}) center/cover`
+                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    position: 'relative',
+                  }}>
+                    {!item.image_url && (
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'grid',
+                        placeItems: 'center',
+                        color: 'rgba(255,255,255,0.3)',
+                        fontSize: 48,
+                        fontWeight: 700,
+                      }}>
+                        {item.project_type?.charAt(0).toUpperCase() || 'P'}
+                      </div>
+                    )}
+                    {/* Project Type Badge */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 12,
+                      left: 12,
+                      background: '#f59e0b',
+                      color: '#000',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                    }}>
+                      {item.project_type || 'Project'}
+                    </div>
+                  </div>
+
+                  {/* Card Content */}
+                  <div style={{ padding: 16 }}>
+                    <div style={{
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: '#f8fafc',
+                      marginBottom: 4,
+                    }}>
+                      {item.title}
+                    </div>
+                    {item.role && (
+                      <div style={{
+                        fontSize: 13,
+                        color: '#f59e0b',
+                        marginBottom: 8,
+                      }}>
+                        {item.role}
+                      </div>
+                    )}
+                    {item.description && (
+                      <div style={{
+                        fontSize: 13,
+                        color: '#94a3b8',
+                        marginBottom: 12,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                      }}>
+                        {item.description}
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {item.external_url && (
+                        <a
+                          href={item.external_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            flex: 1,
+                            background: 'rgba(59,130,246,0.15)',
+                            border: '1px solid rgba(59,130,246,0.3)',
+                            color: '#60a5fa',
+                            padding: '8px 16px',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            textDecoration: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <ExternalLink size={14} />
+                          View
+                        </a>
+                      )}
+                      <button
+                        onClick={() => { setEditingPortfolioItem(item); setPortfolioModalOpen(true); }}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid #334155',
+                          color: '#cbd5e1',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => deletePortfolioItem(item.id)}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#ef4444',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {activeTab === 'analytics' && (
-        <EmptyState
-          icon={<BarChart3 size={64} />}
-          title="No analytics yet"
-          description="Analytics will appear here once you have sales"
-          actionLabel={null}
-          onAction={() => { }}
-        />
+        <div>
+          {/* Sales Overview Card */}
+          <div style={{
+            background: '#0f172a',
+            border: '1px solid #1e293b',
+            borderRadius: 16,
+            padding: 24,
+            marginBottom: 24,
+          }}>
+            <h3 style={{
+              fontSize: 18,
+              fontWeight: 700,
+              color: '#f8fafc',
+              marginBottom: 20,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}>
+              <DollarSign size={20} style={{ color: '#10b981' }} />
+              Sales Overview
+            </h3>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 16,
+            }}>
+              <div style={{
+                background: '#1e293b',
+                borderRadius: 12,
+                padding: 20,
+              }}>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total Sales (USDC)
+                </div>
+                <div style={{ fontSize: 32, fontWeight: 700, color: '#10b981' }}>
+                  ${dash.sales.toFixed(2)}
+                </div>
+              </div>
+
+              <div style={{
+                background: '#1e293b',
+                borderRadius: 12,
+                padding: 20,
+              }}>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Published Content
+                </div>
+                <div style={{ fontSize: 32, fontWeight: 700, color: '#f8fafc' }}>
+                  {inventory.length}
+                </div>
+              </div>
+
+              <div style={{
+                background: '#1e293b',
+                borderRadius: 12,
+                padding: 20,
+              }}>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Collaborations
+                </div>
+                <div style={{ fontSize: 32, fontWeight: 700, color: '#f8fafc' }}>
+                  {collaborations.length}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Coming Soon Notice */}
+          {dash.sales === 0 && (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 24px',
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: 16,
+            }}>
+              <BarChart3 size={48} style={{ color: '#475569', marginBottom: 16 }} />
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>
+                Detailed analytics coming soon
+              </div>
+              <div style={{ fontSize: 14, color: '#64748b' }}>
+                Once you start making sales, you'll see detailed breakdowns here
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Settings Modal */}
@@ -932,6 +1430,15 @@ export default function ProfilePageRedesigned() {
         />
       )}
 
+      {/* Portfolio Item Modal */}
+      {portfolioModalOpen && (
+        <PortfolioItemModal
+          item={editingPortfolioItem}
+          onClose={() => { setPortfolioModalOpen(false); setEditingPortfolioItem(null); }}
+          onSave={savePortfolioItem}
+        />
+      )}
+
       {/* Status Message */}
       {status && (
         <div style={{
@@ -954,49 +1461,8 @@ export default function ProfilePageRedesigned() {
   );
 }
 
-// Stat Card Component
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{
-      background: '#1e293b',
-      border: '1px solid #334155',
-      borderRadius: 12,
-      padding: '16px 20px',
-      transition: 'all 0.2s',
-      cursor: 'default',
-    }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
-    >
-      <div style={{
-        fontSize: 12,
-        color: '#94a3b8',
-        marginBottom: 4,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        fontWeight: 600,
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontSize: 24,
-        fontWeight: 700,
-        color: '#f8fafc',
-      }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
 // Tab Component
-function Tab({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) {
+function Tab({ icon, label, count, active, onClick }: { icon: React.ReactNode; label: string; count?: number; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -1027,6 +1493,66 @@ function Tab({ icon, label, active, onClick }: { icon: React.ReactNode; label: s
     >
       {icon}
       <span>{label}</span>
+      {count !== undefined && count > 0 && (
+        <span style={{
+          background: active ? '#f59e0b' : '#334155',
+          color: active ? '#000' : '#94a3b8',
+          padding: '2px 8px',
+          borderRadius: 10,
+          fontSize: 12,
+          fontWeight: 700,
+          marginLeft: 4,
+        }}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Filter Chip Component
+function FilterChip({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  if (count === 0 && !active && label !== 'All') return null;
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: active ? '#f59e0b' : '#1e293b',
+        border: active ? 'none' : '1px solid #334155',
+        color: active ? '#000' : '#94a3b8',
+        padding: '6px 14px',
+        borderRadius: 20,
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.borderColor = '#475569';
+          e.currentTarget.style.color = '#e2e8f0';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.borderColor = '#334155';
+          e.currentTarget.style.color = '#94a3b8';
+        }
+      }}
+    >
+      {label}
+      <span style={{
+        background: active ? 'rgba(0,0,0,0.2)' : '#334155',
+        padding: '1px 6px',
+        borderRadius: 8,
+        fontSize: 11,
+      }}>
+        {count}
+      </span>
     </button>
   );
 }
@@ -1444,6 +1970,291 @@ function SettingsModal({ profile, csrf, onClose, onSave }: {
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Portfolio Item Modal Component
+function PortfolioItemModal({
+  item,
+  onClose,
+  onSave
+}: {
+  item: ExternalPortfolioItem | null;
+  onClose: () => void;
+  onSave: (item: Partial<ExternalPortfolioItem>) => void;
+}) {
+  const [title, setTitle] = useState(item?.title || '');
+  const [description, setDescription] = useState(item?.description || '');
+  const [externalUrl, setExternalUrl] = useState(item?.external_url || '');
+  const [projectType, setProjectType] = useState(item?.project_type || 'book');
+  const [role, setRole] = useState(item?.role || '');
+  const [createdDate, setCreatedDate] = useState(item?.created_date || '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      title,
+      description,
+      external_url: externalUrl,
+      project_type: projectType,
+      role,
+      created_date: createdDate || null
+    });
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.75)',
+      backdropFilter: 'blur(4px)',
+      display: 'grid',
+      placeItems: 'center',
+      zIndex: 2000,
+    }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: '#0f172a',
+        border: '1px solid #1e293b',
+        borderRadius: 16,
+        padding: 32,
+        width: '90%',
+        maxWidth: 500,
+        maxHeight: '90vh',
+        overflow: 'auto',
+      }}>
+        <div style={{
+          fontSize: 24,
+          fontWeight: 700,
+          color: '#f8fafc',
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <span>{item ? 'Edit Portfolio Item' : 'Add Portfolio Item'}</span>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: 4,
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#cbd5e1',
+              marginBottom: 8,
+            }}>
+              Title *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              placeholder="Project title"
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: '#f8fafc',
+                fontSize: 14,
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#cbd5e1',
+              marginBottom: 8,
+            }}>
+              Project Type
+            </label>
+            <select
+              value={projectType}
+              onChange={(e) => setProjectType(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: '#f8fafc',
+                fontSize: 14,
+              }}
+            >
+              <option value="book">Book</option>
+              <option value="art">Art</option>
+              <option value="music">Music</option>
+              <option value="video">Video</option>
+              <option value="film">Film</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#cbd5e1',
+              marginBottom: 8,
+            }}>
+              Your Role
+            </label>
+            <input
+              type="text"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              placeholder="e.g., Author, Illustrator, Producer"
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: '#f8fafc',
+                fontSize: 14,
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#cbd5e1',
+              marginBottom: 8,
+            }}>
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Brief description of the project"
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: '#f8fafc',
+                fontSize: 14,
+                resize: 'vertical',
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#cbd5e1',
+              marginBottom: 8,
+            }}>
+              External URL
+            </label>
+            <input
+              type="url"
+              value={externalUrl}
+              onChange={(e) => setExternalUrl(e.target.value)}
+              placeholder="https://..."
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: '#f8fafc',
+                fontSize: 14,
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <label style={{
+              display: 'block',
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#cbd5e1',
+              marginBottom: 8,
+            }}>
+              Date (optional)
+            </label>
+            <input
+              type="date"
+              value={createdDate}
+              onChange={(e) => setCreatedDate(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: '#f8fafc',
+                fontSize: 14,
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: '1px solid #334155',
+                color: '#cbd5e1',
+                padding: '12px',
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{
+                flex: 1,
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                border: 'none',
+                color: '#fff',
+                padding: '12px',
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {item ? 'Save Changes' : 'Add Project'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

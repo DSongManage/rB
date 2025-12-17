@@ -13,6 +13,7 @@ import BetaLanding from './pages/BetaLanding';
 import { CreatorSidebar } from './components/CreatorSidebar';
 import { LibrarySidebar } from './components/LibrarySidebar';
 import CollaboratorsPage from './pages/CollaboratorsPage';
+import PublicProfilePage from './pages/PublicProfilePage';
 import ContentDetail from './pages/ContentDetail';
 import PurchaseSuccessPage from './pages/PurchaseSuccessPage';
 import { ReaderPage } from './pages/ReaderPage';
@@ -24,18 +25,17 @@ import NotificationToastContainer from './components/notifications/NotificationT
 import notificationService from './services/notificationService';
 import { BetaBadge, TestModeBanner } from './components/BetaBadge';
 import { useAuth } from './hooks/useAuth';
-import FeedbackModal from './components/FeedbackModal';
 import BetaOnboarding from './components/BetaOnboarding';
 import { API_URL } from './config';
 import {
-  Home, Search, User, Users, Bell, LogOut,
-  MessageSquare, Menu, X
+  Search, User, LogOut, Menu, X
 } from 'lucide-react';
 
 function Header() {
   const [q, setQ] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
+  const [username, setUsername] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -46,6 +46,15 @@ function Header() {
       .then(d=> {
         const authed = !!d?.authenticated;
         setIsAuthed(authed);
+
+        // Store username and avatar if available
+        if (authed && d?.user?.username) {
+          setUsername(d.user.username);
+          setAvatarUrl(d.user.avatar_url || null);
+        } else {
+          setUsername('');
+          setAvatarUrl(null);
+        }
 
         // Start/stop notification polling based on auth state
         if (authed) {
@@ -61,6 +70,8 @@ function Header() {
       })
       .catch(()=> {
         setIsAuthed(false);
+        setUsername('');
+        setAvatarUrl(null);
         notificationService.stopPolling();
         notificationService.reset();
       });
@@ -136,23 +147,25 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
-            <Link to="/" className="rb-nav-link" title="Home">
-              <Home size={20} />
-              <span>Home</span>
-            </Link>
             <NotificationBell />
-            <Link to="/profile" className="rb-nav-link" title="Profile">
-              <User size={20} />
-              <span>Profile</span>
+            <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={username}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid var(--accent)',
+                  }}
+                />
+              ) : (
+                <User size={20} />
+              )}
+              <span>@{username || 'Profile'}</span>
             </Link>
-            <button
-              onClick={() => setShowFeedback(true)}
-              className="rb-nav-link rb-feedback-btn"
-              title="Send feedback about the beta"
-            >
-              <MessageSquare size={20} />
-              <span>Feedback</span>
-            </button>
             <button
               onClick={doLogout}
               className="rb-nav-link rb-logout-btn"
@@ -170,7 +183,6 @@ function Header() {
           </button>
         )}
       </div>
-      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </nav>
   );
 }
@@ -179,13 +191,13 @@ export default function App() {
   const location = useLocation();
   const { isAuthenticated, loading } = useAuth();
 
-  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile/, /^\/collaborators/, /^\/collaborations/].some(r => r.test(location.pathname));
+  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile$/, /^\/profile\//, /^\/collaborators/, /^\/collaborations/].some(r => r.test(location.pathname));
   // Only show Library sidebar when authenticated AND on home or search pages
   const showLibrarySidebar = isAuthenticated && [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
   const isReaderPage = /^\/reader/.test(location.pathname);
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta'];
+  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/'];
   const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
 
   // Show loading state while checking authentication
@@ -252,6 +264,7 @@ export default function App() {
             <Route path="/studio" element={<StudioPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/profile/:username" element={<PublicProfilePage />} />
             <Route path="/collaborators" element={<CollaboratorsPage />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/wallet-info" element={<WalletInfoPage />} />

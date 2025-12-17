@@ -17,11 +17,12 @@ from decimal import Decimal, InvalidOperation
 
 from ..models import (
     CollaborativeProject, CollaboratorRole, ProjectSection,
-    ProjectComment, User as CoreUser, Content
+    ProjectComment, User as CoreUser, Content, ContractTask
 )
 from ..serializers import (
     CollaborativeProjectSerializer, CollaborativeProjectListSerializer,
-    CollaboratorRoleSerializer, ProjectSectionSerializer, ProjectCommentSerializer
+    CollaboratorRoleSerializer, ProjectSectionSerializer, ProjectCommentSerializer,
+    ContractTaskSerializer, ContractTaskCreateSerializer
 )
 from ..notifications_utils import (
     notify_collaboration_invitation, notify_invitation_response,
@@ -56,6 +57,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'created_by'
         ).prefetch_related(
             'collaborators__user',
+            'collaborators__contract_tasks',  # Include contract tasks for TaskTracker
             'sections',
             'comments__author'
         ).distinct()
@@ -94,7 +96,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def invite_collaborator(self, request, pk=None):
-        """Invite a collaborator to the project.
+        """Invite a collaborator to the project with contract tasks.
 
         POST data:
         - user_id: int (user to invite)
@@ -104,6 +106,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         - can_edit_images: bool
         - can_edit_audio: bool
         - can_edit_video: bool
+        - tasks: array of {title, description, deadline} (optional but recommended)
         """
         project = self.get_object()
 
@@ -164,18 +167,45 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Create invitation
-        collaborator = CollaboratorRole.objects.create(
-            project=project,
-            user=invited_user,
-            role=role,
-            revenue_percentage=revenue_percentage,
-            status='invited',
-            can_edit_text=request.data.get('can_edit_text', False),
-            can_edit_images=request.data.get('can_edit_images', False),
-            can_edit_audio=request.data.get('can_edit_audio', False),
-            can_edit_video=request.data.get('can_edit_video', False)
-        )
+        # Validate tasks if provided
+        tasks_data = request.data.get('tasks', [])
+        if tasks_data:
+            for i, task in enumerate(tasks_data):
+                task_serializer = ContractTaskCreateSerializer(data=task)
+                if not task_serializer.is_valid():
+                    return Response(
+                        {'error': f'Invalid task at index {i}', 'details': task_serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+        # Create invitation within transaction
+        with transaction.atomic():
+            collaborator = CollaboratorRole.objects.create(
+                project=project,
+                user=invited_user,
+                role=role,
+                revenue_percentage=revenue_percentage,
+                status='invited',
+                can_edit_text=request.data.get('can_edit_text', False),
+                can_edit_images=request.data.get('can_edit_images', False),
+                can_edit_audio=request.data.get('can_edit_audio', False),
+                can_edit_video=request.data.get('can_edit_video', False)
+            )
+
+            # Create contract tasks (status='pending' until accepted)
+            for i, task_data in enumerate(tasks_data):
+                ContractTask.objects.create(
+                    collaborator_role=collaborator,
+                    title=task_data.get('title'),
+                    description=task_data.get('description', ''),
+                    deadline=task_data.get('deadline'),
+                    status='pending',
+                    order=i
+                )
+
+            # Update task counts
+            collaborator.tasks_total = len(tasks_data)
+            collaborator.save(update_fields=['tasks_total'])
 
         # Send notification to invited user
         notify_collaboration_invitation(core_user, invited_user, project, role)
@@ -185,7 +215,13 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def accept_invitation(self, request, pk=None):
-        """Accept a collaboration invitation."""
+        """Accept a collaboration invitation and lock the contract.
+
+        On acceptance:
+        - Contract becomes locked (immutable)
+        - All pending tasks become 'in_progress'
+        - Contract version is recorded
+        """
         project = self.get_object()
 
         try:
@@ -205,10 +241,21 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Accept invitation
-        invitation.status = 'accepted'
-        invitation.accepted_at = timezone.now()
-        invitation.save()
+        # Accept invitation and lock contract within transaction
+        with transaction.atomic():
+            now = timezone.now()
+
+            # Accept invitation
+            invitation.status = 'accepted'
+            invitation.accepted_at = now
+
+            # Lock the contract
+            invitation.contract_locked_at = now
+            invitation.contract_version += 1
+            invitation.save()
+
+            # Activate all pending tasks (change from 'pending' to 'in_progress')
+            invitation.contract_tasks.filter(status='pending').update(status='in_progress')
 
         # Notify project creator and other collaborators
         notify_invitation_response(invitation, accepted=True)
@@ -622,6 +669,326 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         serializer = CollaborativeProjectSerializer(project)
         return Response(serializer.data)
 
+    # ========== CONTRACT TASK MANAGEMENT ENDPOINTS ==========
+
+    @action(detail=True, methods=['post'], url_path='tasks/(?P<task_id>[^/.]+)/mark-complete')
+    def mark_task_complete(self, request, pk=None, task_id=None):
+        """Collaborator marks their task as complete.
+
+        POST data:
+        - completion_notes: str (optional) - notes about what was completed
+
+        After marking complete, the owner must sign off to finalize.
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Find the task
+        try:
+            task = ContractTask.objects.get(
+                id=task_id,
+                collaborator_role__project=project
+            )
+        except ContractTask.DoesNotExist:
+            return Response(
+                {'error': 'Task not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify the user owns this task (is the collaborator)
+        if task.collaborator_role.user != core_user:
+            return Response(
+                {'error': 'Only the assigned collaborator can mark this task complete'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Mark complete
+        try:
+            notes = request.data.get('completion_notes', '')
+            task.mark_complete(core_user, notes)
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # TODO: Notify project owner
+
+        serializer = ContractTaskSerializer(task)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='tasks/(?P<task_id>[^/.]+)/sign-off')
+    def sign_off_task(self, request, pk=None, task_id=None):
+        """Project owner signs off on a completed task.
+
+        POST data:
+        - signoff_notes: str (optional) - approval notes
+
+        Only the project owner can sign off on tasks.
+        This finalizes the task and updates completion counts.
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify requester is project owner
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can sign off on tasks'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Find the task
+        try:
+            task = ContractTask.objects.get(
+                id=task_id,
+                collaborator_role__project=project
+            )
+        except ContractTask.DoesNotExist:
+            return Response(
+                {'error': 'Task not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Sign off
+        try:
+            notes = request.data.get('signoff_notes', '')
+            task.sign_off(core_user, notes)
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # TODO: Notify collaborator
+
+        serializer = ContractTaskSerializer(task)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='tasks/(?P<task_id>[^/.]+)/reject-completion')
+    def reject_task_completion(self, request, pk=None, task_id=None):
+        """Project owner rejects a task completion and sends back for revision.
+
+        POST data:
+        - rejection_reason: str (required) - explanation of what needs to be fixed
+
+        The task goes back to 'in_progress' status.
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify requester is project owner
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can reject task completions'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Find the task
+        try:
+            task = ContractTask.objects.get(
+                id=task_id,
+                collaborator_role__project=project
+            )
+        except ContractTask.DoesNotExist:
+            return Response(
+                {'error': 'Task not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get rejection reason
+        reason = request.data.get('rejection_reason', '')
+        if not reason:
+            return Response(
+                {'error': 'rejection_reason is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Reject completion
+        try:
+            task.reject_completion(core_user, reason)
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # TODO: Notify collaborator
+
+        serializer = ContractTaskSerializer(task)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='handle-breach/(?P<role_id>[^/.]+)')
+    def handle_breach(self, request, pk=None, role_id=None):
+        """Project owner handles a deadline breach.
+
+        POST data:
+        - action: str - one of 'cancel', 'waive', or 'extend'
+        - extension_days: int (only for 'extend') - number of days to extend
+
+        Actions:
+        - cancel: Remove the collaborator from the project
+        - waive: Acknowledge the breach and continue
+        - extend: Create a deadline extension (modifies task deadlines)
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify requester is project owner
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can handle breaches'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Find the collaborator role
+        try:
+            collab_role = CollaboratorRole.objects.get(
+                id=role_id,
+                project=project
+            )
+        except CollaboratorRole.DoesNotExist:
+            return Response(
+                {'error': 'Collaborator not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify there's actually a breach
+        if not collab_role.cancellation_eligible:
+            return Response(
+                {'error': 'No active breach for this collaborator'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        action = request.data.get('action')
+        if action not in ['cancel', 'waive', 'extend']:
+            return Response(
+                {'error': 'action must be one of: cancel, waive, extend'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from django.utils import timezone
+        from datetime import timedelta
+
+        if action == 'cancel':
+            # Remove collaborator from project
+            with transaction.atomic():
+                collab_role.status = 'exited'
+                collab_role.save()
+
+                # Cancel all their tasks
+                collab_role.contract_tasks.update(status='cancelled')
+
+            return Response({
+                'message': 'Collaboration cancelled due to breach',
+                'collaborator_id': collab_role.id,
+                'action': 'cancel'
+            })
+
+        elif action == 'waive':
+            # Acknowledge breach and continue
+            collab_role.has_active_breach = False
+            collab_role.cancellation_eligible = False
+            collab_role.save()
+
+            return Response({
+                'message': 'Breach waived, collaboration continues',
+                'collaborator_id': collab_role.id,
+                'action': 'waive'
+            })
+
+        elif action == 'extend':
+            # Extend deadlines
+            extension_days = request.data.get('extension_days')
+            if not extension_days or not isinstance(extension_days, int) or extension_days < 1:
+                return Response(
+                    {'error': 'extension_days must be a positive integer'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            with transaction.atomic():
+                # Extend all overdue tasks
+                overdue_tasks = collab_role.contract_tasks.filter(is_overdue=True)
+                for task in overdue_tasks:
+                    task.deadline = timezone.now() + timedelta(days=extension_days)
+                    task.is_overdue = False
+                    task.save()
+
+                # Clear breach flags
+                collab_role.has_active_breach = False
+                collab_role.cancellation_eligible = False
+                collab_role.save()
+
+            return Response({
+                'message': f'Deadlines extended by {extension_days} days',
+                'collaborator_id': collab_role.id,
+                'action': 'extend',
+                'extension_days': extension_days
+            })
+
+    @action(detail=True, methods=['get'], url_path='contract-status')
+    def contract_status(self, request, pk=None):
+        """Get overall contract fulfillment status for all collaborators.
+
+        Returns summary of task completion across all collaborators.
+        """
+        project = self.get_object()
+
+        collaborators = project.collaborators.filter(status='accepted')
+
+        status_summary = []
+        for collab in collaborators:
+            tasks = collab.contract_tasks.all()
+            status_summary.append({
+                'collaborator_id': collab.id,
+                'user_id': collab.user.id,
+                'username': collab.user.username,
+                'role': collab.role,
+                'tasks_total': collab.tasks_total,
+                'tasks_signed_off': collab.tasks_signed_off,
+                'all_tasks_complete': collab.all_tasks_complete,
+                'has_active_breach': collab.has_active_breach,
+                'cancellation_eligible': collab.cancellation_eligible,
+                'tasks': ContractTaskSerializer(tasks, many=True).data
+            })
+
+        all_complete = all(c['all_tasks_complete'] for c in status_summary if c['tasks_total'] > 0)
+
+        return Response({
+            'project_id': project.id,
+            'all_contracts_fulfilled': all_complete,
+            'collaborators': status_summary
+        })
+
+    # ========== END CONTRACT TASK MANAGEMENT ENDPOINTS ==========
+
     @action(detail=False, methods=['get'])
     def pending_invites(self, request):
         """Get all projects where current user has a pending invitation.
@@ -645,6 +1012,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'created_by'
         ).prefetch_related(
             'collaborators__user',
+            'collaborators__contract_tasks',  # Include contract tasks for invite preview
             'sections',
         ).distinct()
 
@@ -735,6 +1103,115 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # ========== MINIMUM PUBLISHING CRITERIA ==========
+        # Validate title requirements
+        title = (project.title or '').strip()
+        if not title:
+            return Response(
+                {
+                    'error': 'Project must have a title before publishing',
+                    'detail': 'Please set a title for your project'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if len(title) < 3:
+            return Response(
+                {
+                    'error': 'Project title is too short',
+                    'detail': 'Title must be at least 3 characters long'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if title.startswith('Collaboration Invite'):
+            return Response(
+                {
+                    'error': 'Project has a placeholder title',
+                    'detail': 'Please set a proper title for your project (not "Collaboration Invite...")'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate content requirements - must have at least one section
+        sections = project.sections.all()
+        if not sections.exists():
+            return Response(
+                {
+                    'error': 'Project has no content',
+                    'detail': 'Please add at least one section to your project before publishing'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # For book projects, validate text content exists
+        if project.content_type == 'book':
+            text_sections = sections.filter(section_type='text')
+            if not text_sections.exists():
+                return Response(
+                    {
+                        'error': 'Book project requires text content',
+                        'detail': 'Please add at least one text section to your book'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Check that at least one text section has actual content
+            has_content = False
+            for section in text_sections:
+                content_html = (section.content_html or '').strip()
+                # Remove common empty HTML tags to check for actual content
+                clean_content = content_html.replace('<p>', '').replace('</p>', '').replace('<br>', '').replace('<br/>', '').strip()
+                if len(clean_content) >= 50:  # Minimum 50 characters of actual text
+                    has_content = True
+                    break
+
+            if not has_content:
+                return Response(
+                    {
+                        'error': 'Book content is too short',
+                        'detail': 'Please add at least 50 characters of text content to your book'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # For other content types (art, music, video), validate media exists
+        elif project.content_type in ['art', 'video', 'music']:
+            media_sections = sections.exclude(section_type='text')
+            has_media = any(section.media_file for section in media_sections)
+
+            if not has_media:
+                content_type_name = project.content_type.capitalize()
+                return Response(
+                    {
+                        'error': f'{content_type_name} project requires media content',
+                        'detail': f'Please upload {project.content_type} files to your project before publishing'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Validate price is set (must be greater than 0)
+        if not project.price_usd or project.price_usd <= 0:
+            return Response(
+                {
+                    'error': 'Project price not set',
+                    'detail': 'Please set a price greater than $0 for your NFT'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate editions (must be at least 1)
+        if not project.editions or project.editions < 1:
+            return Response(
+                {
+                    'error': 'Invalid edition count',
+                    'detail': 'Please set at least 1 edition for your NFT'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # ========== END MINIMUM PUBLISHING CRITERIA ==========
+
         # Verify all collaborators have approved
         if not project.is_fully_approved():
             return Response(
@@ -747,6 +1224,31 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         # Get accepted collaborators with wallet addresses
         collaborators = project.collaborators.filter(status='accepted')
+
+        # ========== TASK COMPLETION CHECK ==========
+        # Verify all contract tasks are signed off
+        collaborators_with_incomplete_tasks = []
+        for collab in collaborators:
+            if collab.tasks_total > 0 and not collab.all_tasks_complete:
+                incomplete_count = collab.tasks_total - collab.tasks_signed_off
+                collaborators_with_incomplete_tasks.append({
+                    'user_id': collab.user.id,
+                    'username': collab.user.username,
+                    'role': collab.role,
+                    'incomplete_tasks': incomplete_count,
+                    'total_tasks': collab.tasks_total
+                })
+
+        if collaborators_with_incomplete_tasks:
+            return Response(
+                {
+                    'error': 'All contract tasks must be signed off before minting',
+                    'detail': 'Some collaborators have unsigned tasks',
+                    'collaborators_with_incomplete_tasks': collaborators_with_incomplete_tasks
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        # ========== END TASK COMPLETION CHECK ==========
 
         if not collaborators.exists():
             return Response(

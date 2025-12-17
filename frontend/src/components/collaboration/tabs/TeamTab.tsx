@@ -5,6 +5,7 @@ import {
   collaborationApi,
 } from '../../../services/collaborationApi';
 import { TeamOverview } from '../TeamOverview';
+import { TaskTracker } from '../TaskTracker';
 
 interface User {
   id: number;
@@ -268,6 +269,37 @@ export default function TeamTab({
         sections={sections}
         projectCreatorId={project.created_by}
       />
+
+      {/* Contract Tasks Section */}
+      {collaborators.filter(c => c.status === 'accepted' && c.tasks_total > 0).length > 0 && (
+        <div style={{
+          background: 'var(--panel)',
+          border: '1px solid var(--panel-border)',
+          borderRadius: 12,
+          padding: 24,
+        }}>
+          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>📋</span> Contract Tasks
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {collaborators
+              .filter(c => c.status === 'accepted' && c.tasks_total > 0)
+              .map((collab) => (
+                <TaskTracker
+                  key={collab.id}
+                  collaboratorRole={collab}
+                  currentUserId={currentUser.id}
+                  isProjectOwner={isProjectLead}
+                  projectId={project.id}
+                  onTaskUpdate={async () => {
+                    const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+                    onProjectUpdate?.(updatedProject);
+                  }}
+                />
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Permission Matrix */}
       <div style={{

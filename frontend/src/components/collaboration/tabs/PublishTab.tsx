@@ -38,19 +38,92 @@ export default function PublishTab({
   const currentUserRole = collaborators.find(c => c.user === currentUser.id);
   const isProjectLead = project.created_by === currentUser.id;
 
+  // Helper function to strip HTML tags and check content length
+  const getTextContentLength = (html: string): number => {
+    const stripped = (html || '')
+      .replace(/<[^>]*>/g, '')  // Remove HTML tags
+      .replace(/&nbsp;/g, ' ')  // Replace &nbsp;
+      .trim();
+    return stripped.length;
+  };
+
+  // Validation checks for minimum publishing criteria
+  const titleValid = Boolean(
+    project.title &&
+    project.title.trim().length >= 3 &&
+    !project.title.startsWith('Collaboration Invite')
+  );
+
+  const hasContentSections = sections.length > 0;
+
+  // For books: check text content has at least 50 characters
+  const textSections = sections.filter(s => s.section_type === 'text');
+  const hasValidTextContent = project.content_type === 'book'
+    ? textSections.some(s => getTextContentLength(s.content_html || '') >= 50)
+    : true;
+
+  // For art/music/video: check media files exist
+  const mediaSections = sections.filter(s => s.section_type !== 'text');
+  const hasValidMediaContent = ['art', 'music', 'video'].includes(project.content_type)
+    ? mediaSections.some(s => s.media_file)
+    : true;
+
+  const priceValid = price > 0;
+  const editionsValid = editions >= 1;
+
+  // Check if all contract tasks are signed off
+  const collaboratorsWithTasks = acceptedCollaborators.filter(c => (c.tasks_total || 0) > 0);
+  const allTasksSignedOff = collaboratorsWithTasks.length === 0 ||
+    collaboratorsWithTasks.every(c => c.all_tasks_complete);
+  const incompleteTaskCount = collaboratorsWithTasks.reduce(
+    (sum, c) => sum + ((c.tasks_total || 0) - (c.tasks_signed_off || 0)),
+    0
+  );
+
   // Check if all requirements are met
   const checklistItems = [
     {
-      id: 'sections',
-      label: 'All sections completed',
-      checked: sections.length > 0 && sections.every(s =>
-        s.section_type !== 'text' || (s.content_html && s.content_html.trim().length > 0)
-      ),
+      id: 'title',
+      label: 'Valid project title',
+      checked: titleValid,
+      hint: !titleValid ? 'Set a title (min 3 characters, not a placeholder)' : undefined,
+    },
+    {
+      id: 'content',
+      label: project.content_type === 'book'
+        ? 'Book has text content (min 50 characters)'
+        : `${project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} has media files`,
+      checked: hasContentSections && (project.content_type === 'book' ? hasValidTextContent : hasValidMediaContent),
+      hint: !hasContentSections
+        ? 'Add at least one section'
+        : (project.content_type === 'book' && !hasValidTextContent)
+          ? 'Add at least 50 characters of text'
+          : undefined,
+    },
+    {
+      id: 'price',
+      label: 'Price set (greater than $0)',
+      checked: priceValid,
+      hint: !priceValid ? 'Set a price for your NFT' : undefined,
+    },
+    {
+      id: 'editions',
+      label: 'Edition count set',
+      checked: editionsValid,
+      hint: !editionsValid ? 'Set at least 1 edition' : undefined,
     },
     {
       id: 'splits',
       label: 'Revenue splits total 100%',
       checked: Math.abs(collaborators.reduce((sum, c) => sum + parseFloat(String(c.revenue_percentage)), 0) - 100) < 0.01,
+    },
+    {
+      id: 'tasks',
+      label: 'All contract tasks signed off',
+      checked: allTasksSignedOff,
+      hint: !allTasksSignedOff
+        ? `${incompleteTaskCount} task${incompleteTaskCount === 1 ? '' : 's'} still need sign-off`
+        : undefined,
     },
     {
       id: 'invited',
@@ -252,7 +325,7 @@ export default function PublishTab({
           setPrice={setPrice}
           editions={editions}
           setEditions={setEditions}
-          onNext={handleSaveCustomization}
+          onNext={isProjectLead ? handleSaveCustomization : () => setStep('approve')}
           saving={saving}
         />
       )}
@@ -427,27 +500,25 @@ function CustomizeStep({
       </div>
 
       {/* Next Button */}
-      {isProjectLead && (
-        <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={onNext}
-            disabled={saving}
-            style={{
-              padding: '12px 32px',
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              border: 'none',
-              borderRadius: 8,
-              color: '#111',
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              opacity: saving ? 0.7 : 1,
-            }}
-          >
-            {saving ? 'Saving...' : 'Next'}
-          </button>
-        </div>
-      )}
+      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={onNext}
+          disabled={isProjectLead && saving}
+          style={{
+            padding: '12px 32px',
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            border: 'none',
+            borderRadius: 8,
+            color: '#111',
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: (isProjectLead && saving) ? 'not-allowed' : 'pointer',
+            opacity: (isProjectLead && saving) ? 0.7 : 1,
+          }}
+        >
+          {isProjectLead ? (saving ? 'Saving...' : 'Save & Continue') : 'Continue to Approve'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -457,7 +528,7 @@ interface ApproveStepProps {
   currentUser: User;
   currentUserRole: any;
   acceptedCollaborators: any[];
-  checklistItems: { id: string; label: string; checked: boolean }[];
+  checklistItems: { id: string; label: string; checked: boolean; hint?: string }[];
   price: number;
   editions: number;
   userEstimatedEarnings: number;
@@ -718,7 +789,7 @@ interface MintStepProps {
   project: CollaborativeProject;
   isProjectLead: boolean;
   allChecked: boolean;
-  checklistItems: { id: string; label: string; checked: boolean }[];
+  checklistItems: { id: string; label: string; checked: boolean; hint?: string }[];
   price: number;
   editions: number;
   minting: boolean;
@@ -761,29 +832,37 @@ function MintStep({
               key={item.id}
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                gap: 10,
+                flexDirection: 'column',
+                gap: 4,
                 padding: 10,
-                background: item.checked ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg)',
+                background: item.checked ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.05)',
                 borderRadius: 6,
+                border: item.checked ? 'none' : '1px solid rgba(239, 68, 68, 0.2)',
               }}
             >
-              <div style={{
-                width: 20,
-                height: 20,
-                borderRadius: '50%',
-                background: item.checked ? '#10b981' : '#374151',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontSize: 10,
-              }}>
-                {item.checked ? '✓' : ''}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: item.checked ? '#10b981' : '#ef4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: 10,
+                }}>
+                  {item.checked ? '✓' : '!'}
+                </div>
+                <span style={{ fontSize: 13, color: item.checked ? '#10b981' : 'var(--text)' }}>
+                  {item.label}
+                </span>
               </div>
-              <span style={{ fontSize: 13, color: item.checked ? '#10b981' : 'var(--text)' }}>
-                {item.label}
-              </span>
+              {!item.checked && item.hint && (
+                <span style={{ fontSize: 11, color: '#ef4444', marginLeft: 30 }}>
+                  {item.hint}
+                </span>
+              )}
             </div>
           ))}
         </div>

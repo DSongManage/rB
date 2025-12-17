@@ -50,7 +50,6 @@ export function NotificationBell() {
             transformOrigin: 'top center',
           }}
         />
-        <span>Notifications</span>
         {unreadCount > 0 && (
           <span
             style={{

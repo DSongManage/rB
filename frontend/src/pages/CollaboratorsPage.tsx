@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StatusEditForm from '../components/StatusEditForm';
 import InviteModal from '../components/InviteModal';
 import { MapPin, Briefcase, Award, TrendingUp } from 'lucide-react';
 
 export default function CollaboratorsPage() {
+  const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [role, setRole] = useState('');
   const [genre, setGenre] = useState('');
@@ -90,6 +92,7 @@ export default function CollaboratorsPage() {
           return (
             <div
               key={p.id}
+              onClick={() => navigate(`/profile/${p.username}`)}
               style={{
                 background:'#1e293b',
                 borderRadius:16,
@@ -281,7 +284,8 @@ export default function CollaboratorsPage() {
 
                 {/* Action Button */}
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSelectedRecipient(p);
                     setInviteModalOpen(true);
                   }}

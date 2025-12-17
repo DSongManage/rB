@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 import { Web3Auth } from '@web3auth/modal';
 import { CHAIN_NAMESPACES } from '@web3auth/base';
@@ -11,6 +11,20 @@ import { WalletManagementPanel } from '../components/WalletManagementPanel';
 import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
 import { collaborationApi, CollaborativeProject, CollaboratorRole } from '../services/collaborationApi';
 import { API_URL } from '../config';
+import { Eye, Plus, Trash2, ExternalLink, GripVertical, Edit2, Settings } from 'lucide-react';
+
+interface ExternalPortfolioItem {
+  id: number;
+  title: string;
+  description: string;
+  image: string | null;
+  image_url: string | null;
+  external_url: string;
+  project_type: string;
+  role: string;
+  created_date: string | null;
+  order: number;
+}
 
 type UserStatus = { user_id: number; username: string; wallet_address?: string } | null;
 type UserProfile = {
@@ -48,6 +62,12 @@ export default function ProfilePage() {
   const [pendingInvites, setPendingInvites] = useState<{ project: CollaborativeProject; invite: CollaboratorRole }[]>([]);
   const [selectedInviteProjectId, setSelectedInviteProjectId] = useState<number | null>(null);
 
+  // External portfolio state
+  const [externalPortfolio, setExternalPortfolio] = useState<ExternalPortfolioItem[]>([]);
+  const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
+  const [editingPortfolioItem, setEditingPortfolioItem] = useState<ExternalPortfolioItem | null>(null);
+  const [activeTab, setActiveTab] = useState<'content' | 'collaborations' | 'portfolio' | 'analytics'>('content');
+
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json());
     setUser(d);
@@ -66,6 +86,66 @@ export default function ProfilePage() {
     } catch (err) {
       console.error('Failed to load pending invites:', err);
       setPendingInvites([]);
+    }
+  }
+
+  async function loadExternalPortfolio() {
+    try {
+      const res = await fetch(`${API_URL}/api/portfolio/`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setExternalPortfolio(data);
+      }
+    } catch (err) {
+      console.error('Failed to load external portfolio:', err);
+    }
+  }
+
+  async function deletePortfolioItem(id: number) {
+    const token = csrf || await refreshCsrf();
+    try {
+      const res = await fetch(`${API_URL}/api/portfolio/${id}/`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': token, 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setExternalPortfolio(prev => prev.filter(item => item.id !== id));
+        setStatus('Portfolio item deleted');
+      }
+    } catch (err) {
+      console.error('Failed to delete portfolio item:', err);
+      setStatus('Failed to delete item');
+    }
+  }
+
+  async function savePortfolioItem(item: Partial<ExternalPortfolioItem>) {
+    const token = csrf || await refreshCsrf();
+    const isEdit = !!editingPortfolioItem;
+    const url = isEdit
+      ? `${API_URL}/api/portfolio/${editingPortfolioItem!.id}/`
+      : `${API_URL}/api/portfolio/`;
+
+    try {
+      const res = await fetch(url, {
+        method: isEdit ? 'PATCH' : 'POST',
+        headers: {
+          'X-CSRFToken': token,
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(item)
+      });
+      if (res.ok) {
+        await loadExternalPortfolio();
+        setPortfolioModalOpen(false);
+        setEditingPortfolioItem(null);
+        setStatus(isEdit ? 'Portfolio item updated' : 'Portfolio item added');
+      }
+    } catch (err) {
+      console.error('Failed to save portfolio item:', err);
+      setStatus('Failed to save item');
     }
   }
 
@@ -101,8 +181,9 @@ export default function ProfilePage() {
         setDash(dashData);
         setNotifications(notifData);
 
-        // Also load pending collaboration invites
+        // Also load pending collaboration invites and external portfolio
         loadPendingInvites();
+        loadExternalPortfolio();
       })
       .catch((err) => {
         if (err.name !== 'AbortError') {
@@ -240,7 +321,7 @@ export default function ProfilePage() {
   return (
     <div className="page" style={{maxWidth: 1100, margin: '0 auto'}}>
       {/* Profile Banner - Click to upload */}
-      <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16, marginBottom:16, display:'grid', gridTemplateColumns:'72px 1fr', gap:16, alignItems:'center', backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : undefined, backgroundSize:'cover', backgroundPosition:'center', cursor:(profile? 'pointer':'default')}} onClick={onBannerClick}>
+      <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16, marginBottom:16, display:'grid', gridTemplateColumns:'72px 1fr auto', gap:16, alignItems:'center', backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : undefined, backgroundSize:'cover', backgroundPosition:'center', cursor:(profile? 'pointer':'default'), position:'relative'}} onClick={onBannerClick}>
         <div onClick={(e)=>{ e.stopPropagation(); onAvatarClick(); }} style={{width:56, height:56, borderRadius:12, background:'#111', overflow:'hidden', display:'grid', placeItems:'center', color:'var(--accent)', fontWeight:700, cursor:'pointer'}} title="Click to upload avatar">
           {(profile?.avatar || profile?.avatar_url) ? (<img src={(profile?.avatar || profile?.avatar_url) as string} alt="avatar" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e) => { if (profile) { profile.avatar = undefined; profile.avatar_url = undefined; } e.currentTarget.style.display = 'none'; }} />) : ((user?.username||'?').slice(0,1).toUpperCase())}
         </div>
@@ -285,6 +366,48 @@ export default function ProfilePage() {
               );
             })()}
           </div>
+        </div>
+        {/* View Public Profile Button */}
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+          <Link
+            to={`/profile/${profile?.username || user?.username}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'rgba(245,158,11,0.15)',
+              color: '#f59e0b',
+              border: '1px solid rgba(245,158,11,0.3)',
+              padding: '8px 14px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: 'none',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Eye size={16} />
+            View Public Profile
+          </Link>
+          <button
+            onClick={(e) => { e.stopPropagation(); /* Could open settings modal */ }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'transparent',
+              color: '#94a3b8',
+              border: '1px solid #334155',
+              padding: '8px 14px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer'
+            }}
+          >
+            <Settings size={16} />
+            Settings
+          </button>
         </div>
       </div>
       {/* Hidden file inputs for avatar/banner */}
@@ -418,61 +541,256 @@ export default function ProfilePage() {
           <div style={{marginTop:8, fontSize:12, color:'#94a3b8'}}>{status}</div>
         </div>
         <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>
-          <div style={{fontWeight:600, color:'#e5e7eb', marginBottom:12}}>Inventory (Minted)</div>
-          <div style={{display:'flex', flexDirection:'column', gap:12}}>
-            {inventory.map((it)=> (
-              <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'100px 1fr auto', gap:16, alignItems:'center', padding:12}}>
-                <div style={{width:100, height:133, background:'#111', borderRadius:8, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'1px solid var(--panel-border)'}} onClick={()=> openPreview(it.id)}>
-                  <img
-                    src={it.teaser_link}
-                    alt="cover"
-                    style={{width:'100%', height:'100%', objectFit:'cover'}}
-                    onError={(e)=>{
-                      const img = e.currentTarget;
-                      const parent = img.parentElement;
-                      if (img && parent) {
-                        img.style.display='none';
-                        parent.textContent='No Cover';
-                        parent.style.fontSize='11px';
-                        parent.style.color='#666';
-                      }
-                    }}
-                  />
-                </div>
-                <div style={{minWidth: 0, cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
-                  <div className="card-title" style={{fontSize:16, marginBottom:4}}>{it.title}</div>
-                  <div className="yt-meta" style={{marginBottom:4}}>Type: {it.content_type} • Genre: {it.genre}</div>
-                  <div className="yt-meta" style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize:11}}>
-                    Contract: {it.nft_contract ? `${it.nft_contract.slice(0, 8)}...${it.nft_contract.slice(-6)}` : '-'}
-                  </div>
-                </div>
-                {it.content_type === 'book' && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/studio?editContent=${it.id}`);
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                      border: 'none',
-                      borderRadius: 6,
-                      padding: '8px 16px',
-                      color: '#fff',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Edit Book
-                  </button>
-                )}
-              </div>
+          {/* Tabbed Interface */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #334155', paddingBottom: 12 }}>
+            {[
+              { key: 'content', label: 'My Content', count: inventory.length },
+              { key: 'collaborations', label: 'Collaborations', count: 0 },
+              { key: 'portfolio', label: 'External Portfolio', count: externalPortfolio.length },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                style={{
+                  background: activeTab === tab.key ? 'rgba(245,158,11,0.15)' : 'transparent',
+                  color: activeTab === tab.key ? '#f59e0b' : '#94a3b8',
+                  border: activeTab === tab.key ? '1px solid rgba(245,158,11,0.3)' : '1px solid transparent',
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {tab.label}
+                <span style={{
+                  background: activeTab === tab.key ? '#f59e0b' : '#475569',
+                  color: activeTab === tab.key ? '#000' : '#e5e7eb',
+                  fontSize: 11,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  fontWeight: 700
+                }}>
+                  {tab.count}
+                </span>
+              </button>
             ))}
-            {inventory.length === 0 && (
-              <div style={{fontSize:12, color:'#94a3b8', textAlign:'center', padding:20}}>Nothing minted yet</div>
-            )}
           </div>
+
+          {/* My Content Tab */}
+          {activeTab === 'content' && (
+            <div style={{display:'flex', flexDirection:'column', gap:12}}>
+              {inventory.map((it)=> (
+                <div key={it.id} className="card" style={{display:'grid', gridTemplateColumns:'100px 1fr auto', gap:16, alignItems:'center', padding:12}}>
+                  <div style={{width:100, height:133, background:'#111', borderRadius:8, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'1px solid var(--panel-border)'}} onClick={()=> openPreview(it.id)}>
+                    <img
+                      src={it.teaser_link}
+                      alt="cover"
+                      style={{width:'100%', height:'100%', objectFit:'cover'}}
+                      onError={(e)=>{
+                        const img = e.currentTarget;
+                        const parent = img.parentElement;
+                        if (img && parent) {
+                          img.style.display='none';
+                          parent.textContent='No Cover';
+                          parent.style.fontSize='11px';
+                          parent.style.color='#666';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div style={{minWidth: 0, cursor:'pointer'}} onClick={()=> openPreview(it.id)}>
+                    <div className="card-title" style={{fontSize:16, marginBottom:4}}>{it.title}</div>
+                    <div className="yt-meta" style={{marginBottom:4}}>Type: {it.content_type} • Genre: {it.genre}</div>
+                    <div className="yt-meta" style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize:11}}>
+                      Contract: {it.nft_contract ? `${it.nft_contract.slice(0, 8)}...${it.nft_contract.slice(-6)}` : '-'}
+                    </div>
+                  </div>
+                  {it.content_type === 'book' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/studio?editContent=${it.id}`);
+                      }}
+                      style={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '8px 16px',
+                        color: '#fff',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Edit Book
+                    </button>
+                  )}
+                </div>
+              ))}
+              {inventory.length === 0 && (
+                <div style={{fontSize:12, color:'#94a3b8', textAlign:'center', padding:20}}>Nothing minted yet</div>
+              )}
+            </div>
+          )}
+
+          {/* Collaborations Tab */}
+          {activeTab === 'collaborations' && (
+            <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+              <p style={{ marginBottom: 16 }}>View and manage your collaborations</p>
+              <Link
+                to="/collaborations"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: '#f59e0b',
+                  color: '#000',
+                  padding: '10px 20px',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  textDecoration: 'none'
+                }}
+              >
+                Go to Collaborations Dashboard
+              </Link>
+            </div>
+          )}
+
+          {/* External Portfolio Tab */}
+          {activeTab === 'portfolio' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <p style={{ color: '#94a3b8', fontSize: 13, margin: 0 }}>
+                  Showcase your past work and external projects
+                </p>
+                <button
+                  onClick={() => { setEditingPortfolioItem(null); setPortfolioModalOpen(true); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#f59e0b',
+                    color: '#000',
+                    border: 'none',
+                    padding: '8px 14px',
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Plus size={16} />
+                  Add Project
+                </button>
+              </div>
+              {externalPortfolio.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>
+                  <p style={{ marginBottom: 8 }}>No external portfolio items yet</p>
+                  <p style={{ fontSize: 13 }}>Add your past work to showcase on your public profile</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {externalPortfolio.map(item => (
+                    <div key={item.id} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '80px 1fr auto',
+                      gap: 16,
+                      alignItems: 'center',
+                      padding: 12,
+                      background: '#1e293b',
+                      borderRadius: 8,
+                      border: '1px solid #334155'
+                    }}>
+                      <div style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 8,
+                        background: item.image_url ? `url(${item.image_url}) center/cover` : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: 24
+                      }}>
+                        {!item.image_url && item.project_type?.charAt(0).toUpperCase()}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ color: '#f1f5f9', fontWeight: 600, marginBottom: 4 }}>{item.title}</div>
+                        {item.role && <div style={{ color: '#f59e0b', fontSize: 13, marginBottom: 4 }}>{item.role}</div>}
+                        {item.description && (
+                          <div style={{ color: '#94a3b8', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.description}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {item.external_url && (
+                          <a
+                            href={item.external_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 36,
+                              height: 36,
+                              borderRadius: 6,
+                              background: 'rgba(59,130,246,0.15)',
+                              color: '#60a5fa',
+                              border: 'none'
+                            }}
+                          >
+                            <ExternalLink size={16} />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => { setEditingPortfolioItem(item); setPortfolioModalOpen(true); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 36,
+                            height: 36,
+                            borderRadius: 6,
+                            background: 'rgba(245,158,11,0.15)',
+                            color: '#f59e0b',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => deletePortfolioItem(item.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 36,
+                            height: 36,
+                            borderRadius: 6,
+                            background: 'rgba(239,68,68,0.15)',
+                            color: '#ef4444',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {showPreview && previewItem && (
           <PreviewModal
@@ -486,6 +804,15 @@ export default function ProfilePage() {
           />
         )}
       </div>
+
+      {/* External Portfolio Add/Edit Modal */}
+      {portfolioModalOpen && (
+        <PortfolioItemModal
+          item={editingPortfolioItem}
+          onClose={() => { setPortfolioModalOpen(false); setEditingPortfolioItem(null); }}
+          onSave={savePortfolioItem}
+        />
+      )}
     </div>
   );
 }
@@ -495,6 +822,232 @@ function StatCard({label, value}:{label:string; value:string}) {
     <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:12}}>
       <div style={{fontSize:12, color:'#9ca3af'}}>{label}</div>
       <div style={{fontSize:18, fontWeight:700, color:'var(--text)', marginTop:4}}>{value}</div>
+    </div>
+  );
+}
+
+function PortfolioItemModal({
+  item,
+  onClose,
+  onSave
+}: {
+  item: ExternalPortfolioItem | null;
+  onClose: () => void;
+  onSave: (item: Partial<ExternalPortfolioItem>) => void;
+}) {
+  const [title, setTitle] = useState(item?.title || '');
+  const [description, setDescription] = useState(item?.description || '');
+  const [externalUrl, setExternalUrl] = useState(item?.external_url || '');
+  const [projectType, setProjectType] = useState(item?.project_type || 'book');
+  const [role, setRole] = useState(item?.role || '');
+  const [createdDate, setCreatedDate] = useState(item?.created_date || '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      title,
+      description,
+      external_url: externalUrl,
+      project_type: projectType,
+      role,
+      created_date: createdDate || null
+    });
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.7)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: '#1e293b',
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 500,
+        maxHeight: '90vh',
+        overflow: 'auto',
+        border: '1px solid #334155'
+      }}>
+        <h2 style={{ color: '#f1f5f9', fontSize: 20, fontWeight: 700, margin: '0 0 20px' }}>
+          {item ? 'Edit Portfolio Item' : 'Add Portfolio Item'}
+        </h2>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+              Title *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: '#f1f5f9',
+                fontSize: 14
+              }}
+              placeholder="Project title"
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+              Project Type
+            </label>
+            <select
+              value={projectType}
+              onChange={e => setProjectType(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: '#f1f5f9',
+                fontSize: 14
+              }}
+            >
+              <option value="book">Book</option>
+              <option value="art">Art</option>
+              <option value="music">Music</option>
+              <option value="video">Video</option>
+              <option value="film">Film</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+              Your Role
+            </label>
+            <input
+              type="text"
+              value={role}
+              onChange={e => setRole(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: '#f1f5f9',
+                fontSize: 14
+              }}
+              placeholder="e.g., Author, Illustrator, Producer"
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+              Description
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: '#f1f5f9',
+                fontSize: 14,
+                resize: 'vertical'
+              }}
+              placeholder="Brief description of the project"
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+              External URL
+            </label>
+            <input
+              type="url"
+              value={externalUrl}
+              onChange={e => setExternalUrl(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: '#f1f5f9',
+                fontSize: 14
+              }}
+              placeholder="https://..."
+            />
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+              Date (optional)
+            </label>
+            <input
+              type="date"
+              value={createdDate}
+              onChange={e => setCreatedDate(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 12px',
+                color: '#f1f5f9',
+                fontSize: 14
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                color: '#94a3b8',
+                border: '1px solid #334155',
+                padding: '12px 20px',
+                borderRadius: 8,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{
+                flex: 1,
+                background: '#f59e0b',
+                color: '#000',
+                border: 'none',
+                padding: '12px 20px',
+                borderRadius: 8,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {item ? 'Save Changes' : 'Add Project'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

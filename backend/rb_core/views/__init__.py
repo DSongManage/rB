@@ -3,8 +3,8 @@ from django.http import HttpResponse
 from django.db import models
 import logging
 from rest_framework import generics
-from rest_framework.parsers import MultiPartParser, FormParser
-from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask
 from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer
 from ..utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from ..utils.ipfs_utils import upload_to_ipfs
@@ -68,6 +68,7 @@ class AuthStatusView(APIView):
         user_data = None
 
         if is_authed:
+            prof = None
             try:
                 core_user = CoreUser.objects.get(username=request.user.username)
                 wallet = core_user.wallet_address
@@ -83,11 +84,19 @@ class AuthStatusView(APIView):
                 display_name = request.user.username
 
             # Build user object for frontend
+            avatar_url = None
+            try:
+                if prof:
+                    avatar_url = prof.resolved_avatar_url
+            except Exception:
+                pass
+
             user_data = {
                 'id': request.user.id,
                 'username': request.user.username,
                 'email': getattr(request.user, 'email', ''),
                 'display_name': display_name,
+                'avatar_url': avatar_url,
             }
 
         return Response({
@@ -358,6 +367,8 @@ class InviteView(APIView):
         collaborator_ids = request.data.get('collaborators', [])
         attachments = request.data.get('attachments', '').strip()  # IPFS CID
         content_id = request.data.get('content_id')  # Optional
+        collaborator_role = request.data.get('role', 'collaborator')  # Role name
+        tasks_data = request.data.get('tasks', [])  # Contract tasks
         
         # Sanitize message (prevent XSS in stored invites)
         soup = BeautifulSoup(message, 'html.parser')
@@ -441,10 +452,10 @@ class InviteView(APIView):
             for collaborator in collaborators:
                 # Create CollaboratorRole with 'invited' status
                 # collaborator is already a Django User object from AuthUser.objects.filter()
-                CollaboratorRole.objects.create(
+                collab_role = CollaboratorRole.objects.create(
                     project=project,
                     user=collaborator,  # Django User, not UserProfile
-                    role='collaborator',
+                    role=collaborator_role,  # Use provided role name
                     status='invited',  # THIS IS THE KEY - status must be 'invited'
                     revenue_percentage=per_collaborator_equity,
                     can_edit_text=True,
@@ -452,6 +463,27 @@ class InviteView(APIView):
                     can_edit_audio=False,
                     can_edit_video=False,
                 )
+
+                # Create contract tasks if provided
+                if tasks_data:
+                    from dateutil.parser import parse as parse_datetime
+                    for i, task_data in enumerate(tasks_data):
+                        try:
+                            deadline = parse_datetime(task_data.get('deadline'))
+                            ContractTask.objects.create(
+                                collaborator_role=collab_role,
+                                title=task_data.get('title', '')[:200],
+                                description=task_data.get('description', ''),
+                                deadline=deadline,
+                                status='pending',  # Will become 'in_progress' on acceptance
+                                order=i,
+                            )
+                        except Exception as task_err:
+                            logger.warning(f"[Invite] Failed to create task: {task_err}")
+
+                    # Update task count
+                    collab_role.tasks_total = len(tasks_data)
+                    collab_role.save(update_fields=['tasks_total'])
 
                 # Send notification via new system
                 # notify_collaboration_invitation expects Django User objects
@@ -1424,6 +1456,172 @@ class ProfileStatusView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(UserProfileSerializer(profile, context={'request': request}).data)
+
+
+class PublicProfileView(APIView):
+    """Public profile view - no authentication required.
+
+    Returns comprehensive profile data for any user by username.
+    """
+
+    def get(self, request, username):
+        from ..models import Content, ExternalPortfolioItem, CollaboratorRating
+        from ..serializers import PublicProfileSerializer
+
+        # Find the user profile
+        try:
+            profile = UserProfile.objects.select_related('user').get(username=username)
+        except UserProfile.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        user = profile.user
+
+        # Get platform works (minted content by this user)
+        platform_works = Content.objects.filter(
+            creator=user,
+            inventory_status='minted'
+        ).order_by('-created_at')[:20]
+
+        # Get external portfolio items
+        external_portfolio = ExternalPortfolioItem.objects.filter(
+            user=user
+        ).order_by('order', '-created_at')
+
+        # Get collaboration history - only show minted (completed) collaborations
+        # Exclude placeholder invite titles for a cleaner public profile
+        collaborations = CollaborativeProject.objects.filter(
+            collaborators__user=user,
+            collaborators__status='accepted',
+            status='minted'  # Only show completed collaborations
+        ).exclude(
+            title__startswith='Collaboration Invite'  # Filter out placeholder titles
+        ).distinct().order_by('-created_at')[:10]
+
+        # Count successful (minted) collaborations
+        successful_collabs_count = CollaborativeProject.objects.filter(
+            collaborators__user=user,
+            collaborators__status='accepted',
+            status='minted'
+        ).distinct().count()
+
+        # Get testimonials (public feedback from ratings)
+        testimonials = CollaboratorRating.objects.filter(
+            rated_user=user
+        ).exclude(
+            public_feedback=''
+        ).select_related('rater', 'project').order_by('-created_at')[:10]
+
+        # Prepare data for serializer
+        data = {
+            'profile': profile,
+            'user': user,
+            'platform_works': platform_works,
+            'external_portfolio': external_portfolio,
+            'collaborations': collaborations,
+            'testimonials': testimonials,
+            'successful_collabs_count': successful_collabs_count,
+        }
+
+        serializer = PublicProfileSerializer(data, context={'request': request})
+        return Response(serializer.data)
+
+
+class ExternalPortfolioListCreateView(APIView):
+    """List and create external portfolio items for authenticated user."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get(self, request):
+        from ..models import ExternalPortfolioItem
+        from ..serializers import ExternalPortfolioItemSerializer
+
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        items = ExternalPortfolioItem.objects.filter(user=core_user).order_by('order', '-created_at')
+        serializer = ExternalPortfolioItemSerializer(items, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def post(self, request):
+        from ..models import ExternalPortfolioItem
+        from ..serializers import ExternalPortfolioItemSerializer
+
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+
+        # Get max order for this user
+        max_order = ExternalPortfolioItem.objects.filter(user=core_user).aggregate(
+            max_order=models.Max('order')
+        )['max_order'] or 0
+
+        serializer = ExternalPortfolioItemSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=core_user, order=max_order + 1)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ExternalPortfolioDetailView(APIView):
+    """Update or delete a specific external portfolio item."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_object(self, pk, user):
+        from ..models import ExternalPortfolioItem
+        core_user, _ = CoreUser.objects.get_or_create(username=user.username)
+        try:
+            return ExternalPortfolioItem.objects.get(pk=pk, user=core_user)
+        except ExternalPortfolioItem.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        from ..serializers import ExternalPortfolioItemSerializer
+
+        item = self.get_object(pk, request.user)
+        if not item:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = ExternalPortfolioItemSerializer(item, context={'request': request})
+        return Response(serializer.data)
+
+    def patch(self, request, pk):
+        from ..serializers import ExternalPortfolioItemSerializer
+
+        item = self.get_object(pk, request.user)
+        if not item:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = ExternalPortfolioItemSerializer(item, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        item = self.get_object(pk, request.user)
+        if not item:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        item.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ExternalPortfolioReorderView(APIView):
+    """Reorder external portfolio items."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from ..models import ExternalPortfolioItem
+
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        item_ids = request.data.get('item_ids', [])
+
+        if not item_ids:
+            return Response({'error': 'item_ids required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update order for each item
+        for index, item_id in enumerate(item_ids):
+            ExternalPortfolioItem.objects.filter(
+                pk=item_id,
+                user=core_user
+            ).update(order=index)
+
+        return Response({'success': True})
 
 
 # Book Project and Chapter Views

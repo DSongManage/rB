@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
 
+// Types for contract tasks
+interface ContractTask {
+  id: string;
+  title: string;
+  description: string;
+  deadline: string;
+}
+
 type InviteModalProps = {
   open: boolean;
   onClose: () => void;
@@ -13,6 +21,9 @@ type InviteModalProps = {
     roles?: string[];
     genres?: string[];
   };
+  // Optional: If provided, this is a project-specific invite
+  projectId?: number;
+  projectTitle?: string;
 };
 
 const DEFAULT_PITCH = `Hi! I'd love to collaborate with you on an upcoming project.
@@ -23,21 +34,36 @@ const DEFAULT_PITCH = `Hi! I'd love to collaborate with you on an upcoming proje
 **Your Role:**
 [What you'd like them to contribute]
 
-**Timeline:**
-[Expected timeline]
-
-**Compensation:**
-[Revenue split details below]
-
 Looking forward to creating something amazing together!`;
 
-export default function InviteModal({ open, onClose, recipient }: InviteModalProps) {
+// Generate unique ID for tasks
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// Format date for input
+const getDefaultDeadline = (daysFromNow: number = 14) => {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  return date.toISOString().slice(0, 16);
+};
+
+export default function InviteModal({ open, onClose, recipient, projectId, projectTitle }: InviteModalProps) {
   const [message, setMessage] = useState(DEFAULT_PITCH);
   const [equityPercent, setEquityPercent] = useState(50);
+  const [role, setRole] = useState('');
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Contract tasks
+  const [tasks, setTasks] = useState<ContractTask[]>([]);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+
+  // Permissions
+  const [canEditText, setCanEditText] = useState(true);
+  const [canEditImages, setCanEditImages] = useState(true);
+  const [canEditAudio, setCanEditAudio] = useState(false);
+  const [canEditVideo, setCanEditVideo] = useState(false);
 
   if (!open) return null;
 
@@ -58,47 +84,134 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
     }
   }
 
+  const addTask = () => {
+    setTasks([...tasks, {
+      id: generateId(),
+      title: '',
+      description: '',
+      deadline: getDefaultDeadline(),
+    }]);
+    setShowTaskForm(true);
+  };
+
+  const updateTask = (id: string, field: keyof ContractTask, value: string) => {
+    setTasks(tasks.map(t => t.id === id ? { ...t, [field]: value } : t));
+  };
+
+  const removeTask = (id: string) => {
+    setTasks(tasks.filter(t => t.id !== id));
+  };
+
   const handleSend = async () => {
     setSuccessMsg('');
     setErrorMsg('');
+
+    // Validate tasks have required fields
+    for (const task of tasks) {
+      if (!task.title.trim()) {
+        setErrorMsg('All tasks must have a title');
+        return;
+      }
+      if (!task.deadline) {
+        setErrorMsg('All tasks must have a deadline');
+        return;
+      }
+    }
+
     setSending(true);
 
     try {
       const csrf = await fetchCsrf();
-      const res = await fetch('/api/invite/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          message,
-          equity_percent: equityPercent,
-          collaborators: [recipient.id],
-          attachments: '', // TODO: Add IPFS upload for files
-        }),
-      });
 
-      if (res.ok) {
-        const data = await res.json();
-        setSuccessMsg(`✅ Invite sent to @${recipient.username}!`);
-        setTimeout(() => {
-          onClose();
-          setMessage(DEFAULT_PITCH);
-          setEquityPercent(50);
-          setSuccessMsg('');
-        }, 2000);
+      // If we have a projectId, use the new collaborative invite endpoint
+      if (projectId) {
+        const res = await fetch(`/api/collaborative-projects/${projectId}/invite_collaborator/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            user_id: recipient.id,
+            role: role || 'Collaborator',
+            revenue_percentage: equityPercent,
+            can_edit_text: canEditText,
+            can_edit_images: canEditImages,
+            can_edit_audio: canEditAudio,
+            can_edit_video: canEditVideo,
+            tasks: tasks.map(t => ({
+              title: t.title,
+              description: t.description,
+              deadline: new Date(t.deadline).toISOString(),
+            })),
+          }),
+        });
+
+        if (res.ok) {
+          setSuccessMsg(`Invite sent to @${recipient.username}!`);
+          setTimeout(() => {
+            onClose();
+            resetForm();
+          }, 2000);
+        } else {
+          const error = await res.json();
+          setErrorMsg(error.error || 'Failed to send invite');
+        }
       } else {
-        const error = await res.text();
-        setErrorMsg(`Failed to send invite: ${error}`);
+        // Use the old general invite endpoint (enhanced with tasks support)
+        const res = await fetch('/api/invite/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            message,
+            equity_percent: equityPercent,
+            collaborators: [recipient.id],
+            attachments: '',
+            role: role || 'Collaborator',
+            tasks: tasks.map(t => ({
+              title: t.title,
+              description: t.description,
+              deadline: new Date(t.deadline).toISOString(),
+            })),
+          }),
+        });
+
+        if (res.ok) {
+          setSuccessMsg(`Invite sent to @${recipient.username}!`);
+          setTimeout(() => {
+            onClose();
+            resetForm();
+          }, 2000);
+        } else {
+          const error = await res.text();
+          setErrorMsg(`Failed to send invite: ${error}`);
+        }
       }
     } catch (err: any) {
       setErrorMsg(`Error: ${err.message || 'Unknown error'}`);
     } finally {
       setSending(false);
     }
+  };
+
+  const resetForm = () => {
+    setMessage(DEFAULT_PITCH);
+    setEquityPercent(50);
+    setRole('');
+    setTasks([]);
+    setSuccessMsg('');
+    setErrorMsg('');
+    setCanEditText(true);
+    setCanEditImages(true);
+    setCanEditAudio(false);
+    setCanEditVideo(false);
   };
 
   return (
@@ -119,7 +232,7 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
         border: '1px solid #334155',
         borderRadius: 16,
         width: '100%',
-        maxWidth: 900,
+        maxWidth: 1000,
         maxHeight: '90vh',
         overflow: 'auto',
         boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
@@ -170,8 +283,13 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
             {recipient.display_name && (
               <div style={{ color: '#cbd5e1', fontSize: 14, marginBottom: 8 }}>{recipient.display_name}</div>
             )}
+            {projectTitle && (
+              <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 600 }}>
+                Inviting to: {projectTitle}
+              </div>
+            )}
             {/* Capabilities badges */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
               {recipient.roles?.map((r, i) => (
                 <span key={`r-${i}`} style={{
                   background: 'rgba(245,158,11,0.15)',
@@ -218,6 +336,29 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
 
         {/* Form */}
         <div style={{ padding: 24, display: 'grid', gap: 20 }}>
+          {/* Role */}
+          <div>
+            <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              Their Role
+            </label>
+            <input
+              type="text"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              placeholder="e.g., Illustrator, Co-Author, Editor..."
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: '1px solid #334155',
+                borderRadius: 8,
+                padding: 12,
+                color: '#f8fafc',
+                fontSize: 14,
+              }}
+            />
+          </div>
+
+          {/* Project Pitch */}
           <div>
             <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
               Project Pitch
@@ -228,7 +369,7 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
               placeholder="Describe your project and what you're looking for..."
               style={{
                 width: '100%',
-                minHeight: 200,
+                minHeight: 150,
                 background: '#1e293b',
                 border: '1px solid #334155',
                 borderRadius: 8,
@@ -243,6 +384,200 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
               {message.length}/1000 characters
             </div>
           </div>
+
+          {/* Contract Tasks Section */}
+          <div style={{
+            background: '#1e293b',
+            border: '1px solid #334155',
+            borderRadius: 12,
+            padding: 20,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 600 }}>
+                  Contract Tasks
+                </div>
+                <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
+                  Define specific deliverables with deadlines. These become binding after acceptance.
+                </div>
+              </div>
+              <button
+                onClick={addTask}
+                style={{
+                  background: 'rgba(245,158,11,0.15)',
+                  border: '1px solid #f59e0b',
+                  color: '#f59e0b',
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                + Add Task
+              </button>
+            </div>
+
+            {tasks.length === 0 ? (
+              <div style={{
+                padding: 24,
+                textAlign: 'center',
+                color: '#64748b',
+                fontSize: 13,
+                border: '1px dashed #334155',
+                borderRadius: 8,
+              }}>
+                No tasks defined yet. Add tasks to create a concrete contract.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {tasks.map((task, index) => (
+                  <div key={task.id} style={{
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: 8,
+                    padding: 16,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ flex: 1, display: 'grid', gap: 12 }}>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                          <div style={{ flex: 2 }}>
+                            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                              Task {index + 1}: Title *
+                            </label>
+                            <input
+                              type="text"
+                              value={task.title}
+                              onChange={(e) => updateTask(task.id, 'title', e.target.value)}
+                              placeholder="e.g., Character designs for Chapter 1"
+                              style={{
+                                width: '100%',
+                                background: '#1e293b',
+                                border: '1px solid #334155',
+                                borderRadius: 6,
+                                padding: 10,
+                                color: '#f8fafc',
+                                fontSize: 13,
+                              }}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                              Deadline *
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={task.deadline}
+                              onChange={(e) => updateTask(task.id, 'deadline', e.target.value)}
+                              style={{
+                                width: '100%',
+                                background: '#1e293b',
+                                border: '1px solid #334155',
+                                borderRadius: 6,
+                                padding: 10,
+                                color: '#f8fafc',
+                                fontSize: 13,
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                            Description (optional)
+                          </label>
+                          <textarea
+                            value={task.description}
+                            onChange={(e) => updateTask(task.id, 'description', e.target.value)}
+                            placeholder="Detailed requirements, expectations, or notes..."
+                            rows={2}
+                            style={{
+                              width: '100%',
+                              background: '#1e293b',
+                              border: '1px solid #334155',
+                              borderRadius: 6,
+                              padding: 10,
+                              color: '#f8fafc',
+                              fontSize: 13,
+                              fontFamily: 'inherit',
+                              resize: 'vertical',
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeTask(task.id)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#ef4444',
+                          fontSize: 18,
+                          cursor: 'pointer',
+                          padding: 4,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tasks.length > 0 && (
+              <div style={{
+                marginTop: 16,
+                padding: 12,
+                background: 'rgba(245,158,11,0.1)',
+                borderRadius: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}>
+                <span style={{ fontSize: 16 }}>⚠️</span>
+                <span style={{ color: '#f59e0b', fontSize: 12 }}>
+                  Tasks become immutable after the collaborator accepts. Changes require mutual agreement.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Permissions */}
+          {projectId && (
+            <div>
+              <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                Editing Permissions
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                {[
+                  { key: 'text', label: 'Text', value: canEditText, setter: setCanEditText },
+                  { key: 'images', label: 'Images', value: canEditImages, setter: setCanEditImages },
+                  { key: 'audio', label: 'Audio', value: canEditAudio, setter: setCanEditAudio },
+                  { key: 'video', label: 'Video', value: canEditVideo, setter: setCanEditVideo },
+                ].map(perm => (
+                  <label key={perm.key} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 16px',
+                    background: perm.value ? 'rgba(16,185,129,0.15)' : '#1e293b',
+                    border: `1px solid ${perm.value ? '#10b981' : '#334155'}`,
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={perm.value}
+                      onChange={(e) => perm.setter(e.target.checked)}
+                      style={{ accentColor: '#10b981' }}
+                    />
+                    <span style={{ color: perm.value ? '#10b981' : '#94a3b8', fontSize: 13 }}>
+                      {perm.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Equity Slider */}
           <div>
@@ -277,6 +612,33 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
             <div style={{ color: '#cbd5e1', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
               {message || '(Your pitch will appear here)'}
             </div>
+
+            {/* Tasks Preview */}
+            {tasks.length > 0 && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
+                <div style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600, marginBottom: 8 }}>
+                  Contract Tasks ({tasks.length})
+                </div>
+                {tasks.map((task, i) => (
+                  <div key={task.id} style={{
+                    padding: 10,
+                    background: '#0f172a',
+                    borderRadius: 6,
+                    marginBottom: 8,
+                    borderLeft: '3px solid #f59e0b',
+                  }}>
+                    <div style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600 }}>{task.title || '(Untitled)'}</div>
+                    {task.description && (
+                      <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>{task.description}</div>
+                    )}
+                    <div style={{ color: '#f59e0b', fontSize: 11, marginTop: 6 }}>
+                      Due: {task.deadline ? new Date(task.deadline).toLocaleDateString() : '(No deadline)'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
               <div style={{ fontSize: 12, color: '#94a3b8' }}>Revenue Split</div>
               <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
@@ -374,4 +736,3 @@ export default function InviteModal({ open, onClose, recipient }: InviteModalPro
     </div>
   );
 }
-

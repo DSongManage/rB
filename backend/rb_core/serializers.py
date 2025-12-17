@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification,
-    BetaInvite
+    BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -49,7 +49,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'display_name', 'wallet_address',
             'avatar', 'banner', 'avatar_url', 'banner_url',
-            'location', 'roles', 'genres', 'is_private', 'status',
+            'location', 'roles', 'genres', 'bio', 'skills', 'social_links',
+            'is_private', 'status',
             'content_count', 'total_sales_usd', 'tier', 'fee_bps'
         ]
         read_only_fields = ['username', 'avatar', 'banner', 'content_count', 'total_sales_usd', 'tier', 'fee_bps']
@@ -225,7 +226,8 @@ class SignupSerializer(serializers.Serializer):
 class ProfileEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['display_name', 'avatar_url', 'banner_url', 'location', 'roles', 'genres', 'is_private', 'status']
+        fields = ['display_name', 'avatar_url', 'banner_url', 'location', 'roles', 'genres',
+                  'bio', 'skills', 'social_links', 'is_private', 'status']
 
 class ProfileStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -313,11 +315,84 @@ class ReadingProgressSerializer(serializers.ModelSerializer):
         return value
 
 
+class ContractTaskSerializer(serializers.ModelSerializer):
+    """Serializer for contract tasks within collaboration agreements.
+
+    Handles the full task lifecycle: pending → in_progress → complete → signed_off
+    """
+    collaborator_username = serializers.CharField(source='collaborator_role.user.username', read_only=True)
+    marked_complete_by_username = serializers.CharField(
+        source='marked_complete_by.username', read_only=True, allow_null=True
+    )
+    signed_off_by_username = serializers.CharField(
+        source='signed_off_by.username', read_only=True, allow_null=True
+    )
+    days_until_deadline = serializers.SerializerMethodField()
+    is_late = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContractTask
+        fields = [
+            'id', 'title', 'description', 'deadline', 'status', 'order',
+            'collaborator_username',
+            # Completion tracking
+            'marked_complete_at', 'marked_complete_by', 'marked_complete_by_username',
+            'completion_notes',
+            # Sign-off tracking
+            'signed_off_at', 'signed_off_by', 'signed_off_by_username', 'signoff_notes',
+            # Rejection tracking
+            'rejection_notes', 'rejected_at',
+            # Breach status
+            'is_overdue', 'overdue_notified_at', 'is_late', 'days_until_deadline',
+            # Timestamps
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'collaborator_username', 'marked_complete_at', 'marked_complete_by',
+            'marked_complete_by_username', 'signed_off_at', 'signed_off_by',
+            'signed_off_by_username', 'is_overdue', 'overdue_notified_at',
+            'rejected_at', 'is_late', 'days_until_deadline', 'created_at', 'updated_at',
+        ]
+
+    def get_days_until_deadline(self, obj):
+        """Calculate days remaining until deadline (negative if past)."""
+        if obj.deadline:
+            delta = obj.deadline - timezone.now()
+            return delta.days
+        return None
+
+    def get_is_late(self, obj):
+        """Check if task is late (past deadline and not signed off)."""
+        if obj.status in ['signed_off', 'cancelled']:
+            return False
+        if obj.deadline:
+            return timezone.now() > obj.deadline
+        return False
+
+
+class ContractTaskCreateSerializer(serializers.Serializer):
+    """Serializer for creating tasks during invitation.
+
+    Used when inviting a collaborator with specific contract tasks.
+    """
+    title = serializers.CharField(max_length=200)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    deadline = serializers.DateTimeField()
+
+    def validate_deadline(self, value):
+        """Ensure deadline is in the future."""
+        if value <= timezone.now():
+            raise serializers.ValidationError("Deadline must be in the future.")
+        return value
+
+
 class CollaboratorRoleSerializer(serializers.ModelSerializer):
     """Serializer for collaborator roles with permissions and revenue splits."""
     username = serializers.CharField(source='user.username', read_only=True)
     display_name = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
+    contract_tasks = ContractTaskSerializer(many=True, read_only=True)
+    all_tasks_complete = serializers.ReadOnlyField()
 
     class Meta:
         model = CollaboratorRole
@@ -325,9 +400,21 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             'id', 'user', 'username', 'display_name', 'role', 'revenue_percentage',
             'status', 'invited_at', 'accepted_at', 'can_edit_text', 'can_edit_images',
             'can_edit_audio', 'can_edit_video', 'can_edit', 'approved_current_version',
-            'approved_revenue_split'
+            'approved_revenue_split',
+            # Contract management fields
+            'contract_version', 'contract_locked_at', 'has_active_breach',
+            'cancellation_eligible', 'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
+            # Nested tasks
+            'contract_tasks',
+            # Counter-proposal fields
+            'proposed_percentage', 'counter_message',
         ]
-        read_only_fields = ['id', 'invited_at', 'username', 'display_name', 'can_edit']
+        read_only_fields = [
+            'id', 'invited_at', 'username', 'display_name', 'can_edit',
+            'contract_version', 'contract_locked_at', 'has_active_breach',
+            'cancellation_eligible', 'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
+            'contract_tasks',
+        ]
 
     def get_display_name(self, obj):
         """Get user's display name from profile."""
@@ -526,3 +613,277 @@ class BetaInviteSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'invite_code', 'invited_by_username', 'used_at', 'created_at'
         ]
+
+
+class ExternalPortfolioItemSerializer(serializers.ModelSerializer):
+    """Serializer for external portfolio items."""
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExternalPortfolioItem
+        fields = [
+            'id', 'title', 'description', 'image', 'image_url', 'external_url',
+            'project_type', 'role', 'created_date', 'order', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'image_url']
+
+    def get_image_url(self, obj):
+        """Get absolute URL for portfolio item image."""
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+
+class CollaboratorRatingPublicSerializer(serializers.ModelSerializer):
+    """Serializer for public testimonials from collaborator ratings."""
+    rater_username = serializers.CharField(source='rater.username', read_only=True)
+    rater_avatar = serializers.SerializerMethodField()
+    project_title = serializers.CharField(source='project.title', read_only=True)
+    average_score = serializers.ReadOnlyField()
+
+    class Meta:
+        model = CollaboratorRating
+        fields = [
+            'id', 'rater_username', 'rater_avatar', 'project_title',
+            'quality_score', 'deadline_score', 'communication_score',
+            'would_collab_again', 'average_score', 'public_feedback', 'created_at'
+        ]
+
+    def get_rater_avatar(self, obj):
+        """Get rater's avatar URL."""
+        try:
+            url = obj.rater.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
+
+
+class PlatformWorkSerializer(serializers.ModelSerializer):
+    """Serializer for platform works (minted content) on public profile."""
+    cover_image = serializers.SerializerMethodField()
+    creator_username = serializers.CharField(source='creator.username', read_only=True)
+
+    class Meta:
+        model = Content
+        fields = [
+            'id', 'title', 'content_type', 'genre', 'price_usd',
+            'cover_image', 'teaser_link', 'nft_contract', 'creator_username', 'created_at'
+        ]
+
+    def get_cover_image(self, obj):
+        """Get cover image URL for this content.
+
+        Priority:
+        1. teaser_link (for art/music/video or if cover is stored there)
+        2. Source collaborative project cover_image
+        3. Source book project cover_image
+        """
+        request = self.context.get('request')
+
+        # For art, music, video - teaser_link contains the cover/thumbnail
+        if obj.content_type in ['art', 'music', 'video'] and obj.teaser_link:
+            # teaser_link may already be an absolute URL (Cloudinary)
+            if obj.teaser_link.startswith('http'):
+                return obj.teaser_link
+            if request:
+                return request.build_absolute_uri(obj.teaser_link)
+            return obj.teaser_link
+
+        # Check source_collaborative_project for collaborative content
+        try:
+            if hasattr(obj, 'source_collaborative_project') and obj.source_collaborative_project:
+                collab_project = obj.source_collaborative_project
+                if collab_project.cover_image:
+                    if request:
+                        return request.build_absolute_uri(collab_project.cover_image.url)
+                    return collab_project.cover_image.url
+        except Exception:
+            pass
+
+        # Check source_book_project for regular book content
+        try:
+            if obj.source_book_project.exists():
+                book = obj.source_book_project.first()
+                if book and book.cover_image:
+                    if request:
+                        return request.build_absolute_uri(book.cover_image.url)
+                    return book.cover_image.url
+        except Exception:
+            pass
+
+        # For books without explicit cover, try teaser_link as fallback
+        if obj.teaser_link:
+            if obj.teaser_link.startswith('http'):
+                return obj.teaser_link
+            if request:
+                return request.build_absolute_uri(obj.teaser_link)
+            return obj.teaser_link
+
+        return None
+
+
+class CollaborationHistorySerializer(serializers.ModelSerializer):
+    """Serializer for collaboration history on public profile.
+
+    Shows high-level info about completed collaborations without exposing
+    sensitive internal details like revenue percentages or invite messages.
+    """
+    user_role = serializers.SerializerMethodField()
+    collaborator_count = serializers.SerializerMethodField()
+    cover_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CollaborativeProject
+        fields = [
+            'id', 'title', 'content_type', 'status', 'user_role',
+            'collaborator_count', 'cover_image', 'created_at'
+        ]
+
+    def get_user_role(self, obj):
+        """Get the profile user's role in this project."""
+        user = self.context.get('profile_user')
+        if user:
+            collab = obj.collaborators.filter(user=user).first()
+            if collab:
+                return collab.role
+        return None
+
+    def get_collaborator_count(self, obj):
+        """Count accepted collaborators."""
+        return obj.collaborators.filter(status='accepted').count()
+
+    def get_cover_image(self, obj):
+        """Get cover image URL for the collaboration project."""
+        request = self.context.get('request')
+
+        # Check for cover_image on the collaborative project
+        try:
+            if hasattr(obj, 'cover_image') and obj.cover_image:
+                if request:
+                    return request.build_absolute_uri(obj.cover_image.url)
+                return obj.cover_image.url
+        except Exception:
+            pass
+
+        # Check published_content teaser_link
+        try:
+            if obj.published_content and obj.published_content.teaser_link:
+                teaser = obj.published_content.teaser_link
+                if teaser.startswith('http'):
+                    return teaser
+                if request:
+                    return request.build_absolute_uri(teaser)
+                return teaser
+        except Exception:
+            pass
+
+        return None
+
+
+class PublicProfileSerializer(serializers.Serializer):
+    """Comprehensive serializer for public profile view.
+
+    Combines profile info, works, portfolio, collaborations, and testimonials.
+    """
+    # Profile info
+    profile = serializers.SerializerMethodField()
+    # Platform works (minted content)
+    platform_works = serializers.SerializerMethodField()
+    # External portfolio items
+    external_portfolio = serializers.SerializerMethodField()
+    # Collaboration history
+    collaborations = serializers.SerializerMethodField()
+    # Testimonials from past collaborators
+    testimonials = serializers.SerializerMethodField()
+    # Stats summary
+    stats = serializers.SerializerMethodField()
+
+    def get_profile(self, obj):
+        """Get user profile info."""
+        profile = obj.get('profile')
+        if not profile:
+            return None
+
+        request = self.context.get('request')
+
+        # Build avatar URL
+        avatar_url = profile.resolved_avatar_url
+        if request and avatar_url and avatar_url.startswith('/'):
+            avatar_url = request.build_absolute_uri(avatar_url)
+
+        # Build banner URL
+        banner_url = profile.resolved_banner_url
+        if request and banner_url and banner_url.startswith('/'):
+            banner_url = request.build_absolute_uri(banner_url)
+
+        # Status category for badge color
+        status_category = 'green'
+        green_statuses = ['Mint-Ready Partner', 'Chain Builder', 'Open Node']
+        yellow_statuses = ['Selective Forge', 'Linked Capacity', 'Partial Protocol']
+        if profile.status in yellow_statuses:
+            status_category = 'yellow'
+        elif profile.status not in green_statuses:
+            status_category = 'red'
+
+        return {
+            'id': profile.id,
+            'username': profile.username,
+            'display_name': profile.display_name,
+            'bio': profile.bio,
+            'avatar': avatar_url,
+            'banner': banner_url,
+            'location': profile.location,
+            'status': profile.status,
+            'status_category': status_category,
+            'tier': profile.tier,
+            'roles': profile.roles or [],
+            'genres': profile.genres or [],
+            'skills': profile.skills or [],
+            'social_links': profile.social_links or {},
+        }
+
+    def get_platform_works(self, obj):
+        """Get minted content created by this user."""
+        works = obj.get('platform_works', [])
+        return PlatformWorkSerializer(works, many=True, context=self.context).data
+
+    def get_external_portfolio(self, obj):
+        """Get external portfolio items."""
+        items = obj.get('external_portfolio', [])
+        return ExternalPortfolioItemSerializer(items, many=True, context=self.context).data
+
+    def get_collaborations(self, obj):
+        """Get collaboration history."""
+        collabs = obj.get('collaborations', [])
+        user = obj.get('user')
+        context = {**self.context, 'profile_user': user}
+        return CollaborationHistorySerializer(collabs, many=True, context=context).data
+
+    def get_testimonials(self, obj):
+        """Get public testimonials from past collaborators."""
+        ratings = obj.get('testimonials', [])
+        return CollaboratorRatingPublicSerializer(ratings, many=True, context=self.context).data
+
+    def get_stats(self, obj):
+        """Get profile stats summary."""
+        profile = obj.get('profile')
+        ratings = obj.get('testimonials', [])
+
+        # Calculate average rating
+        avg_rating = None
+        if ratings:
+            total = sum(r.average_score for r in ratings)
+            avg_rating = round(total / len(ratings), 1)
+
+        return {
+            'content_count': profile.content_count if profile else 0,
+            'total_sales_usd': float(profile.total_sales_usd) if profile else 0,
+            'successful_collabs': obj.get('successful_collabs_count', 0),
+            'average_rating': avg_rating,
+        }

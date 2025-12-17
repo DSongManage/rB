@@ -291,6 +291,88 @@ export function InviteResponseModal({
                   </div>
                 </div>
 
+                {/* Contract Tasks */}
+                {myRole.contract_tasks && myRole.contract_tasks.length > 0 && (
+                  <div
+                    style={{
+                      background: '#1e293b',
+                      borderRadius: 12,
+                      padding: 16,
+                      marginBottom: 20,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <span style={{ fontSize: 18 }}>📋</span>
+                      <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                        Your Contract Tasks ({myRole.contract_tasks.length})
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {myRole.contract_tasks.map((task: any, index: number) => (
+                        <div
+                          key={task.id || index}
+                          style={{
+                            background: '#0f172a',
+                            borderRadius: 8,
+                            padding: 14,
+                            borderLeft: '3px solid #f59e0b',
+                          }}
+                        >
+                          <div style={{ color: '#f8fafc', fontSize: 14, fontWeight: 600 }}>
+                            {task.title}
+                          </div>
+                          {task.description && (
+                            <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
+                              {task.description}
+                            </div>
+                          )}
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              marginTop: 10,
+                              color: '#f59e0b',
+                              fontSize: 12,
+                              fontWeight: 500,
+                            }}
+                          >
+                            <span>⏰</span>
+                            <span>
+                              Due: {new Date(task.deadline).toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 16,
+                        padding: 12,
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>⚠️</span>
+                      <div style={{ color: '#f59e0b', fontSize: 12, lineHeight: 1.5 }}>
+                        <strong>Contract Terms:</strong> By accepting, you commit to completing these tasks
+                        by their deadlines. Tasks become binding and can only be changed via mutual agreement.
+                        Missing deadlines may affect the collaboration.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Pitch Message */}
                 {notificationMessage && (
                   <div

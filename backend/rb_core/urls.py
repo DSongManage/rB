@@ -1,7 +1,7 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView
+from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView
 from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
@@ -63,6 +63,12 @@ urlpatterns = [
     path('api/test/session/', TestSessionView.as_view(), name='test_session'),  # Debug endpoint
     path('api/users/profile/', ProfileEditView.as_view(), name='user_profile_edit'),
     path('api/profile/status/', ProfileStatusView.as_view(), name='profile_status_update'),
+    # Public profile endpoint (no auth required)
+    path('api/users/<str:username>/public/', PublicProfileView.as_view(), name='public_profile'),
+    # External portfolio management
+    path('api/portfolio/', ExternalPortfolioListCreateView.as_view(), name='portfolio_list_create'),
+    path('api/portfolio/<int:pk>/', ExternalPortfolioDetailView.as_view(), name='portfolio_detail'),
+    path('api/portfolio/reorder/', ExternalPortfolioReorderView.as_view(), name='portfolio_reorder'),
     # Legacy notification endpoint moved - now using NotificationViewSet via router
     # path('api/notifications/', NotificationsView.as_view(), name='notifications'),
     path('api/legacy-notifications/', NotificationsView.as_view(), name='legacy_notifications'),

@@ -30,6 +30,11 @@ export default function CollaborativeProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
+  // Title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [savingTitle, setSavingTitle] = useState(false);
+
   // Tab state from URL or default to 'overview'
   const activeTab = (searchParams.get('tab') as TabId) || 'overview';
 
@@ -90,6 +95,58 @@ export default function CollaborativeProjectPage() {
     console.log('Project updated:', updatedProject);
     setProject(updatedProject);
   };
+
+  // Save project title
+  const handleSaveTitle = async () => {
+    if (!project || !editedTitle.trim() || editedTitle.trim() === project.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+
+    setSavingTitle(true);
+    try {
+      const csrfRes = await fetch('/api/auth/csrf/', { credentials: 'include' });
+      const csrfData = await csrfRes.json();
+      const csrf = csrfData?.csrfToken || '';
+
+      const res = await fetch(`/api/collaborative-projects/${project.id}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ title: editedTitle.trim() }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setProject(updated);
+        setIsEditingTitle(false);
+      } else {
+        const err = await res.json();
+        console.error('Failed to update title:', err);
+      }
+    } catch (err) {
+      console.error('Failed to update title:', err);
+    } finally {
+      setSavingTitle(false);
+    }
+  };
+
+  const startEditingTitle = () => {
+    setEditedTitle(project?.title || '');
+    setIsEditingTitle(true);
+  };
+
+  const cancelEditingTitle = () => {
+    setIsEditingTitle(false);
+    setEditedTitle('');
+  };
+
+  // Check if title is a placeholder
+  const isPlaceholderTitle = project?.title?.startsWith('Collaboration Invite');
 
   if (loading) {
     return (
@@ -181,14 +238,112 @@ export default function CollaborativeProjectPage() {
           >
             &larr; Back to Dashboard
           </button>
-          <h1 style={{
-            margin: 0,
-            fontSize: 28,
-            fontWeight: 700,
-            color: 'var(--text)',
-          }}>
-            {project.title}
-          </h1>
+          {/* Editable Title */}
+          {isEditingTitle ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <input
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                placeholder="Enter project title..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                  if (e.key === 'Escape') cancelEditingTitle();
+                }}
+                style={{
+                  fontSize: 28,
+                  fontWeight: 700,
+                  background: 'var(--panel)',
+                  border: '2px solid #f59e0b',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  color: 'var(--text)',
+                  minWidth: 400,
+                }}
+              />
+              <button
+                onClick={handleSaveTitle}
+                disabled={savingTitle || !editedTitle.trim()}
+                style={{
+                  background: '#10b981',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: savingTitle ? 'not-allowed' : 'pointer',
+                  opacity: savingTitle ? 0.6 : 1,
+                }}
+              >
+                {savingTitle ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={cancelEditingTitle}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h1 style={{
+                margin: 0,
+                fontSize: 28,
+                fontWeight: 700,
+                color: isPlaceholderTitle ? '#f59e0b' : 'var(--text)',
+              }}>
+                {project.title}
+              </h1>
+              {project.created_by === currentUser.id && (
+                <button
+                  onClick={startEditingTitle}
+                  title="Edit project title"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 4,
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    color: '#94a3b8',
+                  }}
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Placeholder title warning */}
+          {isPlaceholderTitle && !isEditingTitle && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 8,
+              padding: '8px 12px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid #f59e0b',
+              borderRadius: 8,
+              fontSize: 13,
+              color: '#f59e0b',
+            }}>
+              <span>⚠️</span>
+              <span>
+                {project.created_by === currentUser.id
+                  ? 'This project has a placeholder title. Click the edit button to set a proper title before publishing.'
+                  : 'This project has a placeholder title. Only the owner can change the title.'}
+              </span>
+            </div>
+          )}
+
           <div style={{
             display: 'flex',
             alignItems: 'center',

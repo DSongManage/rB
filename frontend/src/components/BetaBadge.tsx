@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import FeedbackModal from './FeedbackModal';
+import { MessageSquare } from 'lucide-react';
 
 interface BetaBadgeProps {
   variant?: 'header' | 'inline' | 'full';
@@ -114,37 +116,46 @@ export function BetaBadge({ variant = 'header', showTestMode = true }: BetaBadge
 }
 
 export function TestModeBanner() {
+  const [showFeedback, setShowFeedback] = useState(false);
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)',
-        color: '#000',
-        padding: '12px 20px',
-        textAlign: 'center',
-        fontSize: '13px',
-        fontWeight: 600,
-        zIndex: 1000,
-        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.3)',
-      }}
-    >
-      🧪 <strong>TEST MODE:</strong> No real money charged. Blockchain transactions use Solana devnet.
-      {' '}
-      <a
-        href="mailto:feedback@renaissblock.com"
+    <>
+      <button
+        onClick={() => setShowFeedback(true)}
         style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
           color: '#000',
-          textDecoration: 'underline',
+          border: 'none',
+          padding: '12px 20px',
+          borderRadius: '30px',
+          fontSize: '14px',
           fontWeight: 700,
-          marginLeft: '8px',
+          cursor: 'pointer',
+          zIndex: 1000,
+          boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          transition: 'transform 0.2s, box-shadow 0.2s',
         }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.05)';
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(245, 158, 11, 0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.4)';
+        }}
+        title="Send feedback about the beta"
       >
-        Report Issues
-      </a>
-    </div>
+        <MessageSquare size={18} />
+        Feedback
+      </button>
+      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
+    </>
   );
 }
 

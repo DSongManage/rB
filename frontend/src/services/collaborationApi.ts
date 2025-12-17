@@ -44,6 +44,30 @@ export interface CollaborativeProjectListItem {
   price_usd: number;
 }
 
+// Contract task interface for task-based collaboration
+export interface ContractTask {
+  id: number;
+  title: string;
+  description: string;
+  deadline: string;
+  status: 'pending' | 'in_progress' | 'complete' | 'signed_off' | 'cancelled';
+  order: number;
+  marked_complete_at?: string;
+  marked_complete_by?: number;
+  marked_complete_by_username?: string;
+  completion_notes?: string;
+  signed_off_at?: string;
+  signed_off_by?: number;
+  signed_off_by_username?: string;
+  signoff_notes?: string;
+  rejection_notes?: string;
+  rejected_at?: string;
+  is_overdue: boolean;
+  days_until_deadline?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CollaboratorRole {
   id: number;
   user: number;
@@ -73,6 +97,15 @@ export interface CollaboratorRole {
   is_lead: boolean;
   can_invite_others: boolean;
   voting_weight: number;
+  // Contract task fields
+  contract_tasks: ContractTask[];
+  tasks_total: number;
+  tasks_signed_off: number;
+  all_tasks_complete: boolean;
+  has_active_breach: boolean;
+  cancellation_eligible: boolean;
+  contract_version: number;
+  contract_locked_at?: string;
 }
 
 export interface ProjectSection {
