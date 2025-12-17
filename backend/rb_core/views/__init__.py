@@ -369,6 +369,12 @@ class InviteView(APIView):
         content_id = request.data.get('content_id')  # Optional
         collaborator_role = request.data.get('role', 'collaborator')  # Role name
         tasks_data = request.data.get('tasks', [])  # Contract tasks
+        project_type = request.data.get('project_type', 'book')  # Project type: book, art, music, video
+
+        # Validate project_type
+        valid_types = ['book', 'art', 'music', 'video']
+        if project_type not in valid_types:
+            project_type = 'book'  # Fallback to book if invalid
         
         # Sanitize message (prevent XSS in stored invites)
         soup = BeautifulSoup(message, 'html.parser')
@@ -428,7 +434,7 @@ class InviteView(APIView):
             project = CollaborativeProject.objects.create(
                 title=content.title or f"Collaboration with {', '.join(c.username for c in collaborators)}",
                 description=message_clean,
-                content_type='book',  # Field is content_type, not project_type
+                content_type=project_type,  # User-selected project type (book, art, music, video)
                 created_by=request.user,  # Django User, not UserProfile
                 status='active',
             )
@@ -789,7 +795,7 @@ class ContentPreviewView(APIView):
             c = Content.objects.get(id=pk)
         except Content.DoesNotExist:
             return Response({'error':'not found'}, status=404)
-        data = ContentSerializer(c).data
+        data = ContentSerializer(c, context={'request': request}).data
         return Response({
             'id': c.id,
             'title': c.title,
@@ -799,6 +805,8 @@ class ContentPreviewView(APIView):
             'nft_contract': c.nft_contract,
             'price_usd': float(c.price_usd),
             'editions': c.editions,
+            'is_collaborative': data.get('is_collaborative', False),
+            'collaborators': data.get('collaborators', []),
             'preview': data
         })
 
@@ -911,6 +919,163 @@ class DashboardView(APIView):
             'tier': profile.tier,
             'fee': round(profile.fee_bps / 100.0, 2)
         })
+
+
+class SalesAnalyticsView(APIView):
+    """Detailed sales analytics for creator dashboard."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Sum, Count
+        from django.db.models.functions import TruncDate
+        from .models import Purchase, CollaboratorPayment, Content, CollaborativeProject
+
+        # Get current user
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
+
+        # ========== SOLO CONTENT SALES ==========
+        # Get content created by this user (direct ownership)
+        user_content = Content.objects.filter(creator=core_user)
+
+        # Get sales breakdown per content
+        content_sales = []
+        for content in user_content:
+            # Count completed purchases for this content
+            purchases = Purchase.objects.filter(
+                content=content,
+                status__in=['completed', 'payment_completed']
+            )
+            purchase_count = purchases.count()
+            total_revenue = purchases.aggregate(total=Sum('purchase_price_usd'))['total'] or 0
+
+            # Calculate creator earnings (after fees)
+            creator_earnings = purchases.aggregate(total=Sum('creator_amount'))['total'] or 0
+
+            if purchase_count > 0:
+                content_sales.append({
+                    'id': content.id,
+                    'title': content.title,
+                    'content_type': content.content_type,
+                    'price': float(content.price_usd),
+                    'editions_sold': purchase_count,
+                    'editions_remaining': content.editions,
+                    'total_revenue': float(total_revenue),
+                    'creator_earnings': float(creator_earnings),
+                    'is_collaborative': False,
+                })
+
+        # ========== COLLABORATION EARNINGS ==========
+        # Get payments from CollaboratorPayment where user is a collaborator
+        collab_payments = CollaboratorPayment.objects.filter(
+            collaborator=core_user
+        ).select_related('purchase__content', 'purchase__chapter')
+
+        # Group by content/project
+        collab_earnings_by_content = {}
+        for payment in collab_payments:
+            # Determine content title
+            if payment.purchase.content:
+                content_id = f"content_{payment.purchase.content.id}"
+                content_title = payment.purchase.content.title
+                content_type = payment.purchase.content.content_type
+            elif payment.purchase.chapter:
+                content_id = f"chapter_{payment.purchase.chapter.id}"
+                content_title = payment.purchase.chapter.title
+                content_type = 'book'
+            else:
+                continue
+
+            if content_id not in collab_earnings_by_content:
+                collab_earnings_by_content[content_id] = {
+                    'id': content_id,
+                    'title': content_title,
+                    'content_type': content_type,
+                    'role': payment.role or 'Collaborator',
+                    'percentage': payment.percentage,
+                    'total_earnings': 0,
+                    'sales_count': 0,
+                    'is_collaborative': True,
+                }
+
+            collab_earnings_by_content[content_id]['total_earnings'] += float(payment.amount_usdc)
+            collab_earnings_by_content[content_id]['sales_count'] += 1
+
+        collab_sales = list(collab_earnings_by_content.values())
+
+        # ========== RECENT TRANSACTIONS ==========
+        # Get recent CollaboratorPayment records (most detailed for collaborators)
+        recent_transactions = []
+
+        # Add collab payments
+        recent_collab_payments = CollaboratorPayment.objects.filter(
+            collaborator=core_user
+        ).select_related('purchase__content', 'purchase__chapter', 'purchase__user').order_by('-paid_at')[:20]
+
+        for payment in recent_collab_payments:
+            if payment.purchase.content:
+                title = payment.purchase.content.title
+            elif payment.purchase.chapter:
+                title = payment.purchase.chapter.title
+            else:
+                title = 'Unknown'
+
+            recent_transactions.append({
+                'id': payment.id,
+                'type': 'collaboration',
+                'title': title,
+                'buyer': payment.purchase.user.username,
+                'amount': float(payment.amount_usdc),
+                'role': payment.role,
+                'percentage': payment.percentage,
+                'date': payment.paid_at.isoformat(),
+                'tx_signature': payment.transaction_signature[:16] + '...' if payment.transaction_signature else None,
+            })
+
+        # Add direct content purchases (where user is creator)
+        recent_direct_purchases = Purchase.objects.filter(
+            content__creator=core_user,
+            status__in=['completed', 'payment_completed']
+        ).select_related('content', 'user').order_by('-purchased_at')[:20]
+
+        for purchase in recent_direct_purchases:
+            # Check if this purchase is already covered by collab payments
+            if not CollaboratorPayment.objects.filter(purchase=purchase, collaborator=core_user).exists():
+                recent_transactions.append({
+                    'id': f"purchase_{purchase.id}",
+                    'type': 'direct',
+                    'title': purchase.content.title if purchase.content else 'Unknown',
+                    'buyer': purchase.user.username,
+                    'amount': float(purchase.creator_amount or purchase.purchase_price_usd * 0.9),
+                    'role': 'Creator',
+                    'percentage': 90,
+                    'date': purchase.purchased_at.isoformat(),
+                    'tx_signature': purchase.transaction_signature[:16] + '...' if purchase.transaction_signature else None,
+                })
+
+        # Sort by date
+        recent_transactions.sort(key=lambda x: x['date'], reverse=True)
+        recent_transactions = recent_transactions[:20]
+
+        # ========== SUMMARY STATS ==========
+        total_solo_earnings = sum(c['creator_earnings'] for c in content_sales)
+        total_collab_earnings = sum(c['total_earnings'] for c in collab_sales)
+        total_earnings = total_solo_earnings + total_collab_earnings
+
+        return Response({
+            'summary': {
+                'total_earnings_usdc': round(total_earnings, 2),
+                'solo_earnings': round(total_solo_earnings, 2),
+                'collaboration_earnings': round(total_collab_earnings, 2),
+                'content_count': len(content_sales),
+                'collaboration_count': len(collab_sales),
+                'total_sales': len(recent_transactions),
+            },
+            'content_sales': sorted(content_sales, key=lambda x: x['creator_earnings'], reverse=True),
+            'collaboration_sales': sorted(collab_sales, key=lambda x: x['total_earnings'], reverse=True),
+            'recent_transactions': recent_transactions,
+        })
+
 
 class Web3AuthLoginView(APIView):
     """Web3Auth login endpoint with strict rate limiting."""

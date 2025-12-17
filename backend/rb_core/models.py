@@ -115,6 +115,54 @@ class Content(models.Model):
         result = self.purchases.filter(refunded=False).aggregate(total=Sum('creator_earnings_usd'))
         return result['total'] or Decimal('0.00')
 
+    def get_collaborators_with_wallets(self):
+        """
+        Get all collaborators with their Web3Auth wallet addresses and revenue split.
+
+        For collaborative projects (minted from CollaborativeProject), returns all
+        accepted collaborators with their wallets and revenue percentages.
+        For regular content, returns just the creator.
+
+        Returns:
+            list: List of dicts with {user, wallet, percentage, role}
+        """
+        # Check if this content comes from a collaborative project
+        if hasattr(self, 'source_collaborative_project') and self.source_collaborative_project.exists():
+            collab_project = self.source_collaborative_project.first()
+            if collab_project:
+                collaborators = []
+                for collab_role in collab_project.collaborators.filter(status='accepted'):
+                    # Get wallet from user's profile
+                    wallet_address = None
+                    if hasattr(collab_role.user, 'profile') and collab_role.user.profile:
+                        wallet_address = collab_role.user.profile.wallet_address
+
+                    if wallet_address:
+                        collaborators.append({
+                            'user': collab_role.user,
+                            'wallet': wallet_address,
+                            'percentage': float(collab_role.revenue_percentage),
+                            'role': collab_role.role
+                        })
+
+                if collaborators:
+                    return collaborators
+
+        # Fallback: Single creator for non-collaborative content
+        wallet_address = None
+        if hasattr(self.creator, 'profile') and self.creator.profile:
+            wallet_address = self.creator.profile.wallet_address
+
+        if wallet_address:
+            return [{
+                'user': self.creator,
+                'wallet': wallet_address,
+                'percentage': 90,  # 90% to creator, 10% platform
+                'role': 'creator'
+            }]
+
+        return []
+
     # Future: Methods for minting integration, revenue splits (FR9, FR13)
 # Ensure input validation on save (prevent injection, GUIDELINES.md)
 

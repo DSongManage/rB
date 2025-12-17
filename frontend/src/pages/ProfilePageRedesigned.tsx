@@ -42,6 +42,54 @@ type UserProfile = {
 };
 type Dashboard = { content_count: number; sales: number; tier?: string; fee?: number };
 
+// Sales analytics types
+type SalesSummary = {
+  total_earnings_usdc: number;
+  solo_earnings: number;
+  collaboration_earnings: number;
+  content_count: number;
+  collaboration_count: number;
+  total_sales: number;
+};
+type ContentSale = {
+  id: number;
+  title: string;
+  content_type: string;
+  price: number;
+  editions_sold: number;
+  editions_remaining: number;
+  total_revenue: number;
+  creator_earnings: number;
+  is_collaborative: boolean;
+};
+type CollabSale = {
+  id: string;
+  title: string;
+  content_type: string;
+  role: string;
+  percentage: number;
+  total_earnings: number;
+  sales_count: number;
+  is_collaborative: boolean;
+};
+type RecentTransaction = {
+  id: string | number;
+  type: 'collaboration' | 'direct';
+  title: string;
+  buyer: string;
+  amount: number;
+  role: string;
+  percentage: number;
+  date: string;
+  tx_signature: string | null;
+};
+type SalesAnalytics = {
+  summary: SalesSummary;
+  content_sales: ContentSale[];
+  collaboration_sales: CollabSale[];
+  recent_transactions: RecentTransaction[];
+};
+
 type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics';
 type ContentFilterType = 'all' | 'book' | 'art' | 'music' | 'film';
 
@@ -76,6 +124,10 @@ export default function ProfilePageRedesigned() {
   const [collaborationsLoading, setCollaborationsLoading] = useState(false);
   // Processing state for accept/decline buttons
   const [processingInvites, setProcessingInvites] = useState<Set<number>>(new Set());
+
+  // Sales analytics state
+  const [salesAnalytics, setSalesAnalytics] = useState<SalesAnalytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' }).then(r => r.json());
@@ -122,6 +174,21 @@ export default function ProfilePageRedesigned() {
       }
     } catch (err) {
       console.error('Failed to load external portfolio:', err);
+    }
+  }
+
+  async function loadSalesAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/sales-analytics/`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSalesAnalytics(data);
+      }
+    } catch (err) {
+      console.error('Failed to load sales analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
     }
   }
 
@@ -249,10 +316,11 @@ export default function ProfilePageRedesigned() {
         setProfile(profileResp);
         setDash(dashResp);
 
-        // Load pending collaboration invites, active collaborations, and external portfolio
+        // Load pending collaboration invites, active collaborations, external portfolio, and analytics
         loadPendingInvites();
         loadCollaborations();
         loadExternalPortfolio();
+        loadSalesAnalytics();
       })
       .catch(() => { });
 
@@ -1300,52 +1368,178 @@ export default function ProfilePageRedesigned() {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
               gap: 16,
             }}>
-              <div style={{
-                background: '#1e293b',
-                borderRadius: 12,
-                padding: 20,
-              }}>
-                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Total Sales (USDC)
+              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total Earnings
                 </div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: '#10b981' }}>
-                  ${dash.sales.toFixed(2)}
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>
+                  ${salesAnalytics?.summary.total_earnings_usdc.toFixed(2) || dash.sales.toFixed(2)}
                 </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>USDC</div>
               </div>
 
-              <div style={{
-                background: '#1e293b',
-                borderRadius: 12,
-                padding: 20,
-              }}>
-                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Published Content
+              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Solo Content
                 </div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: '#f8fafc' }}>
-                  {inventory.length}
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#60a5fa' }}>
+                  ${salesAnalytics?.summary.solo_earnings.toFixed(2) || '0.00'}
                 </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{salesAnalytics?.summary.content_count || 0} items</div>
               </div>
 
-              <div style={{
-                background: '#1e293b',
-                borderRadius: 12,
-                padding: 20,
-              }}>
-                <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Collaborations
                 </div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: '#f8fafc' }}>
-                  {collaborations.length}
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#f59e0b' }}>
+                  ${salesAnalytics?.summary.collaboration_earnings.toFixed(2) || '0.00'}
                 </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{salesAnalytics?.summary.collaboration_count || 0} projects</div>
+              </div>
+
+              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total Sales
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#f8fafc' }}>
+                  {salesAnalytics?.summary.total_sales || 0}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>transactions</div>
               </div>
             </div>
           </div>
 
-          {/* Coming Soon Notice */}
-          {dash.sales === 0 && (
+          {/* Content Performance */}
+          {salesAnalytics && (salesAnalytics.content_sales.length > 0 || salesAnalytics.collaboration_sales.length > 0) && (
+            <div style={{
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: 16,
+              padding: 24,
+              marginBottom: 24,
+            }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <BarChart3 size={18} style={{ color: '#60a5fa' }} />
+                Content Performance
+              </h3>
+
+              {/* Solo Content Sales */}
+              {salesAnalytics.content_sales.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12, fontWeight: 600 }}>Your Content</div>
+                  {salesAnalytics.content_sales.map((item) => (
+                    <div key={item.id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '12px 16px',
+                      background: '#1e293b',
+                      borderRadius: 8,
+                      marginBottom: 8,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {getContentTypeIcon(item.content_type, 18)}
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            {item.editions_sold} sold • {item.editions_remaining} remaining • ${item.price.toFixed(2)} each
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>${item.creator_earnings.toFixed(2)}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>earned</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Collaboration Sales */}
+              {salesAnalytics.collaboration_sales.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12, fontWeight: 600 }}>Collaboration Earnings</div>
+                  {salesAnalytics.collaboration_sales.map((item) => (
+                    <div key={item.id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '12px 16px',
+                      background: '#1e293b',
+                      borderRadius: 8,
+                      marginBottom: 8,
+                      borderLeft: '3px solid #f59e0b',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        {getContentTypeIcon(item.content_type, 18)}
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            {item.role} • {item.percentage}% split • {item.sales_count} sales
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b' }}>${item.total_earnings.toFixed(2)}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>earned</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recent Transactions */}
+          {salesAnalytics && salesAnalytics.recent_transactions.length > 0 && (
+            <div style={{
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: 16,
+              padding: 24,
+            }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={18} style={{ color: '#a78bfa' }} />
+                Recent Transactions
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {salesAnalytics.recent_transactions.map((tx) => (
+                  <div key={tx.id} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: '#1e293b',
+                    borderRadius: 8,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{tx.title}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Bought by @{tx.buyer} • {tx.role} ({tx.percentage}%) • {new Date(tx.date).toLocaleDateString()}
+                      </div>
+                      {tx.tx_signature && (
+                        <div style={{ fontSize: 11, color: '#475569', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: tx.type === 'collaboration' ? '#f59e0b' : '#10b981',
+                    }}>
+                      +${tx.amount.toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* No Sales Yet Notice */}
+          {(!salesAnalytics || salesAnalytics.summary.total_sales === 0) && !analyticsLoading && (
             <div style={{
               textAlign: 'center',
               padding: '40px 24px',
@@ -1355,11 +1549,24 @@ export default function ProfilePageRedesigned() {
             }}>
               <BarChart3 size={48} style={{ color: '#475569', marginBottom: 16 }} />
               <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>
-                Detailed analytics coming soon
+                No sales yet
               </div>
               <div style={{ fontSize: 14, color: '#64748b' }}>
                 Once you start making sales, you'll see detailed breakdowns here
               </div>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {analyticsLoading && (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 24px',
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: 16,
+            }}>
+              <div style={{ fontSize: 14, color: '#94a3b8' }}>Loading analytics...</div>
             </div>
           )}
         </div>

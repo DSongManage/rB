@@ -1480,9 +1480,17 @@ class ProjectSectionViewSet(viewsets.ModelViewSet):
             return ProjectSection.objects.none()
 
         # Sections from projects where user is creator or collaborator
-        return ProjectSection.objects.filter(
+        queryset = ProjectSection.objects.filter(
             Q(project__created_by=core_user) | Q(project__collaborators__user=core_user)
         ).distinct()
+
+        # CRITICAL: Filter by specific project ID if provided
+        # This prevents content from other collaborations from leaking through
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+
+        return queryset
 
     def perform_create(self, serializer):
         """Create section with permission validation."""
@@ -1582,9 +1590,17 @@ class ProjectCommentViewSet(viewsets.ModelViewSet):
             return ProjectComment.objects.none()
 
         # Comments from projects where user is creator or collaborator
-        return ProjectComment.objects.filter(
+        queryset = ProjectComment.objects.filter(
             Q(project__created_by=core_user) | Q(project__collaborators__user=core_user)
         ).distinct()
+
+        # CRITICAL: Filter by specific project ID if provided
+        # This prevents comments from other collaborations from leaking through
+        project_id = self.request.query_params.get('project')
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+
+        return queryset
 
     def perform_create(self, serializer):
         """Create comment with author set to current user."""

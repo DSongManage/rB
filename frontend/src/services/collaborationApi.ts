@@ -38,6 +38,7 @@ export interface CollaborativeProjectListItem {
   title: string;
   content_type: string;
   status: string;
+  created_by: number;
   created_by_username: string;
   total_collaborators: number;
   created_at: string;

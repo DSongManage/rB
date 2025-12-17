@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { API_URL } from '../config';
 // DOMPurify is used at runtime by consumers; keep optional import guard for tests
 let DOMPurify: any = null;
@@ -249,7 +250,7 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
               color: '#94a3b8',
               marginBottom: 8,
             }}>
-              Collaborators & Revenue Split:
+              Collaborators:
             </div>
             <div style={{
               display: 'flex',
@@ -270,11 +271,15 @@ export default function PreviewModal({ open, onClose, teaserUrl, contentType, co
                     fontSize: 12,
                   }}
                 >
-                  <span style={{ color: '#e5e7eb', fontWeight: 600 }}>@{collab.username}</span>
+                  <Link
+                    to={`/profile/${collab.username}`}
+                    style={{ color: '#60a5fa', fontWeight: 600, textDecoration: 'none' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    @{collab.username}
+                  </Link>
                   <span style={{ color: '#64748b' }}>•</span>
                   <span style={{ color: '#94a3b8' }}>{collab.role}</span>
-                  <span style={{ color: '#64748b' }}>•</span>
-                  <span style={{ color: '#f59e0b', fontWeight: 700 }}>{collab.revenuePercentage}%</span>
                 </div>
               ))}
             </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BookOpen, Palette, Music, Film } from 'lucide-react';
 
 // Types for contract tasks
 interface ContractTask {
@@ -7,6 +8,16 @@ interface ContractTask {
   description: string;
   deadline: string;
 }
+
+// Project type options
+type ProjectType = 'book' | 'art' | 'music' | 'video';
+
+const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string; icon: React.ReactNode; description: string }[] = [
+  { value: 'book', label: 'Book', icon: <BookOpen size={28} />, description: 'Written content with chapters' },
+  { value: 'art', label: 'Art', icon: <Palette size={28} />, description: 'Visual artwork and illustrations' },
+  { value: 'music', label: 'Music', icon: <Music size={28} />, description: 'Audio tracks and albums' },
+  { value: 'video', label: 'Film', icon: <Film size={28} />, description: 'Video content and films' },
+];
 
 type InviteModalProps = {
   open: boolean;
@@ -24,6 +35,7 @@ type InviteModalProps = {
   // Optional: If provided, this is a project-specific invite
   projectId?: number;
   projectTitle?: string;
+  projectType?: ProjectType;
 };
 
 const DEFAULT_PITCH = `Hi! I'd love to collaborate with you on an upcoming project.
@@ -46,7 +58,7 @@ const getDefaultDeadline = (daysFromNow: number = 14) => {
   return date.toISOString().slice(0, 16);
 };
 
-export default function InviteModal({ open, onClose, recipient, projectId, projectTitle }: InviteModalProps) {
+export default function InviteModal({ open, onClose, recipient, projectId, projectTitle, projectType: initialProjectType }: InviteModalProps) {
   const [message, setMessage] = useState(DEFAULT_PITCH);
   const [equityPercent, setEquityPercent] = useState(50);
   const [role, setRole] = useState('');
@@ -55,15 +67,50 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Project type - required for new collaborations
+  const [projectType, setProjectType] = useState<ProjectType>(initialProjectType || 'book');
+
   // Contract tasks
   const [tasks, setTasks] = useState<ContractTask[]>([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
 
-  // Permissions
+  // Permissions - defaults based on project type
   const [canEditText, setCanEditText] = useState(true);
   const [canEditImages, setCanEditImages] = useState(true);
   const [canEditAudio, setCanEditAudio] = useState(false);
   const [canEditVideo, setCanEditVideo] = useState(false);
+
+  // Update permissions when project type changes
+  const handleProjectTypeChange = (newType: ProjectType) => {
+    setProjectType(newType);
+    // Set smart defaults based on project type
+    switch (newType) {
+      case 'book':
+        setCanEditText(true);
+        setCanEditImages(true);
+        setCanEditAudio(false);
+        setCanEditVideo(false);
+        break;
+      case 'art':
+        setCanEditText(false);
+        setCanEditImages(true);
+        setCanEditAudio(false);
+        setCanEditVideo(false);
+        break;
+      case 'music':
+        setCanEditText(false);
+        setCanEditImages(true); // For album art
+        setCanEditAudio(true);
+        setCanEditVideo(false);
+        break;
+      case 'video':
+        setCanEditText(false);
+        setCanEditImages(true); // For thumbnails
+        setCanEditAudio(true);
+        setCanEditVideo(true);
+        break;
+    }
+  };
 
   if (!open) return null;
 
@@ -175,6 +222,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             collaborators: [recipient.id],
             attachments: '',
             role: role || 'Collaborator',
+            project_type: projectType,
             tasks: tasks.map(t => ({
               title: t.title,
               description: t.description,
@@ -205,6 +253,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     setMessage(DEFAULT_PITCH);
     setEquityPercent(50);
     setRole('');
+    setProjectType(initialProjectType || 'book');
     setTasks([]);
     setSuccessMsg('');
     setErrorMsg('');
@@ -336,6 +385,55 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
         {/* Form */}
         <div style={{ padding: 24, display: 'grid', gap: 20 }}>
+          {/* Project Type Selector - REQUIRED for new collaborations */}
+          {!projectId && (
+            <div>
+              <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                Project Type <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                {PROJECT_TYPE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleProjectTypeChange(option.value)}
+                    style={{
+                      background: projectType === option.value ? 'rgba(245,158,11,0.15)' : '#1e293b',
+                      border: `2px solid ${projectType === option.value ? '#f59e0b' : '#334155'}`,
+                      borderRadius: 12,
+                      padding: 16,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 8,
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <span style={{ color: projectType === option.value ? '#f59e0b' : '#94a3b8' }}>
+                      {option.icon}
+                    </span>
+                    <span style={{
+                      color: projectType === option.value ? '#f59e0b' : '#f8fafc',
+                      fontSize: 14,
+                      fontWeight: 600
+                    }}>
+                      {option.label}
+                    </span>
+                    <span style={{
+                      color: '#64748b',
+                      fontSize: 11,
+                      textAlign: 'center',
+                      lineHeight: 1.3
+                    }}>
+                      {option.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Role */}
           <div>
             <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>

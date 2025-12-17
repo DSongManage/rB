@@ -23,14 +23,78 @@ export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K vie
   const editionsText = editionsNum && editionsNum > 0 ? `${editionsNum} edition${editionsNum > 1 ? 's' : ''} available` : 'Sold out';
   const priceText = priceNum && priceNum > 0 ? `$${priceNum.toFixed(2)}` : 'Free';
 
-  // Build author display text
-  const authorDisplay = isCollaborative && collaborators && collaborators.length > 0
-    ? collaborators.length === 1
-      ? `By @${collaborators[0]}`
-      : collaborators.length === 2
-        ? `By @${collaborators[0]} & @${collaborators[1]}`
-        : `By @${collaborators[0]} & ${collaborators.length - 1} others`
-    : author;
+  // Extract username from author display (remove "Creator #X" format if present, or extract username)
+  const authorUsername = author?.startsWith('Creator #') ? null : author;
+
+  // Build clickable author component
+  const renderAuthorDisplay = () => {
+    if (isCollaborative && collaborators && collaborators.length > 0) {
+      if (collaborators.length === 1) {
+        return (
+          <>
+            By{' '}
+            <Link
+              to={`/profile/${collaborators[0]}`}
+              style={{ color: '#60a5fa', textDecoration: 'none' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{collaborators[0]}
+            </Link>
+          </>
+        );
+      } else if (collaborators.length === 2) {
+        return (
+          <>
+            By{' '}
+            <Link
+              to={`/profile/${collaborators[0]}`}
+              style={{ color: '#60a5fa', textDecoration: 'none' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{collaborators[0]}
+            </Link>
+            {' & '}
+            <Link
+              to={`/profile/${collaborators[1]}`}
+              style={{ color: '#60a5fa', textDecoration: 'none' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{collaborators[1]}
+            </Link>
+          </>
+        );
+      } else {
+        return (
+          <>
+            By{' '}
+            <Link
+              to={`/profile/${collaborators[0]}`}
+              style={{ color: '#60a5fa', textDecoration: 'none' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              @{collaborators[0]}
+            </Link>
+            {` & ${collaborators.length - 1} others`}
+          </>
+        );
+      }
+    }
+
+    // Non-collaborative content - single author
+    if (authorUsername) {
+      return (
+        <Link
+          to={`/profile/${authorUsername}`}
+          style={{ color: '#60a5fa', textDecoration: 'none' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {author}
+        </Link>
+      );
+    }
+
+    return author;
+  };
 
   return (
     <div className="yt-card">
@@ -46,27 +110,6 @@ export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K vie
             left: 8,
           }}>
             <OwnedBadge owned={owned} />
-          </div>
-        )}
-        {/* Collaboration badge - bottom left */}
-        {isCollaborative && (
-          <div style={{
-            position: 'absolute',
-            bottom: 8,
-            left: 8,
-            background: 'rgba(245, 158, 11, 0.9)',
-            backdropFilter: 'blur(4px)',
-            padding: '4px 8px',
-            borderRadius: 4,
-            fontSize: 11,
-            fontWeight: 700,
-            color: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-          }}>
-            <span>🤝</span>
-            <span>Collab</span>
           </div>
         )}
         {/* Price badge - top right */}
@@ -89,7 +132,7 @@ export function VideoCard({ id, title, author = 'Creator', viewsText = '1.2K vie
       </Link>
       <div className="yt-info">
         <div className="yt-title" title={title}>{title}</div>
-        <div className="yt-meta">{authorDisplay} • {viewsText} • {timeText}</div>
+        <div className="yt-meta">{renderAuthorDisplay()} • {viewsText} • {timeText}</div>
         {editionsNum !== undefined && !isNaN(editionsNum) && (
           <div style={{
             fontSize: 11,

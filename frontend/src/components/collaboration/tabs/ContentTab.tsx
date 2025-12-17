@@ -6,6 +6,9 @@ import {
 } from '../../../services/collaborationApi';
 import CollaborativeEditor from '../CollaborativeEditor';
 import CollaborativeBookEditor from '../CollaborativeBookEditor';
+import CollaborativeArtEditor from '../CollaborativeArtEditor';
+import CollaborativeMusicEditor from '../CollaborativeMusicEditor';
+import CollaborativeVideoEditor from '../CollaborativeVideoEditor';
 
 interface User {
   id: number;
@@ -28,25 +31,54 @@ export default function ContentTab({
   onCommentAdd,
   onProjectUpdate,
 }: ContentTabProps) {
-  // For book projects, use the CollaborativeBookEditor
-  if (project.content_type === 'book') {
-    return (
-      <CollaborativeBookEditor
-        project={project}
-        currentUser={currentUser}
-        onProjectUpdate={onProjectUpdate}
-      />
-    );
-  }
+  // Route to the appropriate editor based on project content type
+  switch (project.content_type) {
+    case 'book':
+      return (
+        <CollaborativeBookEditor
+          project={project}
+          currentUser={currentUser}
+          onProjectUpdate={onProjectUpdate}
+        />
+      );
 
-  // For other content types, use the standard section-based editor
-  return (
-    <CollaborativeEditor
-      project={project}
-      currentUser={currentUser}
-      onSectionUpdate={onSectionUpdate}
-      onCommentAdd={onCommentAdd}
-      onProjectUpdate={onProjectUpdate}
-    />
-  );
+    case 'art':
+      return (
+        <CollaborativeArtEditor
+          project={project}
+          currentUser={currentUser}
+          onProjectUpdate={onProjectUpdate}
+        />
+      );
+
+    case 'music':
+      return (
+        <CollaborativeMusicEditor
+          project={project}
+          currentUser={currentUser}
+          onProjectUpdate={onProjectUpdate}
+        />
+      );
+
+    case 'video':
+      return (
+        <CollaborativeVideoEditor
+          project={project}
+          currentUser={currentUser}
+          onProjectUpdate={onProjectUpdate}
+        />
+      );
+
+    default:
+      // Fallback to generic section-based editor for unknown types
+      return (
+        <CollaborativeEditor
+          project={project}
+          currentUser={currentUser}
+          onSectionUpdate={onSectionUpdate}
+          onCommentAdd={onCommentAdd}
+          onProjectUpdate={onProjectUpdate}
+        />
+      );
+  }
 }

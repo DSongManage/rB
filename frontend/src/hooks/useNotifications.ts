@@ -94,9 +94,9 @@ export function useNotifications(
       await notificationService.deleteNotification(notificationId);
       // State will be updated via event listener
     } catch (err) {
-      setError(err as Error);
+      // Don't throw - the service handles 404 gracefully and updates local state
+      // Other errors are logged but we don't want to block the UI
       console.error('Failed to delete notification:', err);
-      throw err;
     }
   }, []);
 

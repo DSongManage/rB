@@ -28,7 +28,7 @@ import { useAuth } from './hooks/useAuth';
 import BetaOnboarding from './components/BetaOnboarding';
 import { API_URL } from './config';
 import {
-  Search, User, LogOut, Menu, X
+  Search, User, LogOut, Menu, X, Users
 } from 'lucide-react';
 
 function Header() {
@@ -148,6 +148,9 @@ function Header() {
         {isAuthed && (
           <>
             <NotificationBell />
+            <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
+              <Users size={20} />
+            </Link>
             <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile">
               {avatarUrl ? (
                 <img

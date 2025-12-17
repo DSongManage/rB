@@ -96,6 +96,8 @@ interface NotificationState {
   lastChecked: Date | null;
   isPolling: boolean;
   lastError: Error | null;
+  knownNotificationIds: Set<number>; // Track IDs of notifications we've seen
+  initialLoadComplete: boolean; // Prevent toast spam on first load
 }
 
 const state: NotificationState = {
@@ -104,6 +106,8 @@ const state: NotificationState = {
   lastChecked: null,
   isPolling: false,
   lastError: null,
+  knownNotificationIds: new Set(),
+  initialLoadComplete: false,
 };
 
 // ============================================================================
@@ -170,6 +174,9 @@ export async function getNotifications(): Promise<Notification[]> {
     state.unreadCount = notifications.filter(n => !n.read).length;
     state.lastChecked = new Date();
     state.lastError = null;
+
+    // Track known notification IDs (for detecting truly new notifications)
+    notifications.forEach(n => state.knownNotificationIds.add(n.id));
 
     events.emit('notifications:updated', { notifications, unreadCount: state.unreadCount });
 
@@ -272,17 +279,8 @@ export async function markAllNotificationsRead(): Promise<void> {
  * Delete a notification
  */
 export async function deleteNotification(notificationId: number): Promise<void> {
-  try {
-    const csrfToken = await getCsrfToken();
-
-    await apiRequest(`/api/notifications/${notificationId}/`, {
-      method: 'DELETE',
-      headers: {
-        'X-CSRFToken': csrfToken,
-      },
-    });
-
-    // Update local state
+  // Helper to update local state after delete
+  const removeFromLocalState = () => {
     const index = state.notifications.findIndex(n => n.id === notificationId);
     if (index !== -1) {
       const wasUnread = !state.notifications[index].read;
@@ -292,14 +290,48 @@ export async function deleteNotification(notificationId: number): Promise<void> 
         state.unreadCount = Math.max(0, state.unreadCount - 1);
       }
 
+      // Also remove from known IDs
+      state.knownNotificationIds.delete(notificationId);
+
       events.emit('notifications:updated', {
         notifications: state.notifications,
         unreadCount: state.unreadCount
       });
       events.emit('notifications:unread-count', { count: state.unreadCount });
     }
+  };
+
+  try {
+    const csrfToken = await getCsrfToken();
+
+    const fullUrl = `${API_URL}/api/notifications/${notificationId}/`;
+    const response = await fetch(fullUrl, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+    });
+
+    // Handle 404 gracefully - notification doesn't exist or already deleted
+    // Still remove from local state since it's effectively "gone"
+    if (response.status === 404) {
+      console.warn(`Notification ${notificationId} not found on server, removing from local state`);
+      removeFromLocalState();
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete notification: ${response.status}`);
+    }
+
+    // Successfully deleted - update local state
+    removeFromLocalState();
   } catch (error) {
     console.error('Failed to delete notification:', error);
+    // On network error, still try to remove from local state for better UX
+    removeFromLocalState();
     throw error;
   }
 }
@@ -346,19 +378,28 @@ async function pollNotifications(): Promise<void> {
   if (!state.isPolling) return;
 
   try {
-    const previousUnreadCount = state.unreadCount;
+    // Store IDs of previously known notifications before fetching
+    const previouslyKnownIds = new Set(state.knownNotificationIds);
+
     await getNotifications();
 
-    // Check if there are new notifications
-    if (state.unreadCount > previousUnreadCount) {
-      const newNotifications = state.notifications
-        .filter(n => !n.read)
-        .slice(0, state.unreadCount - previousUnreadCount);
+    // Only emit 'notifications:new' after initial load is complete
+    // This prevents a flood of toasts when the page first loads
+    if (state.initialLoadComplete) {
+      // Find truly NEW notifications (IDs we haven't seen before)
+      const newNotifications = state.notifications.filter(
+        n => !previouslyKnownIds.has(n.id) && !n.read
+      );
 
-      events.emit('notifications:new', {
-        notifications: newNotifications,
-        count: newNotifications.length
-      });
+      if (newNotifications.length > 0) {
+        events.emit('notifications:new', {
+          notifications: newNotifications,
+          count: newNotifications.length
+        });
+      }
+    } else {
+      // Mark initial load as complete after first successful fetch
+      state.initialLoadComplete = true;
     }
 
     // Reset retry count on success
@@ -496,6 +537,8 @@ export function reset(): void {
   state.unreadCount = 0;
   state.lastChecked = null;
   state.lastError = null;
+  state.knownNotificationIds.clear();
+  state.initialLoadComplete = false;
   events.clear();
 }
 

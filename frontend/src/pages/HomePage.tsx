@@ -2,6 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '../config';
 import { VideoCard } from '../components/VideoCard';
 
+type Collaborator = {
+  username: string;
+  role: string;
+  revenue_percentage: number;
+};
+
 type Item = {
   id: number;
   title: string;
@@ -13,6 +19,8 @@ type Item = {
   price_usd?: number;
   editions?: number;
   owned?: boolean;
+  is_collaborative?: boolean;
+  collaborators?: Collaborator[];
 };
 
 const GENRES = ['All','Books','Art','Film','Music','Tech','Photography'];
@@ -82,6 +90,8 @@ export default function HomePage() {
               price={it.price_usd}
               editions={it.editions}
               owned={it.owned}
+              isCollaborative={it.is_collaborative}
+              collaborators={it.collaborators?.map(c => c.username)}
             />
           ))}
         </div>

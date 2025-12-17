@@ -38,6 +38,13 @@ export default function ContentDetail(){
     ? `${API_URL}/api/content/${id}/teaser/`
     : data?.teaser_link;
 
+  // Transform collaborators to match PreviewModal's expected format
+  const collaborators = data?.collaborators?.map((c: any) => ({
+    username: c.username,
+    role: c.role,
+    revenuePercentage: c.revenue_percentage,
+  })) || [];
+
   return (
     <div style={{maxWidth:900, margin:'0 auto', padding:16}}>
       <h2 style={{marginBottom:12}}>{data?.title}</h2>
@@ -54,6 +61,8 @@ export default function ContentDetail(){
         contentId={parseInt(id)}
         price={data?.price_usd}
         editions={data?.editions}
+        isCollaborative={data?.is_collaborative}
+        collaborators={collaborators}
       />
     </div>
   );

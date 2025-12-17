@@ -1,7 +1,7 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView
+from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView
 from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/analytics/fees/', AnalyticsFeesView.as_view(), name='analytics_fees'),
     path('api/admin/user-stats/', AdminStatsUpdateView.as_view(), name='admin_user_stats_update'),
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('api/sales-analytics/', SalesAnalyticsView.as_view(), name='sales_analytics'),
     path('api/search/', SearchView.as_view(), name='search'),
     path('auth/web3/', Web3AuthLoginView.as_view(), name='web3_login'),
     path('api/flag/', FlagView.as_view(), name='flag'),

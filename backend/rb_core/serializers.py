@@ -16,14 +16,17 @@ class ContentSerializer(serializers.ModelSerializer):
     """
     creator_username = serializers.SerializerMethodField()
     owned = serializers.SerializerMethodField()
+    is_collaborative = serializers.SerializerMethodField()
+    collaborators = serializers.SerializerMethodField()
 
     class Meta:
         model = Content
         fields = [
             'id', 'title', 'teaser_link', 'teaser_html', 'created_at', 'creator', 'creator_username', 'content_type', 'genre',
-            'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract', 'owned'
+            'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract', 'owned',
+            'is_collaborative', 'collaborators'
         ]
-        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at', 'owned']
+        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators']
 
     def get_creator_username(self, obj):
         return obj.creator.username if obj.creator else 'Unknown'
@@ -34,7 +37,33 @@ class ContentSerializer(serializers.ModelSerializer):
         if request and hasattr(request, 'user') and request.user.is_authenticated:
             return obj.is_owned_by(request.user)
         return False
-    
+
+    def get_is_collaborative(self, obj):
+        """Check if this content comes from a collaborative project."""
+        try:
+            # Check if content has a source_collaborative_project
+            if hasattr(obj, 'source_collaborative_project') and obj.source_collaborative_project.exists():
+                return True
+        except Exception:
+            pass
+        return False
+
+    def get_collaborators(self, obj):
+        """Get collaborators for collaborative content."""
+        try:
+            # Check if content has a source_collaborative_project
+            if hasattr(obj, 'source_collaborative_project') and obj.source_collaborative_project.exists():
+                collab_project = obj.source_collaborative_project.first()
+                if collab_project:
+                    return [{
+                        'username': c.user.username,
+                        'role': c.role,
+                        'revenue_percentage': float(c.revenue_percentage)
+                    } for c in collab_project.collaborators.filter(status='accepted')]
+        except Exception:
+            pass
+        return []
+
     def validate_teaser_link(self, value):
         if not value.startswith('http'):
             raise serializers.ValidationError("Teaser link must be a valid URL.")
@@ -546,16 +575,17 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
 
 class CollaborativeProjectListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for project list views (performance optimized)."""
+    created_by = serializers.IntegerField(source='created_by.id', read_only=True)
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     total_collaborators = serializers.SerializerMethodField()
 
     class Meta:
         model = CollaborativeProject
         fields = [
-            'id', 'title', 'content_type', 'status', 'created_by_username',
+            'id', 'title', 'content_type', 'status', 'created_by', 'created_by_username',
             'total_collaborators', 'created_at', 'price_usd'
         ]
-        read_only_fields = ['id', 'created_at', 'created_by_username', 'total_collaborators']
+        read_only_fields = ['id', 'created_at', 'created_by', 'created_by_username', 'total_collaborators']
 
     def get_total_collaborators(self, obj):
         """Count accepted collaborators."""
