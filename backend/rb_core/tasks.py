@@ -596,16 +596,29 @@ def process_atomic_purchase(self, purchase_id):
         purchase.usdc_distribution_status = 'processing'
         purchase.save()
 
-        # Get collaborators (chapter has get_collaborators_with_wallets method)
-        try:
+        # Get collaborators - both Chapter and Content now have this method
+        # Check if the method exists to avoid catching unrelated AttributeErrors
+        if hasattr(item, 'get_collaborators_with_wallets'):
             collaborators = item.get_collaborators_with_wallets()
-        except AttributeError:
-            # Fallback for content - use creator wallet
-            if not hasattr(item, 'creator') or not item.creator.wallet_address:
+            logger.info(f'[Atomic Purchase] get_collaborators_with_wallets returned {len(collaborators)} collaborator(s)')
+            for i, c in enumerate(collaborators):
+                logger.info(f'[Atomic Purchase]   {i+1}. {c["user"].username}: {c["percentage"]}% to {c["wallet"][:16]}...')
+        else:
+            # Fallback for items that don't have the method (legacy safety)
+            logger.warning(f'[Atomic Purchase] Item has no get_collaborators_with_wallets method - using fallback')
+            wallet_address = None
+            if hasattr(item, 'creator'):
+                if hasattr(item.creator, 'profile') and item.creator.profile:
+                    wallet_address = item.creator.profile.wallet_address
+                elif hasattr(item.creator, 'wallet_address'):
+                    wallet_address = item.creator.wallet_address
+
+            if not wallet_address:
                 raise ValueError(f'Content/chapter creator has no wallet address')
+
             collaborators = [{
                 'user': item.creator,
-                'wallet': item.creator.wallet_address,
+                'wallet': wallet_address,
                 'percentage': 90,
                 'role': 'creator'
             }]

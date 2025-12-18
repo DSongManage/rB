@@ -223,15 +223,29 @@ class Command(BaseCommand):
                 self.stdout.write(f"     🎨 NFT Mint: {nft_mint[:20]}...")
                 self.stdout.write(f"     🔗 TX Sig: {tx_sig}")
 
-                # Calculate amounts for clearer display
+                # Get actual distribution amounts
                 total_usdc = result.get('usdc_fronted', 0)
                 platform_fee = result.get('usdc_earned', 0)
-                creator_gets = total_usdc - platform_fee
 
                 self.stdout.write(f"     💸 USDC Distribution:")
-                self.stdout.write(f"        Total pool:      ${total_usdc:.6f} USDC")
-                self.stdout.write(f"        To creator (90%): {creator_gets:.6f} USDC ← sent on-chain")
-                self.stdout.write(f"        Platform (10%):   {platform_fee:.6f} USDC ← kept in treasury")
+                self.stdout.write(f"        Total pool: ${total_usdc:.6f} USDC")
+
+                # Show actual collaborator breakdown from purchase record
+                purchase.refresh_from_db()
+                if purchase.distribution_details and 'collaborators' in purchase.distribution_details:
+                    collaborators = purchase.distribution_details['collaborators']
+                    self.stdout.write(f"        Collaborators ({len(collaborators)}):")
+                    for collab in collaborators:
+                        self.stdout.write(
+                            f"          → {collab['user']}: ${collab['amount']:.6f} USDC "
+                            f"({collab['percentage']}%) [{collab.get('role', 'collaborator')}]"
+                        )
+                else:
+                    # Fallback display if no distribution details
+                    creator_gets = total_usdc - platform_fee
+                    self.stdout.write(f"        To creator(s): ${creator_gets:.6f} USDC")
+
+                self.stdout.write(f"        Platform fee: ${platform_fee:.6f} USDC ← kept in treasury")
 
                 # Refresh purchase to show updated status
                 purchase.refresh_from_db()

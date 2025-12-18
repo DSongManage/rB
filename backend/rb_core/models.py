@@ -126,32 +126,63 @@ class Content(models.Model):
         Returns:
             list: List of dicts with {user, wallet, percentage, role}
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f'[get_collaborators_with_wallets] Content ID: {self.id}, Title: {self.title}')
+
         # Check if this content comes from a collaborative project
-        if hasattr(self, 'source_collaborative_project') and self.source_collaborative_project.exists():
-            collab_project = self.source_collaborative_project.first()
-            if collab_project:
-                collaborators = []
-                for collab_role in collab_project.collaborators.filter(status='accepted'):
-                    # Get wallet from user's profile
-                    wallet_address = None
-                    if hasattr(collab_role.user, 'profile') and collab_role.user.profile:
-                        wallet_address = collab_role.user.profile.wallet_address
+        has_collab_attr = hasattr(self, 'source_collaborative_project')
+        logger.info(f'[get_collaborators_with_wallets] Has source_collaborative_project attr: {has_collab_attr}')
 
-                    if wallet_address:
-                        collaborators.append({
-                            'user': collab_role.user,
-                            'wallet': wallet_address,
-                            'percentage': float(collab_role.revenue_percentage),
-                            'role': collab_role.role
-                        })
+        if has_collab_attr:
+            collab_exists = self.source_collaborative_project.exists()
+            logger.info(f'[get_collaborators_with_wallets] source_collaborative_project.exists(): {collab_exists}')
 
-                if collaborators:
-                    return collaborators
+            if collab_exists:
+                collab_project = self.source_collaborative_project.first()
+                logger.info(f'[get_collaborators_with_wallets] Found CollaborativeProject: {collab_project.id} - {collab_project.title}')
+
+                if collab_project:
+                    collaborators = []
+                    all_collab_roles = collab_project.collaborators.all()
+                    logger.info(f'[get_collaborators_with_wallets] Total collaborators in project: {all_collab_roles.count()}')
+
+                    accepted_roles = collab_project.collaborators.filter(status='accepted')
+                    logger.info(f'[get_collaborators_with_wallets] Accepted collaborators: {accepted_roles.count()}')
+
+                    for collab_role in accepted_roles:
+                        logger.info(f'[get_collaborators_with_wallets] Collaborator: {collab_role.user.username}, Role: {collab_role.role}, Percentage: {collab_role.revenue_percentage}%')
+
+                        # Get wallet from user's profile
+                        wallet_address = None
+                        if hasattr(collab_role.user, 'profile') and collab_role.user.profile:
+                            wallet_address = collab_role.user.profile.wallet_address
+                            logger.info(f'[get_collaborators_with_wallets]   Wallet: {wallet_address}')
+                        else:
+                            logger.info(f'[get_collaborators_with_wallets]   NO PROFILE or NO WALLET for {collab_role.user.username}')
+
+                        if wallet_address:
+                            collaborators.append({
+                                'user': collab_role.user,
+                                'wallet': wallet_address,
+                                'percentage': float(collab_role.revenue_percentage),
+                                'role': collab_role.role
+                            })
+
+                    logger.info(f'[get_collaborators_with_wallets] Found {len(collaborators)} collaborators with wallets')
+
+                    if collaborators:
+                        return collaborators
+                    else:
+                        logger.warning(f'[get_collaborators_with_wallets] No collaborators with wallets found, falling back to single creator')
 
         # Fallback: Single creator for non-collaborative content
+        logger.info(f'[get_collaborators_with_wallets] Using FALLBACK - single creator: {self.creator.username}')
         wallet_address = None
         if hasattr(self.creator, 'profile') and self.creator.profile:
             wallet_address = self.creator.profile.wallet_address
+            logger.info(f'[get_collaborators_with_wallets] Creator wallet: {wallet_address}')
 
         if wallet_address:
             return [{
@@ -161,6 +192,7 @@ class Content(models.Model):
                 'role': 'creator'
             }]
 
+        logger.error(f'[get_collaborators_with_wallets] NO WALLET FOUND for creator {self.creator.username}')
         return []
 
     # Future: Methods for minting integration, revenue splits (FR9, FR13)
