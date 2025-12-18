@@ -1,5 +1,38 @@
-import React, { useState } from 'react';
-import { BookOpen, Palette, Music, Film } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  BookOpen, Palette, Music, Film, Check, Plus, User,
+  Pen, Users, Image, CheckCircle, FileText, Mic, Mic2,
+  Brush, PaintBucket, Eye, Sliders, Volume2, Video,
+  Scissors, PlayCircle, Briefcase
+} from 'lucide-react';
+
+// Helper to render role icon based on icon string
+const RoleIcon = ({ icon, size = 20 }: { icon: string; size?: number }) => {
+  const iconProps = { size, strokeWidth: 1.5 };
+  switch (icon) {
+    case 'pen': return <Pen {...iconProps} />;
+    case 'users': return <Users {...iconProps} />;
+    case 'palette': return <Palette {...iconProps} />;
+    case 'image': return <Image {...iconProps} />;
+    case 'check-circle': return <CheckCircle {...iconProps} />;
+    case 'spell-check': return <FileText {...iconProps} />;
+    case 'microphone': return <Mic2 {...iconProps} />;
+    case 'brush': return <Brush {...iconProps} />;
+    case 'paint-brush': return <PaintBucket {...iconProps} />;
+    case 'eye': return <Eye {...iconProps} />;
+    case 'music': return <Music {...iconProps} />;
+    case 'sliders': return <Sliders {...iconProps} />;
+    case 'mic': return <Mic {...iconProps} />;
+    case 'file-text': return <FileText {...iconProps} />;
+    case 'volume-2': return <Volume2 {...iconProps} />;
+    case 'film': return <Film {...iconProps} />;
+    case 'video': return <Video {...iconProps} />;
+    case 'scissors': return <Scissors {...iconProps} />;
+    case 'play-circle': return <PlayCircle {...iconProps} />;
+    case 'briefcase': return <Briefcase {...iconProps} />;
+    default: return <User {...iconProps} />;
+  }
+};
 
 // Types for contract tasks
 interface ContractTask {
@@ -7,6 +40,26 @@ interface ContractTask {
   title: string;
   description: string;
   deadline: string;
+}
+
+// Types for role definitions
+interface RoleDefinition {
+  id: number;
+  name: string;
+  category: string;
+  description: string;
+  applicable_to_book: boolean;
+  applicable_to_art: boolean;
+  applicable_to_music: boolean;
+  applicable_to_video: boolean;
+  default_permissions: {
+    create: string[];
+    edit: { scope: string; types: string[] };
+    review: string[];
+  };
+  ui_components: string[];
+  icon: string;
+  color: string;
 }
 
 // Project type options
@@ -70,6 +123,12 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   // Project type - required for new collaborations
   const [projectType, setProjectType] = useState<ProjectType>(initialProjectType || 'book');
 
+  // Role definitions from API
+  const [roleDefinitions, setRoleDefinitions] = useState<RoleDefinition[]>([]);
+  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [showCustomRole, setShowCustomRole] = useState(false);
+
   // Contract tasks
   const [tasks, setTasks] = useState<ContractTask[]>([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -80,9 +139,66 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   const [canEditAudio, setCanEditAudio] = useState(false);
   const [canEditVideo, setCanEditVideo] = useState(false);
 
+  // Fetch role definitions when project type changes
+  useEffect(() => {
+    if (!open) return;
+
+    const fetchRoleDefinitions = async () => {
+      setLoadingRoles(true);
+      try {
+        const res = await fetch(`/api/role-definitions/?project_type=${projectType}`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setRoleDefinitions(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch role definitions:', err);
+      } finally {
+        setLoadingRoles(false);
+      }
+    };
+
+    fetchRoleDefinitions();
+  }, [projectType, open]);
+
+  // Handle role selection - auto-populate permissions from role definition
+  const handleRoleSelect = (roleId: number | null) => {
+    setSelectedRoleId(roleId);
+    setShowCustomRole(false);
+
+    if (roleId) {
+      const roleDef = roleDefinitions.find(r => r.id === roleId);
+      if (roleDef) {
+        setRole(roleDef.name);
+        // Auto-populate permissions from role definition
+        const perms = roleDef.default_permissions;
+        const editTypes = perms.edit?.types || [];
+        setCanEditText(editTypes.includes('text') || perms.create?.includes('text'));
+        setCanEditImages(editTypes.includes('image') || perms.create?.includes('image'));
+        setCanEditAudio(editTypes.includes('audio') || perms.create?.includes('audio'));
+        setCanEditVideo(editTypes.includes('video') || perms.create?.includes('video'));
+      }
+    } else {
+      setRole('');
+    }
+  };
+
+  // Handle custom role selection
+  const handleCustomRole = () => {
+    setSelectedRoleId(null);
+    setShowCustomRole(true);
+    setRole('');
+  };
+
   // Update permissions when project type changes
   const handleProjectTypeChange = (newType: ProjectType) => {
     setProjectType(newType);
+    // Reset role selection when project type changes
+    setSelectedRoleId(null);
+    setShowCustomRole(false);
+    setRole('');
     // Set smart defaults based on project type
     switch (newType) {
       case 'book':
@@ -183,6 +299,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           body: JSON.stringify({
             user_id: recipient.id,
             role: role || 'Collaborator',
+            role_definition_id: selectedRoleId || undefined,
             revenue_percentage: equityPercent,
             can_edit_text: canEditText,
             can_edit_images: canEditImages,
@@ -253,6 +370,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     setMessage(DEFAULT_PITCH);
     setEquityPercent(50);
     setRole('');
+    setSelectedRoleId(null);
+    setShowCustomRole(false);
     setProjectType(initialProjectType || 'book');
     setTasks([]);
     setSuccessMsg('');
@@ -434,26 +553,221 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             </div>
           )}
 
-          {/* Role */}
+          {/* Role Selection */}
           <div>
-            <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-              Their Role
+            <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+              Their Role <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <input
-              type="text"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              placeholder="e.g., Illustrator, Co-Author, Editor..."
-              style={{
-                width: '100%',
-                background: '#1e293b',
-                border: '1px solid #334155',
-                borderRadius: 8,
-                padding: 12,
-                color: '#f8fafc',
-                fontSize: 14,
-              }}
-            />
+
+            {loadingRoles ? (
+              <div style={{ color: '#64748b', fontSize: 13, padding: 12 }}>
+                Loading roles...
+              </div>
+            ) : (
+              <>
+                {/* Role cards grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                  gap: 10,
+                  marginBottom: 12,
+                }}>
+                  {roleDefinitions.map((roleDef) => (
+                    <button
+                      key={roleDef.id}
+                      type="button"
+                      onClick={() => handleRoleSelect(roleDef.id)}
+                      style={{
+                        background: selectedRoleId === roleDef.id ? 'rgba(245,158,11,0.15)' : '#1e293b',
+                        border: `2px solid ${selectedRoleId === roleDef.id ? '#f59e0b' : '#334155'}`,
+                        borderRadius: 10,
+                        padding: '12px 10px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 6,
+                        transition: 'all 0.2s ease',
+                        position: 'relative',
+                      }}
+                    >
+                      {selectedRoleId === roleDef.id && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 6,
+                          right: 6,
+                          background: '#f59e0b',
+                          borderRadius: '50%',
+                          width: 16,
+                          height: 16,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Check size={10} color="#000" strokeWidth={3} />
+                        </div>
+                      )}
+                      <div style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 8,
+                        background: `${roleDef.color}20`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: roleDef.color,
+                      }}>
+                        <RoleIcon icon={roleDef.icon} size={20} />
+                      </div>
+                      <span style={{
+                        color: selectedRoleId === roleDef.id ? '#f59e0b' : '#f8fafc',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                      }}>
+                        {roleDef.name}
+                      </span>
+                      <span style={{
+                        color: '#64748b',
+                        fontSize: 9,
+                        textAlign: 'center',
+                        lineHeight: 1.2,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}>
+                        {roleDef.description.slice(0, 50)}{roleDef.description.length > 50 ? '...' : ''}
+                      </span>
+                    </button>
+                  ))}
+
+                  {/* Custom role option */}
+                  <button
+                    type="button"
+                    onClick={handleCustomRole}
+                    style={{
+                      background: showCustomRole ? 'rgba(245,158,11,0.15)' : '#1e293b',
+                      border: `2px solid ${showCustomRole ? '#f59e0b' : '#334155'}`,
+                      borderRadius: 10,
+                      padding: '12px 10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: 'rgba(148, 163, 184, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#94a3b8',
+                    }}>
+                      <Plus size={20} strokeWidth={1.5} />
+                    </div>
+                    <span style={{
+                      color: showCustomRole ? '#f59e0b' : '#94a3b8',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}>
+                      Custom Role
+                    </span>
+                    <span style={{
+                      color: '#64748b',
+                      fontSize: 9,
+                      textAlign: 'center',
+                    }}>
+                      Define your own
+                    </span>
+                  </button>
+                </div>
+
+                {/* Custom role input (shown when custom role is selected) */}
+                {showCustomRole && (
+                  <input
+                    type="text"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    placeholder="Enter custom role name..."
+                    style={{
+                      width: '100%',
+                      background: '#1e293b',
+                      border: '1px solid #f59e0b',
+                      borderRadius: 8,
+                      padding: 12,
+                      color: '#f8fafc',
+                      fontSize: 14,
+                    }}
+                  />
+                )}
+
+                {/* Selected role info */}
+                {selectedRoleId && !showCustomRole && (
+                  <div style={{
+                    background: 'rgba(245,158,11,0.1)',
+                    border: '1px solid rgba(245,158,11,0.3)',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}>
+                    {(() => {
+                      const selectedRole = roleDefinitions.find(r => r.id === selectedRoleId);
+                      if (!selectedRole) return null;
+                      return (
+                        <>
+                          <div style={{ color: '#f59e0b', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                            {selectedRole.name}
+                          </div>
+                          <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 8 }}>
+                            {selectedRole.description}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {selectedRole.default_permissions.create?.length > 0 && (
+                              <span style={{
+                                background: 'rgba(16,185,129,0.15)',
+                                color: '#10b981',
+                                fontSize: 10,
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                              }}>
+                                Can create: {selectedRole.default_permissions.create.join(', ')}
+                              </span>
+                            )}
+                            {selectedRole.default_permissions.edit?.types?.length > 0 && (
+                              <span style={{
+                                background: 'rgba(59,130,246,0.15)',
+                                color: '#3b82f6',
+                                fontSize: 10,
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                              }}>
+                                Can edit: {selectedRole.default_permissions.edit.types.join(', ')} ({selectedRole.default_permissions.edit.scope})
+                              </span>
+                            )}
+                            {selectedRole.default_permissions.review?.length > 0 && (
+                              <span style={{
+                                background: 'rgba(168,85,247,0.15)',
+                                color: '#a855f7',
+                                fontSize: 10,
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                              }}>
+                                Can review: {selectedRole.default_permissions.review.join(', ')}
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Project Pitch */}

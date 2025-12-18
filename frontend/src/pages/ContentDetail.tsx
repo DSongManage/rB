@@ -21,6 +21,12 @@ export default function ContentDetail(){
         console.log('[ContentDetail] Preview data:', data);
         setData(data);
       });
+
+    // Track content view
+    fetch(`${API_URL}/api/content/${id}/view/`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(err => console.log('[ContentDetail] View tracking failed:', err));
   }, [id]);
 
   const handleClose = () => {

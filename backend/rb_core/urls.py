@@ -1,14 +1,14 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView
+from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView
 from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
-    ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings
+    ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet
 )
 from .views.notifications import NotificationViewSet
 from .views import beta
@@ -25,6 +25,7 @@ router.register(r'collaborative-projects', CollaborativeProjectViewSet, basename
 router.register(r'project-sections', ProjectSectionViewSet, basename='project-section')
 router.register(r'project-comments', ProjectCommentViewSet, basename='project-comment')
 router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'role-definitions', RoleDefinitionViewSet, basename='role-definition')
 
 urlpatterns = [
     path('', home, name='home'),
@@ -33,6 +34,7 @@ urlpatterns = [
     path('api/content/<int:pk>/', ContentDetailView.as_view(), name='content_detail'),
     path('api/content/<int:pk>/preview/', ContentPreviewView.as_view(), name='content_preview'),
     path('api/content/<int:pk>/teaser/', ContentTextTeaserView.as_view(), name='content_teaser'),
+    path('api/content/<int:pk>/view/', TrackContentViewView.as_view(), name='track_content_view'),
     path('api/content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_view'),
     # Stripe checkout and payment processing
     path('api/checkout/create/', CreateCheckoutSessionView.as_view(), name='checkout_create'),

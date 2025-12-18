@@ -3,7 +3,7 @@ Celery tasks for async NFT minting and payment processing.
 """
 
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 logger = logging.getLogger(__name__)
 
@@ -627,26 +627,72 @@ def process_atomic_purchase(self, purchase_id):
             raise ValueError(f'No collaborators found for {item_type} {item.id}')
 
         # Calculate USDC amounts for each collaborator
+        # Platform ALWAYS gets 10%, collaborators split the remaining 90%
+        PLATFORM_PERCENTAGE = Decimal('10')
+        CREATOR_POOL_PERCENTAGE = Decimal('90')
+
+        # First pass: calculate total collaborator percentage to determine mode
+        total_collaborator_percentage = sum(Decimal(str(c['percentage'])) for c in collaborators)
+
+        logger.info(f'[Atomic Purchase] Total collaborator percentage from metadata: {total_collaborator_percentage}%')
+
+        # Platform ALWAYS gets 10%
+        platform_usdc = (amount_to_distribute * PLATFORM_PERCENTAGE / 100).quantize(
+            Decimal('0.000001'), rounding=ROUND_HALF_UP
+        )
+        creator_pool = amount_to_distribute - platform_usdc  # Remaining 90% for collaborators
+
         collaborator_payments = []
-        total_creator_percentage = 0
 
-        for collab in collaborators:
-            usdc_amount = amount_to_distribute * (Decimal(collab['percentage']) / 100)
-            collaborator_payments.append({
-                'user': collab['user'],
-                'wallet_address': collab['wallet'],
-                'amount_usdc': float(usdc_amount),
-                'percentage': collab['percentage'],
-                'role': collab.get('role', 'collaborator')
-            })
-            total_creator_percentage += collab['percentage']
+        # Determine if this is collaborative content (percentages sum to ~100)
+        # or single creator content (percentage is ~90)
+        is_collaborative = total_collaborator_percentage > Decimal('95')  # Sum to ~100
 
-        # Platform fee (remaining percentage)
-        platform_percentage = 100 - total_creator_percentage
-        platform_usdc = amount_to_distribute * (Decimal(platform_percentage) / 100)
+        if is_collaborative:
+            # COLLABORATIVE: Percentages sum to 100%, they split the 90% creator pool
+            logger.info(f'[Atomic Purchase] COLLABORATIVE MODE: Splitting 90% creator pool among {len(collaborators)} collaborators')
+            for collab in collaborators:
+                collab_percentage = Decimal(str(collab['percentage']))
+                # Their percentage is their share of the creator pool
+                usdc_amount = (creator_pool * collab_percentage / 100).quantize(
+                    Decimal('0.000001'), rounding=ROUND_HALF_UP
+                )
+
+                collaborator_payments.append({
+                    'user': collab['user'],
+                    'wallet_address': collab['wallet'],
+                    'amount_usdc': float(usdc_amount),
+                    'percentage': float(collab_percentage),
+                    'role': collab.get('role', 'collaborator')
+                })
+                logger.info(f'[Atomic Purchase]   {collab["user"].username}: {collab_percentage}% of creator pool = ${usdc_amount} USDC')
+        else:
+            # SINGLE CREATOR: Percentage is their direct share of total (~90%)
+            # This maintains backward compatibility with non-collaborative content
+            logger.info(f'[Atomic Purchase] SINGLE CREATOR MODE: Direct percentage of total')
+            for collab in collaborators:
+                collab_percentage = Decimal(str(collab['percentage']))
+                # Their percentage is direct share of total amount
+                usdc_amount = (amount_to_distribute * collab_percentage / 100).quantize(
+                    Decimal('0.000001'), rounding=ROUND_HALF_UP
+                )
+
+                collaborator_payments.append({
+                    'user': collab['user'],
+                    'wallet_address': collab['wallet'],
+                    'amount_usdc': float(usdc_amount),
+                    'percentage': float(collab_percentage),
+                    'role': collab.get('role', 'collaborator')
+                })
+                logger.info(f'[Atomic Purchase]   {collab["user"].username}: {collab_percentage}% of total = ${usdc_amount} USDC')
+
+            # Recalculate platform fee for single creator mode (remaining after creator share)
+            total_creator_usdc = sum(Decimal(str(p['amount_usdc'])) for p in collaborator_payments)
+            platform_usdc = amount_to_distribute - total_creator_usdc
 
         logger.info(f'[Atomic Purchase] Collaborators: {len(collaborator_payments)}')
-        logger.info(f'[Atomic Purchase] Platform fee: {platform_usdc} USDC ({platform_percentage}%)')
+        logger.info(f'[Atomic Purchase] Platform fee: {platform_usdc} USDC ({PLATFORM_PERCENTAGE}%)')
+        logger.info(f'[Atomic Purchase] Creator pool: {creator_pool} USDC')
         logger.info(f'[Atomic Purchase] Total to distribute from treasury: {amount_to_distribute} USDC')
 
         # ═══════════════════════════════════════════════════════════════════

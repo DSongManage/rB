@@ -17,12 +17,12 @@ from decimal import Decimal, InvalidOperation
 
 from ..models import (
     CollaborativeProject, CollaboratorRole, ProjectSection,
-    ProjectComment, User as CoreUser, Content, ContractTask
+    ProjectComment, User as CoreUser, Content, ContractTask, RoleDefinition
 )
 from ..serializers import (
     CollaborativeProjectSerializer, CollaborativeProjectListSerializer,
     CollaboratorRoleSerializer, ProjectSectionSerializer, ProjectCommentSerializer,
-    ContractTaskSerializer, ContractTaskCreateSerializer
+    ContractTaskSerializer, ContractTaskCreateSerializer, RoleDefinitionSerializer
 )
 from ..notifications_utils import (
     notify_collaboration_invitation, notify_invitation_response,
@@ -100,12 +100,14 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         POST data:
         - user_id: int (user to invite)
-        - role: str (Author, Illustrator, etc.)
+        - role: str (Author, Illustrator, etc.) - custom role name
+        - role_definition_id: int (optional) - standard role template ID
+        - permissions: dict (optional) - custom permission overrides
         - revenue_percentage: decimal (0-100)
-        - can_edit_text: bool
-        - can_edit_images: bool
-        - can_edit_audio: bool
-        - can_edit_video: bool
+        - can_edit_text: bool (legacy, still supported)
+        - can_edit_images: bool (legacy, still supported)
+        - can_edit_audio: bool (legacy, still supported)
+        - can_edit_video: bool (legacy, still supported)
         - tasks: array of {title, description, deadline} (optional but recommended)
         """
         project = self.get_object()
@@ -149,8 +151,34 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             )
 
         # Get collaboration details
-        role = request.data.get('role', 'Collaborator')
+        role = request.data.get('role', '')
+        role_definition_id = request.data.get('role_definition_id')
+        permissions = request.data.get('permissions', {})
         revenue_percentage = Decimal(str(request.data.get('revenue_percentage', 0)))
+
+        # Get role definition if provided
+        role_definition = None
+        if role_definition_id:
+            try:
+                role_definition = RoleDefinition.objects.get(id=role_definition_id, is_active=True)
+                # Validate role is applicable to this project type
+                if not role_definition.is_applicable_to(project.content_type):
+                    return Response(
+                        {'error': f'Role "{role_definition.name}" is not applicable to {project.content_type} projects'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                # Use role definition name if custom role not provided
+                if not role:
+                    role = role_definition.name
+            except RoleDefinition.DoesNotExist:
+                return Response(
+                    {'error': 'Role definition not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        # Fallback to 'Collaborator' if no role specified
+        if not role:
+            role = 'Collaborator'
 
         # Validate revenue percentage
         if revenue_percentage < 0 or revenue_percentage > 100:
@@ -184,6 +212,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 project=project,
                 user=invited_user,
                 role=role,
+                role_definition=role_definition,
+                permissions=permissions,
                 revenue_percentage=revenue_percentage,
                 status='invited',
                 can_edit_text=request.data.get('can_edit_text', False),
@@ -208,9 +238,10 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             collaborator.save(update_fields=['tasks_total'])
 
         # Send notification to invited user
-        notify_collaboration_invitation(core_user, invited_user, project, role)
+        effective_role = collaborator.effective_role_name
+        notify_collaboration_invitation(core_user, invited_user, project, effective_role)
 
-        serializer = CollaboratorRoleSerializer(collaborator)
+        serializer = CollaboratorRoleSerializer(collaborator, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'])
@@ -2034,3 +2065,80 @@ def get_user_ratings(request, user_id):
             'created_at': r.created_at.isoformat(),
         } for r in ratings]
     })
+
+
+# ========== ROLE DEFINITION API ==========
+
+class RoleDefinitionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for listing and retrieving role definitions.
+
+    Provides read-only access to standard role templates that can be used
+    when inviting collaborators to projects. Supports filtering by project type.
+
+    Endpoints:
+    - GET /api/role-definitions/ - List all active role definitions
+    - GET /api/role-definitions/?project_type=book - Filter by applicable project type
+    - GET /api/role-definitions/{id}/ - Retrieve specific role definition
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = RoleDefinitionSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        """Return active role definitions, optionally filtered by project type."""
+        queryset = RoleDefinition.objects.filter(is_active=True)
+
+        # Filter by project type if provided
+        project_type = self.request.query_params.get('project_type')
+        if project_type:
+            if project_type == 'book':
+                queryset = queryset.filter(applicable_to_book=True)
+            elif project_type == 'art':
+                queryset = queryset.filter(applicable_to_art=True)
+            elif project_type == 'music':
+                queryset = queryset.filter(applicable_to_music=True)
+            elif project_type == 'video':
+                queryset = queryset.filter(applicable_to_video=True)
+
+        # Optional filter by category
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+
+        return queryset.order_by('category', 'name')
+
+    @action(detail=False, methods=['get'], url_path='by-project-type/(?P<project_type>[^/.]+)')
+    def by_project_type(self, request, project_type=None):
+        """Get all roles applicable to a specific project type.
+
+        Returns roles grouped by category for easier UI rendering.
+        """
+        queryset = RoleDefinition.objects.filter(is_active=True)
+
+        if project_type == 'book':
+            queryset = queryset.filter(applicable_to_book=True)
+        elif project_type == 'art':
+            queryset = queryset.filter(applicable_to_art=True)
+        elif project_type == 'music':
+            queryset = queryset.filter(applicable_to_music=True)
+        elif project_type == 'video':
+            queryset = queryset.filter(applicable_to_video=True)
+        else:
+            return Response(
+                {'error': f'Invalid project type: {project_type}. Must be book, art, music, or video.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Group by category
+        roles_by_category = {}
+        for role in queryset.order_by('category', 'name'):
+            category = role.get_category_display()
+            if category not in roles_by_category:
+                roles_by_category[category] = []
+            roles_by_category[category].append(RoleDefinitionSerializer(role).data)
+
+        return Response({
+            'project_type': project_type,
+            'roles_by_category': roles_by_category,
+            'total_roles': queryset.count()
+        })

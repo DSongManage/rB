@@ -82,6 +82,8 @@ class Content(models.Model):
     inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted')], default='draft')
     flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
+    # View tracking for analytics and discovery
+    view_count = models.PositiveIntegerField(default=0, db_index=True)
     
     def __str__(self):
         return self.title
@@ -1365,6 +1367,83 @@ class ReadingProgress(models.Model):
         return f"{self.user.username} - {self.content.title} ({self.progress_percentage}%)"
 
 
+class RoleDefinition(models.Model):
+    """Standard role definitions with preset capabilities.
+
+    Users can select from standard roles or create custom roles.
+    Standard roles automatically populate permissions and UI components.
+
+    Permission structure (JSON):
+    {
+        "create": ["text", "image", "audio", "video"],
+        "edit": {"scope": "own|assigned|all", "types": ["text", ...]},
+        "review": ["text", "image", "audio", "video"]
+    }
+
+    UI components determine what interface elements the role sees:
+    - chapter_editor: Full chapter editing interface
+    - image_uploader: Image upload and gallery
+    - audio_uploader: Audio upload interface
+    - video_uploader: Video upload interface
+    - content_viewer: Read-only content view
+    - comment_panel: Commenting/annotation tools
+    - task_tracker: Contract task display
+    """
+
+    CATEGORY_CHOICES = [
+        ('creator', 'Creator'),         # Primary content creators
+        ('contributor', 'Contributor'), # Secondary content creators
+        ('reviewer', 'Reviewer'),       # Review/comment only
+        ('technical', 'Technical'),     # Technical roles (editing, mixing)
+        ('management', 'Management'),   # Project management
+    ]
+
+    name = models.CharField(max_length=100, unique=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    description = models.TextField()
+
+    # Applicable project types
+    applicable_to_book = models.BooleanField(default=False)
+    applicable_to_art = models.BooleanField(default=False)
+    applicable_to_music = models.BooleanField(default=False)
+    applicable_to_video = models.BooleanField(default=False)
+
+    # Default permissions (JSON)
+    default_permissions = models.JSONField(
+        default=dict,
+        help_text='Default permissions for this role'
+    )
+
+    # UI components this role should see
+    ui_components = models.JSONField(
+        default=list,
+        help_text='List of UI components: chapter_editor, image_uploader, etc.'
+    )
+
+    # Icon/badge for visual identification
+    icon = models.CharField(max_length=50, default='user')
+    color = models.CharField(max_length=7, default='#94a3b8')  # Hex color
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['category', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.category})"
+
+    def is_applicable_to(self, project_type):
+        """Check if this role is applicable to a project type."""
+        mapping = {
+            'book': self.applicable_to_book,
+            'art': self.applicable_to_art,
+            'music': self.applicable_to_music,
+            'video': self.applicable_to_video,
+        }
+        return mapping.get(project_type, False)
+
+
 class CollaborativeProject(models.Model):
     """Collaborative project model for multi-creator content.
 
@@ -1462,6 +1541,7 @@ class CollaboratorRole(models.Model):
     - Defines revenue splits and permissions
     - Tracks invitation and approval status
     - Manages editing permissions per content type
+    - Supports role-based UI rendering via role_definition
     """
 
     STATUS_CHOICES = [
@@ -1481,9 +1561,43 @@ class CollaboratorRole(models.Model):
         on_delete=models.CASCADE,
         related_name='collaborations'
     )
+
+    # Link to standard role definition (optional)
+    role_definition = models.ForeignKey(
+        'RoleDefinition',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='collaborator_instances',
+        help_text='Standard role template (if selected)'
+    )
+
+    # Custom role name (or uses role_definition.name)
     role = models.CharField(
         max_length=50,
-        help_text="Author, Illustrator, Musician, Editor, etc."
+        blank=True,
+        help_text="Custom role name (or uses role_definition.name)"
+    )
+
+    # Granular permission structure (JSON) - overrides role_definition defaults
+    # Format: {
+    #   "create": ["text", "image"],
+    #   "edit": {"scope": "own|assigned|all", "types": ["text", "image"]},
+    #   "review": ["text"],
+    #   "custom": {"can_approve_final": true, "can_invite": false}
+    # }
+    permissions = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Granular permissions for this collaborator'
+    )
+
+    # Sections explicitly assigned to this collaborator for editing
+    assigned_sections = models.ManyToManyField(
+        'ProjectSection',
+        blank=True,
+        related_name='assigned_collaborators',
+        help_text='Specific sections this collaborator can edit'
     )
     revenue_percentage = models.DecimalField(
         max_digits=5,
@@ -1586,7 +1700,100 @@ class CollaboratorRole(models.Model):
         ordering = ['-revenue_percentage']
 
     def __str__(self):
-        return f"{self.user.username} - {self.role} ({self.revenue_percentage}%)"
+        role_name = self.effective_role_name
+        return f"{self.user.username} - {role_name} ({self.revenue_percentage}%)"
+
+    @property
+    def effective_role_name(self):
+        """Get role name from definition or custom field."""
+        if self.role_definition:
+            return self.role_definition.name
+        return self.role or 'Collaborator'
+
+    @property
+    def effective_permissions(self):
+        """
+        Merge default permissions from role_definition with custom overrides.
+        Custom permissions field takes precedence.
+        """
+        if self.role_definition:
+            base_perms = self.role_definition.default_permissions.copy() if self.role_definition.default_permissions else {}
+        else:
+            # Fallback: derive from legacy boolean flags
+            base_perms = {
+                'create': [],
+                'edit': {'scope': 'own', 'types': []},
+                'review': []
+            }
+            if self.can_edit_text:
+                base_perms['create'].append('text')
+                base_perms['edit']['types'].append('text')
+            if self.can_edit_images:
+                base_perms['create'].append('image')
+                base_perms['edit']['types'].append('image')
+            if self.can_edit_audio:
+                base_perms['create'].append('audio')
+                base_perms['edit']['types'].append('audio')
+            if self.can_edit_video:
+                base_perms['create'].append('video')
+                base_perms['edit']['types'].append('video')
+
+        # Merge with custom permissions (custom takes precedence)
+        if self.permissions:
+            merged = {**base_perms, **self.permissions}
+        else:
+            merged = base_perms
+
+        return merged
+
+    def get_ui_components(self):
+        """Get list of UI components this role should see."""
+        if self.role_definition and self.role_definition.ui_components:
+            return self.role_definition.ui_components
+
+        # Fallback: derive from legacy boolean flags
+        components = []
+        if self.can_edit_text:
+            components.append('chapter_editor')
+        if self.can_edit_images:
+            components.append('image_uploader')
+        if self.can_edit_audio:
+            components.append('audio_uploader')
+        if self.can_edit_video:
+            components.append('video_uploader')
+        components.append('task_tracker')
+
+        return components
+
+    def can_create_section_type(self, section_type):
+        """Check if collaborator can create new sections of this type."""
+        perms = self.effective_permissions
+        return section_type in perms.get('create', [])
+
+    def can_edit_section_instance(self, section):
+        """Check if collaborator can edit a specific section instance."""
+        perms = self.effective_permissions
+        edit_config = perms.get('edit', {})
+
+        # Check type permission
+        if section.section_type not in edit_config.get('types', []):
+            return False
+
+        # Check scope
+        scope = edit_config.get('scope', 'own')
+        if scope == 'all':
+            return True
+        elif scope == 'own':
+            return section.owner == self.user
+        elif scope == 'assigned':
+            return section in self.assigned_sections.all()
+
+        return False
+
+    def can_review_section_type(self, section_type):
+        """Check if collaborator can review/comment on this type."""
+        perms = self.effective_permissions
+        return section_type in perms.get('review', [])
 
     @property
     def all_tasks_complete(self):
@@ -1594,7 +1801,14 @@ class CollaboratorRole(models.Model):
         return self.tasks_total > 0 and self.tasks_signed_off == self.tasks_total
 
     def can_edit_section(self, section_type):
-        """Check if this collaborator can edit a specific section type."""
+        """Check if this collaborator can edit a specific section type (legacy method)."""
+        # First check new permission system
+        perms = self.effective_permissions
+        edit_config = perms.get('edit', {})
+        if section_type in edit_config.get('types', []):
+            return True
+
+        # Fallback to legacy boolean flags
         permission_map = {
             'text': self.can_edit_text,
             'image': self.can_edit_images,

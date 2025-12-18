@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification,
-    BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask
+    BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -24,9 +24,9 @@ class ContentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'teaser_link', 'teaser_html', 'created_at', 'creator', 'creator_username', 'content_type', 'genre',
             'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract', 'owned',
-            'is_collaborative', 'collaborators'
+            'is_collaborative', 'collaborators', 'view_count'
         ]
-        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators']
+        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators', 'view_count']
 
     def get_creator_username(self, obj):
         return obj.creator.username if obj.creator else 'Unknown'
@@ -415,18 +415,44 @@ class ContractTaskCreateSerializer(serializers.Serializer):
         return value
 
 
+class RoleDefinitionSerializer(serializers.ModelSerializer):
+    """Serializer for standard role definitions."""
+
+    class Meta:
+        model = RoleDefinition
+        fields = [
+            'id', 'name', 'category', 'description',
+            'applicable_to_book', 'applicable_to_art', 'applicable_to_music', 'applicable_to_video',
+            'default_permissions', 'ui_components', 'icon', 'color', 'is_active'
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
 class CollaboratorRoleSerializer(serializers.ModelSerializer):
     """Serializer for collaborator roles with permissions and revenue splits."""
     username = serializers.CharField(source='user.username', read_only=True)
     display_name = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     contract_tasks = ContractTaskSerializer(many=True, read_only=True)
     all_tasks_complete = serializers.ReadOnlyField()
 
+    # New role-based permission fields
+    role_definition_id = serializers.PrimaryKeyRelatedField(
+        source='role_definition',
+        queryset=RoleDefinition.objects.filter(is_active=True),
+        required=False,
+        allow_null=True
+    )
+    role_definition_details = RoleDefinitionSerializer(source='role_definition', read_only=True)
+    effective_role_name = serializers.ReadOnlyField()
+    effective_permissions = serializers.ReadOnlyField()
+    ui_components = serializers.SerializerMethodField()
+
     class Meta:
         model = CollaboratorRole
         fields = [
-            'id', 'user', 'username', 'display_name', 'role', 'revenue_percentage',
+            'id', 'user', 'username', 'display_name', 'avatar_url', 'role', 'revenue_percentage',
             'status', 'invited_at', 'accepted_at', 'can_edit_text', 'can_edit_images',
             'can_edit_audio', 'can_edit_video', 'can_edit', 'approved_current_version',
             'approved_revenue_split',
@@ -437,12 +463,16 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             'contract_tasks',
             # Counter-proposal fields
             'proposed_percentage', 'counter_message',
+            # New role-based permission fields
+            'role_definition_id', 'role_definition_details', 'permissions',
+            'effective_role_name', 'effective_permissions', 'ui_components',
         ]
         read_only_fields = [
-            'id', 'invited_at', 'username', 'display_name', 'can_edit',
+            'id', 'invited_at', 'username', 'display_name', 'avatar_url', 'can_edit',
             'contract_version', 'contract_locked_at', 'has_active_breach',
             'cancellation_eligible', 'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
-            'contract_tasks',
+            'contract_tasks', 'role_definition_details', 'effective_role_name',
+            'effective_permissions', 'ui_components',
         ]
 
     def get_display_name(self, obj):
@@ -451,6 +481,17 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             return obj.user.profile.display_name or obj.user.username
         except Exception:
             return obj.user.username
+
+    def get_avatar_url(self, obj):
+        """Get user's avatar URL."""
+        try:
+            url = obj.user.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
 
     def get_can_edit(self, obj):
         """Return list of section types this collaborator can edit."""
@@ -464,6 +505,10 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
         if obj.can_edit_video:
             can_edit.append('video')
         return can_edit
+
+    def get_ui_components(self, obj):
+        """Return list of UI components this role should see."""
+        return obj.get_ui_components()
 
 
 class ProjectSectionSerializer(serializers.ModelSerializer):

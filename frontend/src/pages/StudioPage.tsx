@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import CreateWizard from '../components/CreateWizard/CreateWizard';
 import BookEditor from '../components/BookEditor/BookEditor';
+import { PenLine, Users } from 'lucide-react';
 
 export default function StudioPage() {
   const [searchParams] = useSearchParams();
@@ -90,7 +91,20 @@ export default function StudioPage() {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            <div style={{fontSize:48, marginBottom:16, textAlign:'center'}}>📝</div>
+            <div style={{display:'flex', justifyContent:'center', marginBottom:16}}>
+              <div style={{
+                width:64,
+                height:64,
+                borderRadius:16,
+                background:'rgba(59, 130, 246, 0.15)',
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                color:'#3b82f6',
+              }}>
+                <PenLine size={32} />
+              </div>
+            </div>
             <h3 style={{fontSize:20, fontWeight:700, color:'var(--text)', marginBottom:12, textAlign:'center'}}>
               Create Solo
             </h3>
@@ -132,7 +146,20 @@ export default function StudioPage() {
               e.currentTarget.style.boxShadow = 'none';
             }}
           >
-            <div style={{fontSize:48, marginBottom:16, textAlign:'center'}}>🤝</div>
+            <div style={{display:'flex', justifyContent:'center', marginBottom:16}}>
+              <div style={{
+                width:64,
+                height:64,
+                borderRadius:16,
+                background:'rgba(245, 158, 11, 0.15)',
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                color:'#f59e0b',
+              }}>
+                <Users size={32} />
+              </div>
+            </div>
             <h3 style={{fontSize:20, fontWeight:700, color:'var(--text)', marginBottom:12, textAlign:'center'}}>
               Start Collaboration
             </h3>

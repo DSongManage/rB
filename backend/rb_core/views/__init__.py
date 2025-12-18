@@ -856,15 +856,13 @@ class ContentTextTeaserView(APIView):
 
 class SearchView(APIView):
     permission_classes = [permissions.AllowAny]
-    throttle_classes = [permissions.AllowAny]  # Will use DRF default throttling
+    throttle_classes = []  # No throttling for search
 
     def get(self, request):
         q = request.query_params.get('q', '').strip()
 
-        # Input validation
-        if len(q) < 2:
-            return Response({'error': 'Query must be at least 2 characters'}, status=400)
-        if len(q) > 100:
+        # Input validation - allow empty query for browse/filter mode
+        if q and len(q) > 100:
             return Response({'error': 'Query too long (max 100 characters)'}, status=400)
 
         genre = request.query_params.get('genre')
@@ -875,24 +873,51 @@ class SearchView(APIView):
 
         # Content Removal Policy: Exclude delisted and orphaned content from search
         # 1. Hide content where source chapter is delisted (is_listed=False)
-        # 2. Hide orphaned content (both source_chapter and source_book_project are null - chapter/book was deleted)
+        # 2. Hide orphaned BOOK content (chapter/book/collaborative project was deleted)
+        #    - Only apply to books, as art/music/film can be standalone uploads
+        #    - Include collaborative projects as valid book sources
         from django.db.models import Q
         qs = qs.exclude(
             Q(source_chapter__isnull=False) & Q(source_chapter__is_listed=False)
         ).exclude(
-            Q(source_chapter__isnull=True) & Q(source_book_project__isnull=True)
+            Q(content_type='book') &
+            Q(source_chapter__isnull=True) &
+            Q(source_book_project__isnull=True) &
+            Q(source_collaborative_project__isnull=True)
         )
 
-        if q:
+        # Only apply text search if query provided and at least 2 characters
+        if q and len(q) >= 2:
             qs = qs.filter(models.Q(title__icontains=q) | models.Q(creator__username__icontains=q))
-        if genre:
+        if genre and genre != 'all':
             qs = qs.filter(genre=genre)
-        if ctype:
+        if ctype and ctype != 'all':
             qs = qs.filter(content_type=ctype)
 
         # Limit results to prevent abuse
-        data = ContentSerializer(qs.order_by('-created_at')[:50], many=True).data
+        data = ContentSerializer(qs.order_by('-view_count', '-created_at')[:50], many=True, context={'request': request}).data
         return Response(data)
+
+
+class TrackContentViewView(APIView):
+    """Track content views for analytics and discovery.
+
+    Increments the view_count for content when viewed.
+    Rate-limited to prevent abuse.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, pk):
+        from django.db.models import F
+
+        try:
+            content = Content.objects.get(pk=pk, inventory_status='minted')
+            # Atomic increment to handle concurrent views
+            Content.objects.filter(pk=pk).update(view_count=F('view_count') + 1)
+            content.refresh_from_db()
+            return Response({'view_count': content.view_count})
+        except Content.DoesNotExist:
+            return Response({'error': 'Content not found'}, status=404)
 
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1350,11 +1375,12 @@ class UserSearchView(APIView):
         # Enhance response with capabilities, accomplishments, and stats (FR8)
         results = []
         for p in qs:
-            # Count successful collaborations
-            successful_collabs = (
-                p.user.initiated_collabs.filter(status='active').count() +
-                p.user.joined_collabs.filter(status='active').count()
-            )
+            # Count successful (minted) collaborations - same logic as PublicProfileView
+            successful_collabs = CollaborativeProject.objects.filter(
+                collaborators__user=p.user,
+                collaborators__status='accepted',
+                status='minted'
+            ).distinct().count()
 
             # Determine status category for badge color
             status_category = 'green'  # default

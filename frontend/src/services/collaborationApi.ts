@@ -69,21 +69,60 @@ export interface ContractTask {
   updated_at: string;
 }
 
+// Role definition for standard roles
+export interface RoleDefinition {
+  id: number;
+  name: string;
+  category: 'creator' | 'contributor' | 'reviewer' | 'technical' | 'management';
+  description: string;
+  applicable_to_book: boolean;
+  applicable_to_art: boolean;
+  applicable_to_music: boolean;
+  applicable_to_video: boolean;
+  default_permissions: {
+    create: string[];
+    edit: { scope: string; types: string[] };
+    review: string[];
+  };
+  ui_components: string[];
+  icon: string;
+  color: string;
+  is_active: boolean;
+}
+
 export interface CollaboratorRole {
   id: number;
   user: number;
   username: string;
   display_name: string;
+  avatar_url?: string;
   role: string;
   revenue_percentage: number;
   status: 'invited' | 'accepted' | 'declined' | 'exited';
   invited_at: string;
   accepted_at?: string;
+  // Legacy permission flags (still supported)
   can_edit_text: boolean;
   can_edit_images: boolean;
   can_edit_audio: boolean;
   can_edit_video: boolean;
   can_edit: string[];
+  // New role-based permission fields
+  role_definition_id?: number;
+  role_definition_details?: RoleDefinition;
+  permissions?: {
+    create?: string[];
+    edit?: { scope: string; types: string[] };
+    review?: string[];
+  };
+  effective_role_name?: string;
+  effective_permissions?: {
+    create: string[];
+    edit: { scope: string; types: string[] };
+    review: string[];
+  };
+  ui_components?: string[];
+  // Approval tracking
   approved_current_version: boolean;
   approved_revenue_split: boolean;
   // Counter-proposal fields

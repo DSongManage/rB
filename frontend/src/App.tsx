@@ -28,11 +28,11 @@ import { useAuth } from './hooks/useAuth';
 import BetaOnboarding from './components/BetaOnboarding';
 import { API_URL } from './config';
 import {
-  Search, User, LogOut, Menu, X, Users
+  User, LogOut, Menu, X, Users
 } from 'lucide-react';
+import { SearchAutocomplete } from './components/SearchAutocomplete';
 
 function Header() {
-  const [q, setQ] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -95,7 +95,6 @@ function Header() {
     }
   }, [location.pathname, checkAuth]);
 
-  const submit = (e: React.FormEvent) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); };
   const goLogin = () => { navigate('/auth'); };
 
   const doLogout = async () => {
@@ -126,12 +125,7 @@ function Header() {
         <BetaBadge variant="header" showTestMode={true} />
       </div>
       <div className="rb-header-center">
-        <form onSubmit={submit} className="rb-search">
-          <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search" />
-          <button type="submit">
-            <Search size={18} />
-          </button>
-        </form>
+        <SearchAutocomplete />
       </div>
 
       {/* Mobile Menu Toggle */}
@@ -194,7 +188,8 @@ export default function App() {
   const location = useLocation();
   const { isAuthenticated, loading } = useAuth();
 
-  const showCreatorSidebar = [/^\/studio/, /^\/dashboard/, /^\/profile$/, /^\/profile\//, /^\/collaborators/, /^\/collaborations/].some(r => r.test(location.pathname));
+  // Legacy CreatorSidebar removed - functionality now in navbar and page tabs
+  const showCreatorSidebar = false;
   // Only show Library sidebar when authenticated AND on home or search pages
   const showLibrarySidebar = isAuthenticated && [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
   const isReaderPage = /^\/reader/.test(location.pathname);

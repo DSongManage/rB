@@ -869,44 +869,80 @@ export default function ProfilePageRedesigned() {
         />
       </div>
 
-      {/* Content Type Sub-filters */}
+      {/* Content Type Sub-filters + Create Button */}
       {activeTab === 'content' && inventory.length > 0 && (
         <div style={{
           display: 'flex',
-          gap: 8,
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: 24,
-          flexWrap: 'wrap',
+          gap: 16,
         }}>
-          <FilterChip
-            label="All"
-            count={inventory.length}
-            active={contentFilter === 'all'}
-            onClick={() => setContentFilter('all')}
-          />
-          <FilterChip
-            label="Books"
-            count={inventory.filter(i => i.content_type === 'book').length}
-            active={contentFilter === 'book'}
-            onClick={() => setContentFilter('book')}
-          />
-          <FilterChip
-            label="Art"
-            count={inventory.filter(i => i.content_type === 'art').length}
-            active={contentFilter === 'art'}
-            onClick={() => setContentFilter('art')}
-          />
-          <FilterChip
-            label="Music"
-            count={inventory.filter(i => i.content_type === 'music').length}
-            active={contentFilter === 'music'}
-            onClick={() => setContentFilter('music')}
-          />
-          <FilterChip
-            label="Film"
-            count={inventory.filter(i => i.content_type === 'film' || i.content_type === 'video').length}
-            active={contentFilter === 'film'}
-            onClick={() => setContentFilter('film')}
-          />
+          <div style={{
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}>
+            <FilterChip
+              label="All"
+              count={inventory.length}
+              active={contentFilter === 'all'}
+              onClick={() => setContentFilter('all')}
+            />
+            <FilterChip
+              label="Books"
+              count={inventory.filter(i => i.content_type === 'book').length}
+              active={contentFilter === 'book'}
+              onClick={() => setContentFilter('book')}
+            />
+            <FilterChip
+              label="Art"
+              count={inventory.filter(i => i.content_type === 'art').length}
+              active={contentFilter === 'art'}
+              onClick={() => setContentFilter('art')}
+            />
+            <FilterChip
+              label="Music"
+              count={inventory.filter(i => i.content_type === 'music').length}
+              active={contentFilter === 'music'}
+              onClick={() => setContentFilter('music')}
+            />
+            <FilterChip
+              label="Film"
+              count={inventory.filter(i => i.content_type === 'film' || i.content_type === 'video').length}
+              active={contentFilter === 'film'}
+              onClick={() => setContentFilter('film')}
+            />
+          </div>
+          <button
+            onClick={() => navigate('/studio')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              color: '#000',
+              border: 'none',
+              padding: '10px 18px',
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(245,158,11,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <Plus size={18} />
+            Create
+          </button>
         </div>
       )}
 
