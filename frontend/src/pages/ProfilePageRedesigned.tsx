@@ -8,7 +8,8 @@ import { API_URL } from '../config';
 import {
   Settings, MapPin, Wallet, CheckCircle, BookOpen, Users,
   BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X,
-  Check, XCircle, Plus, Trash2, ExternalLink, Edit2, Briefcase
+  Check, XCircle, Plus, Trash2, ExternalLink, Edit2, Briefcase,
+  ChevronDown, ChevronUp, TrendingUp, Clock
 } from 'lucide-react';
 
 interface ExternalPortfolioItem {
@@ -51,30 +52,36 @@ type SalesSummary = {
   collaboration_count: number;
   total_sales: number;
 };
-type ContentSale = {
+// Transaction within a content sale
+type SaleTransaction = {
   id: number;
-  title: string;
-  content_type: string;
-  price: number;
-  editions_sold: number;
-  editions_remaining: number;
-  total_revenue: number;
-  creator_earnings: number;
-  is_collaborative: boolean;
+  buyer: string;
+  amount: number;
+  percentage: number;
+  date: string;
+  tx_signature: string | null;
 };
-type CollabSale = {
+
+type ContentSale = {
   id: string;
   title: string;
   content_type: string;
+  price: number;
+  editions_remaining: number;
   role: string;
   percentage: number;
   total_earnings: number;
   sales_count: number;
   is_collaborative: boolean;
+  transactions: SaleTransaction[];
 };
+
+// CollabSale now has same structure as ContentSale
+type CollabSale = ContentSale;
+
 type RecentTransaction = {
   id: string | number;
-  type: 'collaboration' | 'direct';
+  type: 'collaboration' | 'solo';
   title: string;
   buyer: string;
   amount: number;
@@ -128,6 +135,20 @@ export default function ProfilePageRedesigned() {
   // Sales analytics state
   const [salesAnalytics, setSalesAnalytics] = useState<SalesAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [expandedAnalyticsCards, setExpandedAnalyticsCards] = useState<Set<string>>(new Set());
+
+  // Toggle expanded state for an analytics card
+  const toggleAnalyticsCard = (cardId: string) => {
+    setExpandedAnalyticsCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cardId)) {
+        newSet.delete(cardId);
+      } else {
+        newSet.add(cardId);
+      }
+      return newSet;
+    });
+  };
 
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' }).then(r => r.json());
@@ -1413,7 +1434,7 @@ export default function ProfilePageRedesigned() {
             </div>
           </div>
 
-          {/* Content Performance */}
+          {/* Content Performance - Expandable Cards */}
           {salesAnalytics && (salesAnalytics.content_sales.length > 0 || salesAnalytics.collaboration_sales.length > 0) && (
             <div style={{
               background: '#0f172a',
@@ -1423,72 +1444,183 @@ export default function ProfilePageRedesigned() {
               marginBottom: 24,
             }}>
               <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <BarChart3 size={18} style={{ color: '#60a5fa' }} />
-                Content Performance
+                <TrendingUp size={18} style={{ color: '#60a5fa' }} />
+                Earnings Breakdown
               </h3>
+              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+                Click any item to see individual transactions
+              </p>
 
               {/* Solo Content Sales */}
               {salesAnalytics.content_sales.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12, fontWeight: 600 }}>Your Content</div>
-                  {salesAnalytics.content_sales.map((item) => (
-                    <div key={item.id} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px 16px',
-                      background: '#1e293b',
-                      borderRadius: 8,
-                      marginBottom: 8,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {getContentTypeIcon(item.content_type, 18)}
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
-                          <div style={{ fontSize: 12, color: '#64748b' }}>
-                            {item.editions_sold} sold • {item.editions_remaining} remaining • ${item.price.toFixed(2)} each
+                  <div style={{ fontSize: 13, color: '#60a5fa', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <BookOpen size={14} />
+                    Solo Content ({salesAnalytics.content_sales.length})
+                  </div>
+                  {salesAnalytics.content_sales.map((item) => {
+                    const isExpanded = expandedAnalyticsCards.has(item.id);
+                    return (
+                      <div key={item.id} style={{ marginBottom: 8 }}>
+                        <div
+                          onClick={() => toggleAnalyticsCard(item.id)}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '12px 16px',
+                            background: '#1e293b',
+                            borderRadius: isExpanded ? '8px 8px 0 0' : 8,
+                            cursor: 'pointer',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                          onMouseLeave={e => (e.currentTarget.style.background = '#1e293b')}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            {getContentTypeIcon(item.content_type, 18)}
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
+                              <div style={{ fontSize: 12, color: '#64748b' }}>
+                                {item.sales_count} sale{item.sales_count !== 1 ? 's' : ''} • {item.role} • ${item.price.toFixed(2)} price
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>${item.total_earnings.toFixed(2)}</div>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>{item.percentage}% split</div>
+                            </div>
+                            {isExpanded ? <ChevronUp size={18} color="#64748b" /> : <ChevronDown size={18} color="#64748b" />}
                           </div>
                         </div>
+                        {/* Expanded transaction list */}
+                        {isExpanded && item.transactions && item.transactions.length > 0 && (
+                          <div style={{
+                            background: '#0f172a',
+                            border: '1px solid #334155',
+                            borderTop: 'none',
+                            borderRadius: '0 0 8px 8px',
+                            padding: '12px 16px',
+                          }}>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Transaction History
+                            </div>
+                            {item.transactions.map((tx, idx) => (
+                              <div key={tx.id || idx} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '8px 0',
+                                borderBottom: idx < item.transactions.length - 1 ? '1px solid #1e293b' : 'none',
+                              }}>
+                                <div>
+                                  <div style={{ fontSize: 13, color: '#f8fafc' }}>
+                                    Purchased by <span style={{ color: '#60a5fa' }}>@{tx.buyer}</span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Clock size={10} />
+                                    {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                  {tx.tx_signature && (
+                                    <div style={{ fontSize: 10, color: '#475569', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>+${tx.amount.toFixed(2)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>${item.creator_earnings.toFixed(2)}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>earned</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               {/* Collaboration Sales */}
               {salesAnalytics.collaboration_sales.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12, fontWeight: 600 }}>Collaboration Earnings</div>
-                  {salesAnalytics.collaboration_sales.map((item) => (
-                    <div key={item.id} style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '12px 16px',
-                      background: '#1e293b',
-                      borderRadius: 8,
-                      marginBottom: 8,
-                      borderLeft: '3px solid #f59e0b',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        {getContentTypeIcon(item.content_type, 18)}
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
-                          <div style={{ fontSize: 12, color: '#64748b' }}>
-                            {item.role} • {item.percentage}% split • {item.sales_count} sales
+                  <div style={{ fontSize: 13, color: '#f59e0b', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Users size={14} />
+                    Collaborations ({salesAnalytics.collaboration_sales.length})
+                  </div>
+                  {salesAnalytics.collaboration_sales.map((item) => {
+                    const isExpanded = expandedAnalyticsCards.has(item.id);
+                    return (
+                      <div key={item.id} style={{ marginBottom: 8 }}>
+                        <div
+                          onClick={() => toggleAnalyticsCard(item.id)}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '12px 16px',
+                            background: '#1e293b',
+                            borderRadius: isExpanded ? '8px 8px 0 0' : 8,
+                            borderLeft: '3px solid #f59e0b',
+                            cursor: 'pointer',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
+                          onMouseLeave={e => (e.currentTarget.style.background = '#1e293b')}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            {getContentTypeIcon(item.content_type, 18)}
+                            <div>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
+                              <div style={{ fontSize: 12, color: '#64748b' }}>
+                                {item.role} • {item.percentage}% split • {item.sales_count} sale{item.sales_count !== 1 ? 's' : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b' }}>${item.total_earnings.toFixed(2)}</div>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>your share</div>
+                            </div>
+                            {isExpanded ? <ChevronUp size={18} color="#64748b" /> : <ChevronDown size={18} color="#64748b" />}
                           </div>
                         </div>
+                        {/* Expanded transaction list */}
+                        {isExpanded && item.transactions && item.transactions.length > 0 && (
+                          <div style={{
+                            background: '#0f172a',
+                            border: '1px solid #334155',
+                            borderTop: 'none',
+                            borderRadius: '0 0 8px 8px',
+                            padding: '12px 16px',
+                          }}>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                              Transaction History
+                            </div>
+                            {item.transactions.map((tx, idx) => (
+                              <div key={tx.id || idx} style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '8px 0',
+                                borderBottom: idx < item.transactions.length - 1 ? '1px solid #1e293b' : 'none',
+                              }}>
+                                <div>
+                                  <div style={{ fontSize: 13, color: '#f8fafc' }}>
+                                    Purchased by <span style={{ color: '#60a5fa' }}>@{tx.buyer}</span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <Clock size={10} />
+                                    {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                  {tx.tx_signature && (
+                                    <div style={{ fontSize: 10, color: '#475569', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b' }}>+${tx.amount.toFixed(2)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b' }}>${item.total_earnings.toFixed(2)}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>earned</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

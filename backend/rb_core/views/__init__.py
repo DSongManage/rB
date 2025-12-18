@@ -922,7 +922,12 @@ class DashboardView(APIView):
 
 
 class SalesAnalyticsView(APIView):
-    """Detailed sales analytics for creator dashboard."""
+    """Detailed sales analytics for creator dashboard.
+
+    All earnings are tracked via CollaboratorPayment records.
+    - Solo content: Purchases where user is the only recipient
+    - Collaborations: Purchases where multiple people received payment
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -934,85 +939,90 @@ class SalesAnalyticsView(APIView):
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
 
-        # ========== SOLO CONTENT SALES ==========
-        # Get content created by this user (direct ownership)
-        user_content = Content.objects.filter(creator=core_user)
-
-        # Get sales breakdown per content
-        content_sales = []
-        for content in user_content:
-            # Count completed purchases for this content
-            purchases = Purchase.objects.filter(
-                content=content,
-                status__in=['completed', 'payment_completed']
-            )
-            purchase_count = purchases.count()
-            total_revenue = purchases.aggregate(total=Sum('purchase_price_usd'))['total'] or 0
-
-            # Calculate creator earnings (after fees)
-            creator_earnings = purchases.aggregate(total=Sum('creator_amount'))['total'] or 0
-
-            if purchase_count > 0:
-                content_sales.append({
-                    'id': content.id,
-                    'title': content.title,
-                    'content_type': content.content_type,
-                    'price': float(content.price_usd),
-                    'editions_sold': purchase_count,
-                    'editions_remaining': content.editions,
-                    'total_revenue': float(total_revenue),
-                    'creator_earnings': float(creator_earnings),
-                    'is_collaborative': False,
-                })
-
-        # ========== COLLABORATION EARNINGS ==========
-        # Get payments from CollaboratorPayment where user is a collaborator
-        collab_payments = CollaboratorPayment.objects.filter(
+        # ========== ALL EARNINGS FROM COLLABORATORPAYMENT ==========
+        # CollaboratorPayment is the single source of truth for all earnings
+        user_payments = CollaboratorPayment.objects.filter(
             collaborator=core_user
-        ).select_related('purchase__content', 'purchase__chapter')
+        ).select_related(
+            'purchase__content',
+            'purchase__chapter',
+            'purchase__user'
+        ).order_by('-paid_at')
 
-        # Group by content/project
-        collab_earnings_by_content = {}
-        for payment in collab_payments:
-            # Determine content title
+        # Group payments by content/chapter and determine if solo or collaborative
+        content_earnings = {}  # content_id -> {earnings data}
+
+        for payment in user_payments:
+            # Determine content info
             if payment.purchase.content:
-                content_id = f"content_{payment.purchase.content.id}"
-                content_title = payment.purchase.content.title
-                content_type = payment.purchase.content.content_type
+                content_key = f"content_{payment.purchase.content.id}"
+                content_obj = payment.purchase.content
+                content_title = content_obj.title
+                content_type = content_obj.content_type
+                content_price = float(content_obj.price_usd)
+                content_editions = content_obj.editions
+                # Check if this is from a collaborative project
+                is_from_collab_project = hasattr(content_obj, 'source_collaborative_project') and \
+                                         content_obj.source_collaborative_project.exists()
             elif payment.purchase.chapter:
-                content_id = f"chapter_{payment.purchase.chapter.id}"
+                content_key = f"chapter_{payment.purchase.chapter.id}"
                 content_title = payment.purchase.chapter.title
                 content_type = 'book'
+                content_price = float(payment.purchase.chapter.price)
+                content_editions = 0  # Chapters don't have edition limits
+                is_from_collab_project = False
             else:
                 continue
 
-            if content_id not in collab_earnings_by_content:
-                collab_earnings_by_content[content_id] = {
-                    'id': content_id,
+            # Count how many recipients this purchase had
+            recipients_count = CollaboratorPayment.objects.filter(
+                purchase=payment.purchase
+            ).count()
+
+            # Determine if this is a collaboration (multiple recipients OR from collab project)
+            is_collaborative = recipients_count > 1 or is_from_collab_project
+
+            if content_key not in content_earnings:
+                content_earnings[content_key] = {
+                    'id': content_key,
                     'title': content_title,
                     'content_type': content_type,
-                    'role': payment.role or 'Collaborator',
+                    'price': content_price,
+                    'editions_remaining': content_editions,
+                    'role': payment.role or 'Creator',
                     'percentage': payment.percentage,
                     'total_earnings': 0,
                     'sales_count': 0,
-                    'is_collaborative': True,
+                    'is_collaborative': is_collaborative,
+                    'transactions': [],  # Individual sale records
                 }
 
-            collab_earnings_by_content[content_id]['total_earnings'] += float(payment.amount_usdc)
-            collab_earnings_by_content[content_id]['sales_count'] += 1
+            content_earnings[content_key]['total_earnings'] += float(payment.amount_usdc)
+            content_earnings[content_key]['sales_count'] += 1
 
-        collab_sales = list(collab_earnings_by_content.values())
+            # Add individual transaction for detailed view
+            content_earnings[content_key]['transactions'].append({
+                'id': payment.id,
+                'buyer': payment.purchase.user.username,
+                'amount': float(payment.amount_usdc),
+                'percentage': payment.percentage,
+                'date': payment.paid_at.isoformat(),
+                'tx_signature': payment.transaction_signature[:16] + '...' if payment.transaction_signature else None,
+            })
 
-        # ========== RECENT TRANSACTIONS ==========
-        # Get recent CollaboratorPayment records (most detailed for collaborators)
+        # Split into solo and collaborative
+        solo_content = []
+        collab_content = []
+
+        for key, data in content_earnings.items():
+            if data['is_collaborative']:
+                collab_content.append(data)
+            else:
+                solo_content.append(data)
+
+        # ========== RECENT TRANSACTIONS (all payments) ==========
         recent_transactions = []
-
-        # Add collab payments
-        recent_collab_payments = CollaboratorPayment.objects.filter(
-            collaborator=core_user
-        ).select_related('purchase__content', 'purchase__chapter', 'purchase__user').order_by('-paid_at')[:20]
-
-        for payment in recent_collab_payments:
+        for payment in user_payments[:30]:  # Get more recent ones
             if payment.purchase.content:
                 title = payment.purchase.content.title
             elif payment.purchase.chapter:
@@ -1020,9 +1030,14 @@ class SalesAnalyticsView(APIView):
             else:
                 title = 'Unknown'
 
+            # Check if collaborative
+            recipients_count = CollaboratorPayment.objects.filter(
+                purchase=payment.purchase
+            ).count()
+
             recent_transactions.append({
                 'id': payment.id,
-                'type': 'collaboration',
+                'type': 'collaboration' if recipients_count > 1 else 'solo',
                 'title': title,
                 'buyer': payment.purchase.user.username,
                 'amount': float(payment.amount_usdc),
@@ -1032,34 +1047,9 @@ class SalesAnalyticsView(APIView):
                 'tx_signature': payment.transaction_signature[:16] + '...' if payment.transaction_signature else None,
             })
 
-        # Add direct content purchases (where user is creator)
-        recent_direct_purchases = Purchase.objects.filter(
-            content__creator=core_user,
-            status__in=['completed', 'payment_completed']
-        ).select_related('content', 'user').order_by('-purchased_at')[:20]
-
-        for purchase in recent_direct_purchases:
-            # Check if this purchase is already covered by collab payments
-            if not CollaboratorPayment.objects.filter(purchase=purchase, collaborator=core_user).exists():
-                recent_transactions.append({
-                    'id': f"purchase_{purchase.id}",
-                    'type': 'direct',
-                    'title': purchase.content.title if purchase.content else 'Unknown',
-                    'buyer': purchase.user.username,
-                    'amount': float(purchase.creator_amount or purchase.purchase_price_usd * 0.9),
-                    'role': 'Creator',
-                    'percentage': 90,
-                    'date': purchase.purchased_at.isoformat(),
-                    'tx_signature': purchase.transaction_signature[:16] + '...' if purchase.transaction_signature else None,
-                })
-
-        # Sort by date
-        recent_transactions.sort(key=lambda x: x['date'], reverse=True)
-        recent_transactions = recent_transactions[:20]
-
         # ========== SUMMARY STATS ==========
-        total_solo_earnings = sum(c['creator_earnings'] for c in content_sales)
-        total_collab_earnings = sum(c['total_earnings'] for c in collab_sales)
+        total_solo_earnings = sum(c['total_earnings'] for c in solo_content)
+        total_collab_earnings = sum(c['total_earnings'] for c in collab_content)
         total_earnings = total_solo_earnings + total_collab_earnings
 
         return Response({
@@ -1067,13 +1057,13 @@ class SalesAnalyticsView(APIView):
                 'total_earnings_usdc': round(total_earnings, 2),
                 'solo_earnings': round(total_solo_earnings, 2),
                 'collaboration_earnings': round(total_collab_earnings, 2),
-                'content_count': len(content_sales),
-                'collaboration_count': len(collab_sales),
-                'total_sales': len(recent_transactions),
+                'content_count': len(solo_content),
+                'collaboration_count': len(collab_content),
+                'total_sales': sum(c['sales_count'] for c in content_earnings.values()),
             },
-            'content_sales': sorted(content_sales, key=lambda x: x['creator_earnings'], reverse=True),
-            'collaboration_sales': sorted(collab_sales, key=lambda x: x['total_earnings'], reverse=True),
-            'recent_transactions': recent_transactions,
+            'content_sales': sorted(solo_content, key=lambda x: x['total_earnings'], reverse=True),
+            'collaboration_sales': sorted(collab_content, key=lambda x: x['total_earnings'], reverse=True),
+            'recent_transactions': recent_transactions[:20],
         })
 
 
