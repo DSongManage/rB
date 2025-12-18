@@ -933,7 +933,7 @@ class SalesAnalyticsView(APIView):
     def get(self, request):
         from django.db.models import Sum, Count
         from django.db.models.functions import TruncDate
-        from .models import Purchase, CollaboratorPayment, Content, CollaborativeProject
+        from rb_core.models import Purchase, CollaboratorPayment, Content, CollaborativeProject
 
         # Get current user
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
