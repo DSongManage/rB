@@ -437,14 +437,13 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                 <div style={{
                   background: statusColor.bg,
                   color: statusColor.text,
-                  fontSize: 9,
-                  fontWeight: 700,
-                  padding: '4px 8px',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  padding: '4px 10px',
                   borderRadius: 4,
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.8,
+                  letterSpacing: 0.3,
                 }}>
-                  {recipient.status_category}
+                  {recipient.status}
                 </div>
               )}
             </div>

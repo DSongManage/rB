@@ -78,9 +78,9 @@ class Command(BaseCommand):
         roles_options = [['author'], ['artist'], ['director'], ['editor'], ['composer'], ['writer'], ['illustrator'], ['producer']]
         genre_options = [['fantasy'], ['scifi'], ['nonfiction'], ['drama'], ['comedy'], ['other']]
         status_cycle = [
-            'Open Node','Chain Builder','Mint-Ready Partner',
-            'Selective Forge','Linked Capacity','Partial Protocol',
-            'Locked Chain','Sealed Vault','Exclusive Mint'
+            'Available', 'Open to Offers',
+            'Selective', 'Booked',
+            'Unavailable', 'On Hiatus'
         ]
 
         for i in range(1, 101):

@@ -6,7 +6,7 @@ import { InviteResponseModal } from '../components/collaboration/InviteResponseM
 import { collaborationApi, CollaborativeProject, CollaboratorRole } from '../services/collaborationApi';
 import { API_URL } from '../config';
 import {
-  Settings, MapPin, Wallet, CheckCircle, BookOpen, Users,
+  MapPin, Wallet, CheckCircle, BookOpen, Users,
   BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X,
   Check, XCircle, Plus, Trash2, ExternalLink, Edit2, Briefcase,
   ChevronDown, ChevronUp, TrendingUp, Clock
@@ -40,6 +40,7 @@ type UserProfile = {
   roles?: string[];
   genres?: string[];
   status?: string;
+  bio?: string;
 };
 type Dashboard = { content_count: number; sales: number; tier?: string; fee?: number };
 
@@ -99,6 +100,31 @@ type SalesAnalytics = {
 
 type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics';
 type ContentFilterType = 'all' | 'book' | 'art' | 'music' | 'film';
+type StatusFilterType = 'all' | 'published' | 'draft';
+
+// Book project with chapters (from /api/book-projects/my-published/)
+interface BookChapter {
+  id: number;
+  title: string;
+  order: number;
+  is_published: boolean;
+  content_id: number | null;
+  price_usd: number;
+  view_count: number;
+}
+
+interface BookProject {
+  id: number;
+  title: string;
+  cover_image_url: string | null;
+  total_chapters: number;
+  published_chapters: number;
+  is_published: boolean;
+  chapters: BookChapter[];
+  total_views: number;
+  total_price: number;
+  updated_at: string;
+}
 
 export default function ProfilePageRedesigned() {
   const navigate = useNavigate();
@@ -110,8 +136,15 @@ export default function ProfilePageRedesigned() {
   const [csrf, setCsrf] = useState('');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+
+  // About section editing state
+  const [editingAbout, setEditingAbout] = useState(false);
+  const [editBio, setEditBio] = useState('');
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [savingAbout, setSavingAbout] = useState(false);
 
   // External portfolio state
   const [externalPortfolio, setExternalPortfolio] = useState<ExternalPortfolioItem[]>([]);
@@ -119,7 +152,10 @@ export default function ProfilePageRedesigned() {
   const [editingPortfolioItem, setEditingPortfolioItem] = useState<ExternalPortfolioItem | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('content');
   const [contentFilter, setContentFilter] = useState<ContentFilterType>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all');
   const [inventory, setInventory] = useState<any[]>([]);
+  const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
+  const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
 
@@ -349,18 +385,33 @@ export default function ProfilePageRedesigned() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/content/?inventory_status=minted&mine=1`, { credentials: 'include' })
+    // Fetch all user content (both draft and minted) - books are handled separately
+    fetch(`${API_URL}/api/content/?mine=1`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then(data => {
+        let items: any[] = [];
         if (data && Array.isArray(data.results)) {
-          setInventory(data.results);
+          items = data.results;
         } else if (Array.isArray(data)) {
-          setInventory(data);
-        } else {
-          setInventory([]);
+          items = data;
         }
+        // Filter out solo book content - these are fetched separately as book projects
+        // BUT keep collaborative book content (is_collaborative=true) since those aren't in bookProjects
+        setInventory(items.filter(item => item.content_type !== 'book' || item.is_collaborative));
       })
       .catch(() => setInventory([]));
+
+    // Fetch published book projects (grouped by book, not individual chapters)
+    fetch(`${API_URL}/api/book-projects/my-published/`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (Array.isArray(data)) {
+          setBookProjects(data);
+        } else {
+          setBookProjects([]);
+        }
+      })
+      .catch(() => setBookProjects([]));
   }, [status]);
 
   const onAvatarClick = () => {
@@ -416,18 +467,73 @@ export default function ProfilePageRedesigned() {
     e.target.value = '';
   };
 
-  const openPreview = (contentId: number) => {
-    const item = inventory.find(i => i.id === contentId);
-    if (item) {
-      setPreviewItem(item);
-      setShowPreview(true);
-    }
+  const openReader = (contentId: number) => {
+    // Owner viewing their own content - go directly to reader (full access)
+    navigate(`/reader/${contentId}`);
   };
 
   const shortenAddress = (addr: string) => {
     if (!addr || addr.length < 12) return addr;
     return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
   };
+
+  // About section editing handlers
+  const startEditingAbout = () => {
+    setEditBio(profile?.bio || '');
+    setEditDisplayName(profile?.display_name || '');
+    setEditLocation(profile?.location || '');
+    setEditStatus(profile?.status || 'Available');
+    setEditingAbout(true);
+  };
+
+  const cancelEditingAbout = () => {
+    setEditingAbout(false);
+  };
+
+  const saveAbout = async () => {
+    setSavingAbout(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/profile/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          bio: editBio,
+          display_name: editDisplayName,
+          location: editLocation,
+          status: editStatus,
+        }),
+      });
+
+      if (res.ok) {
+        const updatedProfile = await res.json();
+        setProfile(updatedProfile);
+        setEditingAbout(false);
+        setStatus('Profile updated');
+      } else {
+        setStatus('Failed to save profile');
+      }
+    } catch (e) {
+      console.error('Save failed:', e);
+      setStatus('Failed to save profile');
+    } finally {
+      setSavingAbout(false);
+    }
+  };
+
+  // Availability status options
+  const statusOptions = [
+    { value: 'Available', label: 'Available', description: 'Ready to start new collaborations' },
+    { value: 'Open to Offers', label: 'Open to Offers', description: 'Will consider interesting projects' },
+    { value: 'Selective', label: 'Selective', description: 'Only taking specific types of work' },
+    { value: 'Booked', label: 'Booked', description: 'Currently busy, booking future work' },
+    { value: 'Unavailable', label: 'Unavailable', description: 'Not accepting collaborations' },
+    { value: 'On Hiatus', label: 'On Hiatus', description: 'Taking a break' },
+  ];
 
   return (
     <div style={{
@@ -487,34 +593,6 @@ export default function ProfilePageRedesigned() {
             <Eye size={18} />
             View Public Profile
           </Link>
-
-          {/* Settings Button */}
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowSettingsModal(true); }}
-            style={{
-              background: 'transparent',
-              border: '1px solid #334155',
-              color: '#cbd5e1',
-              width: 40,
-              height: 40,
-              borderRadius: 8,
-              display: 'grid',
-              placeItems: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1e293b';
-              e.currentTarget.style.borderColor = '#475569';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = '#334155';
-            }}
-            title="Settings"
-          >
-            <Settings size={20} />
-          </button>
         </div>
 
         {/* Avatar + User Info */}
@@ -677,6 +755,242 @@ export default function ProfilePageRedesigned() {
         >
           {profile?.wallet_address ? 'Manage' : 'Connect Wallet'}
         </button>
+      </div>
+
+      {/* ABOUT SECTION */}
+      <div style={{
+        background: '#0f172a',
+        border: '1px solid #1e293b',
+        borderRadius: 16,
+        padding: 24,
+        marginBottom: 24,
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+        }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+            About
+          </h3>
+          {!editingAbout ? (
+            <button
+              onClick={startEditingAbout}
+              style={{
+                background: 'transparent',
+                border: '1px solid #334155',
+                color: '#94a3b8',
+                padding: '6px 12px',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#f59e0b';
+                e.currentTarget.style.color = '#f59e0b';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#334155';
+                e.currentTarget.style.color = '#94a3b8';
+              }}
+            >
+              <Edit2 size={14} />
+              Edit
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={cancelEditingAbout}
+                disabled={savingAbout}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #334155',
+                  color: '#94a3b8',
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: savingAbout ? 'not-allowed' : 'pointer',
+                  opacity: savingAbout ? 0.5 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveAbout}
+                disabled={savingAbout}
+                style={{
+                  background: savingAbout ? '#6b7280' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '6px 16px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: savingAbout ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {savingAbout ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {editingAbout ? (
+          /* Edit Mode */
+          <div style={{ display: 'grid', gap: 20 }}>
+            {/* Display Name */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#cbd5e1',
+                marginBottom: 8,
+              }}>
+                Display Name
+              </label>
+              <input
+                type="text"
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                placeholder="Your display name"
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#f8fafc',
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            {/* Location */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#cbd5e1',
+                marginBottom: 8,
+              }}>
+                Location
+              </label>
+              <input
+                type="text"
+                value={editLocation}
+                onChange={(e) => setEditLocation(e.target.value)}
+                placeholder="e.g., New York, NY"
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#f8fafc',
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            {/* Availability Status */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#cbd5e1',
+                marginBottom: 8,
+              }}>
+                Availability Status
+              </label>
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#f8fafc',
+                  fontSize: 14,
+                }}
+              >
+                {statusOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Bio */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#cbd5e1',
+                marginBottom: 8,
+              }}>
+                Bio
+              </label>
+              <textarea
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                placeholder="Tell the world about yourself, your work, and what you're looking for..."
+                rows={4}
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#f8fafc',
+                  fontSize: 14,
+                  resize: 'vertical',
+                  minHeight: 100,
+                  lineHeight: 1.6,
+                }}
+              />
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                Describe your experience, interests, and what kind of collaborations you're seeking.
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* View Mode */
+          <div>
+            {/* Bio */}
+            {profile?.bio ? (
+              <p style={{
+                color: '#cbd5e1',
+                fontSize: 15,
+                lineHeight: 1.7,
+                margin: 0,
+                whiteSpace: 'pre-wrap',
+              }}>
+                {profile.bio}
+              </p>
+            ) : (
+              <p style={{
+                color: '#64748b',
+                fontSize: 14,
+                fontStyle: 'italic',
+                margin: 0,
+              }}>
+                No bio yet. Click Edit to add a bio and tell others about yourself.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* PENDING COLLABORATION INVITES */}
@@ -844,7 +1158,7 @@ export default function ProfilePageRedesigned() {
         <Tab
           icon={<BookOpen size={18} />}
           label="My Content"
-          count={inventory.length}
+          count={inventory.length + bookProjects.length}
           active={activeTab === 'content'}
           onClick={() => setActiveTab('content')}
         />
@@ -870,7 +1184,7 @@ export default function ProfilePageRedesigned() {
       </div>
 
       {/* Content Type Sub-filters + Create Button */}
-      {activeTab === 'content' && inventory.length > 0 && (
+      {activeTab === 'content' && (inventory.length > 0 || bookProjects.length > 0) && (
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -885,13 +1199,13 @@ export default function ProfilePageRedesigned() {
           }}>
             <FilterChip
               label="All"
-              count={inventory.length}
+              count={inventory.length + bookProjects.length}
               active={contentFilter === 'all'}
               onClick={() => setContentFilter('all')}
             />
             <FilterChip
               label="Books"
-              count={inventory.filter(i => i.content_type === 'book').length}
+              count={bookProjects.length}
               active={contentFilter === 'book'}
               onClick={() => setContentFilter('book')}
             />
@@ -912,6 +1226,25 @@ export default function ProfilePageRedesigned() {
               count={inventory.filter(i => i.content_type === 'film' || i.content_type === 'video').length}
               active={contentFilter === 'film'}
               onClick={() => setContentFilter('film')}
+            />
+            <div style={{ width: 1, height: 24, background: '#334155', margin: '0 8px' }} />
+            <FilterChip
+              label="Published"
+              count={
+                inventory.filter(i => i.inventory_status === 'minted').length +
+                bookProjects.filter(b => b.published_chapters > 0).length
+              }
+              active={statusFilter === 'published'}
+              onClick={() => setStatusFilter(statusFilter === 'published' ? 'all' : 'published')}
+            />
+            <FilterChip
+              label="Drafts"
+              count={
+                inventory.filter(i => i.inventory_status === 'draft').length +
+                bookProjects.filter(b => b.published_chapters === 0).length
+              }
+              active={statusFilter === 'draft'}
+              onClick={() => setStatusFilter(statusFilter === 'draft' ? 'all' : 'draft')}
             />
           </div>
           <button
@@ -949,7 +1282,7 @@ export default function ProfilePageRedesigned() {
       {/* TAB CONTENT */}
       {activeTab === 'content' && (
         <div>
-          {inventory.length === 0 ? (
+          {inventory.length === 0 && bookProjects.length === 0 ? (
             <EmptyState
               icon={<FileText size={64} />}
               title="No content yet"
@@ -959,17 +1292,45 @@ export default function ProfilePageRedesigned() {
             />
           ) : (
             (() => {
-              const filteredInventory = contentFilter === 'all'
+              // Filter non-book inventory based on content type filter
+              let filteredInventory = contentFilter === 'all'
                 ? inventory
-                : contentFilter === 'film'
-                  ? inventory.filter(i => i.content_type === 'film' || i.content_type === 'video')
-                  : inventory.filter(i => i.content_type === contentFilter);
+                : contentFilter === 'book'
+                  ? [] // Books are shown via bookProjects
+                  : contentFilter === 'film'
+                    ? inventory.filter(i => i.content_type === 'film' || i.content_type === 'video')
+                    : inventory.filter(i => i.content_type === contentFilter);
 
-              return filteredInventory.length === 0 ? (
+              // Apply status filter to inventory
+              if (statusFilter === 'published') {
+                filteredInventory = filteredInventory.filter(i => i.inventory_status === 'minted');
+              } else if (statusFilter === 'draft') {
+                filteredInventory = filteredInventory.filter(i => i.inventory_status === 'draft');
+              }
+
+              // Filter book projects by content type
+              let filteredBooks = contentFilter === 'all' || contentFilter === 'book'
+                ? bookProjects
+                : [];
+
+              // Apply status filter to books
+              if (statusFilter === 'published') {
+                filteredBooks = filteredBooks.filter(b => b.published_chapters > 0);
+              } else if (statusFilter === 'draft') {
+                filteredBooks = filteredBooks.filter(b => b.published_chapters === 0);
+              }
+
+              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0;
+
+              const filterLabel = statusFilter !== 'all'
+                ? `${statusFilter} ${contentFilter}`
+                : contentFilter;
+
+              return !hasContent ? (
                 <div style={{ textAlign: 'center', padding: '60px 24px', color: '#64748b' }}>
                   <FileText size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
                   <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8' }}>
-                    No {contentFilter} content yet
+                    No {filterLabel} content yet
                   </div>
                 </div>
               ) : (
@@ -978,11 +1339,33 @@ export default function ProfilePageRedesigned() {
                   gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
                   gap: 24,
                 }}>
+                  {/* Render book projects as grouped cards */}
+                  {filteredBooks.map((book) => (
+                    <BookProjectCard
+                      key={`book-${book.id}`}
+                      book={book}
+                      expanded={expandedBooks.has(book.id)}
+                      onToggleExpand={() => {
+                        setExpandedBooks(prev => {
+                          const newSet = new Set(prev);
+                          if (newSet.has(book.id)) {
+                            newSet.delete(book.id);
+                          } else {
+                            newSet.add(book.id);
+                          }
+                          return newSet;
+                        });
+                      }}
+                      onViewChapter={(contentId) => openReader(contentId)}
+                      onEditBook={() => navigate(`/studio?editBookProject=${book.id}`)}
+                    />
+                  ))}
+                  {/* Render non-book content */}
                   {filteredInventory.map((item) => (
                     <ContentCard
                       key={item.id}
                       item={item}
-                      onView={() => openPreview(item.id)}
+                      onView={() => openReader(item.id)}
                       onEdit={() => navigate(`/studio?editContent=${item.id}`)}
                     />
                   ))}
@@ -1740,21 +2123,6 @@ export default function ProfilePageRedesigned() {
         </div>
       )}
 
-      {/* Settings Modal */}
-      {showSettingsModal && (
-        <SettingsModal
-          profile={profile}
-          csrf={csrf}
-          onClose={() => setShowSettingsModal(false)}
-          onSave={async () => {
-            setShowSettingsModal(false);
-            setStatus('Settings saved');
-            const profileResp = await fetch(`${API_URL}/api/users/profile/`, { credentials: 'include' });
-            if (profileResp.ok) setProfile(await profileResp.json());
-          }}
-        />
-      )}
-
       {/* Wallet Modal */}
       {showWalletModal && (
         <div style={{
@@ -1932,16 +2300,31 @@ function FilterChip({ label, count, active, onClick }: { label: string; count: n
   );
 }
 
-// Content Card Component
-function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; onEdit: () => void }) {
+// Book Project Card Component - displays a book with its chapters grouped
+function BookProjectCard({
+  book,
+  expanded,
+  onToggleExpand,
+  onViewChapter,
+  onEditBook,
+}: {
+  book: BookProject;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onViewChapter: (contentId: number) => void;
+  onEditBook: () => void;
+}) {
+  const hasPublishedChapters = book.published_chapters > 0;
+  const firstPublishedChapter = book.chapters.find(ch => ch.is_published && ch.content_id);
+
   return (
     <div style={{
       background: '#0f172a',
       border: '1px solid #1e293b',
       borderRadius: 16,
       overflow: 'hidden',
-      cursor: 'pointer',
       transition: 'all 0.2s',
+      position: 'relative',
     }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-4px)';
@@ -1956,7 +2339,298 @@ function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; 
     >
       {/* Cover Image */}
       <div
-        onClick={onView}
+        onClick={onToggleExpand}
+        style={{
+          width: '100%',
+          paddingTop: '56.25%', // 16:9 ratio
+          background: book.cover_image_url ? `url(${book.cover_image_url})` : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
+          cursor: 'pointer',
+          opacity: hasPublishedChapters ? 1 : 0.7,
+        }}
+      >
+        {!book.cover_image_url && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            placeItems: 'center',
+            color: 'rgba(255,255,255,0.3)',
+          }}>
+            <BookOpen size={48} />
+          </div>
+        )}
+        {/* Status badge */}
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          background: hasPublishedChapters ? 'rgba(0,0,0,0.75)' : 'rgba(100, 116, 139, 0.9)',
+          color: '#f8fafc',
+          padding: '4px 10px',
+          borderRadius: hasPublishedChapters ? 12 : 6,
+          fontSize: hasPublishedChapters ? 12 : 11,
+          fontWeight: 600,
+          backdropFilter: 'blur(4px)',
+          textTransform: hasPublishedChapters ? 'none' : 'uppercase',
+          letterSpacing: hasPublishedChapters ? 'normal' : '0.5px',
+        }}>
+          {hasPublishedChapters
+            ? `${book.published_chapters} chapter${book.published_chapters !== 1 ? 's' : ''}`
+            : 'Draft'
+          }
+        </div>
+      </div>
+
+      {/* Card Content */}
+      <div style={{ padding: 16 }}>
+        <div style={{
+          fontSize: 16,
+          fontWeight: 600,
+          color: '#f8fafc',
+          marginBottom: 8,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          lineHeight: 1.4,
+        }}>
+          {book.title}
+        </div>
+
+        <div style={{
+          fontSize: 13,
+          color: '#94a3b8',
+          marginBottom: 12,
+        }}>
+          {hasPublishedChapters
+            ? `book • ${book.published_chapters} of ${book.total_chapters} chapter${book.total_chapters !== 1 ? 's' : ''} published`
+            : `book • ${book.total_chapters} chapter${book.total_chapters !== 1 ? 's' : ''} (unpublished)`
+          }
+        </div>
+
+        {hasPublishedChapters && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            fontSize: 13,
+            color: '#cbd5e1',
+            marginBottom: 12,
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Eye size={14} /> {book.total_views}
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <DollarSign size={14} /> ${book.total_price.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {/* Expandable chapter list */}
+        {book.total_chapters > 0 && (
+          <>
+            <button
+              onClick={onToggleExpand}
+              style={{
+                width: '100%',
+                background: '#1e293b',
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 12px',
+                color: '#94a3b8',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: expanded ? 8 : 12,
+              }}
+            >
+              <span>Chapters</span>
+              {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {expanded && (
+              <div style={{
+                background: '#0d1117',
+                borderRadius: 8,
+                padding: 8,
+                marginBottom: 12,
+                maxHeight: 200,
+                overflowY: 'auto',
+              }}>
+                {book.chapters.map((chapter, index) => (
+                  <div
+                    key={chapter.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      background: index % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
+                      opacity: chapter.is_published ? 1 : 0.6,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 13,
+                        color: '#e2e8f0',
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}>
+                        Ch {chapter.order + 1}: {chapter.title}
+                        {!chapter.is_published && (
+                          <span style={{
+                            fontSize: 9,
+                            background: 'rgba(100, 116, 139, 0.5)',
+                            color: '#cbd5e1',
+                            padding: '2px 5px',
+                            borderRadius: 3,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                          }}>
+                            Draft
+                          </span>
+                        )}
+                      </div>
+                      {chapter.is_published && (
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          ${chapter.price_usd.toFixed(2)} • {chapter.view_count} views
+                        </div>
+                      )}
+                    </div>
+                    {chapter.is_published && chapter.content_id && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewChapter(chapter.content_id!);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid #334155',
+                          borderRadius: 6,
+                          padding: '4px 10px',
+                          color: '#94a3b8',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          marginLeft: 8,
+                          flexShrink: 0,
+                        }}
+                      >
+                        View
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onEditBook}
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: '1px solid #334155',
+              borderRadius: 10,
+              padding: '10px 16px',
+              color: '#94a3b8',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            Edit
+          </button>
+          {hasPublishedChapters && firstPublishedChapter && (
+            <button
+              onClick={() => onViewChapter(firstPublishedChapter.content_id!)}
+              style={{
+                flex: 1,
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 16px',
+                color: '#000',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              View
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Content Card Component
+function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; onEdit: () => void }) {
+  const isPublished = item.inventory_status === 'minted';
+
+  return (
+    <div style={{
+      background: '#0f172a',
+      border: '1px solid #1e293b',
+      borderRadius: 16,
+      overflow: 'hidden',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+      position: 'relative',
+    }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-4px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+        e.currentTarget.style.borderColor = '#334155';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.borderColor = '#1e293b';
+      }}
+    >
+      {/* Draft Badge */}
+      {!isPublished && (
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          background: 'rgba(100, 116, 139, 0.9)',
+          color: '#f8fafc',
+          padding: '4px 10px',
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          zIndex: 1,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          Draft
+        </div>
+      )}
+
+      {/* Cover Image */}
+      <div
+        onClick={isPublished ? onView : onEdit}
         style={{
           width: '100%',
           paddingTop: '56.25%', // 16:9 ratio
@@ -1964,6 +2638,7 @@ function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; 
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           position: 'relative',
+          opacity: isPublished ? 1 : 0.7,
         }}
       >
         {!item.teaser_link && (
@@ -2013,7 +2688,7 @@ function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; 
           marginBottom: 16,
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Eye size={14} /> 0
+            <Eye size={14} /> {item.view_count || 0}
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <DollarSign size={14} /> ${item.price_usd || 0}
@@ -2047,29 +2722,31 @@ function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; 
           >
             Edit
           </button>
-          <button
-            onClick={onView}
-            style={{
-              flex: 1,
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              border: 'none',
-              color: '#fff',
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            View
-          </button>
+          {isPublished && (
+            <button
+              onClick={onView}
+              style={{
+                flex: 1,
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                border: 'none',
+                color: '#fff',
+                padding: '8px 16px',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              View
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -2133,219 +2810,6 @@ function EmptyState({ icon, title, description, actionLabel, onAction }: {
           {actionLabel}
         </button>
       )}
-    </div>
-  );
-}
-
-// Settings Modal Component
-function SettingsModal({ profile, csrf, onClose, onSave }: {
-  profile: UserProfile | null;
-  csrf: string;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const [displayName, setDisplayName] = useState(profile?.display_name || '');
-  const [location, setLocation] = useState(profile?.location || '');
-  const [status, setStatus] = useState(profile?.status || '');
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch(`${API_URL}/api/users/profile/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          display_name: displayName,
-          location: location,
-          status: status,
-        }),
-      });
-
-      if (res.ok) {
-        onSave();
-      }
-    } catch (e) {
-      console.error('Save failed:', e);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.75)',
-      backdropFilter: 'blur(4px)',
-      display: 'grid',
-      placeItems: 'center',
-      zIndex: 2000,
-    }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
-        borderRadius: 16,
-        padding: 32,
-        width: '90%',
-        maxWidth: 500,
-      }}>
-        <div style={{
-          fontSize: 24,
-          fontWeight: 700,
-          color: '#f8fafc',
-          marginBottom: 24,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <span>Profile Settings</span>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: 4,
-              display: 'grid',
-              placeItems: 'center',
-            }}
-          >
-            <X size={24} />
-          </button>
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <label style={{
-            display: 'block',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#cbd5e1',
-            marginBottom: 8,
-          }}>
-            Display Name
-          </label>
-          <input
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Your display name"
-            style={{
-              width: '100%',
-              background: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: 8,
-              padding: '10px 14px',
-              color: '#f8fafc',
-              fontSize: 14,
-            }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <label style={{
-            display: 'block',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#cbd5e1',
-            marginBottom: 8,
-          }}>
-            Location
-          </label>
-          <input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="e.g., New York, NY"
-            style={{
-              width: '100%',
-              background: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: 8,
-              padding: '10px 14px',
-              color: '#f8fafc',
-              fontSize: 14,
-            }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 24 }}>
-          <label style={{
-            display: 'block',
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#cbd5e1',
-            marginBottom: 8,
-          }}>
-            Availability Status
-          </label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            style={{
-              width: '100%',
-              background: '#1e293b',
-              border: '1px solid #334155',
-              borderRadius: 8,
-              padding: '10px 14px',
-              color: '#f8fafc',
-              fontSize: 14,
-            }}
-          >
-            <option value="Open Node">Open Node</option>
-            <option value="Mint-Ready Partner">Mint-Ready Partner</option>
-            <option value="Chain Builder">Chain Builder</option>
-            <option value="Selective Forge">Selective Forge</option>
-            <option value="Linked Capacity">Linked Capacity</option>
-            <option value="Partial Protocol">Partial Protocol</option>
-            <option value="Locked Chain">Locked Chain</option>
-            <option value="Sealed Vault">Sealed Vault</option>
-            <option value="Exclusive Mint">Exclusive Mint</option>
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: '1px solid #334155',
-              color: '#cbd5e1',
-              padding: '12px',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              flex: 1,
-              background: saving ? '#6b7280' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              border: 'none',
-              color: '#fff',
-              padding: '12px',
-              borderRadius: 8,
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: saving ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

@@ -85,14 +85,31 @@ class Content(models.Model):
     # View tracking for analytics and discovery
     view_count = models.PositiveIntegerField(default=0, db_index=True)
     
+    class Meta:
+        ordering = ['-created_at']  # Show newest content first
+
     def __str__(self):
         return self.title
 
     def is_owned_by(self, user):
-        """Check if user owns this content via purchase."""
+        """Check if user owns this content via purchase, creation, or collaboration."""
         if not user or not user.is_authenticated:
             return False
-        # Only count completed purchases (payment succeeded and not refunded)
+
+        # Creator always has access to their own content
+        if self.creator == user:
+            return True
+
+        # Check if user is a collaborator on this content (for collaborative projects)
+        if hasattr(self, 'source_collaborative_project') and self.source_collaborative_project.exists():
+            collab_project = self.source_collaborative_project.first()
+            if collab_project and collab_project.collaborators.filter(
+                user=user,
+                status='accepted'
+            ).exists():
+                return True
+
+        # Check for completed purchase (payment succeeded and not refunded)
         return self.purchases.filter(
             user=user,
             refunded=False,
@@ -262,17 +279,17 @@ class UserProfile(models.Model):
     # Collaboration visibility and status
     is_private = models.BooleanField(default=True)
     STATUS_CHOICES = [
-        ('Mint-Ready Partner', 'Mint-Ready Partner'),
-        ('Chain Builder', 'Chain Builder'),
-        ('Open Node', 'Open Node'),
-        ('Selective Forge', 'Selective Forge'),
-        ('Linked Capacity', 'Linked Capacity'),
-        ('Partial Protocol', 'Partial Protocol'),
-        ('Locked Chain', 'Locked Chain'),
-        ('Sealed Vault', 'Sealed Vault'),
-        ('Exclusive Mint', 'Exclusive Mint'),
+        # GREEN - Available
+        ('Available', 'Available'),
+        ('Open to Offers', 'Open to Offers'),
+        # YELLOW - Limited availability
+        ('Selective', 'Selective'),
+        ('Booked', 'Booked'),
+        # RED - Unavailable
+        ('Unavailable', 'Unavailable'),
+        ('On Hiatus', 'On Hiatus'),
     ]
-    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='Open Node')
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='Available')
     # Per-user stats and tiering
     content_count = models.PositiveIntegerField(default=0)
     total_sales_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -383,7 +400,7 @@ class BookProject(models.Model):
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='book_projects')
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default='')
-    cover_image = models.ImageField(upload_to='book_covers/', null=True, blank=True)
+    cover_image = models.ImageField(upload_to='book_covers/', null=True, blank=True, max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_published = models.BooleanField(default=False)

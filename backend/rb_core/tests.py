@@ -80,10 +80,10 @@ class ProfileTests(TestCase):
             genres=['fantasy', 'scifi'],
             content_count=15,
             total_sales_usd=2500.50,
-            status='Mint-Ready Partner',
+            status='Available',
             location='SF'
         )
-        
+
         user2 = User.objects.create_user(username='artist2')
         profile2 = UserProfile.objects.create(
             user=user2,
@@ -92,7 +92,7 @@ class ProfileTests(TestCase):
             genres=['art'],
             content_count=8,
             total_sales_usd=1200.00,
-            status='Selective Forge'
+            status='Selective'
         )
         
         # Create collaborations to test successful_collabs count
@@ -122,7 +122,7 @@ class ProfileTests(TestCase):
         self.assertGreaterEqual(creator1_data['successful_collabs'], 1)
         
         # Assert status
-        self.assertEqual(creator1_data['status'], 'Mint-Ready Partner')
+        self.assertEqual(creator1_data['status'], 'Available')
         self.assertEqual(creator1_data['status_category'], 'green')
         
         # Assert tier and location

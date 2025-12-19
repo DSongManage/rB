@@ -60,6 +60,12 @@ export default function CollaboratorsPage() {
 
   return (
     <div className="page" style={{maxWidth:1200, margin:'0 auto', padding: '0 20px'}}>
+      {/* My Availability Status - at top for visibility */}
+      <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:20, marginBottom:24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
+        <div style={{fontWeight:700, marginBottom:12, fontSize: 16, color: '#f1f5f9'}}>My availability status</div>
+        <StatusEditForm onSaved={()=>{ /* Refresh could be added here */ }} />
+      </div>
+
       <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:20, marginBottom:24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
         <h2 style={{margin:0, marginBottom:16, color:'#f1f5f9', fontSize:24, fontWeight:700}}>Find Collaborators</h2>
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:12}}>
@@ -127,15 +133,14 @@ export default function CollaboratorsPage() {
                     right: 12,
                     background: statusColor.bg,
                     color: statusColor.text,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: '4px 10px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '5px 12px',
                     borderRadius: 12,
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.8,
+                    letterSpacing: 0.3,
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                   }}>
-                    {p.status_category}
+                    {p.status}
                   </div>
                 )}
               </div>
@@ -316,11 +321,6 @@ export default function CollaboratorsPage() {
             </div>
           );
         })}
-      </div>
-
-      <div style={{marginTop:32, background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:20, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
-        <div style={{fontWeight:700, marginBottom:12, fontSize: 16, color: '#f1f5f9'}}>My availability status</div>
-        <StatusEditForm onSaved={()=>{ /* No-op here; used on Profile page primarily */ }} />
       </div>
 
       {/* Invite Modal */}

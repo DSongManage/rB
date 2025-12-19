@@ -25,7 +25,7 @@ describe('CollaboratorsPage Enhanced Display', () => {
         total_sales_usd: 2500.50,
         successful_collabs: 8,
         tier: 'Pro',
-        status: 'Mint-Ready Partner',
+        status: 'Available',
         status_category: 'green',
         avatar_url: '',
         location: 'San Francisco, CA',
@@ -41,7 +41,7 @@ describe('CollaboratorsPage Enhanced Display', () => {
         total_sales_usd: 10250.00,
         successful_collabs: 23,
         tier: 'Elite',
-        status: 'Selective Forge',
+        status: 'Selective',
         status_category: 'yellow',
         avatar_url: 'https://example.com/avatar.jpg',
         location: 'New York, NY',
@@ -101,9 +101,9 @@ describe('CollaboratorsPage Enhanced Display', () => {
     expect(screen.getByText('$10,250')).toBeInTheDocument(); // artist_elite sales
     expect(screen.getAllByText(/Total Sales/i)).toHaveLength(2);
 
-    // Assert status badges
-    expect(screen.getByText('GREEN')).toBeInTheDocument(); // creator_pro
-    expect(screen.getByText('YELLOW')).toBeInTheDocument(); // artist_elite
+    // Assert status badges (now shows actual status text, not category)
+    expect(screen.getByText('Available')).toBeInTheDocument(); // creator_pro
+    expect(screen.getByText('Selective')).toBeInTheDocument(); // artist_elite
 
     // Assert tier badges
     expect(screen.getByText('Pro Tier')).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe('CollaboratorsPage Enhanced Display', () => {
       total_sales_usd: 1000,
       successful_collabs: 5,
       tier: 'Pro',
-      status: 'Mint-Ready Partner',
+      status: 'Available',
       status_category: 'green',
       avatar_url: '',
       location: 'SF',
@@ -218,7 +218,7 @@ describe('CollaboratorsPage Enhanced Display', () => {
 
     // Assert recipient info displayed in modal header
     expect(screen.getByText('Test Creator')).toBeInTheDocument();
-    expect(screen.getByText('GREEN')).toBeInTheDocument();
+    expect(screen.getByText('Available')).toBeInTheDocument();
     expect(screen.getByText('author')).toBeInTheDocument();
 
     // Mock CSRF token fetch

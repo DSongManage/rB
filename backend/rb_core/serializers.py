@@ -899,11 +899,12 @@ class PublicProfileSerializer(serializers.Serializer):
 
         # Status category for badge color
         status_category = 'green'
-        green_statuses = ['Mint-Ready Partner', 'Chain Builder', 'Open Node']
-        yellow_statuses = ['Selective Forge', 'Linked Capacity', 'Partial Protocol']
+        green_statuses = ['Available', 'Open to Offers']
+        yellow_statuses = ['Selective', 'Booked']
+        red_statuses = ['Unavailable', 'On Hiatus']
         if profile.status in yellow_statuses:
             status_category = 'yellow'
-        elif profile.status not in green_statuses:
+        elif profile.status in red_statuses:
             status_category = 'red'
 
         return {

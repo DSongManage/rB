@@ -169,7 +169,29 @@ class ContentListView(generics.ListCreateAPIView):
         if mine and self.request.user.is_authenticated:
             try:
                 core_user = CoreUser.objects.get(username=self.request.user.username)
-                qs = qs.filter(creator=core_user)
+                # Include content where user is creator OR user is an accepted collaborator
+                # on a collaborative project that published this content
+                from django.contrib.auth import get_user_model
+                AuthUser = get_user_model()
+                auth_user = AuthUser.objects.get(username=self.request.user.username)
+
+                # Get collaborative projects where user is an accepted collaborator
+                collab_project_ids = CollaboratorRole.objects.filter(
+                    user=auth_user,
+                    status='accepted'
+                ).values_list('project_id', flat=True)
+
+                # Get content IDs from those collaborative projects
+                collab_content_ids = CollaborativeProject.objects.filter(
+                    id__in=collab_project_ids,
+                    published_content__isnull=False
+                ).values_list('published_content_id', flat=True)
+
+                # Filter: creator=user OR content is from a collab project user is part of
+                qs = qs.filter(
+                    Q(creator=core_user) |
+                    Q(id__in=collab_content_ids)
+                )
             except CoreUser.DoesNotExist:
                 qs = qs.none()
         return qs
@@ -1385,9 +1407,9 @@ class UserSearchView(APIView):
             # Determine status category for badge color
             status_category = 'green'  # default
             if p.status:
-                green_statuses = {'Mint-Ready Partner', 'Chain Builder', 'Open Node'}
-                yellow_statuses = {'Selective Forge', 'Linked Capacity', 'Partial Protocol'}
-                red_statuses = {'Locked Chain', 'Sealed Vault', 'Exclusive Mint'}
+                green_statuses = {'Available', 'Open to Offers'}
+                yellow_statuses = {'Selective', 'Booked'}
+                red_statuses = {'Unavailable', 'On Hiatus'}
                 if p.status in green_statuses:
                     status_category = 'green'
                 elif p.status in yellow_statuses:
@@ -1860,7 +1882,19 @@ class BookProjectDetailView(APIView):
                 allowed_types = {'image/jpeg', 'image/png', 'image/webp'}
                 max_size = 5 * 1024 * 1024  # 5MB for covers
                 validate_upload(request.FILES['cover_image'], allowed_types=allowed_types, max_size=max_size)
-                project.cover_image = request.FILES['cover_image']
+
+                # Truncate long filenames to avoid database errors
+                uploaded_file = request.FILES['cover_image']
+                original_name = uploaded_file.name
+                if len(original_name) > 100:
+                    import os
+                    import uuid
+                    name, ext = os.path.splitext(original_name)
+                    # Use first 50 chars + uuid for uniqueness + extension
+                    short_name = f"{name[:50]}_{uuid.uuid4().hex[:8]}{ext}"
+                    uploaded_file.name = short_name
+
+                project.cover_image = uploaded_file
                 cover_image_updated = True
             except drf_serializers.ValidationError as e:
                 return Response({'error': str(e.detail[0]) if isinstance(e.detail, list) else str(e.detail)}, status=status.HTTP_400_BAD_REQUEST)
@@ -1919,6 +1953,71 @@ class BookProjectDetailView(APIView):
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         project.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MyPublishedBooksView(APIView):
+    """Get user's book projects for display on the profile page.
+
+    Returns all book projects (both published and draft) with their chapters
+    grouped by book rather than individual chapters.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+
+        # Get all book projects for this user
+        projects = BookProject.objects.filter(
+            creator=core_user
+        ).prefetch_related(
+            'chapters',
+            'chapters__published_content'
+        ).order_by('-updated_at')
+
+        result = []
+        for project in projects:
+            # Get all chapters with their status
+            chapters_data = []
+            total_views = 0
+            total_price = 0
+            published_count = 0
+
+            for chapter in project.chapters.all().order_by('order'):
+                content = chapter.published_content if chapter.is_published else None
+                chapter_data = {
+                    'id': chapter.id,
+                    'title': chapter.title,
+                    'order': chapter.order,
+                    'is_published': chapter.is_published,
+                    'content_id': content.id if content else None,
+                    'price_usd': float(content.price_usd) if content else 0,
+                    'view_count': content.view_count if content else 0,
+                }
+                chapters_data.append(chapter_data)
+                if chapter.is_published and content:
+                    published_count += 1
+                    total_views += content.view_count
+                    total_price += float(content.price_usd or 0)
+
+            # Build cover image URL
+            cover_url = None
+            if project.cover_image:
+                cover_url = request.build_absolute_uri(project.cover_image.url)
+
+            result.append({
+                'id': project.id,
+                'title': project.title,
+                'cover_image_url': cover_url,
+                'total_chapters': project.chapters.count(),
+                'published_chapters': published_count,
+                'is_published': project.is_published,
+                'chapters': chapters_data,
+                'total_views': total_views,
+                'total_price': round(total_price, 2),
+                'updated_at': project.updated_at.isoformat(),
+            })
+
+        return Response(result)
 
 
 class ChapterListCreateView(APIView):
@@ -2028,7 +2127,7 @@ class PrepareChapterView(APIView):
             teaser_link=teaser_link,
             content_type='book',
             genre='other',
-            inventory_status='draft'  # Keep as draft until minted
+            inventory_status='draft',  # Keep as draft until minted
         )
         if not chapter.book_project.cover_image:
             content.teaser_link = f'/api/content/{content.id}/teaser/'
@@ -2069,12 +2168,13 @@ class PublishChapterView(APIView):
             teaser_html=chapter.content_html,
             teaser_link=teaser_link,
             content_type='book',
-            genre='other'
+            genre='other',
+            source_chapter=chapter  # Link to source chapter to prevent orphan exclusion
         )
         if not chapter.book_project.cover_image:
             content.teaser_link = f'/api/content/{content.id}/teaser/'
             content.save()
-        
+
         chapter.is_published = True
         chapter.published_content = content
         chapter.save()
@@ -2185,7 +2285,7 @@ class PublishBookView(APIView):
 class BookProjectByContentView(APIView):
     """Get book project by its published content ID."""
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request, content_id):
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         try:
@@ -2194,21 +2294,24 @@ class BookProjectByContentView(APIView):
                 creator=core_user,
                 published_content_id=content_id
             ).first()
-            
+
             if project:
                 serializer = BookProjectSerializer(project)
                 return Response(serializer.data)
-            
+
             # Also check if any chapter published this content
             chapter = Chapter.objects.filter(
                 book_project__creator=core_user,
                 published_content_id=content_id
             ).select_related('book_project').first()
-            
+
             if chapter:
                 serializer = BookProjectSerializer(chapter.book_project)
-                return Response(serializer.data)
-            
+                data = serializer.data
+                # Include the chapter ID so frontend can select the correct chapter
+                data['target_chapter_id'] = chapter.id
+                return Response(data)
+
             return Response({'error': 'No book project found for this content'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
