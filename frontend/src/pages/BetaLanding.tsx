@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Rocket, DollarSign, Users, Lock, ArrowRight, CheckCircle
+  Sparkles, Pen, Users, Heart, ArrowRight, CheckCircle
 } from 'lucide-react';
 import { API_URL } from '../config';
 import './BetaLanding.css';
@@ -65,16 +65,16 @@ export default function BetaLanding() {
           </div>
 
           <div className="beta-badge">
-            <Rocket size={14} style={{ display: 'inline', marginRight: 6 }} />
+            <Sparkles size={14} style={{ display: 'inline', marginRight: 6 }} />
             PRIVATE BETA
           </div>
 
           <h1 className="hero-title">
-            Collaborate Without Risk.<br />Earn Without Limits.
+            Unleash What's Inside You
           </h1>
 
           <p className="hero-subtitle">
-            Find your creative partner, publish together, and keep what you earn
+            A home for serious creators to write, collaborate, and share their work with the world
           </p>
 
           <div className="hero-form">
@@ -94,102 +94,102 @@ export default function BetaLanding() {
                   disabled={submitting}
                   className="cta-button"
                 >
-                  {submitting ? 'Joining...' : 'Join the Revolution'}
+                  {submitting ? 'Submitting...' : 'Start Creating'}
                 </button>
               </div>
               {message && <div className={`form-message ${message.startsWith('✅') ? 'success' : 'error'}`}>{message}</div>}
             </form>
             <p className="hero-proof">
-              <CheckCircle size={16} style={{ display: 'inline', marginRight: 6, verticalAlign: 'middle' }} />
-              500+ creators already building
+              Join a growing community of authors and artists
             </p>
             <p className="signin-link">
               Already have access?{' '}
               <Link to={inviteCode ? `/auth?invite=${inviteCode}` : '/auth'}>
-                Sign In →
+                Sign In <ArrowRight size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
               </Link>
             </p>
           </div>
         </div>
       </section>
 
-      {/* 2. PROBLEM → SOLUTION VISUAL */}
+      {/* 2. COMPARISON SECTION */}
       <section className="comparison-section">
         <div className="container">
-          <h2 className="section-title">Other Platforms vs renaissBlock</h2>
+          <h2 className="section-title">Create on Your Terms</h2>
 
-          <div className="comparison-grid">
-            <div className="comparison-card them">
-              <div className="card-label">THEM</div>
-              <div className="comparison-items">
-                <div className="comparison-item">
-                  <span className="item-value bad">Keep 30%</span>
-                  <span className="item-label">of your revenue</span>
-                </div>
-                <div className="comparison-item">
-                  <span className="item-value bad">No Rights</span>
-                  <span className="item-label">lose ownership</span>
-                </div>
-                <div className="comparison-item">
-                  <span className="item-value bad">Work Alone</span>
-                  <span className="item-label">hard to find partners</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="comparison-arrow">
-              <ArrowRight size={40} />
-            </div>
-
-            <div className="comparison-card you">
-              <div className="card-label">YOU</div>
-              <div className="comparison-items">
-                <div className="comparison-item">
-                  <span className="item-value good">Keep 90%</span>
-                  <span className="item-label">of every sale</span>
-                </div>
-                <div className="comparison-item">
-                  <span className="item-value good">Own Forever</span>
-                  <span className="item-label">blockchain-backed</span>
-                </div>
-                <div className="comparison-item">
-                  <span className="item-value good">Collaborate</span>
-                  <span className="item-label">find perfect partners</span>
-                </div>
-              </div>
-            </div>
+          <div className="comparison-table-wrapper">
+            <table className="comparison-table">
+              <thead>
+                <tr>
+                  <th className="old-way-header">THE OLD WAY</th>
+                  <th className="new-way-header">THE renaissBlock WAY</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="old-way">
+                    <span className="main-text">Gatekeepers Decide</span>
+                    <span className="sub-text">wait for permission</span>
+                  </td>
+                  <td className="new-way">
+                    <span className="main-text">You Decide</span>
+                    <span className="sub-text">publish when you're ready</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="old-way">
+                    <span className="main-text">Work in Isolation</span>
+                    <span className="sub-text">hope to meet the right collaborator</span>
+                  </td>
+                  <td className="new-way">
+                    <span className="main-text">Find Your People</span>
+                    <span className="sub-text">connect with creators who complete your vision</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="old-way">
+                    <span className="main-text">Chase Your Earnings</span>
+                    <span className="sub-text">invoices, delays, disputes</span>
+                  </td>
+                  <td className="new-way">
+                    <span className="main-text">Earnings Come to You</span>
+                    <span className="sub-text">automatic, instant, fair</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
-      {/* 3. THREE CORE BENEFITS */}
+      {/* 3. WHY CREATORS CHOOSE US */}
       <section className="benefits-section">
         <div className="container">
-          <h2 className="section-title">Why Creators Choose Us</h2>
+          <h2 className="section-title">Built for Creators Who Mean It</h2>
 
           <div className="benefits-grid">
             <div className="benefit-card">
               <div className="benefit-icon">
-                <DollarSign size={48} />
+                <Pen size={48} />
               </div>
-              <h3>Keep 90% of Every Sale</h3>
-              <p>Other platforms take 70%. You keep 10-15% after fees. We keep 90%.</p>
+              <h3>Your Work, Your Way</h3>
+              <p>No gatekeepers. No algorithms deciding your fate. Just you and your readers.</p>
             </div>
 
             <div className="benefit-card">
               <div className="benefit-icon">
                 <Users size={48} />
               </div>
-              <h3>Find Perfect Partners</h3>
-              <p>Collaborate with verified creators. Splits handled automatically.</p>
+              <h3>Find Your Creative Other Half</h3>
+              <p>Writers meet illustrators. Musicians meet lyricists. Great work happens together.</p>
             </div>
 
             <div className="benefit-card">
               <div className="benefit-icon">
-                <Lock size={48} />
+                <Heart size={48} />
               </div>
-              <h3>Own It All Forever</h3>
-              <p>Blockchain-backed ownership. No takedowns, no platform control.</p>
+              <h3>Fair Splits, Zero Drama</h3>
+              <p>Collaborate with confidence. Everyone gets paid automatically, exactly as agreed.</p>
             </div>
           </div>
         </div>
@@ -204,7 +204,7 @@ export default function BetaLanding() {
             <div className="timeline-step">
               <div className="step-number">1</div>
               <h3>Create</h3>
-              <p>Upload your content</p>
+              <p>Bring your vision to life</p>
             </div>
 
             <div className="timeline-connector">
@@ -214,7 +214,7 @@ export default function BetaLanding() {
             <div className="timeline-step">
               <div className="step-number">2</div>
               <h3>Collaborate</h3>
-              <p>Find partners and set rev splits</p>
+              <p>Find partners who elevate your work</p>
             </div>
 
             <div className="timeline-connector">
@@ -223,8 +223,8 @@ export default function BetaLanding() {
 
             <div className="timeline-step">
               <div className="step-number">3</div>
-              <h3>Earn</h3>
-              <p>Keep your revenue</p>
+              <h3>Share</h3>
+              <p>Reach readers who value quality</p>
             </div>
           </div>
         </div>
@@ -233,11 +233,11 @@ export default function BetaLanding() {
       {/* 5. SOCIAL PROOF */}
       <section className="testimonial-section">
         <div className="container">
-          <h2 className="section-title">Creators Already Building</h2>
+          <h2 className="section-title">Creators Already Here</h2>
 
           <div className="testimonial-card">
             <p className="testimonial-quote">
-              "I spent years trying to find the right illustrator. Within a week on renaissBlock, I met Maya. We published our children's book in 3 months and both earned more than we ever did with traditional publishers."
+              "I'd been sitting on my manuscript for two years, afraid to self-publish alone. On renaissBlock, I found Maya — the illustrator I didn't know I needed. Three months later, we had a book we're both proud of."
             </p>
             <div className="testimonial-author">
               <div className="author-name">Sarah K.</div>
@@ -251,9 +251,9 @@ export default function BetaLanding() {
       <section className="final-cta-section">
         <div className="container">
           <div className="final-cta-card">
-            <h2>Ready to Own Your Creative Future?</h2>
+            <h2>Ready to Create Something Meaningful?</h2>
             <p className="cta-subtext">
-              Join 500+ creators building on a platform they control
+              Join a community of serious creators building the next wave of quality content
             </p>
 
             <form onSubmit={handleSubmit} className="final-cta-form">
@@ -281,14 +281,14 @@ export default function BetaLanding() {
             <p className="signin-link">
               Already have access?{' '}
               <Link to={inviteCode ? `/auth?invite=${inviteCode}` : '/auth'}>
-                Sign In →
+                Sign In <ArrowRight size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
               </Link>
             </p>
           </div>
         </div>
       </section>
 
-      {/* FOOTER - Simplified */}
+      {/* FOOTER */}
       <footer className="landing-footer">
         <div className="container">
           <div className="footer-grid">
@@ -298,7 +298,7 @@ export default function BetaLanding() {
                 <span>renaissBlock</span>
               </div>
               <p className="footer-tagline">
-                Where creators own their future
+                Where serious creators thrive
               </p>
             </div>
 
