@@ -213,8 +213,8 @@ export function ProjectPreview({
                 ⚠️ Issues preventing minting:
               </div>
               <ul style={{ margin: 0, paddingLeft: 20, color: '#f87171' }}>
-                {validationErrors.map((error, index) => (
-                  <li key={index} style={{ marginBottom: 4, fontSize: 13 }}>
+                {validationErrors.map((error) => (
+                  <li key={error} style={{ marginBottom: 4, fontSize: 13 }}>
                     {error}
                   </li>
                 ))}

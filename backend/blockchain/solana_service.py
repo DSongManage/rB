@@ -292,18 +292,22 @@ def mint_and_distribute_collaborative_nft(
         }
 
     except Exception as e:
-        logger.error(f"❌ Distribution failed: {e}")
+        logger.error(f"Distribution failed: {e}")
         logger.exception(e)
 
-        # Fall back to mock for testing
-        logger.warning("Falling back to MOCK implementation due to error")
-        return _mock_mint_and_distribute(
-            buyer_wallet_address,
-            chapter_metadata_uri,
-            collaborator_payments,
-            platform_usdc_amount,
-            total_usdc_amount
-        )
+        # SECURITY: Only fall back to mock in DEBUG mode
+        if settings.DEBUG:
+            logger.warning("DEBUG MODE: Falling back to MOCK implementation due to error")
+            return _mock_mint_and_distribute(
+                buyer_wallet_address,
+                chapter_metadata_uri,
+                collaborator_payments,
+                platform_usdc_amount,
+                total_usdc_amount
+            )
+        else:
+            # In production, propagate the error - never return fake success data
+            raise RuntimeError(f"Blockchain distribution failed: {e}") from e
 
 
 def _mock_mint_and_distribute(

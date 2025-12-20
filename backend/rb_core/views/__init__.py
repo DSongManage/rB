@@ -946,24 +946,117 @@ class SearchView(APIView):
 
 
 class TrackContentViewView(APIView):
-    """Track content views for analytics and discovery.
+    """Track unique content views for analytics and discovery.
 
-    Increments the view_count for content when viewed.
-    Rate-limited to prevent abuse.
+    - Deduplicates views: logged-in users tracked by user_id, anonymous by session
+    - Excludes self-views: creators viewing their own content don't count
+    - Only increments view_count for new unique views
     """
     permission_classes = [permissions.AllowAny]
+    # Exempt from CSRF since this is a non-sensitive tracking endpoint
+    authentication_classes = []
+
+    def get_client_ip(self, request):
+        """Extract client IP from request headers."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
 
     def post(self, request, pk):
         from django.db.models import F
+        from django.utils import timezone
+        from datetime import timedelta
+        from ..models import ContentView
 
         try:
-            content = Content.objects.get(pk=pk, inventory_status='minted')
-            # Atomic increment to handle concurrent views
-            Content.objects.filter(pk=pk).update(view_count=F('view_count') + 1)
-            content.refresh_from_db()
-            return Response({'view_count': content.view_count})
+            content = Content.objects.select_related('creator').get(pk=pk, inventory_status='minted')
         except Content.DoesNotExist:
             return Response({'error': 'Content not found'}, status=404)
+
+        user = request.user if request.user.is_authenticated else None
+
+        # Self-view check: creator viewing their own content doesn't count
+        if user and content.creator_id == user.id:
+            return Response({
+                'view_count': content.view_count,
+                'counted': False,
+                'reason': 'self_view'
+            })
+
+        # Check for collaborative content - exclude all collaborators' self-views
+        if user:
+            from ..models import CollaborativeProject, CollaboratorRole
+            # Check if this content belongs to a collaborative project where user is a collaborator
+            is_collaborator = CollaboratorRole.objects.filter(
+                project__content=content,
+                user=user,
+                status='accepted'
+            ).exists()
+            if is_collaborator:
+                return Response({
+                    'view_count': content.view_count,
+                    'counted': False,
+                    'reason': 'collaborator_view'
+                })
+
+        # Deduplication check
+        is_new_view = False
+
+        if user:
+            # Logged-in user: check if they've ever viewed this content
+            existing_view = ContentView.objects.filter(content=content, user=user).exists()
+            if not existing_view:
+                ContentView.objects.create(content=content, user=user, ip_address=self.get_client_ip(request))
+                is_new_view = True
+        else:
+            # Anonymous user: use session key with 24-hour window
+            session_key = request.session.session_key
+            if not session_key:
+                # Create session if it doesn't exist
+                request.session.create()
+                session_key = request.session.session_key
+
+            if session_key:
+                # Check for view in last 24 hours from this session
+                cutoff = timezone.now() - timedelta(hours=24)
+                existing_view = ContentView.objects.filter(
+                    content=content,
+                    session_key=session_key,
+                    created_at__gte=cutoff
+                ).exists()
+                if not existing_view:
+                    ContentView.objects.create(
+                        content=content,
+                        session_key=session_key,
+                        ip_address=self.get_client_ip(request)
+                    )
+                    is_new_view = True
+            else:
+                # Fallback: use IP with 24-hour window (less reliable but better than nothing)
+                ip_address = self.get_client_ip(request)
+                if ip_address:
+                    cutoff = timezone.now() - timedelta(hours=24)
+                    existing_view = ContentView.objects.filter(
+                        content=content,
+                        user__isnull=True,
+                        session_key__isnull=True,
+                        ip_address=ip_address,
+                        created_at__gte=cutoff
+                    ).exists()
+                    if not existing_view:
+                        ContentView.objects.create(content=content, ip_address=ip_address)
+                        is_new_view = True
+
+        # Only increment view_count for new unique views
+        if is_new_view:
+            Content.objects.filter(pk=pk).update(view_count=F('view_count') + 1)
+            content.refresh_from_db()
+
+        return Response({
+            'view_count': content.view_count,
+            'counted': is_new_view
+        })
 
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1434,6 +1527,12 @@ class UserSearchView(APIView):
                 status='minted'
             ).distinct().count()
 
+            # Calculate total views from all user's content
+            total_views = Content.objects.filter(
+                creator=p.user,
+                inventory_status='minted'
+            ).aggregate(total=models.Sum('view_count'))['total'] or 0
+
             # Determine status category for badge color
             status_category = 'green'  # default
             if p.status:
@@ -1477,6 +1576,11 @@ class UserSearchView(APIView):
                 'avatar_url': avatar_url,
                 'banner_url': banner_url,
                 'location': p.location or '',
+                # Additional public profile stats
+                'bio': p.bio or '',
+                'follower_count': p.follower_count or 0,
+                'total_views': total_views,
+                'average_rating': float(p.average_review_rating) if p.average_review_rating else None,
             })
         
         return Response(results)
@@ -1698,7 +1802,8 @@ class PublicProfileView(APIView):
     """
 
     def get(self, request, username):
-        from ..models import Content, ExternalPortfolioItem, CollaboratorRating
+        from django.db.models import Exists, OuterRef
+        from ..models import Content, ExternalPortfolioItem, CollaboratorRating, BookProject, Chapter
         from ..serializers import PublicProfileSerializer
 
         # Find the user profile
@@ -1710,10 +1815,24 @@ class PublicProfileView(APIView):
         user = profile.user
 
         # Get platform works (minted content by this user)
+        # Exclude individual book chapters - these will be grouped under book_projects
+        # Use Exists() subquery for reliable filtering on reverse FK relations
+        chapter_subquery = Chapter.objects.filter(published_content=OuterRef('pk'))
         platform_works = Content.objects.filter(
             creator=user,
             inventory_status='minted'
+        ).exclude(
+            # Exclude content that is linked as published_content from any Chapter
+            Exists(chapter_subquery)
         ).order_by('-created_at')[:20]
+
+        # Get book projects with published chapters for grouping
+        book_projects = BookProject.objects.filter(
+            creator=user
+        ).prefetch_related(
+            'chapters',
+            'chapters__published_content'
+        ).order_by('-updated_at')
 
         # Get external portfolio items
         external_portfolio = ExternalPortfolioItem.objects.filter(
@@ -1749,6 +1868,7 @@ class PublicProfileView(APIView):
             'profile': profile,
             'user': user,
             'platform_works': platform_works,
+            'book_projects': book_projects,
             'external_portfolio': external_portfolio,
             'collaborations': collaborations,
             'testimonials': testimonials,
@@ -2050,10 +2170,108 @@ class MyPublishedBooksView(APIView):
         return Response(result)
 
 
+class PublicBookProjectsView(APIView):
+    """Get all published book projects for public discovery on home page.
+
+    Returns aggregated book projects (only those with at least one published chapter)
+    with their chapters grouped by book rather than individual chapters.
+    This allows the home page to display books as single cards instead of
+    showing each chapter separately.
+    """
+    permission_classes = []  # Public endpoint
+
+    def get(self, request):
+        from django.db.models import Sum, Count, F, Q
+
+        # Get all book projects that have at least one published chapter
+        projects = BookProject.objects.filter(
+            chapters__is_published=True,
+            chapters__published_content__isnull=False
+        ).distinct().prefetch_related(
+            'chapters',
+            'chapters__published_content',
+            'creator__profile'
+        ).select_related('creator').order_by('-updated_at')
+
+        result = []
+        for project in projects:
+            # Get only published chapters with their content
+            chapters_data = []
+            total_views = 0
+            total_price = 0
+            total_likes = 0
+            total_rating_sum = 0
+            total_rating_count = 0
+            published_count = 0
+            latest_published_at = None
+
+            for chapter in project.chapters.all().order_by('order'):
+                if not chapter.is_published or not chapter.published_content:
+                    continue
+
+                content = chapter.published_content
+                chapter_data = {
+                    'id': chapter.id,
+                    'title': chapter.title,
+                    'order': chapter.order,
+                    'content_id': content.id,
+                    'price_usd': float(content.price_usd) if content.price_usd else 0,
+                    'view_count': content.view_count or 0,
+                }
+                chapters_data.append(chapter_data)
+                published_count += 1
+                total_views += content.view_count or 0
+                total_price += float(content.price_usd or 0)
+                total_likes += content.like_count or 0
+                if content.average_rating and content.rating_count:
+                    total_rating_sum += float(content.average_rating) * content.rating_count
+                    total_rating_count += content.rating_count
+
+                # Track latest published chapter
+                if latest_published_at is None or content.created_at > latest_published_at:
+                    latest_published_at = content.created_at
+
+            # Skip if no published chapters
+            if published_count == 0:
+                continue
+
+            # Build cover image URL
+            cover_url = None
+            if project.cover_image:
+                cover_url = request.build_absolute_uri(project.cover_image.url)
+
+            # Calculate average rating across all chapters
+            avg_rating = None
+            if total_rating_count > 0:
+                avg_rating = round(total_rating_sum / total_rating_count, 2)
+
+            # Get the first chapter's content_id for linking
+            first_chapter_content_id = chapters_data[0]['content_id'] if chapters_data else None
+
+            result.append({
+                'id': project.id,
+                'title': project.title,
+                'cover_image_url': cover_url,
+                'creator_username': project.creator.username,
+                'published_chapters': published_count,
+                'chapters': chapters_data,
+                'total_views': total_views,
+                'total_price': round(total_price, 2),
+                'total_likes': total_likes,
+                'average_rating': avg_rating,
+                'rating_count': total_rating_count,
+                'first_chapter_content_id': first_chapter_content_id,
+                'created_at': latest_published_at.isoformat() if latest_published_at else project.created_at.isoformat(),
+                'content_type': 'book',  # For frontend filtering
+            })
+
+        return Response(result)
+
+
 class ChapterListCreateView(APIView):
     """List chapters for a project or create a new chapter."""
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request, project_id):
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         try:

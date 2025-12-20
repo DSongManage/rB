@@ -30,6 +30,7 @@ export default function PublishTab({
   const [watermark, setWatermark] = useState(project.watermark_preview || false);
   const [price, setPrice] = useState(parseFloat(String(project.price_usd)) || 1);
   const [editions, setEditions] = useState(project.editions || 1);
+  const [authorsNote, setAuthorsNote] = useState(project.authors_note || '');
 
   const collaborators = project.collaborators || [];
   const acceptedCollaborators = collaborators.filter(c => c.status === 'accepted');
@@ -160,6 +161,7 @@ export default function PublishTab({
         editions: editions,
         teaser_percent: teaserPercent,
         watermark_preview: watermark,
+        authors_note: authorsNote,
       });
       onProjectUpdate?.(updatedProject);
       setStep('approve');
@@ -325,6 +327,8 @@ export default function PublishTab({
           setPrice={setPrice}
           editions={editions}
           setEditions={setEditions}
+          authorsNote={authorsNote}
+          setAuthorsNote={setAuthorsNote}
           onNext={isProjectLead ? handleSaveCustomization : () => setStep('approve')}
           saving={saving}
         />
@@ -378,8 +382,15 @@ interface CustomizeStepProps {
   setPrice: (v: number) => void;
   editions: number;
   setEditions: (v: number) => void;
+  authorsNote: string;
+  setAuthorsNote: (v: string) => void;
   onNext: () => void;
   saving: boolean;
+}
+
+// Helper to count words
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
 
 function CustomizeStep({
@@ -392,9 +403,15 @@ function CustomizeStep({
   setPrice,
   editions,
   setEditions,
+  authorsNote,
+  setAuthorsNote,
   onNext,
   saving,
 }: CustomizeStepProps) {
+  const wordCount = countWords(authorsNote);
+  const maxWords = 100;
+  const isOverLimit = wordCount > maxWords;
+
   return (
     <div style={{
       background: 'var(--panel)',
@@ -492,6 +509,43 @@ function CustomizeStep({
               }}
             />
           </div>
+        </div>
+
+        {/* Author's Note */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: 13, color: '#94a3b8' }}>
+              Author's Note (optional)
+            </label>
+            <span style={{ fontSize: 11, color: isOverLimit ? '#ef4444' : '#64748b' }}>
+              {wordCount}/{maxWords} words
+            </span>
+          </div>
+          <textarea
+            value={authorsNote}
+            onChange={(e) => setAuthorsNote(e.target.value)}
+            placeholder="Share a brief note about this work with your audience..."
+            disabled={!isProjectLead}
+            style={{
+              width: '100%',
+              minHeight: 80,
+              padding: '10px 14px',
+              background: 'var(--bg)',
+              border: `1px solid ${isOverLimit ? '#ef4444' : 'var(--panel-border)'}`,
+              borderRadius: 8,
+              color: 'var(--text)',
+              fontSize: 14,
+              resize: 'vertical',
+              fontFamily: 'inherit',
+              cursor: isProjectLead ? 'text' : 'not-allowed',
+              opacity: isProjectLead ? 1 : 0.6,
+            }}
+          />
+          {isOverLimit && (
+            <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+              Please keep your note under {maxWords} words.
+            </div>
+          )}
         </div>
 
         <div style={{ fontSize: 12, color: '#64748b' }}>
@@ -902,9 +956,17 @@ function MintStep({
 
       {/* Terms Agreement */}
       <div style={{ marginBottom: 24 }}>
-        <a href="/terms" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)' }}>
-          View terms and conditions
-        </a>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <a href="/legal/terms" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)' }}>
+            Terms of Service
+          </a>
+          <a href="/legal/creator-agreement" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)' }}>
+            Creator Agreement
+          </a>
+          <a href="/legal/content-policy" target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)' }}>
+            Content Policy
+          </a>
+        </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, cursor: 'pointer' }}>
           <input
             type="checkbox"

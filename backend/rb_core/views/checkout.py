@@ -56,7 +56,7 @@ class CreateCheckoutSessionView(APIView):
                 # Handle chapter purchase
                 if chapter_id:
                     try:
-                        chapter = Chapter.objects.select_related('book_project__creator').get(id=chapter_id)
+                        chapter = Chapter.objects.select_for_update().select_related('book_project__creator').get(id=chapter_id)
                     except Chapter.DoesNotExist:
                         return Response(
                             {'error': 'Chapter not found', 'code': 'CHAPTER_NOT_FOUND'},
@@ -150,7 +150,7 @@ class CreateCheckoutSessionView(APIView):
                                     'name': item_title,
                                     'description': item_description,
                                 },
-                                'unit_amount': int(float(price) * 100),  # Convert to cents
+                                'unit_amount': int(Decimal(str(price)) * 100),  # Convert to cents using Decimal
                             },
                             'quantity': 1,
                         }],

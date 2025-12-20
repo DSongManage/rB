@@ -32,8 +32,13 @@ export function usePagination({
 }: UsePaginationOptions): UsePaginationReturn {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const isInitializedRef = useRef(false);
+  const settingsRef = useRef(settings);
+
+  // Update settings ref
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   // Storage key for this specific content
   const storageKey = useMemo(
@@ -46,26 +51,39 @@ export function usePagination({
     const content = contentRef.current;
     if (!content) return 1;
 
+    // In continuous scroll mode, we don't paginate
+    if (settings.continuousScroll) return 1;
+
     const containerWidth = content.clientWidth;
     const scrollWidth = content.scrollWidth;
 
     if (containerWidth === 0) return 1;
 
-    // Total pages is scrollWidth / containerWidth (each page is one column)
-    const pages = Math.max(1, Math.ceil(scrollWidth / containerWidth));
+    // Calculate pages with a small tolerance to avoid creating empty pages
+    // This handles cases where scrollWidth is slightly larger due to column gaps
+    const rawPages = scrollWidth / containerWidth;
+    const tolerance = 0.1; // 10% tolerance
+
+    // If we're very close to a whole number, round down
+    const pages = Math.max(1,
+      rawPages - Math.floor(rawPages) < tolerance
+        ? Math.floor(rawPages)
+        : Math.ceil(rawPages)
+    );
+
     return pages;
-  }, [contentRef]);
+  }, [contentRef, settings.continuousScroll]);
 
   // Scroll to a specific page
   const scrollToPage = useCallback(
     (page: number) => {
       const content = contentRef.current;
-      if (!content) return;
+      if (!content || settings.continuousScroll) return;
 
       const pageWidth = content.clientWidth;
       content.scrollLeft = page * pageWidth;
     },
-    [contentRef]
+    [contentRef, settings.continuousScroll]
   );
 
   // Save position to localStorage
@@ -76,6 +94,8 @@ export function usePagination({
         totalPages: total,
         fontSize: settings.fontSize,
         lineHeight: settings.lineHeight,
+        margins: settings.margins,
+        columns: settings.columns,
       };
 
       try {
@@ -84,7 +104,7 @@ export function usePagination({
         console.error('Failed to save reading position:', e);
       }
     },
-    [storageKey, settings.fontSize, settings.lineHeight]
+    [storageKey, settings.fontSize, settings.lineHeight, settings.margins, settings.columns]
   );
 
   // Load saved position from localStorage
@@ -111,7 +131,10 @@ export function usePagination({
     // Ensure current page is valid
     setCurrentPage((prev) => {
       const validPage = Math.min(prev, newTotal - 1);
-      scrollToPage(validPage);
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        scrollToPage(validPage);
+      });
       return validPage;
     });
   }, [calculateTotalPages, scrollToPage]);
@@ -130,22 +153,31 @@ export function usePagination({
       if (!isInitializedRef.current) {
         const savedPos = loadSavedPosition();
         if (savedPos) {
-          // If settings changed, estimate new position
+          // Calculate if settings changed significantly
+          const settingsChanged =
+            savedPos.fontSize !== settings.fontSize ||
+            savedPos.lineHeight !== settings.lineHeight ||
+            savedPos.margins !== settings.margins ||
+            savedPos.columns !== settings.columns;
+
           let targetPage = savedPos.page;
 
-          if (
-            savedPos.fontSize !== settings.fontSize ||
-            savedPos.lineHeight !== settings.lineHeight
-          ) {
+          if (settingsChanged) {
             // Settings changed, estimate based on percentage
-            const percent = savedPos.page / savedPos.totalPages;
+            const percent = savedPos.totalPages > 0
+              ? savedPos.page / savedPos.totalPages
+              : 0;
             targetPage = Math.round(percent * total);
           }
 
           // Ensure valid page
           targetPage = Math.max(0, Math.min(targetPage, total - 1));
           setCurrentPage(targetPage);
-          scrollToPage(targetPage);
+
+          // Wait for layout to settle before scrolling
+          requestAnimationFrame(() => {
+            scrollToPage(targetPage);
+          });
         }
 
         isInitializedRef.current = true;
@@ -153,11 +185,15 @@ export function usePagination({
     };
 
     // Wait for content to render
-    const timeoutId = setTimeout(initializePages, 100);
+    const timeoutId = setTimeout(initializePages, 150);
 
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
-      recalculatePages();
+      // Debounce resize recalculation
+      clearTimeout(timeoutId);
+      setTimeout(() => {
+        recalculatePages();
+      }, 100);
     });
 
     resizeObserver.observe(content);
@@ -174,56 +210,81 @@ export function usePagination({
     recalculatePages,
     settings.fontSize,
     settings.lineHeight,
+    settings.margins,
+    settings.columns,
   ]);
 
   // Recalculate when settings change
   useEffect(() => {
+    if (!isInitializedRef.current) return;
+
     // Small delay to let CSS changes apply
     const timeoutId = setTimeout(() => {
       recalculatePages();
-    }, 50);
+    }, 100);
 
     return () => clearTimeout(timeoutId);
-  }, [settings.fontSize, settings.lineHeight, recalculatePages]);
+  }, [settings.fontSize, settings.lineHeight, settings.margins, settings.columns, recalculatePages]);
 
   // Go to specific page
   const goToPage = useCallback(
     (page: number) => {
+      if (settings.continuousScroll) return;
+
       const validPage = Math.max(0, Math.min(page, totalPages - 1));
       setCurrentPage(validPage);
       scrollToPage(validPage);
       savePosition(validPage, totalPages);
       onPageChange?.(validPage, totalPages);
     },
-    [totalPages, scrollToPage, savePosition, onPageChange]
+    [totalPages, scrollToPage, savePosition, onPageChange, settings.continuousScroll]
   );
 
   // Navigation helpers
   const nextPage = useCallback(() => {
+    if (settings.continuousScroll) return;
     if (currentPage < totalPages - 1) {
       goToPage(currentPage + 1);
     }
-  }, [currentPage, totalPages, goToPage]);
+  }, [currentPage, totalPages, goToPage, settings.continuousScroll]);
 
   const prevPage = useCallback(() => {
+    if (settings.continuousScroll) return;
     if (currentPage > 0) {
       goToPage(currentPage - 1);
     }
-  }, [currentPage, goToPage]);
+  }, [currentPage, goToPage, settings.continuousScroll]);
 
   const goToStart = useCallback(() => {
+    if (settings.continuousScroll) {
+      // Scroll to top in continuous mode
+      const content = contentRef.current?.parentElement;
+      if (content) content.scrollTop = 0;
+      return;
+    }
     goToPage(0);
-  }, [goToPage]);
+  }, [goToPage, settings.continuousScroll, contentRef]);
 
   const goToEnd = useCallback(() => {
+    if (settings.continuousScroll) {
+      // Scroll to bottom in continuous mode
+      const content = contentRef.current?.parentElement;
+      if (content) content.scrollTop = content.scrollHeight;
+      return;
+    }
     goToPage(totalPages - 1);
-  }, [totalPages, goToPage]);
+  }, [totalPages, goToPage, settings.continuousScroll, contentRef]);
 
   // Computed values
   const percentComplete = useMemo(() => {
+    if (settings.continuousScroll) {
+      // For continuous scroll, we'd need to track scroll position
+      // For now, return 0 or implement scroll tracking
+      return 0;
+    }
     if (totalPages <= 1) return 100;
     return Math.round(((currentPage + 1) / totalPages) * 100);
-  }, [currentPage, totalPages]);
+  }, [currentPage, totalPages, settings.continuousScroll]);
 
   const isFirstPage = currentPage === 0;
   const isLastPage = currentPage >= totalPages - 1;

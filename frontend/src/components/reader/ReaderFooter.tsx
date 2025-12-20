@@ -5,6 +5,7 @@ interface ReaderFooterProps {
   totalPages: number;
   percentComplete: number;
   visible: boolean;
+  continuousScroll?: boolean;
 }
 
 export function ReaderFooter({
@@ -12,6 +13,7 @@ export function ReaderFooter({
   totalPages,
   percentComplete,
   visible,
+  continuousScroll = false,
 }: ReaderFooterProps) {
   return (
     <footer
@@ -51,7 +53,7 @@ export function ReaderFooter({
           style={{
             width: `${percentComplete}%`,
             height: '100%',
-            background: 'var(--reader-secondary)',
+            background: 'var(--reader-accent, var(--reader-secondary))',
             borderRadius: '2px',
             transition: 'width 0.3s ease',
           }}
@@ -66,7 +68,10 @@ export function ReaderFooter({
           margin: 0,
         }}
       >
-        Page {currentPage + 1} of {totalPages} ({percentComplete}%)
+        {continuousScroll
+          ? `${percentComplete}% complete`
+          : `Page ${currentPage + 1} of ${totalPages} (${percentComplete}%)`
+        }
       </p>
     </footer>
   );

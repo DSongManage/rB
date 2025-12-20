@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatusEditForm from '../components/StatusEditForm';
 import InviteModal from '../components/InviteModal';
-import { MapPin, Briefcase, Award, TrendingUp } from 'lucide-react';
+import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen } from 'lucide-react';
 
 export default function CollaboratorsPage() {
   const navigate = useNavigate();
@@ -230,37 +230,79 @@ export default function CollaboratorsPage() {
                   </div>
                 )}
 
+                {/* Bio Section with fade */}
+                {p.bio && (
+                  <div style={{
+                    position: 'relative',
+                    marginBottom: 16,
+                    maxHeight: 60,
+                    overflow: 'hidden'
+                  }}>
+                    <p style={{
+                      fontSize: 13,
+                      color: '#94a3b8',
+                      margin: 0,
+                      lineHeight: 1.5
+                    }}>
+                      {p.bio}
+                    </p>
+                    {/* Fade out gradient overlay */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 30,
+                      background: 'linear-gradient(transparent, #1e293b)',
+                      pointerEvents: 'none'
+                    }} />
+                  </div>
+                )}
+
                 {/* Stats Row */}
                 <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-around',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: 8,
                   padding: '16px 0',
                   borderTop: '1px solid #334155',
                   borderBottom: '1px solid #334155',
                   marginBottom: 16
                 }}>
                   <div style={{textAlign: 'center'}}>
-                    <div style={{fontSize:20, fontWeight:700, color:'#f1f5f9', marginBottom: 2}}>
+                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                      <BookOpen size={14} style={{color: '#60a5fa'}} />
                       {p.content_count || 0}
                     </div>
-                    <div style={{fontSize:10, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
-                      NFTs
+                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                      Works
                     </div>
                   </div>
                   <div style={{textAlign: 'center'}}>
-                    <div style={{fontSize:20, fontWeight:700, color:'#f59e0b', marginBottom: 2}}>
-                      {p.successful_collabs || 0}
+                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                      <Users size={14} style={{color: '#a78bfa'}} />
+                      {p.follower_count || 0}
                     </div>
-                    <div style={{fontSize:10, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
-                      Collabs
+                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                      Followers
                     </div>
                   </div>
                   <div style={{textAlign: 'center'}}>
-                    <div style={{fontSize:20, fontWeight:700, color:'#10b981', marginBottom: 2}}>
-                      ${(p.total_sales_usd || 0).toLocaleString()}
+                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                      <Eye size={14} style={{color: '#34d399'}} />
+                      {p.total_views || 0}
                     </div>
-                    <div style={{fontSize:10, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
-                      Sales
+                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                      Views
+                    </div>
+                  </div>
+                  <div style={{textAlign: 'center'}}>
+                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                      <Star size={14} style={{color: '#fbbf24'}} />
+                      {p.average_rating != null ? p.average_rating.toFixed(1) : '-'}
+                    </div>
+                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                      Rating
                     </div>
                   </div>
                 </div>

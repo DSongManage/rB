@@ -917,8 +917,10 @@ class PublicProfileSerializer(serializers.Serializer):
     """
     # Profile info
     profile = serializers.SerializerMethodField()
-    # Platform works (minted content)
+    # Platform works (minted content) - excludes individual book chapters
     platform_works = serializers.SerializerMethodField()
+    # Book projects with grouped chapters
+    book_projects = serializers.SerializerMethodField()
     # External portfolio items
     external_portfolio = serializers.SerializerMethodField()
     # Collaboration history
@@ -978,6 +980,63 @@ class PublicProfileSerializer(serializers.Serializer):
         works = obj.get('platform_works', [])
         return PlatformWorkSerializer(works, many=True, context=self.context).data
 
+    def get_book_projects(self, obj):
+        """Get book projects with grouped chapters for public profile.
+
+        Only returns books with at least one published chapter.
+        """
+        projects = obj.get('book_projects', [])
+        request = self.context.get('request')
+        result = []
+
+        for project in projects:
+            # Get all chapters with their status
+            chapters_data = []
+            total_views = 0
+            total_price = 0
+            published_count = 0
+
+            for chapter in project.chapters.all().order_by('order'):
+                content = chapter.published_content if chapter.is_published else None
+                # Only include published chapters in public view
+                if chapter.is_published and content:
+                    chapter_data = {
+                        'id': chapter.id,
+                        'title': chapter.title,
+                        'order': chapter.order,
+                        'content_id': content.id,
+                        'price_usd': float(content.price_usd) if content.price_usd else 0,
+                        'view_count': content.view_count if content else 0,
+                    }
+                    chapters_data.append(chapter_data)
+                    published_count += 1
+                    total_views += content.view_count
+                    total_price += float(content.price_usd or 0)
+
+            # Only include books with at least one published chapter
+            if published_count == 0:
+                continue
+
+            # Build cover image URL
+            cover_url = None
+            if project.cover_image:
+                if request:
+                    cover_url = request.build_absolute_uri(project.cover_image.url)
+                else:
+                    cover_url = project.cover_image.url
+
+            result.append({
+                'id': project.id,
+                'title': project.title,
+                'cover_image_url': cover_url,
+                'published_chapters': published_count,
+                'chapters': chapters_data,
+                'total_views': total_views,
+                'total_price': round(total_price, 2),
+            })
+
+        return result
+
     def get_external_portfolio(self, obj):
         """Get external portfolio items."""
         items = obj.get('external_portfolio', [])
@@ -999,6 +1058,8 @@ class PublicProfileSerializer(serializers.Serializer):
         """Get profile stats summary."""
         profile = obj.get('profile')
         ratings = obj.get('testimonials', [])
+        platform_works = obj.get('platform_works', [])
+        book_projects = obj.get('book_projects', [])
 
         # Calculate average rating
         avg_rating = None
@@ -1006,9 +1067,23 @@ class PublicProfileSerializer(serializers.Serializer):
             total = sum(r.average_score for r in ratings)
             avg_rating = round(total / len(ratings), 1)
 
+        # Calculate works count and total views dynamically
+        works_count = len(platform_works)
+        total_views = sum(getattr(w, 'view_count', 0) or 0 for w in platform_works)
+
+        for project in book_projects:
+            # Only count books that have at least one published chapter
+            published_chapters = [ch for ch in project.chapters.all() if ch.is_published and ch.published_content]
+            if published_chapters:
+                works_count += 1
+                # Sum views from all published chapters
+                for ch in published_chapters:
+                    total_views += getattr(ch.published_content, 'view_count', 0) or 0
+
         return {
-            'content_count': profile.content_count if profile else 0,
-            'total_sales_usd': float(profile.total_sales_usd) if profile else 0,
+            'works_count': works_count,
+            'total_views': total_views,
+            'follower_count': profile.follower_count if profile else 0,
             'successful_collabs': obj.get('successful_collabs_count', 0),
             'average_rating': avg_rating,
         }

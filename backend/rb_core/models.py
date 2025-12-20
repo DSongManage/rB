@@ -350,6 +350,16 @@ class UserProfile(models.Model):
     average_review_rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True, db_index=True)
     review_count = models.PositiveIntegerField(default=0)
 
+    # Follower/following counts (denormalized for performance)
+    follower_count = models.PositiveIntegerField(default=0, db_index=True)
+    following_count = models.PositiveIntegerField(default=0)
+
+    # Legal agreement tracking
+    tos_accepted_at = models.DateTimeField(null=True, blank=True, help_text="When user accepted Terms of Service at signup")
+    tos_version = models.CharField(max_length=20, blank=True, default='', help_text="Version of ToS accepted at signup")
+    creator_agreement_accepted_at = models.DateTimeField(null=True, blank=True, help_text="When user accepted Creator Agreement")
+    creator_agreement_version = models.CharField(max_length=20, blank=True, default='', help_text="Version of Creator Agreement accepted")
+
     def save(self, *args, **kwargs):
         # Ensure handle mirrors auth username on create; treat as immutable afterwards
         if not self.pk:
@@ -2674,8 +2684,51 @@ class BetaInvite(models.Model):
 
 
 # =============================================================================
-# Social Engagement Models (Likes, Comments, Ratings, Reviews)
+# Social Engagement Models (Likes, Comments, Ratings, Reviews, Follows)
 # =============================================================================
+
+class Follow(models.Model):
+    """User following relationship.
+
+    - One-way relationship (follower follows following)
+    - Denormalized counts stored on UserProfile for performance
+    - Used to power the "Following Feed" for latest drops
+    """
+    follower = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='following_set',
+        help_text="The user who is following"
+    )
+    following = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='follower_set',
+        help_text="The user being followed"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['follower', 'following']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['follower', '-created_at']),
+            models.Index(fields=['following', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.follower.username} follows {self.following.username}"
+
+    def clean(self):
+        """Prevent users from following themselves."""
+        from django.core.exceptions import ValidationError
+        if self.follower_id == self.following_id:
+            raise ValidationError("Users cannot follow themselves.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
 
 class ContentLike(models.Model):
     """Instagram-style like for published content.
@@ -2698,6 +2751,33 @@ class ContentLike(models.Model):
 
     def __str__(self):
         return f"{self.user.username} liked {self.content.title}"
+
+
+class ContentView(models.Model):
+    """Track unique views on published content.
+
+    Deduplication:
+    - Logged-in users: one view per user per content (unique constraint)
+    - Anonymous users: tracked by session_key (24-hour window)
+
+    Self-views by creators are excluded and not recorded.
+    """
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='views')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='content_views')
+    session_key = models.CharField(max_length=40, null=True, blank=True)  # For anonymous users
+    ip_address = models.GenericIPAddressField(null=True, blank=True)  # Backup for anonymous tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['content', 'user']),
+            models.Index(fields=['content', 'session_key']),
+            models.Index(fields=['content', '-created_at']),
+        ]
+
+    def __str__(self):
+        viewer = self.user.username if self.user else f"anon:{self.session_key[:8] if self.session_key else 'unknown'}"
+        return f"{viewer} viewed {self.content.title}"
 
 
 class ContentComment(models.Model):
@@ -2844,3 +2924,126 @@ class CreatorReview(models.Model):
         # Update denormalized aggregates on UserProfile
         if hasattr(self.creator, 'profile'):
             self.creator.profile.update_review_aggregates()
+
+
+# ============================================================================
+# Legal Agreement Tracking Models
+# ============================================================================
+
+class LegalDocument(models.Model):
+    """
+    Store versions of legal documents for compliance tracking.
+
+    Documents are stored with version numbers and effective dates.
+    When terms change, a new version is created and users must re-accept.
+    """
+    DOCUMENT_TYPE_CHOICES = [
+        ('tos', 'Terms of Service'),
+        ('privacy', 'Privacy Policy'),
+        ('creator_agreement', 'Creator Agreement'),
+        ('content_policy', 'Content Policy'),
+        ('dmca', 'DMCA Policy'),
+        ('cookie_policy', 'Cookie Policy'),
+    ]
+
+    document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPE_CHOICES, db_index=True)
+    version = models.CharField(max_length=20, help_text="Version string, e.g., '1.0', '2.0'")
+    content = models.TextField(help_text="Full content of the legal document (markdown)")
+    summary_of_changes = models.TextField(
+        blank=True,
+        default='',
+        help_text="Human-readable summary of what changed from previous version"
+    )
+    effective_date = models.DateField(help_text="Date when this version becomes/became effective")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_date', '-created_at']
+        unique_together = ['document_type', 'version']
+        indexes = [
+            models.Index(fields=['document_type', '-effective_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_document_type_display()} v{self.version}"
+
+    @classmethod
+    def get_current_version(cls, document_type):
+        """Get the current active version of a document type."""
+        return cls.objects.filter(
+            document_type=document_type,
+            effective_date__lte=timezone.now().date()
+        ).order_by('-effective_date', '-created_at').first()
+
+
+class UserLegalAcceptance(models.Model):
+    """
+    Track user acceptance of legal documents.
+
+    Records when a user accepted each version of each document type,
+    along with metadata for compliance (IP address, user agent).
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='legal_acceptances')
+    document = models.ForeignKey(LegalDocument, on_delete=models.PROTECT, related_name='acceptances')
+    accepted_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-accepted_at']
+        unique_together = ['user', 'document']
+        indexes = [
+            models.Index(fields=['user', 'document']),
+            models.Index(fields=['user', '-accepted_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} accepted {self.document} at {self.accepted_at}"
+
+    @classmethod
+    def has_accepted_current(cls, user, document_type):
+        """Check if user has accepted the current version of a document type."""
+        if not user or not user.is_authenticated:
+            return False
+
+        current_doc = LegalDocument.get_current_version(document_type)
+        if not current_doc:
+            # No document exists for this type, consider it accepted
+            return True
+
+        return cls.objects.filter(user=user, document=current_doc).exists()
+
+    @classmethod
+    def get_pending_acceptances(cls, user):
+        """Get list of document types that need user acceptance."""
+        if not user or not user.is_authenticated:
+            return []
+
+        pending = []
+        for doc_type, _ in LegalDocument.DOCUMENT_TYPE_CHOICES:
+            if not cls.has_accepted_current(user, doc_type):
+                current_doc = LegalDocument.get_current_version(doc_type)
+                if current_doc:
+                    pending.append({
+                        'document_type': doc_type,
+                        'version': current_doc.version,
+                        'document_id': current_doc.id,
+                    })
+        return pending
+
+    @classmethod
+    def record_acceptance(cls, user, document_type, ip_address=None, user_agent=''):
+        """Record user's acceptance of a legal document."""
+        current_doc = LegalDocument.get_current_version(document_type)
+        if not current_doc:
+            raise ValueError(f"No current document found for type: {document_type}")
+
+        acceptance, created = cls.objects.update_or_create(
+            user=user,
+            document=current_doc,
+            defaults={
+                'ip_address': ip_address,
+                'user_agent': user_agent,
+            }
+        )
+        return acceptance, created

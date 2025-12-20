@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { CollaborativeProject } from '../../services/collaborationApi';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface ArtPreviewProps {
   project: CollaborativeProject;
@@ -81,7 +82,7 @@ export function ArtPreview({ project }: ArtPreviewProps) {
           <div key={section.id} style={{ marginTop: 32, color: '#374151' }}>
             {section.title && <h3>{section.title}</h3>}
             {section.content_html && (
-              <div dangerouslySetInnerHTML={{ __html: section.content_html }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content_html) }} />
             )}
           </div>
         ))}

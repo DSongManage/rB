@@ -5,6 +5,7 @@
 
 import React, { useRef, useState } from 'react';
 import { CollaborativeProject } from '../../services/collaborationApi';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface MusicPreviewProps {
   project: CollaborativeProject;
@@ -231,7 +232,7 @@ export function MusicPreview({ project }: MusicPreviewProps) {
                       color: '#374151',
                       whiteSpace: 'pre-wrap',
                     }}
-                    dangerouslySetInnerHTML={{ __html: section.content_html }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content_html) }}
                   />
                 )}
               </div>

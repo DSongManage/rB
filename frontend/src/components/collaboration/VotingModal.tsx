@@ -79,9 +79,9 @@ export function VotingModal({
             PROPOSED REVENUE SPLITS
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {data.splits.map((split: any, idx: number) => (
+            {data.splits.map((split: { username: string; old_percentage?: number; percentage: number; change?: number }) => (
               <div
-                key={idx}
+                key={split.username}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -106,9 +106,9 @@ export function VotingModal({
                   <span
                     style={{
                       color:
-                        split.change > 0
+                        (split.change ?? 0) > 0
                           ? '#10b981'
-                          : split.change < 0
+                          : (split.change ?? 0) < 0
                           ? '#ef4444'
                           : '#e2e8f0',
                       fontWeight: 600,

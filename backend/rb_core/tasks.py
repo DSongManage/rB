@@ -129,8 +129,8 @@ def mint_and_distribute(purchase_id):
             purchase = Purchase.objects.get(id=purchase_id)
             purchase.status = 'failed'
             purchase.save()
-        except:
-            pass
+        except Exception as db_error:
+            logger.error(f'[Task] Failed to mark purchase {purchase_id} as failed: {db_error}')
 
         return {'success': False, 'error': str(e)}
 
@@ -385,8 +385,8 @@ def process_purchase_with_circle_w3s_task(purchase_id):
             purchase = Purchase.objects.get(id=purchase_id)
             purchase.status = 'failed'
             purchase.save()
-        except:
-            pass
+        except Exception as db_error:
+            logger.error(f'[Circle W3S Task] Failed to mark purchase {purchase_id} as failed: {db_error}')
         return {'success': False, 'error': str(e)}
 
     except Exception as e:
@@ -395,8 +395,8 @@ def process_purchase_with_circle_w3s_task(purchase_id):
             purchase = Purchase.objects.get(id=purchase_id)
             purchase.status = 'failed'
             purchase.save()
-        except:
-            pass
+        except Exception as db_error:
+            logger.error(f'[Circle W3S Task] Failed to mark purchase {purchase_id} as failed: {db_error}')
         return {'success': False, 'error': str(e)}
 
 
@@ -490,8 +490,8 @@ def distribute_usdc_to_creator_task(purchase_id):
             purchase = Purchase.objects.get(id=purchase_id)
             purchase.usdc_payment_status = 'failed'
             purchase.save()
-        except:
-            pass
+        except Exception as db_error:
+            logger.error(f'[USDC Distribution] Failed to mark purchase {purchase_id} as failed: {db_error}')
         return {'success': False, 'error': str(e)}
 
     except Exception as e:
@@ -500,8 +500,8 @@ def distribute_usdc_to_creator_task(purchase_id):
             purchase = Purchase.objects.get(id=purchase_id)
             purchase.usdc_payment_status = 'failed'
             purchase.save()
-        except:
-            pass
+        except Exception as db_error:
+            logger.error(f'[USDC Distribution] Failed to mark purchase {purchase_id} as failed: {db_error}')
         return {'success': False, 'error': str(e)}
 
 
@@ -769,19 +769,38 @@ def process_atomic_purchase(self, purchase_id):
 
         # ═══════════════════════════════════════════════════════════════════
         # UPDATE CREATOR SALES TRACKING (add USDC earnings to profile)
+        # Batch fetch users/profiles to avoid N+1 queries
         # ═══════════════════════════════════════════════════════════════════
+        from .models import User as CoreUser, UserProfile
+
+        # Collect all creator usernames for batch lookup
+        creator_usernames = [dist['user'] for dist in result['distributions']]
+
+        # Batch fetch existing users and profiles (2 queries instead of 2N)
+        existing_users = {u.username: u for u in CoreUser.objects.filter(username__in=creator_usernames)}
+        existing_profiles = {p.user.username: p for p in UserProfile.objects.filter(
+            user__username__in=creator_usernames
+        ).select_related('user')}
+
         for dist in result['distributions']:
             try:
-                creator_username = dist['user']  # This is now a string, not User object
+                creator_username = dist['user']
                 usdc_earned = Decimal(str(dist['amount']))
 
-                # Get or create CoreUser and UserProfile
-                from .models import User as CoreUser, UserProfile
-                core_user, _ = CoreUser.objects.get_or_create(username=creator_username)
-                profile, _ = UserProfile.objects.get_or_create(
-                    user=core_user,
-                    defaults={'username': creator_username}
-                )
+                # Get or create user (create only if needed)
+                core_user = existing_users.get(creator_username)
+                if not core_user:
+                    core_user, _ = CoreUser.objects.get_or_create(username=creator_username)
+                    existing_users[creator_username] = core_user
+
+                # Get or create profile (create only if needed)
+                profile = existing_profiles.get(creator_username)
+                if not profile:
+                    profile, _ = UserProfile.objects.get_or_create(
+                        user=core_user,
+                        defaults={'username': creator_username}
+                    )
+                    existing_profiles[creator_username] = profile
 
                 # Add to total_sales_usd (USDC earnings tracked here)
                 # Note: Field is named total_sales_usd but tracks USDC amounts
@@ -821,14 +840,15 @@ def process_atomic_purchase(self, purchase_id):
             purchase.status = 'payment_failed'
             purchase.usdc_distribution_status = 'failed'
             purchase.save()
-        except:
-            pass
+        except Exception as db_error:
+            logger.error(f'[Atomic Purchase] Failed to mark purchase {purchase_id} as failed: {db_error}')
 
         # Retry with exponential backoff
         try:
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
-        except:
+        except Exception as retry_error:
             # Max retries exceeded
+            logger.error(f'[Atomic Purchase] Max retries exceeded for purchase {purchase_id}: {retry_error}')
             return {
                 'success': False,
                 'error': str(e)

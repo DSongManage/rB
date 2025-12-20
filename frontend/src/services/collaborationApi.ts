@@ -20,6 +20,7 @@ export interface CollaborativeProject {
   editions: number;
   teaser_percent: number;
   watermark_preview: boolean;
+  authors_note?: string;
   estimated_earnings?: { [userId: number]: number };
   created_by: number;
   created_by_username: string;
@@ -985,6 +986,7 @@ export const collaborationApi = {
       editions?: number;
       teaser_percent?: number;
       watermark_preview?: boolean;
+      authors_note?: string;
     }
   ): Promise<CollaborativeProject> {
     const response = await fetch(

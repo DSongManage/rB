@@ -13,6 +13,7 @@ import {
 import { useActivity } from '../../hooks/useActivity';
 import { useComments } from '../../hooks/useComments';
 import { CurrentlyEditing } from '../../services/activityService';
+import { sanitizeHtml } from '../../utils/sanitize';
 import { OnlineStatus } from './OnlineStatus';
 import { EditingIndicator, SectionHeaderWithStatus } from './EditingIndicator';
 import { ActivityFeed, ActivitySummary } from './ActivityFeed';
@@ -1113,7 +1114,7 @@ function SectionEditor({
         }}>
           <div style={{ fontSize: 13, color: '#94a3b8' }}>
             {section.section_type === 'text' && (
-              <div dangerouslySetInnerHTML={{ __html: section.content_html || 'No content yet' }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content_html) || 'No content yet' }} />
             )}
             {section.section_type === 'image' && section.media_file && (
               <img

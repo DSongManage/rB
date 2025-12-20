@@ -35,6 +35,7 @@ export default function AuthPage() {
   const [inviteValid, setInviteValid] = useState<boolean | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [validatingInvite, setValidatingInvite] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
 
   const refreshCsrf = async () => {
     try {
@@ -157,6 +158,12 @@ export default function AuthPage() {
 
     if (!password || password.length < 6) {
       setMsg('Password must be at least 6 characters');
+      return;
+    }
+
+    // Require ToS acceptance
+    if (!tosAccepted) {
+      setMsg('Please accept the Terms of Service and Privacy Policy to create an account.');
       return;
     }
 
@@ -332,9 +339,9 @@ export default function AuthPage() {
         console.log('[Web3Auth Debug] Modal init successful, status:', web3auth.status);
         console.log('[Web3Auth Debug] Connected:', web3auth.connected);
         console.log('[Web3Auth Debug] Provider:', !!web3auth.provider);
-      } catch (initError: any) {
+      } catch (initError) {
         console.error('[Web3Auth Debug] Modal init failed:', initError);
-        setWalletStatus(`Error during init: ${initError?.message || String(initError)}`);
+        setWalletStatus(`Error during init: ${initError instanceof Error ? initError.message : String(initError)}`);
         return;
       }
       
@@ -359,10 +366,10 @@ export default function AuthPage() {
         // User can choose which social account to use
         const provider = await web3auth.connect();
         console.log('[Web3Auth Debug] Connect successful, provider:', !!provider);
-      } catch (connectError: any) {
+      } catch (connectError) {
         console.error('[Web3Auth Debug] Connect failed:', connectError);
         console.error('[Web3Auth Debug] Full error:', connectError);
-        setWalletStatus(`Error: ${connectError?.message || String(connectError)}`);
+        setWalletStatus(`Error: ${connectError instanceof Error ? connectError.message : String(connectError)}`);
         return;
       }
       
@@ -382,8 +389,8 @@ export default function AuthPage() {
         const t = await res.text();
         setWalletStatus(`Error linking wallet: ${t}`);
       }
-    } catch (e: any) {
-      setWalletStatus(`Error: ${e?.message || String(e)}`);
+    } catch (e) {
+      setWalletStatus(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -469,8 +476,8 @@ export default function AuthPage() {
       } else {
         setWalletStatus('Signed in, but session not detected yet. Please refresh the page.');
       }
-    } catch (e: any) {
-      setWalletStatus(`Error: ${e?.message || String(e)}`);
+    } catch (e) {
+      setWalletStatus(`Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -548,6 +555,29 @@ export default function AuthPage() {
           />
           <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Password" required />
           <input type="password" value={password2} onChange={(e)=>setPassword2(e.target.value)} placeholder="Confirm password" required />
+
+          {/* Terms of Service Acceptance */}
+          <div style={{marginTop:12, padding:12, background:'rgba(255,255,255,0.03)', borderRadius:8, border:'1px solid #334155'}}>
+            <label style={{display:'flex', alignItems:'flex-start', gap:10, fontSize:13, color:'#cbd5e1', cursor:'pointer'}}>
+              <input
+                type="checkbox"
+                checked={tosAccepted}
+                onChange={(e)=> setTosAccepted(e.target.checked)}
+                required
+                style={{marginTop:3}}
+              />
+              <span>
+                I agree to the{' '}
+                <a href="/legal/terms" target="_blank" rel="noopener noreferrer" style={{color:'#f59e0b', textDecoration:'none'}}>
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" style={{color:'#f59e0b', textDecoration:'none'}}>
+                  Privacy Policy
+                </a>
+              </span>
+            </label>
+          </div>
 
           <div style={{display:'grid', gap:8, marginTop:8}}>
             <label style={{display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#cbd5e1'}}>

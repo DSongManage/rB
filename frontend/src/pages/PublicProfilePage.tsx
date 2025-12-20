@@ -2,10 +2,34 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   MapPin, Briefcase, Award, ExternalLink, Star, Users, DollarSign,
-  Book, Music, Film, Palette, Globe, Linkedin, Twitter, Instagram
+  Book, Music, Film, Palette, Globe, Linkedin, Twitter, Instagram,
+  ChevronDown, ChevronUp, Eye, BookOpen
 } from 'lucide-react';
 import InviteModal from '../components/InviteModal';
+import { CreatorReviewsSection } from '../components/social/CreatorReviewsSection';
+import { FollowButton } from '../components/social/FollowButton';
 import { API_URL } from '../config';
+
+// Book chapter interface for grouped display
+interface BookChapter {
+  id: number;
+  title: string;
+  order: number;
+  content_id: number;
+  price_usd: number;
+  view_count: number;
+}
+
+// Book project interface for grouped display
+interface BookProject {
+  id: number;
+  title: string;
+  cover_image_url: string | null;
+  published_chapters: number;
+  chapters: BookChapter[];
+  total_views: number;
+  total_price: number;
+}
 
 interface PublicProfile {
   profile: {
@@ -35,6 +59,7 @@ interface PublicProfile {
     nft_contract: string;
     created_at: string;
   }>;
+  book_projects: BookProject[];
   external_portfolio: Array<{
     id: number;
     title: string;
@@ -69,8 +94,9 @@ interface PublicProfile {
     created_at: string;
   }>;
   stats: {
-    content_count: number;
-    total_sales_usd: number;
+    works_count: number;
+    total_views: number;
+    follower_count: number;
     successful_collabs: number;
     average_rating: number | null;
   };
@@ -107,9 +133,12 @@ export default function PublicProfilePage() {
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'works' | 'portfolio' | 'collabs'>('works');
+  const [activeTab, setActiveTab] = useState<'works' | 'portfolio' | 'collabs' | 'reviews'>('works');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ username: string } | null>(null);
+  const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
+  // Track follower count separately so it updates when follow/unfollow happens
+  const [followerCount, setFollowerCount] = useState<number>(0);
 
   useEffect(() => {
     if (!username) return;
@@ -130,6 +159,10 @@ export default function PublicProfilePage() {
       .then(([profileData, userData]) => {
         setProfile(profileData);
         setCurrentUser(userData);
+        // Initialize follower count from profile stats
+        if (profileData?.stats?.follower_count !== undefined) {
+          setFollowerCount(profileData.stats.follower_count);
+        }
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -181,7 +214,7 @@ export default function PublicProfilePage() {
     );
   }
 
-  const { profile: p, platform_works, external_portfolio, collaborations, testimonials, stats } = profile;
+  const { profile: p, platform_works, book_projects, external_portfolio, collaborations, testimonials, stats } = profile;
   const statusColors = {
     green: { bg: '#10b981', text: '#fff' },
     yellow: { bg: '#f59e0b', text: '#000' },
@@ -396,9 +429,9 @@ export default function PublicProfilePage() {
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#f1f5f9' }}>
-                    {stats.content_count}
+                    {stats.works_count}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>NFTs</div>
+                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Works</div>
                 </div>
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -407,9 +440,9 @@ export default function PublicProfilePage() {
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#f59e0b' }}>
-                    {stats.successful_collabs}
+                    {followerCount.toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Collabs</div>
+                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Followers</div>
                 </div>
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -418,9 +451,9 @@ export default function PublicProfilePage() {
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>
-                    ${stats.total_sales_usd.toLocaleString()}
+                    {stats.total_views.toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Sales</div>
+                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Views</div>
                 </div>
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -438,32 +471,47 @@ export default function PublicProfilePage() {
                 </div>
               </div>
 
-              {/* Invite Button - Only show if not viewing own profile */}
+              {/* Action Buttons - Only show if not viewing own profile */}
               {currentUser?.username !== p.username && (
-                <button
-                  onClick={() => setInviteModalOpen(true)}
-                  style={{
-                    width: '100%',
-                    background: '#f59e0b',
-                    color: '#111',
-                    border: 'none',
-                    padding: '14px 20px',
-                    borderRadius: 12,
-                    fontWeight: 700,
-                    fontSize: 15,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseOver={e => e.currentTarget.style.background = '#d97706'}
-                  onMouseOut={e => e.currentTarget.style.background = '#f59e0b'}
-                >
-                  <Users size={18} />
-                  Invite to Collaborate
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <FollowButton
+                    username={p.username}
+                    initialFollowerCount={followerCount}
+                    size="lg"
+                    onFollowChange={(following, count) => {
+                      // Update the stats display when follow status changes
+                      setFollowerCount(count);
+                    }}
+                  />
+                  <button
+                    onClick={() => setInviteModalOpen(true)}
+                    style={{
+                      width: '100%',
+                      background: 'transparent',
+                      color: '#f59e0b',
+                      border: '1px solid #f59e0b',
+                      padding: '14px 20px',
+                      borderRadius: 12,
+                      fontWeight: 700,
+                      fontSize: 15,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseOver={e => {
+                      e.currentTarget.style.background = 'rgba(245, 158, 11, 0.1)';
+                    }}
+                    onMouseOut={e => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    <Users size={18} />
+                    Invite to Collaborate
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -479,9 +527,10 @@ export default function PublicProfilePage() {
         paddingBottom: 16
       }}>
         {[
-          { key: 'works', label: 'Platform Works', count: platform_works.length },
+          { key: 'works', label: 'Platform Works', count: platform_works.length + book_projects.length },
           { key: 'portfolio', label: 'External Portfolio', count: external_portfolio.length },
           { key: 'collabs', label: 'Collaborations', count: collaborations.length },
+          { key: 'reviews', label: 'Reviews', count: null },
         ].map(tab => (
           <button
             key={tab.key}
@@ -498,13 +547,197 @@ export default function PublicProfilePage() {
               transition: 'all 0.2s ease'
             }}
           >
-            {tab.label} ({tab.count})
+            {tab.label}{tab.count !== null && ` (${tab.count})`}
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20, marginBottom: 40 }}>
+        {/* Book Projects - grouped with expandable chapters */}
+        {activeTab === 'works' && book_projects.map(book => {
+          const isExpanded = expandedBooks.has(book.id);
+          const toggleExpand = () => {
+            setExpandedBooks(prev => {
+              const newSet = new Set(prev);
+              if (newSet.has(book.id)) {
+                newSet.delete(book.id);
+              } else {
+                newSet.add(book.id);
+              }
+              return newSet;
+            });
+          };
+
+          return (
+            <div
+              key={`book-${book.id}`}
+              style={{
+                background: '#1e293b',
+                borderRadius: 12,
+                overflow: 'hidden',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseOver={e => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              {/* Cover Image */}
+              <div
+                onClick={toggleExpand}
+                style={{
+                  height: 160,
+                  background: book.cover_image_url ? `url(${book.cover_image_url}) center/cover` : getGradient(book.title),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  cursor: 'pointer',
+                }}
+              >
+                {!book.cover_image_url && <BookOpen size={48} color="rgba(255,255,255,0.3)" />}
+                {/* Chapter count badge */}
+                <div style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  background: 'rgba(0,0,0,0.8)',
+                  backdropFilter: 'blur(4px)',
+                  padding: '4px 10px',
+                  borderRadius: 12,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#f8fafc',
+                }}>
+                  {book.published_chapters} chapter{book.published_chapters !== 1 ? 's' : ''}
+                </div>
+              </div>
+
+              {/* Card Content */}
+              <div style={{ padding: 16 }}>
+                <h3 style={{ color: '#f1f5f9', fontSize: 16, fontWeight: 600, margin: '0 0 8px' }}>
+                  {book.title}
+                </h3>
+                <div style={{
+                  fontSize: 13,
+                  color: '#94a3b8',
+                  marginBottom: 12,
+                }}>
+                  book • {book.published_chapters} chapter{book.published_chapters !== 1 ? 's' : ''}
+                </div>
+
+                {/* Stats */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 16,
+                  fontSize: 13,
+                  color: '#cbd5e1',
+                  marginBottom: 12,
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Eye size={14} /> {book.total_views}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <DollarSign size={14} /> ${book.total_price.toFixed(2)}
+                  </span>
+                </div>
+
+                {/* Expandable chapter list */}
+                {book.chapters.length > 0 && (
+                  <>
+                    <button
+                      onClick={toggleExpand}
+                      style={{
+                        width: '100%',
+                        background: '#0f172a',
+                        border: 'none',
+                        borderRadius: 8,
+                        padding: '8px 12px',
+                        color: '#94a3b8',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: isExpanded ? 8 : 0,
+                      }}
+                    >
+                      <span>Chapters</span>
+                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+
+                    {isExpanded && (
+                      <div style={{
+                        background: '#0f172a',
+                        borderRadius: 8,
+                        padding: 8,
+                        maxHeight: 200,
+                        overflowY: 'auto',
+                      }}>
+                        {book.chapters.map((chapter, index) => (
+                          <Link
+                            key={chapter.id}
+                            to={`/content/${chapter.content_id}`}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              borderRadius: 6,
+                              background: index % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
+                              textDecoration: 'none',
+                              transition: 'background 0.15s ease',
+                            }}
+                            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                            onMouseOut={e => e.currentTarget.style.background = index % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)'}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontSize: 13,
+                                color: '#e2e8f0',
+                                fontWeight: 500,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}>
+                                Ch {chapter.order + 1}: {chapter.title}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#64748b' }}>
+                                ${chapter.price_usd.toFixed(2)}
+                              </div>
+                            </div>
+                            <span style={{
+                              background: 'transparent',
+                              border: '1px solid #334155',
+                              borderRadius: 6,
+                              padding: '4px 10px',
+                              color: '#94a3b8',
+                              fontSize: 11,
+                              fontWeight: 500,
+                              marginLeft: 8,
+                              flexShrink: 0,
+                            }}>
+                              View
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Other platform works (non-book content like art, music, videos) */}
         {activeTab === 'works' && platform_works.map(work => (
           <Link
             key={work.id}
@@ -672,7 +905,7 @@ export default function PublicProfilePage() {
           </div>
         ))}
 
-        {activeTab === 'works' && platform_works.length === 0 && (
+        {activeTab === 'works' && platform_works.length === 0 && book_projects.length === 0 && (
           <div style={{ color: '#94a3b8', gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
             No platform works yet
           </div>
@@ -688,6 +921,20 @@ export default function PublicProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Reviews Tab Content */}
+      {activeTab === 'reviews' && (
+        <div style={{ marginBottom: 40 }}>
+          <CreatorReviewsSection
+            creatorUsername={p.username}
+            creatorUserId={p.id}
+            averageRating={stats.average_rating}
+            isOwnProfile={currentUser?.username === p.username}
+            isAuthenticated={!!currentUser}
+            onAuthRequired={() => navigate('/auth')}
+          />
+        </div>
+      )}
 
       {/* Testimonials */}
       {testimonials.length > 0 && (

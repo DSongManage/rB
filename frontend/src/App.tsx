@@ -1,36 +1,63 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { Route, Routes, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import './App.css';
-import HomePage from './pages/HomePage';
-import SearchPage from './pages/SearchPage';
-import StudioPage from './pages/StudioPage';
-import DashboardPage from './pages/DashboardPage';
-import ProfilePage from './pages/ProfilePageRedesigned';
-import AuthPage from './pages/AuthPage';
-import WalletInfoPage from './pages/WalletInfoPage';
-import TermsPage from './pages/TermsPage';
-import BetaLanding from './pages/BetaLanding';
 import { CreatorSidebar } from './components/CreatorSidebar';
 import { LibrarySidebar } from './components/LibrarySidebar';
-import CollaboratorsPage from './pages/CollaboratorsPage';
-import PublicProfilePage from './pages/PublicProfilePage';
-import ContentDetail from './pages/ContentDetail';
-import PurchaseSuccessPage from './pages/PurchaseSuccessPage';
-import { ReaderPage } from './pages/ReaderPage';
-import CollaborationDashboard from './pages/CollaborationDashboard';
-import CollaborativeProjectPage from './pages/CollaborativeProjectPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import NotificationBell from './components/notifications/NotificationBell';
 import NotificationToastContainer from './components/notifications/NotificationToastContainer';
 import notificationService from './services/notificationService';
 import { BetaBadge, TestModeBanner } from './components/BetaBadge';
 import { useAuth } from './hooks/useAuth';
 import BetaOnboarding from './components/BetaOnboarding';
+import { Footer } from './components/legal/Footer';
+import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
 import {
   User, LogOut, Menu, X, Users
 } from 'lucide-react';
 import { SearchAutocomplete } from './components/SearchAutocomplete';
+
+// Lazy-loaded page components for code splitting
+const HomePage = lazy(() => import('./pages/HomePage'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+const StudioPage = lazy(() => import('./pages/StudioPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePageRedesigned'));
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const WalletInfoPage = lazy(() => import('./pages/WalletInfoPage'));
+// TermsPage replaced by TermsOfServicePage in legal pages
+const BetaLanding = lazy(() => import('./pages/BetaLanding'));
+const CollaboratorsPage = lazy(() => import('./pages/CollaboratorsPage'));
+const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage'));
+const ContentDetail = lazy(() => import('./pages/ContentDetail'));
+const PurchaseSuccessPage = lazy(() => import('./pages/PurchaseSuccessPage'));
+const ReaderPage = lazy(() => import('./pages/ReaderPage').then(m => ({ default: m.ReaderPage })));
+const CollaborationDashboard = lazy(() => import('./pages/CollaborationDashboard'));
+const CollaborativeProjectPage = lazy(() => import('./pages/CollaborativeProjectPage'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const FollowingFeedPage = lazy(() => import('./pages/FollowingFeedPage'));
+
+// Legal pages
+const TermsOfServicePage = lazy(() => import('./pages/legal/TermsOfServicePage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/legal/PrivacyPolicyPage'));
+const ContentPolicyPage = lazy(() => import('./pages/legal/ContentPolicyPage'));
+const DMCAPolicyPage = lazy(() => import('./pages/legal/DMCAPolicyPage'));
+const CreatorAgreementPage = lazy(() => import('./pages/legal/CreatorAgreementPage'));
+
+// Loading fallback component
+const PageLoader = () => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '200px',
+    color: 'var(--text-muted, #94a3b8)',
+  }}>
+    Loading...
+  </div>
+);
 
 function Header() {
   const [isAuthed, setIsAuthed] = useState(false);
@@ -193,9 +220,11 @@ export default function App() {
   // Only show Library sidebar when authenticated AND on home or search pages
   const showLibrarySidebar = isAuthenticated && [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
   const isReaderPage = /^\/reader/.test(location.pathname);
+  // Hide footer on pages that have the sidebar (footer links are in sidebar instead)
+  const showFooter = !showLibrarySidebar;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/'];
+  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/', '/legal'];
   const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
 
   // Show loading state while checking authentication
@@ -237,6 +266,21 @@ export default function App() {
     );
   }
 
+  // Reader page gets its own full-screen layout without app chrome
+  if (isReaderPage) {
+    return (
+      <div className="rb-app">
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/reader/:contentId" element={<ReaderPage />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
+      </div>
+    );
+  }
+
   return (
     <div className="rb-app">
       <Header />
@@ -252,30 +296,42 @@ export default function App() {
         }}
       >
         {showCreatorSidebar && <CreatorSidebar />}
-        <div style={{ width: isReaderPage ? '100%' : 'auto', maxWidth: isReaderPage ? 'none' : undefined }}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/beta" element={<BetaLanding />} />
-            <Route path="/login" element={<Navigate to="/auth" replace />} />
-            <Route path="/signup" element={<Navigate to="/auth" replace />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/studio" element={<StudioPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/profile/:username" element={<PublicProfilePage />} />
-            <Route path="/collaborators" element={<CollaboratorsPage />} />
-            <Route path="/auth" element={<AuthPage />} />
-            <Route path="/wallet-info" element={<WalletInfoPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/content/:id" element={<ContentDetail />} />
-            <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
-            <Route path="/reader/:contentId" element={<ReaderPage />} />
-            <Route path="/collaborations" element={<ProtectedRoute><CollaborationDashboard /></ProtectedRoute>} />
-            <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
-          </Routes>
+        <div>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/beta" element={<BetaLanding />} />
+                <Route path="/login" element={<Navigate to="/auth" replace />} />
+                <Route path="/signup" element={<Navigate to="/auth" replace />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/studio" element={<StudioPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/profile/:username" element={<PublicProfilePage />} />
+                <Route path="/collaborators" element={<CollaboratorsPage />} />
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/wallet-info" element={<WalletInfoPage />} />
+                <Route path="/terms" element={<TermsOfServicePage />} />
+                <Route path="/legal/terms" element={<TermsOfServicePage />} />
+                <Route path="/legal/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/legal/content-policy" element={<ContentPolicyPage />} />
+                <Route path="/legal/dmca" element={<DMCAPolicyPage />} />
+                <Route path="/legal/creator-agreement" element={<CreatorAgreementPage />} />
+                <Route path="/content/:id" element={<ContentDetail />} />
+                <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
+                <Route path="/collaborations" element={<ProtectedRoute><CollaborationDashboard /></ProtectedRoute>} />
+                <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+                <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
+      {showFooter && <Footer />}
       <NotificationToastContainer />
+      <CookieBanner />
       <TestModeBanner />
       <BetaOnboarding />
     </div>

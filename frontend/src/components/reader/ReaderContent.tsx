@@ -1,4 +1,5 @@
 import React, { forwardRef } from 'react';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface ReaderContentProps {
   htmlContent: string;
@@ -26,7 +27,7 @@ export const ReaderContent = forwardRef<HTMLDivElement, ReaderContentProps>(
       >
         <div
           className="reader-content"
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
           style={{
             height: '100%',
             columnWidth: '100vw',

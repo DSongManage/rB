@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { bookApi, BookProject, Chapter } from '../../services/bookApi';
 import ChapterList from './ChapterList';
 import ChapterEditor from './ChapterEditor';
 import PublishModal from './PublishModal';
-import ChapterManagement from '../ChapterManagement';
 
 interface BookEditorProps {
   onPublish: (contentId: number) => void;
   onBack: () => void;
   existingContentId?: number; // If provided, load the book project for this content
+  existingBookProjectId?: number; // If provided, load the book project directly by ID
 }
 
-export default function BookEditor({ onPublish, onBack, existingContentId }: BookEditorProps) {
+export default function BookEditor({ onPublish, onBack, existingContentId, existingBookProjectId }: BookEditorProps) {
+  const navigate = useNavigate();
   const [project, setProject] = useState<BookProject | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [selectedChapterId, setSelectedChapterId] = useState<number | null>(null);
@@ -24,14 +26,14 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
   // Initialize: Create a new project or load existing
   useEffect(() => {
     initializeProject();
-  }, [existingContentId]);
+  }, [existingContentId, existingBookProjectId]);
 
   const initializeProject = async () => {
     setLoading(true);
     try {
-      if (existingContentId) {
-        // Load existing project by content ID
-        const existingProject = await bookApi.getProjectByContentId(existingContentId);
+      if (existingBookProjectId) {
+        // Load existing project directly by ID
+        const existingProject = await bookApi.getProject(existingBookProjectId);
         setProject(existingProject);
         setChapters(existingProject.chapters || []);
         // Select first unminted chapter or first chapter
@@ -40,6 +42,23 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
           setSelectedChapterId(firstUnminted.id);
         } else if (existingProject.chapters && existingProject.chapters.length > 0) {
           setSelectedChapterId(existingProject.chapters[0].id);
+        }
+      } else if (existingContentId) {
+        // Load existing project by content ID
+        const existingProject = await bookApi.getProjectByContentId(existingContentId);
+        setProject(existingProject);
+        setChapters(existingProject.chapters || []);
+        // Select the target chapter if specified (when editing a specific chapter's content)
+        // Otherwise select first unminted chapter or first chapter
+        if (existingProject.target_chapter_id) {
+          setSelectedChapterId(existingProject.target_chapter_id);
+        } else {
+          const firstUnminted = existingProject.chapters?.find(ch => !ch.is_published);
+          if (firstUnminted) {
+            setSelectedChapterId(firstUnminted.id);
+          } else if (existingProject.chapters && existingProject.chapters.length > 0) {
+            setSelectedChapterId(existingProject.chapters[0].id);
+          }
         }
       } else {
         // Create a new project
@@ -151,6 +170,27 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
 
   const selectedChapter = chapters.find(ch => ch.id === selectedChapterId) || null;
 
+  // Check if project can be deleted (no published chapters)
+  const hasPublishedChapters = chapters.some(ch => ch.is_published);
+  const canDeleteProject = !hasPublishedChapters;
+
+  const handleDeleteProject = async () => {
+    if (!project || !canDeleteProject) return;
+
+    const confirmMessage = chapters.length > 0
+      ? `Are you sure you want to delete "${project.title}"? This will permanently delete ${chapters.length} unpublished chapter(s).`
+      : `Are you sure you want to delete "${project.title}"?`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      await bookApi.deleteProject(project.id);
+      navigate('/profile'); // Navigate to profile page after deletion
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete project');
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ 
@@ -168,13 +208,20 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
   }
 
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Header */}
+    <div style={{
+      width: '100%',
+      height: '100%', // Fill parent container
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden', // Prevent page scroll - scroll happens inside containers
+    }}>
+      {/* Header - Fixed at top */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '16px 0',
+        flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
           <button
@@ -213,6 +260,25 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
           />
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
+          {/* Delete Project button - only for projects with no published chapters */}
+          {canDeleteProject && (
+            <button
+              onClick={handleDeleteProject}
+              style={{
+                background: 'transparent',
+                border: '1px solid #ef4444',
+                borderRadius: 8,
+                padding: '8px 16px',
+                color: '#ef4444',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: 14,
+              }}
+              title="Delete this book project"
+            >
+              {chapters.length === 0 ? 'Cancel Project' : 'Delete Project'}
+            </button>
+          )}
           {selectedChapterId && selectedChapter && (
             <button
               onClick={() => handleDeleteChapter(selectedChapterId)}
@@ -261,6 +327,8 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
           padding: 12,
           color: '#ef4444',
           fontSize: 14,
+          flexShrink: 0,
+          marginBottom: 16,
         }}>
           {error}
           <button
@@ -279,65 +347,92 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
         </div>
       )}
 
-      {/* Main Content: Chapter List (with Cover) + Editor */}
-      <div style={{ display: 'flex', gap: 16 }}>
+      {/* Main Content: Fixed height container with independent scroll regions */}
+      <div style={{
+        display: 'flex',
+        gap: 16,
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
+      }}>
         {/* Left Sidebar: Cover + Chapters */}
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{
+          width: 260,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          height: '100%',
+          overflow: 'hidden',
+        }}>
           {/* Compact Cover Image */}
           <div style={{
             background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
             borderRadius: 12,
             padding: 12,
+            flexShrink: 0,
           }}>
             <div style={{
-              width: '100%',
-              aspectRatio: '3/4',
-              borderRadius: 8,
-              overflow: 'hidden',
-              background: '#1a1a1a',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px dashed var(--panel-border)',
-              marginBottom: 12,
+              gap: 12,
+              alignItems: 'flex-start',
             }}>
-              {project?.cover_image_url ? (
-                <img
-                  src={project.cover_image_url}
-                  alt="Book cover"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <span style={{ color: '#666', fontSize: 11, textAlign: 'center', padding: 8 }}>
-                  No cover
-                </span>
-              )}
+              {/* Cover thumbnail */}
+              <div style={{
+                width: 60,
+                height: 80,
+                borderRadius: 6,
+                overflow: 'hidden',
+                background: '#1e1e1e',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '1px solid var(--panel-border)',
+                flexShrink: 0,
+              }}>
+                {project?.cover_image_url ? (
+                  <img
+                    src={project.cover_image_url}
+                    alt="Cover"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <span style={{ color: '#4b5563', fontSize: 9 }}>No cover</span>
+                )}
+              </div>
+              {/* Cover info + upload */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                  Book Cover
+                </div>
+                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, lineHeight: 1.4 }}>
+                  Recommended: 1600×2400px
+                </div>
+                <label style={{
+                  display: 'inline-block',
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 5,
+                  padding: '4px 10px',
+                  color: '#94a3b8',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  transition: 'all 0.15s ease',
+                }}>
+                  {project?.cover_image_url ? 'Change' : 'Upload'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCoverImageUpload(file);
+                    }}
+                  />
+                </label>
+              </div>
             </div>
-            <label style={{
-              display: 'block',
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              border: 'none',
-              borderRadius: 6,
-              padding: '6px 12px',
-              color: '#fff',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: 11,
-              textAlign: 'center',
-            }}>
-              Upload Cover
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    handleCoverImageUpload(file);
-                  }
-                }}
-              />
-            </label>
           </div>
 
           {/* Chapter List */}
@@ -349,49 +444,42 @@ export default function BookEditor({ onPublish, onBack, existingContentId }: Boo
           />
         </div>
 
-        {/* Right: Editor + Management */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Chapter Editor */}
+        {/* Right: Editor */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          minHeight: 0,
+          overflow: 'hidden',
+        }}>
           <ChapterEditor
             chapter={selectedChapter}
             onUpdateChapter={handleUpdateChapter}
             saving={saving}
             lastSaved={lastSaved}
-          />
-
-          {/* Chapter Management (Remove/Delist) - Only show for published chapters */}
-          {selectedChapter && selectedChapter.is_published && (
-            <ChapterManagement
-              chapter={selectedChapter}
-              onStatusChange={async () => {
-                // If chapter was removed completely, navigate back to studio home
-                // If just delisted, refresh the project
-                if (project?.id) {
-                  try {
-                    // Try to reload the project by its ID (not content ID)
-                    const updatedProject = await bookApi.getProject(project.id);
-                    setProject(updatedProject);
-                    setChapters(updatedProject.chapters || []);
-
-                    // Check if the current chapter still exists
-                    const chapterStillExists = updatedProject.chapters?.some(ch => ch.id === selectedChapterId);
-
-                    if (!chapterStillExists) {
-                      // Chapter was removed, select first chapter or clear selection
-                      if (updatedProject.chapters && updatedProject.chapters.length > 0) {
-                        setSelectedChapterId(updatedProject.chapters[0].id);
-                      } else {
-                        setSelectedChapterId(null);
-                      }
+            // Pass chapter management props for published chapters
+            showManagement={selectedChapter?.is_published}
+            onManagementChange={async () => {
+              if (project?.id) {
+                try {
+                  const updatedProject = await bookApi.getProject(project.id);
+                  setProject(updatedProject);
+                  setChapters(updatedProject.chapters || []);
+                  const chapterStillExists = updatedProject.chapters?.some(ch => ch.id === selectedChapterId);
+                  if (!chapterStillExists) {
+                    if (updatedProject.chapters && updatedProject.chapters.length > 0) {
+                      setSelectedChapterId(updatedProject.chapters[0].id);
+                    } else {
+                      setSelectedChapterId(null);
                     }
-                  } catch (err) {
-                    // If we can't reload the project, go back to studio home
-                    onBack();
                   }
+                } catch (err) {
+                  onBack();
                 }
-              }}
-            />
-          )}
+              }
+            }}
+          />
         </div>
       </div>
 

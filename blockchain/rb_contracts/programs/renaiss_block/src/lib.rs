@@ -3,6 +3,11 @@ use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount};
 
 declare_id!("9ZACvfz6GNqa7fvtXTbsWUKjgzHUeJwxg4qiG8oRB7eH");
 
+/// Platform wallet address - receives 10% fee on all mints
+/// SECURITY: This MUST match the deployed platform treasury wallet
+/// Update this constant when deploying to mainnet with production wallet
+pub const PLATFORM_WALLET: Pubkey = pubkey!("DawrJxixCJ2zbTCn83YRB5kZJC6zM6N36FYqGZUzNHDA");
+
 pub mod math {
     /// Returns (fee_amount, net_amount) given gross cents and basis points fee
     pub fn split_fee(gross_cents: u64, fee_bps: u16) -> (u64, u64) {
@@ -188,8 +193,11 @@ pub struct MintNft<'info> {
     pub mint: Account<'info, Mint>,
     #[account(mut)]
     pub recipient_token: Account<'info, TokenAccount>,
-    /// CHECK: validated against compile-time constant
-    #[account(mut)]
+    /// CHECK: Validated against compile-time PLATFORM_WALLET constant
+    #[account(
+        mut,
+        constraint = platform_wallet.key() == PLATFORM_WALLET @ FeeError::PlatformWalletMismatch
+    )]
     pub platform_wallet: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -200,8 +208,11 @@ pub struct MintCollaborativeNft<'info> {
     #[account(mut)]
     pub buyer: Signer<'info>,
 
-    /// CHECK: validated against compile-time constant
-    #[account(mut)]
+    /// CHECK: Validated against compile-time PLATFORM_WALLET constant
+    #[account(
+        mut,
+        constraint = platform.key() == PLATFORM_WALLET @ CollaborationError::PlatformWalletMismatch
+    )]
     pub platform: UncheckedAccount<'info>,
 
     #[account(mut)]

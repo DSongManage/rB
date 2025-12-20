@@ -101,8 +101,8 @@ export default function ChapterPurchase({
       } else {
         throw new Error('No checkout URL received');
       }
-    } catch (e: any) {
-      setError(e?.message || 'Checkout failed');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Checkout failed');
       setLoading(false);
     }
   }

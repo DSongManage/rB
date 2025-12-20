@@ -9,8 +9,9 @@ import {
   MapPin, Wallet, CheckCircle, BookOpen, Users,
   BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X,
   Check, XCircle, Plus, Trash2, ExternalLink, Edit2, Briefcase,
-  ChevronDown, ChevronUp, TrendingUp, Clock
+  ChevronDown, ChevronUp, TrendingUp, Clock, UserCheck, Loader2
 } from 'lucide-react';
+import { getFollowing, unfollowUser, FollowUser } from '../services/socialApi';
 
 interface ExternalPortfolioItem {
   id: number;
@@ -98,7 +99,7 @@ type SalesAnalytics = {
   recent_transactions: RecentTransaction[];
 };
 
-type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics';
+type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics' | 'following';
 type ContentFilterType = 'all' | 'book' | 'art' | 'music' | 'film';
 type StatusFilterType = 'all' | 'published' | 'draft';
 
@@ -173,6 +174,11 @@ export default function ProfilePageRedesigned() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [expandedAnalyticsCards, setExpandedAnalyticsCards] = useState<Set<string>>(new Set());
 
+  // Following state
+  const [followingList, setFollowingList] = useState<FollowUser[]>([]);
+  const [followingLoading, setFollowingLoading] = useState(false);
+  const [unfollowingUsers, setUnfollowingUsers] = useState<Set<number>>(new Set());
+
   // Toggle expanded state for an analytics card
   const toggleAnalyticsCard = (cardId: string) => {
     setExpandedAnalyticsCards(prev => {
@@ -246,6 +252,40 @@ export default function ProfilePageRedesigned() {
       console.error('Failed to load sales analytics:', err);
     } finally {
       setAnalyticsLoading(false);
+    }
+  }
+
+  async function loadFollowingList(usernameOverride?: string) {
+    const username = usernameOverride || profile?.username;
+    if (!username) return;
+    setFollowingLoading(true);
+    try {
+      const response = await getFollowing(username);
+      setFollowingList(response.results);
+    } catch (err) {
+      console.error('Failed to load following list:', err);
+      setFollowingList([]);
+    } finally {
+      setFollowingLoading(false);
+    }
+  }
+
+  async function handleUnfollow(username: string, userId: number) {
+    setUnfollowingUsers(prev => new Set(prev).add(userId));
+    try {
+      await unfollowUser(username);
+      // Remove from the list
+      setFollowingList(prev => prev.filter(u => u.id !== userId));
+      setStatus(`Unfollowed @${username}`);
+    } catch (err) {
+      console.error('Failed to unfollow:', err);
+      setStatus('Failed to unfollow');
+    } finally {
+      setUnfollowingUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
     }
   }
 
@@ -373,11 +413,15 @@ export default function ProfilePageRedesigned() {
         setProfile(profileResp);
         setDash(dashResp);
 
-        // Load pending collaboration invites, active collaborations, external portfolio, and analytics
+        // Load pending collaboration invites, active collaborations, external portfolio, analytics, and following
         loadPendingInvites();
         loadCollaborations();
         loadExternalPortfolio();
         loadSalesAnalytics();
+        // Pass username directly since profile state won't be updated yet
+        if (profileResp?.username) {
+          loadFollowingList(profileResp.username);
+        }
       })
       .catch(() => { });
 
@@ -1180,6 +1224,13 @@ export default function ProfilePageRedesigned() {
           label="Analytics"
           active={activeTab === 'analytics'}
           onClick={() => setActiveTab('analytics')}
+        />
+        <Tab
+          icon={<UserCheck size={18} />}
+          label="Following"
+          count={followingList.length}
+          active={activeTab === 'following'}
+          onClick={() => setActiveTab('following')}
         />
       </div>
 
@@ -2118,6 +2169,167 @@ export default function ProfilePageRedesigned() {
               borderRadius: 16,
             }}>
               <div style={{ fontSize: 14, color: '#94a3b8' }}>Loading analytics...</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Following Tab */}
+      {activeTab === 'following' && (
+        <div>
+          {followingLoading ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 24px',
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: 16,
+            }}>
+              <Loader2 size={32} style={{ color: '#f59e0b', animation: 'spin 1s linear infinite' }} />
+              <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 12 }}>Loading following...</div>
+            </div>
+          ) : followingList.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 24px',
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: 16,
+            }}>
+              <UserCheck size={48} style={{ color: '#475569', marginBottom: 16 }} />
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>
+                Not following anyone yet
+              </div>
+              <div style={{ fontSize: 14, color: '#64748b' }}>
+                Explore creators and follow them to see their latest work in your feed
+              </div>
+              <Link
+                to="/collaborators"
+                style={{
+                  display: 'inline-block',
+                  marginTop: 16,
+                  padding: '10px 20px',
+                  background: '#f59e0b',
+                  color: '#111',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                Discover Creators
+              </Link>
+            </div>
+          ) : (
+            <div style={{
+              background: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: 16,
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid #1e293b',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+                  Following ({followingList.length})
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {followingList.map((user, index) => (
+                  <div
+                    key={user.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '16px 20px',
+                      borderBottom: index < followingList.length - 1 ? '1px solid #1e293b' : 'none',
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Link
+                      to={`/profile/${user.username}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        textDecoration: 'none',
+                        flex: 1,
+                      }}
+                    >
+                      <div style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: '50%',
+                        background: user.avatar ? `url(${user.avatar}) center/cover` : '#374151',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: '#f59e0b',
+                        flexShrink: 0,
+                      }}>
+                        {!user.avatar && (user.username || '?').slice(0, 1).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: '#f8fafc' }}>
+                          {user.display_name || user.username}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#64748b' }}>
+                          @{user.username}
+                        </div>
+                        {user.bio && (
+                          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, maxWidth: 400 }}>
+                            {user.bio.length > 80 ? user.bio.slice(0, 80) + '...' : user.bio}
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                    <button
+                      onClick={() => handleUnfollow(user.username, user.id)}
+                      disabled={unfollowingUsers.has(user.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '8px 16px',
+                        background: 'transparent',
+                        border: '1px solid #334155',
+                        borderRadius: 8,
+                        color: '#94a3b8',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: unfollowingUsers.has(user.id) ? 'not-allowed' : 'pointer',
+                        opacity: unfollowingUsers.has(user.id) ? 0.5 : 1,
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!unfollowingUsers.has(user.id)) {
+                          e.currentTarget.style.borderColor = '#ef4444';
+                          e.currentTarget.style.color = '#ef4444';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#334155';
+                        e.currentTarget.style.color = '#94a3b8';
+                      }}
+                    >
+                      {unfollowingUsers.has(user.id) ? (
+                        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                      ) : (
+                        <UserCheck size={14} />
+                      )}
+                      {unfollowingUsers.has(user.id) ? 'Unfollowing...' : 'Following'}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

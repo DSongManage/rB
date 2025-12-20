@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { libraryApi, type Library } from '../services/libraryApi';
 import { LibraryItemCard } from './LibraryItemCard';
-import { ChevronRight, ChevronLeft, Library as LibraryIcon } from 'lucide-react';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export function LibrarySidebar() {
@@ -294,6 +295,59 @@ export function LibrarySidebar() {
           </div>
         )}
       </div>
+
+      {/* Footer Links - YouTube style */}
+      <div
+        style={{
+          padding: '12px 16px',
+          borderTop: '1px solid #2a3444',
+          flexShrink: 0,
+        }}
+      >
+        {/* Legal Links Row */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '6px 12px',
+            marginBottom: 8,
+          }}
+        >
+          <Link to="/legal/terms" style={footerLinkStyle}>Terms</Link>
+          <Link to="/legal/privacy" style={footerLinkStyle}>Privacy</Link>
+          <Link to="/legal/content-policy" style={footerLinkStyle}>Content Policy</Link>
+          <Link to="/legal/dmca" style={footerLinkStyle}>DMCA</Link>
+        </div>
+        {/* Support Links Row */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '6px 12px',
+            marginBottom: 10,
+          }}
+        >
+          <a href="mailto:support@renaissblock.com" style={footerLinkStyle}>Contact</a>
+          <a href="mailto:dmca@renaissblock.com" style={footerLinkStyle}>Report Copyright</a>
+        </div>
+        {/* Copyright */}
+        <div
+          style={{
+            fontSize: 11,
+            color: '#64748b',
+          }}
+        >
+          © {new Date().getFullYear()} renaissBlock
+        </div>
+      </div>
     </div>
   );
 }
+
+const footerLinkStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#64748b',
+  textDecoration: 'none',
+  transition: 'color 0.2s',
+};
+// Add hover effect via onMouseEnter/Leave in the JSX or use CSS classes

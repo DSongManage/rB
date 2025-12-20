@@ -688,6 +688,17 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         if watermark_preview is not None:
             project.watermark_preview = bool(watermark_preview)
 
+        # Update authors_note
+        authors_note = request.data.get('authors_note')
+        if authors_note is not None:
+            # Validate length (max ~100 words / 600 chars)
+            if len(authors_note) > 600:
+                return Response(
+                    {'error': 'Authors note must be 600 characters or less'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            project.authors_note = authors_note
+
         project.save()
 
         # Reset revenue split approvals if price or editions changed

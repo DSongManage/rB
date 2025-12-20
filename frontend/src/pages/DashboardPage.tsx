@@ -1,10 +1,25 @@
 import React, { useEffect, useState } from 'react';
+import { API_URL } from '../config';
 
 export default function DashboardPage() {
   const [data, setData] = useState<{content_count:number; sales:number; tier?:string; fee?:number}>({content_count:0, sales:0});
+
   useEffect(()=>{
-    fetch('http://127.0.0.1:8000/api/dashboard/')
-      .then(r=>r.json()).then(setData).catch(()=>setData({content_count:0, sales:0}));
+    const abortController = new AbortController();
+
+    fetch(`${API_URL}/api/dashboard/`, {
+      credentials: 'include',
+      signal: abortController.signal,
+    })
+      .then(r=>r.json())
+      .then(setData)
+      .catch((err)=>{
+        if (err.name !== 'AbortError') {
+          setData({content_count:0, sales:0});
+        }
+      });
+
+    return () => abortController.abort();
   },[]);
   return (
     <div className="page">

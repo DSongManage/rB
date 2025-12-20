@@ -62,23 +62,46 @@ def handle_payment_intent_succeeded(payment_intent):
 
     NOTE: payment_intent.succeeded can arrive BEFORE checkout.session.completed
     due to Stripe's async webhook delivery. We retry to handle this race condition.
+
+    SECURITY: Uses select_for_update() to prevent race conditions and double-processing.
     """
     import time
+    from django.db import DatabaseError
 
     logger.info(f'Processing payment_intent: {payment_intent["id"]}')
 
     payment_intent_id = payment_intent['id']
 
     # Retry logic: payment_intent.succeeded can arrive before checkout.session.completed
-    purchase = None
     max_retries = 5
     retry_delay = 1  # seconds
 
     for attempt in range(max_retries):
         try:
-            purchase = Purchase.objects.get(stripe_payment_intent_id=payment_intent_id)
-            logger.info(f'Found purchase on attempt {attempt + 1}')
-            break
+            # Use select_for_update to prevent race conditions with concurrent webhooks
+            with transaction.atomic():
+                try:
+                    purchase = Purchase.objects.select_for_update(nowait=True).get(
+                        stripe_payment_intent_id=payment_intent_id
+                    )
+                except DatabaseError as db_err:
+                    # Another worker already has the lock - let them handle it
+                    if 'could not obtain lock' in str(db_err).lower() or 'lock' in str(db_err).lower():
+                        logger.info(f'Purchase {payment_intent_id} locked by another worker, skipping')
+                        return
+                    raise
+
+                logger.info(f'Found and locked purchase on attempt {attempt + 1}')
+
+                # Check if already processed (idempotency)
+                if purchase.status in ['payment_completed', 'completed', 'minting']:
+                    logger.info(f'Purchase {purchase.id} already processed (status={purchase.status}), skipping')
+                    return
+
+                # Process the payment within the lock
+                _process_payment_intent_locked(purchase, payment_intent)
+                return
+
         except Purchase.DoesNotExist:
             if attempt < max_retries - 1:
                 logger.info(f'Purchase not found yet (attempt {attempt + 1}/{max_retries}), waiting {retry_delay}s...')
@@ -87,8 +110,13 @@ def handle_payment_intent_succeeded(payment_intent):
                 logger.error(f'Purchase not found after {max_retries} attempts for payment_intent {payment_intent_id}')
                 return
 
-    if not purchase:
-        return
+
+def _process_payment_intent_locked(purchase, payment_intent):
+    """
+    Process payment intent while holding database lock.
+    This should only be called from within a transaction with select_for_update().
+    """
+    payment_intent_id = payment_intent['id']
 
     try:
 

@@ -1,42 +1,71 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { Chapter } from '../../services/bookApi';
+import ChapterManagement from '../ChapterManagement';
 
 interface ChapterEditorProps {
   chapter: Chapter | null;
   onUpdateChapter: (chapterId: number, title: string, content: string) => void;
   saving: boolean;
   lastSaved: Date | null;
+  showManagement?: boolean;
+  onManagementChange?: () => void;
 }
 
-export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSaved }: ChapterEditorProps) {
+export default function ChapterEditor({
+  chapter,
+  onUpdateChapter,
+  saving,
+  lastSaved,
+  showManagement,
+  onManagementChange
+}: ChapterEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [showManagementPanel, setShowManagementPanel] = useState(false);
 
-  // Update local state when chapter changes
+  // Track whether we're syncing from props to avoid triggering save
+  const isSyncingFromProps = useRef(false);
+  // Track the last loaded chapter ID to only sync when chapter actually changes
+  const lastLoadedChapterId = useRef<number | null>(null);
+
+  // Update local state only when chapter ID changes (not on every re-render)
   useEffect(() => {
-    if (chapter) {
+    if (chapter && chapter.id !== lastLoadedChapterId.current) {
+      isSyncingFromProps.current = true;
+      lastLoadedChapterId.current = chapter.id;
       setTitle(chapter.title);
       setContent(chapter.content_html || '');
-    } else {
+      // Reset sync flag after state updates are processed
+      requestAnimationFrame(() => {
+        isSyncingFromProps.current = false;
+      });
+    } else if (!chapter) {
+      lastLoadedChapterId.current = null;
       setTitle('');
       setContent('');
     }
-  }, [chapter]); // Reset when chapter changes
+  }, [chapter?.id, chapter?.title, chapter?.content_html]);
 
-  // Debounced save
+  // Debounced save - only trigger if user made changes (not syncing from props)
   useEffect(() => {
-    if (!chapter) return;
-    
+    if (!chapter || isSyncingFromProps.current) return;
+
     const timer = setTimeout(() => {
-      if (title !== chapter.title || content !== chapter.content_html) {
+      // Double-check we're not syncing and there are actual changes
+      if (!isSyncingFromProps.current && (title !== chapter.title || content !== chapter.content_html)) {
         onUpdateChapter(chapter.id, title, content);
       }
     }, 3000); // 3 second debounce
 
     return () => clearTimeout(timer);
-  }, [title, content, chapter?.id]);
+  }, [title, content, chapter, onUpdateChapter]);
+
+  // Memoize word count calculation - must be before any early returns to follow Rules of Hooks
+  const wordCount = useMemo(() => {
+    return content.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length;
+  }, [content]);
 
   if (!chapter) {
     return (
@@ -47,13 +76,16 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
         justifyContent: 'center',
         color: '#94a3b8',
         fontSize: 16,
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)',
+        borderRadius: 12,
+        minHeight: 0,
       }}>
         Select a chapter to start editing
       </div>
     );
   }
 
-  const wordCount = content.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length;
   const isMinted = chapter.is_published;
 
   return (
@@ -63,29 +95,58 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
       border: '1px solid var(--panel-border)',
       borderRadius: 12,
       padding: 24,
-      height: '70vh',
       display: 'flex',
       flexDirection: 'column',
       gap: 16,
+      minHeight: 0, // Critical: allows flex to work properly
+      overflow: 'hidden',
     }}>
-      {/* Header with title and status */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Header with title and status - Fixed height */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
         {isMinted && (
           <div style={{
-            background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
+            background: 'rgba(16, 185, 129, 0.08)',
+            border: '1px solid rgba(16, 185, 129, 0.2)',
             borderRadius: 8,
             padding: '8px 12px',
-            color: '#10b981',
-            fontSize: 12,
-            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            justifyContent: 'space-between',
           }}>
-            <span>✓</span>
-            <span>This chapter has been minted and is read-only</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: '#10b981', fontSize: 12 }}>✓</span>
+              <span style={{ color: '#10b981', fontSize: 12, fontWeight: 500 }}>
+                Minted • Read-only
+              </span>
+            </div>
+            {showManagement && (
+              <button
+                onClick={() => setShowManagementPanel(!showManagementPanel)}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: 4,
+                  padding: '3px 8px',
+                  color: '#10b981',
+                  fontSize: 10,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {showManagementPanel ? 'Hide' : 'Manage'}
+              </button>
+            )}
           </div>
+        )}
+        {/* Management panel - collapsible */}
+        {showManagementPanel && showManagement && chapter && (
+          <ChapterManagement
+            chapter={chapter}
+            onStatusChange={() => {
+              setShowManagementPanel(false);
+              onManagementChange?.();
+            }}
+          />
         )}
         <input
           type="text"
@@ -94,37 +155,42 @@ export default function ChapterEditor({ chapter, onUpdateChapter, saving, lastSa
           placeholder="Chapter Title"
           disabled={isMinted}
           style={{
-            background: isMinted ? 'rgba(100,100,100,0.1)' : 'var(--bg)',
+            background: isMinted ? 'rgba(100,100,100,0.05)' : 'var(--bg)',
             border: '1px solid var(--panel-border)',
             borderRadius: 8,
-            padding: '12px 16px',
-            color: isMinted ? '#94a3b8' : 'var(--text)',
-            fontSize: 18,
-            fontWeight: 700,
+            padding: '10px 14px',
+            color: isMinted ? '#64748b' : 'var(--text)',
+            fontSize: 16,
+            fontWeight: 600,
             outline: 'none',
             cursor: isMinted ? 'not-allowed' : 'text',
           }}
         />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>
-            {wordCount} words
+          <div style={{ fontSize: 11, color: '#64748b' }}>
+            {wordCount.toLocaleString()} words
           </div>
-          <div style={{ fontSize: 12, color: saving ? '#f59e0b' : '#10b981' }}>
-            {isMinted ? 'Minted' : saving ? 'Saving...' : lastSaved ? `Saved ${formatTimeAgo(lastSaved)}` : ''}
+          <div style={{ fontSize: 11, color: saving ? '#f59e0b' : '#64748b' }}>
+            {isMinted ? '' : saving ? 'Saving...' : lastSaved ? `Saved ${formatTimeAgo(lastSaved)}` : 'Not saved'}
           </div>
         </div>
       </div>
 
-      {/* Editor */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      {/* Editor - Takes remaining space, scrolls internally */}
+      <div style={{
+        flex: 1,
+        minHeight: 0, // Critical for flex overflow
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
         <ReactQuill
           value={content}
           onChange={(value) => !isMinted && setContent(value)}
           readOnly={isMinted}
           theme="snow"
-          style={{ 
-            height: '100%', 
-            display: 'flex', 
+          style={{
+            flex: 1,
+            display: 'flex',
             flexDirection: 'column',
             opacity: isMinted ? 0.6 : 1,
           }}

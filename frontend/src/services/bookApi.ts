@@ -27,6 +27,7 @@ export interface BookProject {
   created_at: string;
   updated_at: string;
   is_published: boolean;
+  target_chapter_id?: number; // Set when loading by content ID of a specific chapter
 }
 
 export interface ContentResponse {

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { CollaborativeProject } from '../../services/collaborationApi';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface VideoPreviewProps {
   project: CollaborativeProject;
@@ -66,7 +67,7 @@ export function VideoPreview({ project }: VideoPreviewProps) {
           <div key={section.id} style={{ marginBottom: 24 }}>
             {section.title && <h3 style={{ marginBottom: 12 }}>{section.title}</h3>}
             {section.content_html && (
-              <div dangerouslySetInnerHTML={{ __html: section.content_html }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content_html) }} />
             )}
           </div>
         ))}

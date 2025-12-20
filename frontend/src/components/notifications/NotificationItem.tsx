@@ -3,13 +3,47 @@
  * Reusable component for individual notifications
  */
 
-import React from 'react';
+import React, { memo } from 'react';
+import {
+  Mail,
+  MailOpen,
+  MessageSquare,
+  CheckCircle,
+  FileEdit,
+  DollarSign,
+  PartyPopper,
+  Bell,
+} from 'lucide-react';
 import {
   Notification,
+  NotificationType,
   getTimeAgo,
-  getNotificationIcon,
   getNotificationColor,
 } from '../../services/notificationService';
+
+// Get Lucide icon component based on notification type
+function getNotificationLucideIcon(type: NotificationType): React.ReactNode {
+  const iconProps = { size: 20 };
+
+  switch (type) {
+    case 'invitation':
+      return <Mail {...iconProps} />;
+    case 'invitation_response':
+      return <MailOpen {...iconProps} />;
+    case 'comment':
+      return <MessageSquare {...iconProps} />;
+    case 'approval':
+      return <CheckCircle {...iconProps} />;
+    case 'section_update':
+      return <FileEdit {...iconProps} />;
+    case 'revenue_proposal':
+      return <DollarSign {...iconProps} />;
+    case 'mint_ready':
+      return <PartyPopper {...iconProps} />;
+    default:
+      return <Bell {...iconProps} />;
+  }
+}
 
 interface NotificationItemProps {
   notification: Notification;
@@ -18,8 +52,8 @@ interface NotificationItemProps {
   onViewInvite?: (notification: Notification) => void;
 }
 
-export function NotificationItem({ notification, onClick, onDelete, onViewInvite }: NotificationItemProps) {
-  const icon = getNotificationIcon(notification.type);
+function NotificationItemComponent({ notification, onClick, onDelete, onViewInvite }: NotificationItemProps) {
+  const icon = getNotificationLucideIcon(notification.type);
   const color = getNotificationColor(notification.type);
   const timeAgo = getTimeAgo(notification.created_at);
   const isInvitation = notification.type === 'invitation';
@@ -55,7 +89,6 @@ export function NotificationItem({ notification, onClick, onDelete, onViewInvite
         {/* Icon */}
         <div
           style={{
-            fontSize: 24,
             width: 40,
             height: 40,
             display: 'flex',
@@ -64,6 +97,7 @@ export function NotificationItem({ notification, onClick, onDelete, onViewInvite
             background: `${color}20`,
             borderRadius: 8,
             flexShrink: 0,
+            color: color,
           }}
           aria-hidden="true"
         >
@@ -196,5 +230,7 @@ export function NotificationItem({ notification, onClick, onDelete, onViewInvite
     </div>
   );
 }
+
+export const NotificationItem = memo(NotificationItemComponent);
 
 export default NotificationItem;

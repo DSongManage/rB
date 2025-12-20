@@ -323,7 +323,7 @@ export function CommentComposer({
         >
           {attachments.map((file, index) => (
             <div
-              key={index}
+              key={`${file.name}-${file.size}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',

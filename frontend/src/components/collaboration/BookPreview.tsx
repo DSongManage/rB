@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { CollaborativeProject } from '../../services/collaborationApi';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface BookPreviewProps {
   project: CollaborativeProject;
@@ -135,7 +136,7 @@ export function BookPreview({ project }: BookPreviewProps) {
                     lineHeight: 1.8,
                     color: '#374151',
                   }}
-                  dangerouslySetInnerHTML={{ __html: section.content_html }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content_html) }}
                 />
               )}
 

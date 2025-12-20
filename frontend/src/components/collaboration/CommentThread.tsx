@@ -333,8 +333,8 @@ export function CommentThread({
               }}
             >
               <div style={{ fontWeight: 600, marginBottom: 4 }}>Edit History:</div>
-              {comment.edit_history.map((edit, index) => (
-                <div key={index} style={{ marginBottom: 4 }}>
+              {comment.edit_history.map((edit) => (
+                <div key={edit.edited_at} style={{ marginBottom: 4 }}>
                   <span style={{ color: '#64748b' }}>
                     {new Date(edit.edited_at).toLocaleString()}:
                   </span>{' '}

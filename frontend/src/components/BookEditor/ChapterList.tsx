@@ -24,16 +24,60 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
       display: 'flex',
       flexDirection: 'column',
       gap: 12,
+      minHeight: 0,
+      overflow: 'hidden',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 16 }}>Chapters</div>
-        <div style={{ fontSize: 12, color: '#94a3b8' }}>{chapters.length} • {totalWords} words</div>
+      {/* Header with Add button */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexShrink: 0,
+      }}>
+        <div>
+          <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 15 }}>Chapters</div>
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{chapters.length} chapters • {totalWords} words</div>
+        </div>
+        <button
+          onClick={onAddChapter}
+          style={{
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            border: 'none',
+            borderRadius: 6,
+            padding: '6px 12px',
+            color: '#fff',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontSize: 12,
+          }}
+        >
+          + Add
+        </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Scrollable chapter list */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+        minHeight: 0,
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'rgba(255,255,255,0.2) transparent',
+      }}>
         {chapters.length === 0 && (
-          <div style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 20 }}>
-            No chapters yet. Click "Add Chapter" to start writing.
+          <div style={{
+            color: '#64748b',
+            fontSize: 13,
+            textAlign: 'center',
+            padding: '24px 12px',
+            background: 'rgba(255,255,255,0.02)',
+            borderRadius: 8,
+            border: '1px dashed var(--panel-border)',
+          }}>
+            No chapters yet.<br />
+            <span style={{ fontSize: 12 }}>Click "+ Add" to start writing.</span>
           </div>
         )}
         {chapters.map((chapter) => (
@@ -41,63 +85,61 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
             key={chapter.id}
             onClick={() => onSelectChapter(chapter.id)}
             style={{
-              background: selectedChapterId === chapter.id ? 'rgba(245,158,11,0.15)' : chapter.is_published ? 'rgba(100,100,100,0.1)' : 'transparent',
-              border: selectedChapterId === chapter.id ? '1px solid rgba(245,158,11,0.5)' : '1px solid var(--panel-border)',
-              borderRadius: 8,
-              padding: 12,
+              background: selectedChapterId === chapter.id
+                ? 'rgba(245,158,11,0.12)'
+                : 'transparent',
+              border: 'none',
+              borderLeft: selectedChapterId === chapter.id
+                ? '3px solid #f59e0b'
+                : '3px solid transparent',
+              borderRadius: 0,
+              padding: '10px 12px',
               textAlign: 'left',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              opacity: chapter.is_published ? 0.6 : 1,
-              position: 'relative',
+              transition: 'all 0.15s ease',
+              flexShrink: 0,
             }}
           >
-            <div style={{ 
-              fontWeight: selectedChapterId === chapter.id ? 700 : 500, 
-              color: selectedChapterId === chapter.id ? '#f59e0b' : chapter.is_published ? '#94a3b8' : 'var(--text)',
-              fontSize: 14,
-              marginBottom: 4,
+            <div style={{
+              fontWeight: selectedChapterId === chapter.id ? 600 : 400,
+              color: selectedChapterId === chapter.id ? '#f59e0b' : 'var(--text)',
+              fontSize: 13,
               display: 'flex',
               alignItems: 'center',
               gap: 8,
             }}>
-              <span>{chapter.order + 1}. {chapter.title || 'Untitled Chapter'}</span>
+              <span style={{
+                color: '#64748b',
+                fontSize: 12,
+                minWidth: 18,
+              }}>{chapter.order + 1}.</span>
+              <span style={{ flex: 1 }}>{chapter.title || 'Untitled'}</span>
               {chapter.is_published && (
                 <span style={{
-                  fontSize: 10,
-                  fontWeight: 700,
+                  fontSize: 9,
+                  fontWeight: 600,
                   color: '#10b981',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  padding: '2px 6px',
-                  borderRadius: 4,
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  padding: '2px 5px',
+                  borderRadius: 3,
                   textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
                 }}>
                   Minted
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            <div style={{
+              fontSize: 11,
+              color: '#64748b',
+              marginTop: 3,
+              marginLeft: 26,
+            }}>
               {chapter.content_html.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length} words
             </div>
           </button>
         ))}
       </div>
-
-      <button
-        onClick={onAddChapter}
-        style={{
-          background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-          border: 'none',
-          borderRadius: 8,
-          padding: '12px 16px',
-          color: '#fff',
-          fontWeight: 700,
-          cursor: 'pointer',
-          fontSize: 14,
-        }}
-      >
-        + Add Chapter
-      </button>
     </div>
   );
 }

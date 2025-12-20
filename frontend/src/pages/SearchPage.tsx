@@ -30,23 +30,14 @@ type SearchResult = {
   creator_username?: string;
   created_at?: string;
   content_type?: string;
-  view_count?: number;
+  like_count?: number;
+  average_rating?: number | null;
+  rating_count?: number;
   price_usd?: number;
   editions?: number;
   owned?: boolean;
 };
 
-// Format view count like YouTube (1.2K, 1.5M, etc.)
-function formatViewCount(count: number): string {
-  if (count >= 1000000) {
-    return `${(count / 1000000).toFixed(1)}M views`;
-  } else if (count >= 1000) {
-    return `${(count / 1000).toFixed(1)}K views`;
-  } else if (count === 1) {
-    return '1 view';
-  }
-  return `${count} views`;
-}
 
 export default function SearchPage() {
   const location = useLocation();
@@ -187,7 +178,9 @@ export default function SearchPage() {
               id={it.id}
               title={it.title}
               author={it.creator_username || `Creator #${it.creator ?? 0}`}
-              viewsText={formatViewCount(it.view_count || 0)}
+              likeCount={it.like_count}
+              averageRating={it.average_rating}
+              ratingCount={it.rating_count}
               timeText={getTimeAgo(it.created_at)}
               thumbnailUrl={it.teaser_link || ''}
               teaser_link={it.teaser_link}

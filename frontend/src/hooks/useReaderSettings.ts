@@ -6,6 +6,7 @@ import {
   LINE_HEIGHT_MAP,
   THEME_COLORS,
   FONT_FAMILY_MAP,
+  MARGIN_MAP,
 } from '../types/reader';
 
 const STORAGE_KEY = 'rb_reader_settings';
@@ -16,7 +17,10 @@ export function useReaderSettings() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return { ...DEFAULT_READER_SETTINGS, ...JSON.parse(stored) };
+        const parsed = JSON.parse(stored);
+        // Migrate old settings format
+        const migrated = migrateSettings(parsed);
+        return { ...DEFAULT_READER_SETTINGS, ...migrated };
       }
     } catch (e) {
       console.error('Failed to load reader settings:', e);
@@ -53,7 +57,10 @@ export function useReaderSettings() {
       '--reader-text': THEME_COLORS[settings.theme].text,
       '--reader-secondary': THEME_COLORS[settings.theme].secondary,
       '--reader-border': THEME_COLORS[settings.theme].border,
-      '--reader-font-family': FONT_FAMILY_MAP[settings.fontFamily],
+      '--reader-accent': THEME_COLORS[settings.theme].accent,
+      '--reader-font-family': FONT_FAMILY_MAP[settings.fontFamily].css,
+      '--reader-margin': MARGIN_MAP[settings.margins],
+      '--reader-text-align': settings.textAlign,
     }),
     [settings]
   );
@@ -68,6 +75,26 @@ export function useReaderSettings() {
     cssVars,
     themeClass,
   };
+}
+
+// Migrate old settings format to new format
+function migrateSettings(oldSettings: Record<string, unknown>): Partial<ReaderSettings> {
+  const migrated: Partial<ReaderSettings> = { ...oldSettings } as Partial<ReaderSettings>;
+
+  // Migrate old fontFamily values
+  if (oldSettings.fontFamily === 'serif') {
+    migrated.fontFamily = 'georgia';
+  } else if (oldSettings.fontFamily === 'sans-serif') {
+    migrated.fontFamily = 'amazon-ember';
+  }
+
+  // Ensure new fields have defaults if missing
+  if (!migrated.margins) migrated.margins = DEFAULT_READER_SETTINGS.margins;
+  if (!migrated.textAlign) migrated.textAlign = DEFAULT_READER_SETTINGS.textAlign;
+  if (!migrated.columns) migrated.columns = DEFAULT_READER_SETTINGS.columns;
+  if (migrated.continuousScroll === undefined) migrated.continuousScroll = DEFAULT_READER_SETTINGS.continuousScroll;
+
+  return migrated;
 }
 
 export default useReaderSettings;

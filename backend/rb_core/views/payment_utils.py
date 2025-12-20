@@ -349,8 +349,8 @@ def mint_and_distribute_circle(purchase_id):
             purchase = Purchase.objects.get(id=purchase_id)
             purchase.status = 'failed'
             purchase.save()
-        except:
-            pass
+        except Exception as db_error:
+            logger.error(f'[CircleMint] Failed to mark purchase {purchase_id} as failed: {db_error}')
 
         return {'success': False, 'error': str(e)}
 
@@ -452,6 +452,6 @@ def mint_and_distribute_sync(purchase_id):
                 purchase = Purchase.objects.get(id=purchase_id)
                 purchase.status = 'failed'
                 purchase.save()
-            except:
-                pass
+            except Exception as db_error:
+                logger.error(f'[MintSync] Failed to mark purchase {purchase_id} as failed: {db_error}')
         return {'success': False, 'error': str(e)}

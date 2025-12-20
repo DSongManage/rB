@@ -196,8 +196,8 @@ export function ApprovalStatus({
             Issues to resolve:
           </div>
           <ul style={{ margin: 0, paddingLeft: 20, color: '#ef4444', fontSize: 12 }}>
-            {validationErrors.map((error, index) => (
-              <li key={index} style={{ marginBottom: 4 }}>
+            {validationErrors.map((error) => (
+              <li key={error} style={{ marginBottom: 4 }}>
                 {error}
               </li>
             ))}

@@ -1,7 +1,7 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView
+from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicBookProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView
 from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
@@ -12,7 +12,8 @@ from .views.collaboration import (
 )
 from .views.notifications import NotificationViewSet
 from .views.social import (
-    ContentLikeView, ContentCommentViewSet, ContentRatingViewSet, CreatorReviewViewSet
+    ContentLikeView, ContentCommentViewSet, ContentRatingViewSet, CreatorReviewViewSet,
+    FollowView, FollowersListView, FollowingListView, FollowingFeedView
 )
 from .views import beta
 from .views.feedback import submit_feedback
@@ -22,6 +23,10 @@ from .views.chapter_management import (
     ChapterRemovalStatusView, RespondToDelistRequestView, PendingDelistRequestsView
 )
 from .views.tags import TagListView
+from .views.legal import (
+    LegalDocumentView, LegalAcceptView, LegalCheckAcceptanceView,
+    LegalPendingAcceptancesView, CreatorAgreementStatusView
+)
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -77,6 +82,11 @@ urlpatterns = [
     path('api/profile/status/', ProfileStatusView.as_view(), name='profile_status_update'),
     # Public profile endpoint (no auth required)
     path('api/users/<str:username>/public/', PublicProfileView.as_view(), name='public_profile'),
+    # Follow system endpoints
+    path('api/users/<str:username>/follow/', FollowView.as_view(), name='follow_user'),
+    path('api/users/<str:username>/followers/', FollowersListView.as_view(), name='user_followers'),
+    path('api/users/<str:username>/following/', FollowingListView.as_view(), name='user_following'),
+    path('api/feed/following/', FollowingFeedView.as_view(), name='following_feed'),
     # External portfolio management
     path('api/portfolio/', ExternalPortfolioListCreateView.as_view(), name='portfolio_list_create'),
     path('api/portfolio/<int:pk>/', ExternalPortfolioDetailView.as_view(), name='portfolio_detail'),
@@ -99,6 +109,7 @@ urlpatterns = [
     # Book project and chapter endpoints
     path('api/book-projects/', BookProjectListCreateView.as_view(), name='book_projects'),
     path('api/book-projects/my-published/', MyPublishedBooksView.as_view(), name='my_published_books'),
+    path('api/book-projects/public/', PublicBookProjectsView.as_view(), name='public_book_projects'),
     path('api/book-projects/<int:pk>/', BookProjectDetailView.as_view(), name='book_project_detail'),
     path('api/book-projects/<int:project_id>/chapters/', ChapterListCreateView.as_view(), name='chapters'),
     path('api/book-projects/by-content/<int:content_id>/', BookProjectByContentView.as_view(), name='book_project_by_content'),
@@ -114,6 +125,12 @@ urlpatterns = [
     path('api/chapters/<int:pk>/removal-status/', ChapterRemovalStatusView.as_view(), name='chapter_removal_status'),
     path('api/delist-approvals/<int:pk>/respond/', RespondToDelistRequestView.as_view(), name='respond_delist_request'),
     path('api/delist-approvals/pending/', PendingDelistRequestsView.as_view(), name='pending_delist_requests'),
+    # Legal document and agreement endpoints
+    path('api/legal/documents/<str:document_type>/', LegalDocumentView.as_view(), name='legal_document'),
+    path('api/legal/accept/', LegalAcceptView.as_view(), name='legal_accept'),
+    path('api/legal/check-acceptance/', LegalCheckAcceptanceView.as_view(), name='legal_check_acceptance'),
+    path('api/legal/pending-acceptances/', LegalPendingAcceptancesView.as_view(), name='legal_pending_acceptances'),
+    path('api/legal/creator-agreement-status/', CreatorAgreementStatusView.as_view(), name='creator_agreement_status'),
     # Beta access management
     path('api/beta/request-access/', beta.request_beta_access, name='beta_request'),
     path('api/beta/approve/', beta.approve_beta_request, name='beta_approve'),

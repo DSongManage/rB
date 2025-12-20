@@ -5,6 +5,7 @@ import {
   ProjectComment,
   collaborationApi,
 } from '../../services/collaborationApi';
+import { sanitizeHtml } from '../../utils/sanitize';
 import { Eye, MessageSquare, Send, FileText, Image, Music, Video, CheckCircle } from 'lucide-react';
 
 interface User {
@@ -227,7 +228,7 @@ export default function ReviewerInterface({
                   fontSize: 15,
                   lineHeight: 1.8,
                 }}
-                dangerouslySetInnerHTML={{ __html: selectedSection.content_html || '<em>No content yet</em>' }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedSection.content_html) || '<em>No content yet</em>' }}
               />
             )}
 
