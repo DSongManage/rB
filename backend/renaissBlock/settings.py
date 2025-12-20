@@ -233,6 +233,9 @@ STORAGES = {
     },
 }
 
+# Legacy setting for django-cloudinary-storage compatibility (it still checks this)
+STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
