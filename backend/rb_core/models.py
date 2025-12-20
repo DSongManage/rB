@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser  # Extend for custom users (no private keys stored)
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from decimal import Decimal
 
@@ -43,6 +43,34 @@ class User(AbstractUser):
         except Exception:
             return None
 
+
+class Tag(models.Model):
+    """Flexible tagging system for content discovery.
+
+    Tags are organized by category for better UX in selection UI.
+    Supports both predefined platform tags and user-created custom tags.
+    """
+    CATEGORY_CHOICES = [
+        ('genre', 'Genre'),
+        ('theme', 'Theme'),
+        ('mood', 'Mood'),
+        ('custom', 'Custom'),
+    ]
+
+    name = models.CharField(max_length=50, unique=True)
+    slug = models.SlugField(max_length=50, unique=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='custom')
+    is_predefined = models.BooleanField(default=False)
+    usage_count = models.PositiveIntegerField(default=0, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-usage_count', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.category})"
+
+
 class Content(models.Model):
     """Model for uploaded content metadata (FR4, FR5).
     
@@ -84,7 +112,18 @@ class Content(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     # View tracking for analytics and discovery
     view_count = models.PositiveIntegerField(default=0, db_index=True)
-    
+
+    # Social engagement metrics (denormalized for performance)
+    like_count = models.PositiveIntegerField(default=0, db_index=True)
+    average_rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True, db_index=True)
+    rating_count = models.PositiveIntegerField(default=0)
+
+    # Author's note - optional short description from the creator (max ~100 words / 600 chars)
+    authors_note = models.TextField(blank=True, default='', max_length=600)
+
+    # Tags for content discovery and search
+    tags = models.ManyToManyField('Tag', blank=True, related_name='contents')
+
     class Meta:
         ordering = ['-created_at']  # Show newest content first
 
@@ -214,6 +253,17 @@ class Content(models.Model):
         logger.error(f'[get_collaborators_with_wallets] NO WALLET FOUND for creator {self.creator.username}')
         return []
 
+    def update_rating_aggregates(self):
+        """Update denormalized rating stats from ContentRating."""
+        from django.db.models import Avg, Count
+        aggregates = self.ratings.aggregate(
+            avg=Avg('rating'),
+            count=Count('id')
+        )
+        self.average_rating = aggregates['avg']
+        self.rating_count = aggregates['count']
+        self.save(update_fields=['average_rating', 'rating_count'])
+
     # Future: Methods for minting integration, revenue splits (FR9, FR13)
 # Ensure input validation on save (prevent injection, GUIDELINES.md)
 
@@ -296,6 +346,10 @@ class UserProfile(models.Model):
     tier = models.CharField(max_length=16, choices=[('Basic', 'Basic'), ('Pro', 'Pro'), ('Elite', 'Elite')], default='Basic')
     fee_bps = models.PositiveIntegerField(default=1000)  # default 10%
 
+    # Creator review aggregates (from CreatorReview model)
+    average_review_rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True, db_index=True)
+    review_count = models.PositiveIntegerField(default=0)
+
     def save(self, *args, **kwargs):
         # Ensure handle mirrors auth username on create; treat as immutable afterwards
         if not self.pk:
@@ -340,6 +394,18 @@ class UserProfile(models.Model):
         except Exception:
             pass
         return self.banner_url or ''
+
+    def update_review_aggregates(self):
+        """Update denormalized review stats from CreatorReview."""
+        from django.db.models import Avg, Count
+        aggregates = CreatorReview.objects.filter(creator=self.user).aggregate(
+            avg=Avg('rating'),
+            count=Count('id')
+        )
+        self.average_review_rating = aggregates['avg']
+        self.review_count = aggregates['count']
+        self.save(update_fields=['average_review_rating', 'review_count'])
+
 
 class ExternalPortfolioItem(models.Model):
     """External portfolio item for showcasing work not on the platform.
@@ -1242,9 +1308,11 @@ class Purchase(models.Model):
         ordering = ['-purchased_at']
         indexes = [
             models.Index(fields=['user', 'content']),
+            models.Index(fields=['user', 'chapter']),  # For chapter ownership checks
             models.Index(fields=['stripe_payment_intent_id']),
             models.Index(fields=['status']),
             models.Index(fields=['payment_provider']),
+            models.Index(fields=['usdc_distribution_status']),  # For USDC distribution queries
         ]
 
     def __str__(self):
@@ -1506,6 +1574,12 @@ class CollaborativeProject(models.Model):
     watermark_preview = models.BooleanField(
         default=False,
         help_text="Show watermark on teaser preview"
+    )
+    authors_note = models.TextField(
+        blank=True,
+        default='',
+        max_length=600,
+        help_text="Author's note about this work (max ~100 words)"
     )
     milestones = models.JSONField(default=list, help_text="Milestone definitions and tracking")
     created_by = models.ForeignKey(
@@ -2241,6 +2315,11 @@ class Notification(models.Model):
         ('section_update', 'Section Update'),
         ('revenue_proposal', 'Revenue Split Proposal'),
         ('mint_ready', 'Project Ready for Minting'),
+        # Social engagement notifications
+        ('content_like', 'Content Like'),
+        ('content_comment', 'Content Comment'),
+        ('content_rating', 'Content Rating'),
+        ('creator_review', 'Creator Review'),
     ]
 
     # Core fields
@@ -2592,3 +2671,176 @@ class BetaInvite(models.Model):
 
     def __str__(self):
         return f'{self.email} - {self.status}'
+
+
+# =============================================================================
+# Social Engagement Models (Likes, Comments, Ratings, Reviews)
+# =============================================================================
+
+class ContentLike(models.Model):
+    """Instagram-style like for published content.
+
+    - One like per user per content (unique constraint)
+    - Toggle action (create to like, delete to unlike)
+    - Denormalized count stored on Content.like_count for performance
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='content_likes')
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='likes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['user', 'content']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['content', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} liked {self.content.title}"
+
+
+class ContentComment(models.Model):
+    """Threaded comments on published content.
+
+    - Reddit-style nested comments via parent_comment FK
+    - Edit history tracking
+    - Soft delete for moderation (author or content creator can delete)
+    """
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='content_comments')
+    text = models.TextField(max_length=5000)
+    parent_comment = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='replies'
+    )
+
+    # Edit tracking
+    edited = models.BooleanField(default=False)
+    edit_history = models.JSONField(default=list, blank=True)
+
+    # Soft delete for moderation
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deleted_content_comments'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['content', '-created_at']),
+            models.Index(fields=['author', '-created_at']),
+            models.Index(fields=['parent_comment', '-created_at']),
+            models.Index(fields=['content', 'is_deleted', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.author.username} on {self.content.title}: {self.text[:50]}"
+
+    def get_thread_depth(self):
+        """Calculate nesting depth (max 4 levels recommended for UI)."""
+        depth = 0
+        current = self.parent_comment
+        while current and depth < 10:
+            depth += 1
+            current = current.parent_comment
+        return depth
+
+
+class ContentRating(models.Model):
+    """Star rating (1-5) with optional review text for published content.
+
+    - One rating per user per content
+    - Denormalized aggregates on Content (average_rating, rating_count)
+    - Anyone can rate public content
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='content_ratings')
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='ratings')
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Star rating 1-5"
+    )
+    review_text = models.TextField(max_length=2000, blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['user', 'content']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['content', '-created_at']),
+            models.Index(fields=['content', 'rating']),
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} rated {self.content.title}: {self.rating}/5"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update denormalized aggregates on Content
+        self.content.update_rating_aggregates()
+
+
+class CreatorReview(models.Model):
+    """Yelp-style review on creator profiles.
+
+    Eligibility (verified via):
+    - Purchased from this creator (via Purchase model)
+    - Collaborated with this creator (via CollaboratorRole)
+
+    Creator can respond once to each review.
+    """
+    reviewer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reviews_given')
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='creator_reviews')
+
+    # Review content
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Star rating 1-5"
+    )
+    review_text = models.TextField(max_length=2000, blank=True, default='')
+
+    # Verification type
+    VERIFICATION_TYPE_CHOICES = [
+        ('purchase', 'Verified Purchase'),
+        ('collaboration', 'Past Collaborator'),
+    ]
+    verification_type = models.CharField(max_length=20, choices=VERIFICATION_TYPE_CHOICES)
+
+    # Creator response (one-time only)
+    response_text = models.TextField(max_length=2000, blank=True, default='')
+    response_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['reviewer', 'creator']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['creator', '-created_at']),
+            models.Index(fields=['creator', 'rating']),
+            models.Index(fields=['reviewer', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.reviewer.username} reviewed {self.creator.username}: {self.rating}/5"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update denormalized aggregates on UserProfile
+        if hasattr(self.creator, 'profile'):
+            self.creator.profile.update_review_aggregates()

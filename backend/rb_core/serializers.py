@@ -2,11 +2,22 @@ from rest_framework import serializers
 from .models import (
     Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification,
-    BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition
+    BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition,
+    ContentLike, ContentComment, ContentRating, CreatorReview, Tag
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
 import hashlib
+
+
+class TagSerializer(serializers.ModelSerializer):
+    """Serializer for Tag model - used for content discovery."""
+
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'slug', 'category', 'is_predefined', 'usage_count']
+        read_only_fields = ['id', 'slug', 'usage_count']
+
 
 class ContentSerializer(serializers.ModelSerializer):
     """Serializer for Content model (FR4/FR5 in REQUIREMENTS.md).
@@ -15,21 +26,56 @@ class ContentSerializer(serializers.ModelSerializer):
     - Validation: Ensure teaser_link is valid URL; add custom validators for moderation (GUIDELINES.md).
     """
     creator_username = serializers.SerializerMethodField()
+    creator_avatar = serializers.SerializerMethodField()
     owned = serializers.SerializerMethodField()
     is_collaborative = serializers.SerializerMethodField()
     collaborators = serializers.SerializerMethodField()
 
+    # Social engagement
+    user_has_liked = serializers.SerializerMethodField()
+
+    # Tags - read-only nested serializer for output, write-only tag_ids for input
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+    )
+
     class Meta:
         model = Content
         fields = [
-            'id', 'title', 'teaser_link', 'teaser_html', 'created_at', 'creator', 'creator_username', 'content_type', 'genre',
+            'id', 'title', 'teaser_link', 'teaser_html', 'created_at', 'creator', 'creator_username', 'creator_avatar',
+            'content_type', 'genre', 'authors_note',
             'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract', 'owned',
-            'is_collaborative', 'collaborators', 'view_count'
+            'is_collaborative', 'collaborators', 'view_count',
+            # Social engagement fields
+            'like_count', 'average_rating', 'rating_count', 'user_has_liked',
+            # Tags
+            'tags', 'tag_ids'
         ]
-        read_only_fields = ['creator', 'creator_username', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators', 'view_count']
+        read_only_fields = ['creator', 'creator_username', 'creator_avatar', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators', 'view_count', 'like_count', 'average_rating', 'rating_count', 'user_has_liked', 'tags']
+
+    def get_user_has_liked(self, obj):
+        """Check if the requesting user has liked this content."""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            return obj.likes.filter(user=request.user).exists()
+        return False
 
     def get_creator_username(self, obj):
         return obj.creator.username if obj.creator else 'Unknown'
+
+    def get_creator_avatar(self, obj):
+        """Get creator's avatar URL from their profile."""
+        if obj.creator:
+            try:
+                profile = obj.creator.profile  # related_name is 'profile', not 'userprofile'
+                return profile.resolved_avatar_url or None
+            except Exception:
+                pass
+        return None
 
     def get_owned(self, obj):
         """Check if the requesting user owns this content."""
@@ -80,9 +126,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'avatar', 'banner', 'avatar_url', 'banner_url',
             'location', 'roles', 'genres', 'bio', 'skills', 'social_links',
             'is_private', 'status',
-            'content_count', 'total_sales_usd', 'tier', 'fee_bps'
+            'content_count', 'total_sales_usd', 'tier', 'fee_bps',
+            # Creator review aggregates
+            'average_review_rating', 'review_count'
         ]
-        read_only_fields = ['username', 'avatar', 'banner', 'content_count', 'total_sales_usd', 'tier', 'fee_bps']
+        read_only_fields = ['username', 'avatar', 'banner', 'content_count', 'total_sales_usd', 'tier', 'fee_bps', 'average_review_rating', 'review_count']
 
     def get_avatar(self, obj: UserProfile) -> str:
         import logging
@@ -572,7 +620,8 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
             'price_usd', 'editions', 'teaser_percent', 'watermark_preview',
             'created_by', 'created_by_username', 'created_at', 'updated_at',
             'collaborators', 'sections', 'recent_comments', 'is_fully_approved',
-            'total_collaborators', 'progress_percentage', 'estimated_earnings'
+            'total_collaborators', 'progress_percentage', 'estimated_earnings',
+            'authors_note'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'created_by_username',
@@ -963,3 +1012,157 @@ class PublicProfileSerializer(serializers.Serializer):
             'successful_collabs': obj.get('successful_collabs_count', 0),
             'average_rating': avg_rating,
         }
+
+
+# =============================================================================
+# Social Engagement Serializers (Likes, Comments, Ratings, Reviews)
+# =============================================================================
+
+class ContentLikeSerializer(serializers.ModelSerializer):
+    """Serializer for content likes."""
+    username = serializers.CharField(source='user.username', read_only=True)
+    user_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContentLike
+        fields = ['id', 'user', 'username', 'user_avatar', 'content', 'created_at']
+        read_only_fields = ['id', 'user', 'username', 'user_avatar', 'created_at']
+
+    def get_user_avatar(self, obj):
+        """Get user's avatar URL."""
+        try:
+            url = obj.user.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
+
+
+class ContentCommentSerializer(serializers.ModelSerializer):
+    """Serializer for threaded content comments."""
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    author_avatar = serializers.SerializerMethodField()
+    replies_count = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    thread_depth = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContentComment
+        fields = [
+            'id', 'content', 'author', 'author_username', 'author_avatar',
+            'text', 'parent_comment', 'edited', 'is_deleted',
+            'created_at', 'updated_at', 'replies_count', 'can_delete', 'can_edit',
+            'thread_depth'
+        ]
+        read_only_fields = [
+            'id', 'author', 'author_username', 'author_avatar', 'edited',
+            'is_deleted', 'created_at', 'updated_at', 'replies_count',
+            'can_delete', 'can_edit', 'thread_depth'
+        ]
+
+    def get_author_avatar(self, obj):
+        """Get author's avatar URL."""
+        try:
+            url = obj.author.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
+
+    def get_replies_count(self, obj):
+        """Count non-deleted replies."""
+        return obj.replies.filter(is_deleted=False).count()
+
+    def get_can_delete(self, obj):
+        """Check if requesting user can delete this comment."""
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        # Author can delete own, content creator can moderate
+        return obj.author == request.user or obj.content.creator == request.user
+
+    def get_can_edit(self, obj):
+        """Check if requesting user can edit this comment."""
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        # Only author can edit
+        return obj.author == request.user
+
+    def get_thread_depth(self, obj):
+        """Get nesting depth of this comment."""
+        return obj.get_thread_depth()
+
+
+class ContentRatingSerializer(serializers.ModelSerializer):
+    """Serializer for content ratings (star reviews)."""
+    username = serializers.CharField(source='user.username', read_only=True)
+    user_avatar = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContentRating
+        fields = [
+            'id', 'user', 'username', 'user_avatar', 'content',
+            'rating', 'review_text', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'user', 'username', 'user_avatar', 'created_at', 'updated_at']
+
+    def get_user_avatar(self, obj):
+        """Get user's avatar URL."""
+        try:
+            url = obj.user.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5")
+        return value
+
+
+class CreatorReviewSerializer(serializers.ModelSerializer):
+    """Serializer for creator reviews (Yelp-style)."""
+    reviewer_username = serializers.CharField(source='reviewer.username', read_only=True)
+    reviewer_avatar = serializers.SerializerMethodField()
+    creator_username = serializers.CharField(source='creator.username', read_only=True)
+    verification_display = serializers.CharField(source='get_verification_type_display', read_only=True)
+
+    class Meta:
+        model = CreatorReview
+        fields = [
+            'id', 'reviewer', 'reviewer_username', 'reviewer_avatar',
+            'creator', 'creator_username', 'rating', 'review_text',
+            'verification_type', 'verification_display',
+            'response_text', 'response_at',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'reviewer', 'reviewer_username', 'reviewer_avatar',
+            'creator_username', 'verification_type', 'verification_display',
+            'response_text', 'response_at', 'created_at', 'updated_at'
+        ]
+
+    def get_reviewer_avatar(self, obj):
+        """Get reviewer's avatar URL."""
+        try:
+            url = obj.reviewer.profile.resolved_avatar_url
+            request = self.context.get('request')
+            if request and url and url.startswith('/'):
+                return request.build_absolute_uri(url)
+            return url
+        except Exception:
+            return ''
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5")
+        return value

@@ -4,7 +4,7 @@ from django.db import models
 import logging
 from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask
+from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask, Tag
 from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer
 from ..utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from ..utils.ipfs_utils import upload_to_ipfs
@@ -54,6 +54,8 @@ def home(request):
     return HttpResponse("renaissBlock Backend Running")
 
 class AuthStatusView(APIView):
+    permission_classes = [permissions.AllowAny]  # Explicit: handles both authenticated and unauthenticated
+
     def get(self, request):
         import logging
         logger = logging.getLogger(__name__)
@@ -810,6 +812,21 @@ class ContentDetailView(drf_generics.RetrieveUpdateAPIView):
         except CoreUser.DoesNotExist:
             return Content.objects.none()
 
+    def perform_update(self, serializer):
+        """Handle tag_ids when updating content."""
+        instance = serializer.save()
+
+        # Handle tags if tag_ids provided in request
+        tag_ids = self.request.data.get('tag_ids')
+        if tag_ids is not None:
+            # Set the tags (replaces existing tags)
+            instance.tags.set(tag_ids)
+            # Update usage counts for newly added tags
+            Tag.objects.filter(id__in=tag_ids).update(
+                usage_count=models.F('usage_count') + 1
+            )
+
+
 class ContentPreviewView(APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request, pk:int):
@@ -823,12 +840,19 @@ class ContentPreviewView(APIView):
             'title': c.title,
             'teaser_link': c.teaser_link,
             'content_type': c.content_type,
+            'genre': c.genre,
+            'created_at': c.created_at.isoformat() if c.created_at else None,
+            'authors_note': c.authors_note or '',
             'inventory_status': c.inventory_status,
             'nft_contract': c.nft_contract,
             'price_usd': float(c.price_usd),
             'editions': c.editions,
+            'creator_username': data.get('creator_username'),
+            'creator_avatar': data.get('creator_avatar'),
             'is_collaborative': data.get('is_collaborative', False),
             'collaborators': data.get('collaborators', []),
+            'like_count': data.get('like_count', 0),
+            'user_has_liked': data.get('user_has_liked', False),
             'preview': data
         })
 
@@ -1261,16 +1285,22 @@ class LinkWalletView(APIView):
                 # Signature verified! Proceed with linking
                 web3auth_sub = None
 
-            except ImportError:
-                # Fallback: Allow manual linking if Solana libraries not installed (dev only)
-                logger.warning('Solana libraries not installed - skipping signature verification (INSECURE)')
-                web3auth_sub = None
+            except ImportError as e:
+                # SECURITY: Fail closed - don't allow linking without verification
+                logger.error(f'CRITICAL: Solana libraries not installed - cannot verify wallet signatures: {e}')
+                return Response({
+                    'error': 'Wallet verification is currently unavailable. Please try again later.',
+                    'code': 'VERIFICATION_UNAVAILABLE'
+                }, status=503)  # Service Unavailable
 
-        # Path 3: Manual wallet address (less secure, for backwards compatibility)
+        # Path 3: Manual wallet address - REJECTED for security
         elif addr and not signature:
-            # Allow manual linking but log a warning
-            logger.warning(f'Manual wallet linking without signature verification: {addr[:8]}...')
-            web3auth_sub = None
+            # SECURITY: Reject wallet linking without proof of ownership
+            logger.warning(f'REJECTED: Manual wallet linking attempt without signature: {addr[:8]}...')
+            return Response({
+                'error': 'Signature verification required. Please sign a message with your wallet to prove ownership.',
+                'code': 'SIGNATURE_REQUIRED'
+            }, status=400)
         else:
             return Response({'error':'wallet_address or web3auth_token required'}, status=400)
 

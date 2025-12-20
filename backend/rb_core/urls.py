@@ -1,7 +1,7 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView
+from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView
 from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
@@ -11,6 +11,9 @@ from .views.collaboration import (
     ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet
 )
 from .views.notifications import NotificationViewSet
+from .views.social import (
+    ContentLikeView, ContentCommentViewSet, ContentRatingViewSet, CreatorReviewViewSet
+)
 from .views import beta
 from .views.feedback import submit_feedback
 from .views.admin_treasury import treasury_dashboard, treasury_api
@@ -18,6 +21,7 @@ from .views.chapter_management import (
     RemoveChapterView, DelistChapterView, RelistChapterView,
     ChapterRemovalStatusView, RespondToDelistRequestView, PendingDelistRequestsView
 )
+from .views.tags import TagListView
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -26,6 +30,10 @@ router.register(r'project-sections', ProjectSectionViewSet, basename='project-se
 router.register(r'project-comments', ProjectCommentViewSet, basename='project-comment')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'role-definitions', RoleDefinitionViewSet, basename='role-definition')
+# Social engagement ViewSets
+router.register(r'content-comments', ContentCommentViewSet, basename='content-comment')
+router.register(r'content-ratings', ContentRatingViewSet, basename='content-rating')
+router.register(r'creator-reviews', CreatorReviewViewSet, basename='creator-review')
 
 urlpatterns = [
     path('', home, name='home'),
@@ -35,6 +43,7 @@ urlpatterns = [
     path('api/content/<int:pk>/preview/', ContentPreviewView.as_view(), name='content_preview'),
     path('api/content/<int:pk>/teaser/', ContentTextTeaserView.as_view(), name='content_teaser'),
     path('api/content/<int:pk>/view/', TrackContentViewView.as_view(), name='track_content_view'),
+    path('api/content/<int:content_id>/like/', ContentLikeView.as_view(), name='content_like'),
     path('api/content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_view'),
     # Stripe checkout and payment processing
     path('api/checkout/create/', CreateCheckoutSessionView.as_view(), name='checkout_create'),
@@ -42,7 +51,6 @@ urlpatterns = [
     path('api/checkout/fee-breakdown/', FeeBreakdownView.as_view(), name='fee_breakdown'),
     path('api/webhooks/stripe/', stripe_webhook, name='stripe_webhook'),
     path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook_legacy'),  # Legacy alias
-    path('api/dev/process-purchase/', DevProcessPurchaseView.as_view(), name='dev_process_purchase'),
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
     # Library and reading
     path('api/library/', LibraryView.as_view(), name='library'),
@@ -54,6 +62,7 @@ urlpatterns = [
     path('api/dashboard/', DashboardView.as_view(), name='dashboard'),
     path('api/sales-analytics/', SalesAnalyticsView.as_view(), name='sales_analytics'),
     path('api/search/', SearchView.as_view(), name='search'),
+    path('api/tags/', TagListView.as_view(), name='tags'),
     path('auth/web3/', Web3AuthLoginView.as_view(), name='web3_login'),
     path('api/flag/', FlagView.as_view(), name='flag'),
     path('api/invite/', InviteView.as_view(), name='invite'),
@@ -89,6 +98,7 @@ urlpatterns = [
     path('content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_alias'),
     # Book project and chapter endpoints
     path('api/book-projects/', BookProjectListCreateView.as_view(), name='book_projects'),
+    path('api/book-projects/my-published/', MyPublishedBooksView.as_view(), name='my_published_books'),
     path('api/book-projects/<int:pk>/', BookProjectDetailView.as_view(), name='book_project_detail'),
     path('api/book-projects/<int:project_id>/chapters/', ChapterListCreateView.as_view(), name='chapters'),
     path('api/book-projects/by-content/<int:content_id>/', BookProjectByContentView.as_view(), name='book_project_by_content'),
@@ -136,3 +146,10 @@ urlpatterns = [
          get_user_ratings,
          name='user-ratings'),
 ]
+
+# Development-only endpoints (not exposed in production)
+from django.conf import settings
+if settings.DEBUG:
+    urlpatterns += [
+        path('api/dev/process-purchase/', DevProcessPurchaseView.as_view(), name='dev_process_purchase'),
+    ]
