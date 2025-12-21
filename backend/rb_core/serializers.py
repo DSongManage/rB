@@ -30,6 +30,7 @@ class ContentSerializer(serializers.ModelSerializer):
     owned = serializers.SerializerMethodField()
     is_collaborative = serializers.SerializerMethodField()
     collaborators = serializers.SerializerMethodField()
+    source_project_id = serializers.SerializerMethodField()
 
     # Social engagement
     user_has_liked = serializers.SerializerMethodField()
@@ -49,13 +50,13 @@ class ContentSerializer(serializers.ModelSerializer):
             'id', 'title', 'teaser_link', 'teaser_html', 'created_at', 'creator', 'creator_username', 'creator_avatar',
             'content_type', 'genre', 'authors_note',
             'price_usd', 'editions', 'teaser_percent', 'watermark_preview', 'inventory_status', 'nft_contract', 'owned',
-            'is_collaborative', 'collaborators', 'view_count',
+            'is_collaborative', 'collaborators', 'source_project_id', 'view_count',
             # Social engagement fields
             'like_count', 'average_rating', 'rating_count', 'user_has_liked',
             # Tags
             'tags', 'tag_ids'
         ]
-        read_only_fields = ['creator', 'creator_username', 'creator_avatar', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators', 'view_count', 'like_count', 'average_rating', 'rating_count', 'user_has_liked', 'tags']
+        read_only_fields = ['creator', 'creator_username', 'creator_avatar', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators', 'source_project_id', 'view_count', 'like_count', 'average_rating', 'rating_count', 'user_has_liked', 'tags']
 
     def get_user_has_liked(self, obj):
         """Check if the requesting user has liked this content."""
@@ -109,6 +110,15 @@ class ContentSerializer(serializers.ModelSerializer):
         except Exception:
             pass
         return []
+
+    def get_source_project_id(self, obj):
+        """Get the source collaborative project ID if this is collaborative content."""
+        try:
+            if hasattr(obj, 'source_collaborative_project') and obj.source_collaborative_project.exists():
+                return obj.source_collaborative_project.first().id
+        except Exception:
+            pass
+        return None
 
     def validate_teaser_link(self, value):
         if not value.startswith('http'):

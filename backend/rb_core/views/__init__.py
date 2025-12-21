@@ -827,6 +827,54 @@ class ContentDetailView(drf_generics.RetrieveUpdateAPIView):
             )
 
 
+class ContentUnpublishView(APIView):
+    """Unpublish solo art/music/film content.
+
+    Collaborative content must be unpublished through the project proposal system.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk: int):
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            content = Content.objects.get(id=pk)
+        except Content.DoesNotExist:
+            return Response({'error': 'Content not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Verify ownership
+        if content.creator != core_user:
+            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Only allow for non-collaborative content
+        if content.source_collaborative_project.exists():
+            return Response(
+                {'error': 'Collaborative content must be unpublished through the project'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Only allow for minted non-book content (art, music, film)
+        if content.inventory_status != 'minted':
+            return Response(
+                {'error': 'Only published content can be unpublished'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if content.content_type == 'book':
+            return Response(
+                {'error': 'Books cannot be unpublished this way'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        content.inventory_status = 'unpublished'
+        content.save()
+
+        return Response({'status': 'unpublished', 'id': content.id})
+
+
 class ContentPreviewView(APIView):
     permission_classes = [permissions.AllowAny]
     def get(self, request, pk:int):

@@ -107,7 +107,7 @@ class Content(models.Model):
     editions = models.PositiveIntegerField(default=1)
     teaser_percent = models.PositiveIntegerField(default=10)
     watermark_preview = models.BooleanField(default=False)
-    inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted')], default='draft')
+    inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted'),('unpublished','Unpublished')], default='draft')
     flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
     # View tracking for analytics and discovery
@@ -2413,6 +2413,7 @@ class Proposal(models.Model):
         ('deadline_extension', 'Deadline Extension'),
         ('exit_collaborator', 'Exit Collaborator'),
         ('contract_amendment', 'Contract Task Amendment'),
+        ('unpublish_content', 'Unpublish Content'),
     ]
 
     STATUS_CHOICES = [
@@ -2507,11 +2508,14 @@ class Proposal(models.Model):
             status='accepted'
         ).count()
 
+        approved = False
+
         if self.voting_threshold == 'unanimous':
             if votes['approve'] == total_collaborators:
                 self.status = 'approved'
                 self.resolved_at = timezone.now()
                 self.save()
+                approved = True
             elif votes['reject'] > 0:
                 self.status = 'rejected'
                 self.resolved_at = timezone.now()
@@ -2523,6 +2527,7 @@ class Proposal(models.Model):
                 self.status = 'approved'
                 self.resolved_at = timezone.now()
                 self.save()
+                approved = True
             elif votes['reject'] >= needed:
                 self.status = 'rejected'
                 self.resolved_at = timezone.now()
@@ -2535,6 +2540,20 @@ class Proposal(models.Model):
                 self.status = 'approved' if owner_vote.vote == 'approve' else 'rejected'
                 self.resolved_at = timezone.now()
                 self.save()
+                if owner_vote.vote == 'approve':
+                    approved = True
+
+        # Execute proposal action if approved
+        if approved:
+            self._execute_proposal_action()
+
+    def _execute_proposal_action(self):
+        """Execute the action for an approved proposal."""
+        if self.proposal_type == 'unpublish_content':
+            # Unpublish the collaborative content
+            if self.project.published_content:
+                self.project.published_content.inventory_status = 'unpublished'
+                self.project.published_content.save()
 
 
 class ProposalVote(models.Model):

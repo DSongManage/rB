@@ -9,8 +9,9 @@ import {
   MapPin, Wallet, CheckCircle, BookOpen, Users,
   BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X,
   Check, XCircle, Plus, Trash2, ExternalLink, Edit2, Briefcase,
-  ChevronDown, ChevronUp, TrendingUp, Clock, UserCheck, Loader2
+  ChevronDown, ChevronUp, TrendingUp, Clock, UserCheck, Loader2, Settings
 } from 'lucide-react';
+import ArtManageModal from '../components/ArtManageModal';
 import { getFollowing, unfollowUser, FollowUser } from '../services/socialApi';
 
 interface ExternalPortfolioItem {
@@ -159,6 +160,10 @@ export default function ProfilePageRedesigned() {
   const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
+
+  // Art manage modal state
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [manageItem, setManageItem] = useState<any>(null);
 
   // Collaboration invite state
   const [pendingInvites, setPendingInvites] = useState<{ project: CollaborativeProject; invite: CollaboratorRole }[]>([]);
@@ -1418,6 +1423,10 @@ export default function ProfilePageRedesigned() {
                       item={item}
                       onView={() => openReader(item.id)}
                       onEdit={() => navigate(`/studio?editContent=${item.id}`)}
+                      onManage={() => {
+                        setManageItem(item);
+                        setShowManageModal(true);
+                      }}
                     />
                   ))}
                 </div>
@@ -2394,6 +2403,27 @@ export default function ProfilePageRedesigned() {
         />
       )}
 
+      {/* Art Manage Modal */}
+      {showManageModal && manageItem && (
+        <ArtManageModal
+          isOpen={showManageModal}
+          onClose={() => {
+            setShowManageModal(false);
+            setManageItem(null);
+          }}
+          item={manageItem}
+          onUnpublished={() => {
+            // Refresh inventory after unpublishing
+            fetch(`${API_URL}/api/content/?mine=1`, { credentials: 'include' })
+              .then(res => res.json())
+              .then(items => {
+                setInventory(items.filter((item: any) => item.content_type !== 'book' || item.is_collaborative));
+              })
+              .catch(() => {});
+          }}
+        />
+      )}
+
       {/* Status Message */}
       {status && (
         <div style={{
@@ -2796,8 +2826,10 @@ function BookProjectCard({
 }
 
 // Content Card Component
-function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; onEdit: () => void }) {
+function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: () => void; onEdit: () => void; onManage?: () => void }) {
   const isPublished = item.inventory_status === 'minted';
+  // Published non-book content (art, music, film) should show Manage instead of Edit
+  const isPublishedNonBook = isPublished && item.content_type !== 'book';
 
   return (
     <div style={{
@@ -2909,31 +2941,69 @@ function ContentCard({ item, onView, onEdit }: { item: any; onView: () => void; 
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={onEdit}
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: '1px solid #334155',
-              color: '#cbd5e1',
-              padding: '8px 16px',
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1e293b';
-              e.currentTarget.style.borderColor = '#475569';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = '#334155';
-            }}
-          >
-            Edit
-          </button>
+          {isPublishedNonBook ? (
+            // Published art/music/film: Show Manage button instead of Edit
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onManage?.();
+              }}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                background: 'transparent',
+                border: '1px solid #334155',
+                color: '#cbd5e1',
+                padding: '8px 16px',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#1e293b';
+                e.currentTarget.style.borderColor = '#475569';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderColor = '#334155';
+              }}
+            >
+              <Settings size={14} />
+              Manage
+            </button>
+          ) : (
+            // Drafts or published books: Show Edit button
+            <button
+              onClick={onEdit}
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: '1px solid #334155',
+                color: '#cbd5e1',
+                padding: '8px 16px',
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#1e293b';
+                e.currentTarget.style.borderColor = '#475569';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderColor = '#334155';
+              }}
+            >
+              Edit
+            </button>
+          )}
           {isPublished && (
             <button
               onClick={onView}

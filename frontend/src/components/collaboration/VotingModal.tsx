@@ -61,6 +61,8 @@ export function VotingModal({
         return { icon: '📝', label: 'Project Change' };
       case 'exit_collaborator':
         return { icon: '🚪', label: 'Exit Request' };
+      case 'unpublish_content':
+        return { icon: '📤', label: 'Unpublish Content' };
       default:
         return { icon: '📋', label: type };
     }

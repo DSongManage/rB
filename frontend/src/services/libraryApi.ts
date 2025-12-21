@@ -30,6 +30,7 @@ export interface FullContent {
   creator: string;
   content_type: string;
   owned: boolean;
+  teaser_link?: string | null;
 }
 
 export interface ReadingProgress {

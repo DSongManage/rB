@@ -130,7 +130,9 @@ class FullContentView(APIView):
             'content_html': content_html,
             'creator': content.creator.username if content.creator else 'Unknown',
             'content_type': content.content_type,
-            'owned': True
+            'owned': True,
+            # Include teaser_link for art/music/film content which store media URLs
+            'teaser_link': content.teaser_link if content.teaser_link else None,
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
