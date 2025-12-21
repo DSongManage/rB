@@ -8,6 +8,7 @@
  */
 
 import React, { useState } from 'react';
+import { API_URL } from '../../config';
 
 // Task status type
 type TaskStatus = 'pending' | 'in_progress' | 'complete' | 'signed_off' | 'cancelled';
@@ -106,7 +107,7 @@ function StatusBadge({ status, isOverdue }: { status: TaskStatus; isOverdue: boo
 // Helper to fetch CSRF token
 async function fetchCsrf(): Promise<string> {
   try {
-    const res = await fetch('/api/auth/csrf/', { credentials: 'include' });
+    const res = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' });
     const data = await res.json();
     return data?.csrfToken || '';
   } catch {

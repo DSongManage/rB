@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useBetaMode } from '../hooks/useBetaMode';
+import { API_URL } from '../config';
 
 interface PaymentBreakdown {
   chapter_price: string;
@@ -48,7 +49,7 @@ export default function ChapterPurchase({
 
   async function fetchBreakdown() {
     try {
-      const res = await fetch(`/api/checkout/fee-breakdown/?chapter_price=${chapterPrice}`, {
+      const res = await fetch(`${API_URL}/api/checkout/fee-breakdown/?chapter_price=${chapterPrice}`, {
         credentials: 'include',
       });
 
@@ -67,12 +68,12 @@ export default function ChapterPurchase({
 
     try {
       // Get CSRF token
-      const csrfToken = await fetch('/api/auth/csrf/', { credentials: 'include' })
+      const csrfToken = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' })
         .then(r => r.json())
         .then(j => j?.csrfToken || '');
 
       // Create Stripe checkout session
-      const res = await fetch('/api/checkout/session/', {
+      const res = await fetch(`${API_URL}/api/checkout/session/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

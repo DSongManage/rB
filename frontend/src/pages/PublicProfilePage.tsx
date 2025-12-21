@@ -148,7 +148,7 @@ export default function PublicProfilePage() {
 
     // Fetch both the public profile and current user info
     Promise.all([
-      fetch(`/api/users/${username}/public/`, { credentials: 'include' })
+      fetch(`${API_URL}/api/users/${username}/public/`, { credentials: 'include' })
         .then(r => {
           if (!r.ok) throw new Error('User not found');
           return r.json();

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBetaMode } from '../hooks/useBetaMode';
+import { API_URL } from '../config';
 
 type Props = {
   contentId: number;
@@ -18,12 +19,12 @@ export default function CheckoutButton({ contentId, price, editions }: Props) {
 
     try {
       // Get CSRF token
-      const csrfToken = await fetch('/api/auth/csrf/', { credentials: 'include' })
+      const csrfToken = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' })
         .then(r => r.json())
         .then(j => j?.csrfToken || '');
 
       // Call backend to create Stripe checkout session
-      const res = await fetch('/api/checkout/session/', {
+      const res = await fetch(`${API_URL}/api/checkout/session/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_URL } from '../config';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
 
     try {
       // Send feedback to backend
-      const response = await fetch('/api/feedback/', {
+      const response = await fetch(`${API_URL}/api/feedback/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

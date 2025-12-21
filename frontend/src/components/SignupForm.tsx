@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { API_URL } from '../config';
 
 export default function SignupForm() {
   const [username, setUsername] = useState('');
@@ -59,9 +60,9 @@ export default function SignupForm() {
         return;
       }
       // Create or fetch account and establish a session in one step
-      const csrfResp = await fetch('/api/auth/csrf/', { credentials: 'include' }).then(r=>r.json()).catch(()=>({ csrfToken: '' }));
+      const csrfResp = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' }).then(r=>r.json()).catch(()=>({ csrfToken: '' }));
       const csrf = csrfResp?.csrfToken || '';
-      const loginRes = await fetch('/auth/web3/', {
+      const loginRes = await fetch(`${API_URL}/auth/web3/`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
@@ -74,11 +75,11 @@ export default function SignupForm() {
         return;
       }
       // Check auth status and optionally link wallet if missing
-      const st = await fetch('/api/auth/status/', { credentials:'include' }).then(r=>r.json()).catch(()=>({ authenticated:false }));
+      const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json()).catch(()=>({ authenticated:false }));
       if (st?.authenticated) {
         if (!st.wallet_address) {
           try {
-            await fetch('/api/wallet/link/', {
+            await fetch(`${API_URL}/api/wallet/link/`, {
               method:'POST', credentials:'include',
               headers:{ 'Content-Type':'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
               body: JSON.stringify({ web3auth_token: idToken })
@@ -101,7 +102,7 @@ export default function SignupForm() {
     setMsg('');
     setLoading(true);
     try {
-      const res = await fetch('/api/users/signup/', {
+      const res = await fetch(`${API_URL}/api/users/signup/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, display_name: displayName, wallet_address: walletAddress })

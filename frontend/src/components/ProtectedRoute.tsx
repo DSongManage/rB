@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { API_URL } from '../config';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -15,7 +16,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/auth/status/', { credentials: 'include' });
+      const response = await fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' });
       const data = await response.json();
       setIsAuthenticated(!!data?.authenticated);
     } catch {

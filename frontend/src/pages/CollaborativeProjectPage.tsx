@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { API_URL } from '../config';
 import TabNavigation, { TabId } from '../components/collaboration/tabs/TabNavigation';
 import OverviewTab from '../components/collaboration/tabs/OverviewTab';
 import TeamTab from '../components/collaboration/tabs/TeamTab';
@@ -62,7 +63,7 @@ export default function CollaborativeProjectPage() {
       setProject(projectData);
 
       // Get current user from auth status
-      const authResponse = await fetch('/api/auth/status/', { credentials: 'include' });
+      const authResponse = await fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' });
       const authData = await authResponse.json();
 
       if (authData.authenticated && authData.user) {
@@ -105,11 +106,11 @@ export default function CollaborativeProjectPage() {
 
     setSavingTitle(true);
     try {
-      const csrfRes = await fetch('/api/auth/csrf/', { credentials: 'include' });
+      const csrfRes = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' });
       const csrfData = await csrfRes.json();
       const csrf = csrfData?.csrfToken || '';
 
-      const res = await fetch(`/api/collaborative-projects/${project.id}/`, {
+      const res = await fetch(`${API_URL}/api/collaborative-projects/${project.id}/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

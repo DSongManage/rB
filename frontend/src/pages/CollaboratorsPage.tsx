@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../config';
 import StatusEditForm from '../components/StatusEditForm';
 import InviteModal from '../components/InviteModal';
 import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen } from 'lucide-react';
@@ -30,7 +31,7 @@ export default function CollaboratorsPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(()=>{
       setLoading(true);
-      const url = `/api/users/search/?${queryString}`;
+      const url = `${API_URL}/api/users/search/?${queryString}`;
       fetch(url, { credentials: 'include' })
         .then(r=> r.ok ? r.json() : [])
         .then((data)=> {

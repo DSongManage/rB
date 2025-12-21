@@ -5,6 +5,7 @@ import {
   Brush, PaintBucket, Eye, Sliders, Volume2, Video,
   Scissors, PlayCircle, Briefcase
 } from 'lucide-react';
+import { API_URL } from '../config';
 
 // Helper to render role icon based on icon string
 const RoleIcon = ({ icon, size = 20 }: { icon: string; size?: number }) => {
@@ -146,7 +147,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     const fetchRoleDefinitions = async () => {
       setLoadingRoles(true);
       try {
-        const res = await fetch(`/api/role-definitions/?project_type=${projectType}`, {
+        const res = await fetch(`${API_URL}/api/role-definitions/?project_type=${projectType}`, {
           credentials: 'include',
         });
         if (res.ok) {
@@ -239,7 +240,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
   async function fetchCsrf() {
     try {
-      const res = await fetch('/api/auth/csrf/', { credentials: 'include' });
+      const res = await fetch(`${API_URL}/api/auth/csrf/`, { credentials: 'include' });
       const data = await res.json();
       return data?.csrfToken || '';
     } catch {
@@ -288,7 +289,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
       // If we have a projectId, use the new collaborative invite endpoint
       if (projectId) {
-        const res = await fetch(`/api/collaborative-projects/${projectId}/invite_collaborator/`, {
+        const res = await fetch(`${API_URL}/api/collaborative-projects/${projectId}/invite_collaborator/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -325,7 +326,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
         }
       } else {
         // Use the old general invite endpoint (enhanced with tasks support)
-        const res = await fetch('/api/invite/', {
+        const res = await fetch(`${API_URL}/api/invite/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
