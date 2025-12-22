@@ -93,8 +93,12 @@ class Command(BaseCommand):
                         f'\nPurchase {purchase_id} processed successfully!'
                     )
                 )
-                self.stdout.write(f'NFT Mint: {result.get("nft_mint_address", "N/A")}')
-                self.stdout.write(f'Transaction: {result.get("transaction_signature", "N/A")}')
+                self.stdout.write(f'NFT Mint: {result.get("nft_mint") or result.get("nft_mint_address", "N/A")}')
+                self.stdout.write(f'Transaction: {result.get("tx_signature") or result.get("transaction_signature", "N/A")}')
+                if result.get('usdc_fronted'):
+                    self.stdout.write(f'USDC Fronted: ${result.get("usdc_fronted")}')
+                if result.get('usdc_earned'):
+                    self.stdout.write(f'Platform Earned: ${result.get("usdc_earned")}')
             else:
                 self.stdout.write(
                     self.style.ERROR(
