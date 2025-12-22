@@ -1,0 +1,2 @@
+[deploy]
+startCommand = "celery -A renaissBlock worker -l info --concurrency=2"
