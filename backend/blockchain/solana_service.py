@@ -108,12 +108,23 @@ def mint_and_distribute_collaborative_nft(
         client = Client(settings.SOLANA_RPC_URL)
         logger.info(f"Connected to Solana RPC: {settings.SOLANA_RPC_URL}")
 
-        # Load platform wallet keypair
+        # Load platform wallet keypair (from env var or file)
         try:
-            with open(settings.PLATFORM_WALLET_KEYPAIR_PATH, 'r') as f:
-                keypair_data = json.load(f)
+            import os
+            keypair_json = os.environ.get('PLATFORM_WALLET_KEYPAIR')
+
+            if keypair_json:
+                # Load from environment variable (preferred for production)
+                keypair_data = json.loads(keypair_json)
+                logger.info("Platform wallet loaded from PLATFORM_WALLET_KEYPAIR env var")
+            else:
+                # Fall back to file path
+                with open(settings.PLATFORM_WALLET_KEYPAIR_PATH, 'r') as f:
+                    keypair_data = json.load(f)
+                logger.info(f"Platform wallet loaded from file: {settings.PLATFORM_WALLET_KEYPAIR_PATH}")
+
             platform_keypair = Keypair.from_bytes(bytes(keypair_data))
-            logger.info(f"Platform wallet loaded: {platform_keypair.pubkey()}")
+            logger.info(f"Platform wallet pubkey: {platform_keypair.pubkey()}")
 
             # Verify it matches settings
             if str(platform_keypair.pubkey()) != settings.PLATFORM_USDC_WALLET_ADDRESS:
