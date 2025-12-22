@@ -73,11 +73,10 @@ export function KindleReader({
   }, [htmlContent]);
 
   // Calculate the page dimensions
-  // First principles:
-  // - viewport width = page width (what we see at once)
-  // - column width = viewport width / N (for N columns per page)
-  // - NO column gap in CSS - visual spacing comes from content padding
-  // - This ensures columns align EXACTLY with page boundaries
+  // Industry-standard approach (Kindle, epub.js, iBooks):
+  // - Use CSS columns with fixed height to flow content horizontally
+  // - Use scrollLeft (not transform) for page navigation
+  // - This naturally aligns with CSS column boundaries
   const calculateDimensions = useCallback(() => {
     const viewport = viewportRef.current;
     const content = contentRef.current;
@@ -86,29 +85,28 @@ export function KindleReader({
       return;
     }
 
-    // The viewport width IS the page width - they must be identical
+    // The viewport width IS the page width
     const viewportWidth = viewport.clientWidth;
     setPageWidth(viewportWidth);
 
     // Force single column on phones for better readability
     const effectiveCols = isPhone ? 'single' : settings.columns;
 
-    // Column width = viewport / N (NO gap - content padding provides spacing)
-    // This ensures N columns fit EXACTLY in one page width
-    const calculatedColumnWidth = effectiveCols === 'two'
-      ? Math.floor(viewportWidth / 2)
-      : viewportWidth;
-    setColumnWidth(calculatedColumnWidth);
+    // Column count determines how many columns fit in viewport
+    // Content padding (32px each side) provides visual spacing between columns
+    const colCount = effectiveCols === 'two' ? 2 : 1;
+    setColumnWidth(colCount); // Store column COUNT, not width
 
     // Wait for columns to render, then calculate total pages
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (!content) return;
+        if (!viewport) return;
 
-        const scrollWidth = content.scrollWidth;
-        // Pages = total scroll width / viewport width
-        // Subtract small tolerance to avoid extra blank page from rounding
-        const pages = Math.max(1, Math.ceil((scrollWidth - 1) / viewportWidth));
+        // Use viewport's scrollWidth (it contains the scrollable content)
+        const scrollWidth = viewport.scrollWidth;
+        // Pages = ceil(scrollWidth / viewportWidth)
+        // Round to avoid floating point issues
+        const pages = Math.max(1, Math.round(scrollWidth / viewportWidth));
         setTotalPages(pages);
 
         // Ensure current page is valid
@@ -116,6 +114,19 @@ export function KindleReader({
       });
     });
   }, [settings.continuousScroll, settings.columns, isPhone]);
+
+  // Scroll to current page when page changes (industry-standard approach)
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || settings.continuousScroll || pageWidth === 0) return;
+
+    // Use scrollTo for smooth, precise navigation
+    viewport.scrollTo({
+      left: currentPage * pageWidth,
+      top: 0,
+      behavior: 'smooth',
+    });
+  }, [currentPage, pageWidth, settings.continuousScroll]);
 
   // Initialize and handle resize
   useEffect(() => {
@@ -322,10 +333,9 @@ export function KindleReader({
         }}
       >
         {/*
-          VIEWPORT: The visible page area
-          - Fixed width = max reading width
-          - overflow: hidden clips columns at exact page boundaries
-          - NO padding here - padding would misalign columns with pages
+          VIEWPORT: The scrollable page container
+          Industry-standard approach: overflow-x: scroll with hidden scrollbar
+          Navigation uses scrollTo() for precise column alignment
         */}
         <div
           ref={viewportRef}
@@ -334,45 +344,36 @@ export function KindleReader({
             width: '100%',
             maxWidth: `${contentMaxWidth}px`,
             height: '100%',
-            overflow: 'hidden',
+            // Scrollable but we hide the scrollbar and use programmatic scrolling
+            overflowX: settings.continuousScroll ? 'hidden' : 'scroll',
+            overflowY: settings.continuousScroll ? 'auto' : 'hidden',
             position: 'relative',
+            // Hide scrollbar across browsers
+            scrollbarWidth: 'none', // Firefox
+            msOverflowStyle: 'none', // IE/Edge
           }}
         >
           {/*
             CONTENT: CSS columns container
-            - column-width = viewport width (single) or (viewport - gap) / 2 (two)
-            - ZERO padding - critical for alignment!
-            - Margins are applied via CSS rules on p, h1, h2, etc.
-            - Transform slides by exactly viewport width per page
+            Industry-standard: column-count forces exact N columns per viewport
+            Content padding provides visual spacing between columns
           */}
           <div
             ref={contentRef}
             className="reader-columns"
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(processedContent) }}
             style={{
+              // Fixed height forces content to flow into horizontal columns
               height: settings.continuousScroll ? 'auto' : '100%',
-              // CRITICAL: width must be unconstrained for columns to extend horizontally!
-              // Without this, CSS columns only creates columns that fit in parent width
-              width: settings.continuousScroll ? '100%' : 'max-content',
-              minWidth: settings.continuousScroll ? undefined : '100%',
-              // CRITICAL: No horizontal padding on the column container!
-              // Padding would offset columns from page boundaries
+              // Let content flow naturally - viewport handles scrolling
+              width: settings.continuousScroll ? '100%' : undefined,
               padding: settings.continuousScroll ? '24px 48px' : '24px 0',
               boxSizing: 'border-box',
-              // CSS Columns - columnWidth determines column size
-              // Columns extend horizontally, parent clips with overflow:hidden
-              // NO gap - content padding (32px each side) provides visual spacing
-              // This ensures columns align EXACTLY with page boundaries
-              columnGap: 0,
+              // CSS Columns - column-count forces exact number of columns per viewport
+              // This is the industry-standard approach (Kindle, epub.js, iBooks)
+              columnCount: settings.continuousScroll ? undefined : (effectiveColumns === 'two' ? 2 : 1),
+              columnGap: settings.continuousScroll ? undefined : '0px',
               columnFill: 'auto',
-              columnWidth: settings.continuousScroll
-                ? undefined
-                : columnWidth > 0 ? `${columnWidth}px` : undefined,
-              // Transform slides content by exactly one page width
-              transform: settings.continuousScroll
-                ? 'none'
-                : `translateX(-${currentPage * pageWidth}px)`,
-              transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
               // Typography
               fontFamily: 'var(--reader-font-family)',
               fontSize: 'var(--reader-font-size)',
@@ -470,11 +471,16 @@ export function KindleReader({
         */
         .reader-columns {
           letter-spacing: 0.01em;
-          overflow: hidden;
+        }
+
+        /* Hide scrollbar but allow programmatic scrolling (industry-standard approach) */
+        .reader-viewport::-webkit-scrollbar {
+          display: none;
         }
 
         .reader-viewport {
-          overflow: hidden !important;
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
 
         /* Apply horizontal padding to all direct children and common elements */
