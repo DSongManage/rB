@@ -354,8 +354,9 @@ export function KindleReader({
               // Padding would offset columns from page boundaries
               padding: settings.continuousScroll ? '24px 48px' : '24px 0',
               boxSizing: 'border-box',
-              // CSS Columns (use effectiveColumns which forces single on phones)
-              columnCount: settings.continuousScroll ? undefined : (effectiveColumns === 'two' ? 2 : 1),
+              // CSS Columns - columnWidth determines column size, NOT column-count
+              // For pagination: columns flow horizontally, transform slides by pageWidth
+              // column-count would LIMIT total columns, breaking pagination
               columnGap: effectiveColumns === 'two' ? `${COLUMN_GAP}px` : '0',
               columnFill: 'auto',
               columnWidth: settings.continuousScroll
