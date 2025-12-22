@@ -411,6 +411,11 @@ USDC_MINT_ADDRESS = os.getenv('USDC_MINT_ADDRESS', '4zMMC9srt5Ri5X14GAgXhaHii3Gn
 # Solana Network
 SOLANA_NETWORK = os.getenv('SOLANA_NETWORK', 'devnet')
 
+# Pinata IPFS Configuration (for NFT metadata storage)
+PINATA_JWT = os.getenv('PINATA_JWT', '')
+PINATA_API_KEY = os.getenv('PINATA_API_KEY', '')
+PINATA_API_SECRET = os.getenv('PINATA_API_SECRET', '')
+
 # Application URLs for payment redirects
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')
