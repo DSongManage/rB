@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useReaderSettings } from '../../hooks/useReaderSettings';
 import { useSwipeGesture } from '../../hooks/useSwipeGesture';
 import { useKeyboardNavigation } from '../../hooks/useKeyboardNavigation';
+import { useMobile } from '../../hooks/useMobile';
+import { useFullscreen } from '../../hooks/useFullscreen';
+import { useEdgeGesture } from '../../hooks/useEdgeGesture';
 import {
   detectChapters,
   getCurrentChapter,
@@ -14,6 +17,7 @@ import { ReaderHeader } from './ReaderHeader';
 import { ReaderFooter } from './ReaderFooter';
 import { ReaderNavigation } from './ReaderNavigation';
 import { ReaderSettingsPanel } from './ReaderSettings';
+import { MobileReaderSettings } from './MobileReaderSettings';
 import { TableOfContents } from './TableOfContents';
 
 interface KindleReaderProps {
@@ -53,6 +57,8 @@ export function KindleReader({
   // Hooks
   const { settings, updateSetting, resetSettings, cssVars, themeClass } =
     useReaderSettings();
+  const { isMobile, isPhone } = useMobile();
+  const { isFullscreen, toggleFullscreen, isSupported: fullscreenSupported } = useFullscreen(containerRef);
 
   // Process content with chapter IDs
   const processedContent = useMemo(
@@ -82,10 +88,13 @@ export function KindleReader({
     const viewportWidth = viewport.clientWidth;
     setPageWidth(viewportWidth);
 
+    // Force single column on phones for better readability
+    const effectiveCols = isPhone ? 'single' : settings.columns;
+
     // Column width must fit EXACTLY within viewport
     // Single column: column width = viewport width (entire page is one column)
     // Two columns: 2 * column width + gap = viewport width
-    const calculatedColumnWidth = settings.columns === 'two'
+    const calculatedColumnWidth = effectiveCols === 'two'
       ? Math.floor((viewportWidth - COLUMN_GAP) / 2)
       : viewportWidth; // Single column = full viewport width, no rounding needed
     setColumnWidth(calculatedColumnWidth);
@@ -105,7 +114,7 @@ export function KindleReader({
         setCurrentPage((prev) => Math.min(prev, Math.max(0, pages - 1)));
       });
     });
-  }, [settings.continuousScroll, settings.columns]);
+  }, [settings.continuousScroll, settings.columns, isPhone]);
 
   // Initialize and handle resize
   useEffect(() => {
@@ -231,6 +240,16 @@ export function KindleReader({
     enabled: true,
   });
 
+  // Edge gestures for mobile (swipe from edges to open TOC/Settings)
+  useEdgeGesture(containerRef, {
+    onLeftEdge: () => setShowTOC(true),
+    onRightEdge: () => setShowSettings(true),
+    enabled: isMobile && !showSettings && !showTOC && !settings.continuousScroll,
+  });
+
+  // Force single column on phones for better readability
+  const effectiveColumns = isPhone ? 'single' : settings.columns;
+
   // Calculate percent complete
   const percentComplete = useMemo(() => {
     if (totalPages <= 1) return 100;
@@ -254,8 +273,12 @@ export function KindleReader({
     '--reader-text-align': cssVars['--reader-text-align'],
   } as React.CSSProperties;
 
-  // Content width based on column setting
-  const contentMaxWidth = settings.columns === 'two' ? TWO_COLUMN_MAX_WIDTH : SINGLE_COLUMN_MAX_WIDTH;
+  // Content width based on column setting (use effectiveColumns which forces single on phones)
+  const contentMaxWidth = effectiveColumns === 'two' ? TWO_COLUMN_MAX_WIDTH : SINGLE_COLUMN_MAX_WIDTH;
+
+  // Mobile-specific dimensions
+  const headerHeight = isMobile ? 48 : 60;
+  const footerHeight = isMobile ? 40 : 50;
 
   return (
     <div
@@ -286,10 +309,10 @@ export function KindleReader({
         className="reader-content-area"
         style={{
           position: 'fixed',
-          top: showUI ? '60px' : '0',
+          top: showUI ? `${headerHeight}px` : '0',
           left: 0,
           right: 0,
-          bottom: showUI ? '50px' : '0',
+          bottom: showUI ? `${footerHeight}px` : '0',
           display: 'flex',
           justifyContent: 'center',
           overflow: settings.continuousScroll ? 'auto' : 'hidden',
@@ -331,8 +354,8 @@ export function KindleReader({
               // Padding would offset columns from page boundaries
               padding: settings.continuousScroll ? '24px 48px' : '24px 0',
               boxSizing: 'border-box',
-              // CSS Columns
-              columnGap: settings.columns === 'two' ? `${COLUMN_GAP}px` : '0',
+              // CSS Columns (use effectiveColumns which forces single on phones)
+              columnGap: effectiveColumns === 'two' ? `${COLUMN_GAP}px` : '0',
               columnFill: 'auto',
               columnWidth: settings.continuousScroll
                 ? undefined
@@ -365,6 +388,9 @@ export function KindleReader({
           isFirstPage={isFirstPage}
           isLastPage={isLastPage}
           showArrows={showUI}
+          isMobile={isMobile}
+          headerHeight={headerHeight}
+          footerHeight={footerHeight}
         />
       )}
 
@@ -377,14 +403,23 @@ export function KindleReader({
         continuousScroll={settings.continuousScroll}
       />
 
-      {/* Settings Panel */}
-      <ReaderSettingsPanel
-        settings={settings}
-        updateSetting={updateSetting}
-        resetSettings={resetSettings}
-        onClose={() => setShowSettings(false)}
-        visible={showSettings}
-      />
+      {/* Settings Panel - Mobile uses bottom drawer, desktop uses side panel */}
+      {isMobile ? (
+        <MobileReaderSettings
+          settings={settings}
+          updateSetting={updateSetting}
+          onClose={() => setShowSettings(false)}
+          visible={showSettings}
+        />
+      ) : (
+        <ReaderSettingsPanel
+          settings={settings}
+          updateSetting={updateSetting}
+          resetSettings={resetSettings}
+          onClose={() => setShowSettings(false)}
+          visible={showSettings}
+        />
+      )}
 
       {/* Table of Contents */}
       <TableOfContents

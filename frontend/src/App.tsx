@@ -3,6 +3,8 @@ import { Route, Routes, Link, useLocation, useNavigate, Navigate } from 'react-r
 import './App.css';
 import { CreatorSidebar } from './components/CreatorSidebar';
 import { LibrarySidebar } from './components/LibrarySidebar';
+import { MobileLibrary } from './components/MobileLibrary';
+import { useMobile } from './hooks/useMobile';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import NotificationBell from './components/notifications/NotificationBell';
@@ -219,11 +221,14 @@ function Header() {
 export default function App() {
   const location = useLocation();
   const { isAuthenticated, loading } = useAuth();
+  const { isMobile } = useMobile();
 
   // Legacy CreatorSidebar removed - functionality now in navbar and page tabs
   const showCreatorSidebar = false;
-  // Only show Library sidebar when authenticated AND on home or search pages
-  const showLibrarySidebar = isAuthenticated && [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
+  // Only show Library sidebar when authenticated AND on home or search pages AND not mobile
+  const showLibrarySidebar = !isMobile && isAuthenticated && [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
+  // Show mobile library on home page for authenticated mobile users
+  const showMobileLibrary = isMobile && isAuthenticated && location.pathname === '/';
   const isReaderPage = /^\/reader/.test(location.pathname);
   // Hide footer on pages that have the sidebar (footer links are in sidebar instead)
   const showFooter = !showLibrarySidebar;
@@ -303,6 +308,8 @@ export default function App() {
       >
         {showCreatorSidebar && <CreatorSidebar />}
         <div>
+          {/* Mobile Library - shown at top of home page for mobile users */}
+          {showMobileLibrary && <MobileLibrary />}
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>

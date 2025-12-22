@@ -8,6 +8,9 @@ interface ReaderNavigationProps {
   isFirstPage: boolean;
   isLastPage: boolean;
   showArrows: boolean;
+  isMobile?: boolean;
+  headerHeight?: number;
+  footerHeight?: number;
 }
 
 export function ReaderNavigation({
@@ -17,7 +20,16 @@ export function ReaderNavigation({
   isFirstPage,
   isLastPage,
   showArrows,
+  isMobile = false,
+  headerHeight = 60,
+  footerHeight = 50,
 }: ReaderNavigationProps) {
+  // Mobile: 33%/34%/33% zones (larger tap areas)
+  // Desktop: 25%/50%/25% zones
+  const sideWidth = isMobile ? '33%' : '25%';
+  const centerLeft = isMobile ? '33%' : '25%';
+  const centerRight = isMobile ? '33%' : '25%';
+
   return (
     <>
       {/* Left click zone (previous page) */}
@@ -30,20 +42,21 @@ export function ReaderNavigation({
         style={{
           position: 'fixed',
           left: 0,
-          top: '60px',
-          bottom: '50px',
-          width: '25%',
+          top: isMobile ? 0 : `${headerHeight}px`,
+          bottom: isMobile ? 0 : `${footerHeight}px`,
+          width: sideWidth,
           cursor: isFirstPage ? 'default' : 'pointer',
           zIndex: 50,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
-          paddingLeft: '12px',
+          paddingLeft: isMobile ? '8px' : '12px',
         }}
         role="button"
         aria-label="Previous page"
       >
-        {showArrows && !isFirstPage && (
+        {/* Hide arrows on mobile - just use tap zones */}
+        {!isMobile && showArrows && !isFirstPage && (
           <div
             className="reader-nav-arrow"
             style={{
@@ -66,10 +79,10 @@ export function ReaderNavigation({
         }}
         style={{
           position: 'fixed',
-          left: '25%',
-          right: '25%',
-          top: '60px',
-          bottom: '50px',
+          left: centerLeft,
+          right: centerRight,
+          top: isMobile ? 0 : `${headerHeight}px`,
+          bottom: isMobile ? 0 : `${footerHeight}px`,
           cursor: 'pointer',
           zIndex: 50,
         }}
@@ -87,20 +100,21 @@ export function ReaderNavigation({
         style={{
           position: 'fixed',
           right: 0,
-          top: '60px',
-          bottom: '50px',
-          width: '25%',
+          top: isMobile ? 0 : `${headerHeight}px`,
+          bottom: isMobile ? 0 : `${footerHeight}px`,
+          width: sideWidth,
           cursor: isLastPage ? 'default' : 'pointer',
           zIndex: 50,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
-          paddingRight: '12px',
+          paddingRight: isMobile ? '8px' : '12px',
         }}
         role="button"
         aria-label="Next page"
       >
-        {showArrows && !isLastPage && (
+        {/* Hide arrows on mobile - just use tap zones */}
+        {!isMobile && showArrows && !isLastPage && (
           <div
             className="reader-nav-arrow"
             style={{
