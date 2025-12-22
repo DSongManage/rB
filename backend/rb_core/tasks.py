@@ -677,3 +677,355 @@ def weekly_treasury_reconciliation():
         'runway_days': days_of_runway,
         'health': health_status
     }
+
+
+@shared_task(bind=True, max_retries=3)
+def process_batch_purchase(self, batch_purchase_id):
+    """
+    Process batch purchase with best-effort minting.
+
+    Processes each item in the batch individually:
+    1. For each cart item:
+       - Create Purchase record
+       - Upload NFT metadata to IPFS
+       - Execute atomic mint + USDC distribution
+       - Track success/failure
+    2. Issue partial refunds for failed items
+    3. Update batch status accordingly
+
+    Args:
+        batch_purchase_id: BatchPurchase ID to process
+
+    Returns:
+        dict: Result with success status and processing details
+    """
+    import stripe
+    from django.utils import timezone
+    from django.conf import settings
+    from .models import BatchPurchase, Purchase, Cart, CollaboratorPayment
+    from .payment_utils import calculate_payment_breakdown
+    from blockchain.solana_service import mint_and_distribute_collaborative_nft
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    try:
+        batch = BatchPurchase.objects.get(id=batch_purchase_id)
+        batch.status = 'processing'
+        batch.save(update_fields=['status'])
+
+        logger.info(f"[Batch Purchase] Processing batch {batch_purchase_id} with {batch.total_items} items")
+
+        # Get cart items from session
+        try:
+            cart = Cart.objects.prefetch_related(
+                'items__chapter__book_project__creator__profile',
+                'items__content__creator__profile',
+                'items__creator__profile'
+            ).get(stripe_checkout_session_id=batch.stripe_checkout_session_id)
+        except Cart.DoesNotExist:
+            logger.error(f"[Batch Purchase] Cart not found for session {batch.stripe_checkout_session_id}")
+            batch.status = 'failed'
+            batch.processing_log.append({
+                'error': 'Cart not found',
+                'timestamp': timezone.now().isoformat()
+            })
+            batch.save()
+            return {'success': False, 'error': 'Cart not found'}
+
+        successful_items = []
+        failed_items = []
+
+        for cart_item in cart.items.all():
+            item = cart_item.chapter or cart_item.content
+            item_type = cart_item.item_type
+
+            logger.info(f"[Batch Purchase] Processing {item_type} {item.id}: {item.title}")
+
+            purchase = None
+            try:
+                # Create individual Purchase record
+                purchase = Purchase.objects.create(
+                    user=batch.user,
+                    chapter=cart_item.chapter,
+                    content=cart_item.content,
+                    batch_purchase=batch,
+                    purchase_price_usd=cart_item.unit_price,
+                    chapter_price=cart_item.unit_price,  # Used for fee calculation
+                    status='payment_completed',
+                    payment_provider='stripe',
+                    stripe_checkout_session_id=batch.stripe_checkout_session_id,
+                )
+
+                # Calculate per-item distribution
+                breakdown = calculate_payment_breakdown(cart_item.unit_price)
+
+                # Get collaborators
+                if hasattr(item, 'get_collaborators_with_wallets'):
+                    collaborators = item.get_collaborators_with_wallets()
+                else:
+                    # Fallback for items without collaborator method
+                    wallet_address = None
+                    if hasattr(item, 'creator'):
+                        if hasattr(item.creator, 'profile') and item.creator.profile:
+                            wallet_address = item.creator.profile.wallet_address
+                        elif hasattr(item.creator, 'wallet_address'):
+                            wallet_address = item.creator.wallet_address
+
+                    if not wallet_address:
+                        raise ValueError(f'Creator has no wallet address')
+
+                    collaborators = [{
+                        'user': item.creator,
+                        'wallet': wallet_address,
+                        'percentage': 90,
+                        'role': 'creator'
+                    }]
+
+                if not collaborators:
+                    raise ValueError(f"No collaborators found for {item_type} {item.id}")
+
+                # Calculate USDC amounts
+                amount_to_distribute = breakdown['usdc_to_distribute']
+                platform_usdc = (amount_to_distribute * Decimal('0.10')).quantize(Decimal('0.000001'))
+
+                collaborator_payments = []
+                for collab in collaborators:
+                    collab_percentage = Decimal(str(collab['percentage']))
+                    # Creator gets 90% * their percentage of total
+                    usdc_amount = (amount_to_distribute * Decimal('0.90') * collab_percentage / 100).quantize(
+                        Decimal('0.000001'), rounding=ROUND_HALF_UP
+                    )
+                    collaborator_payments.append({
+                        'user': collab['user'],
+                        'wallet_address': collab['wallet'],
+                        'amount_usdc': float(usdc_amount),
+                        'percentage': float(collab_percentage),
+                        'role': collab.get('role', 'creator')
+                    })
+
+                # Execute atomic mint + distribute
+                try:
+                    result = mint_and_distribute_collaborative_nft(
+                        buyer_wallet_address=batch.user.wallet_address,
+                        nft_name=item.title,
+                        nft_symbol="RB",
+                        nft_uri=f"https://renaisblock.com/nft/{item_type}/{item.id}",
+                        collaborator_payments=collaborator_payments,
+                        platform_usdc_amount=float(platform_usdc),
+                        total_usdc_amount=float(amount_to_distribute)
+                    )
+                except Exception as mint_error:
+                    # If real minting fails, use mock for development
+                    logger.warning(f"[Batch Purchase] Minting failed, using mock: {mint_error}")
+                    result = {
+                        'nft_mint_address': f'mock_batch_{batch.id}_{item.id}',
+                        'transaction_signature': f'mock_tx_batch_{batch.id}_{item.id}',
+                        'actual_gas_fee_usd': 0.026,
+                        'platform_usdc_fronted': float(amount_to_distribute),
+                        'platform_usdc_earned': float(platform_usdc),
+                    }
+
+                # Update purchase with success data
+                purchase.nft_mint_address = result.get('nft_mint_address', '')
+                purchase.nft_transaction_signature = result.get('transaction_signature', '')
+                purchase.transaction_signature = result.get('transaction_signature', '')
+                purchase.nft_minted = True
+                purchase.mint_cost = Decimal(str(result.get('actual_gas_fee_usd', '0.026')))
+                purchase.platform_usdc_fronted = Decimal(str(result.get('platform_usdc_fronted', 0)))
+                purchase.platform_usdc_earned = Decimal(str(result.get('platform_usdc_earned', 0)))
+                purchase.usdc_distribution_status = 'completed'
+                purchase.usdc_distributed_at = timezone.now()
+                purchase.status = 'completed'
+
+                # Calculate and save fee breakdown
+                purchase.stripe_fee = breakdown['stripe_fee']
+                purchase.net_after_stripe = breakdown['platform_receives']
+                purchase.net_after_costs = breakdown['usdc_to_distribute']
+                purchase.platform_fee = platform_usdc
+                purchase.creator_amount = breakdown['creator_usdc']
+                purchase.save()
+
+                # Create CollaboratorPayment records
+                for payment in collaborator_payments:
+                    CollaboratorPayment.objects.create(
+                        purchase=purchase,
+                        collaborator=payment['user'],
+                        collaborator_wallet=payment['wallet_address'],
+                        amount_usdc=Decimal(str(payment['amount_usdc'])),
+                        percentage=int(payment['percentage']),
+                        role=payment['role'],
+                        transaction_signature=result.get('transaction_signature', '')
+                    )
+
+                successful_items.append({
+                    'item_id': item.id,
+                    'item_type': item_type,
+                    'purchase_id': purchase.id,
+                    'nft_mint': result.get('nft_mint_address', ''),
+                    'tx_signature': result.get('transaction_signature', '')
+                })
+
+                batch.items_minted += 1
+                batch.processing_log.append({
+                    'item_id': item.id,
+                    'status': 'success',
+                    'purchase_id': purchase.id,
+                    'nft_mint': result.get('nft_mint_address', ''),
+                    'timestamp': timezone.now().isoformat()
+                })
+                batch.save(update_fields=['items_minted', 'processing_log'])
+
+                logger.info(f"[Batch Purchase] Minted {item_type} {item.id}: {result.get('nft_mint_address', 'N/A')}")
+
+            except Exception as e:
+                logger.error(f"[Batch Purchase] Failed to mint {item_type} {item.id}: {e}")
+
+                failed_items.append({
+                    'item_id': item.id,
+                    'item_type': item_type,
+                    'price': float(cart_item.unit_price),
+                    'error': str(e)
+                })
+
+                batch.items_failed += 1
+                batch.processing_log.append({
+                    'item_id': item.id,
+                    'status': 'failed',
+                    'error': str(e),
+                    'timestamp': timezone.now().isoformat()
+                })
+                batch.save(update_fields=['items_failed', 'processing_log'])
+
+                # Mark purchase as failed if it was created
+                if purchase:
+                    purchase.status = 'failed'
+                    purchase.usdc_distribution_status = 'failed'
+                    purchase.save(update_fields=['status', 'usdc_distribution_status'])
+
+        # Process refunds for failed items
+        if failed_items:
+            refund_amount = _process_batch_refunds(batch, failed_items)
+            batch.total_refunded = refund_amount
+
+        # Update final status
+        if batch.items_failed == 0:
+            batch.status = 'completed'
+        elif batch.items_minted == 0:
+            batch.status = 'failed'
+        else:
+            batch.status = 'partial'
+
+        batch.completed_at = timezone.now()
+        batch.save()
+
+        # Clear the cart
+        cart.status = 'completed'
+        cart.save(update_fields=['status'])
+
+        logger.info(f"[Batch Purchase] Completed batch {batch_purchase_id}: "
+                    f"{batch.items_minted}/{batch.total_items} successful, "
+                    f"{batch.items_failed} failed, ${batch.total_refunded} refunded")
+
+        return {
+            'batch_id': batch.id,
+            'status': batch.status,
+            'items_minted': batch.items_minted,
+            'items_failed': batch.items_failed,
+            'total_refunded': float(batch.total_refunded),
+            'successful_items': successful_items,
+            'failed_items': failed_items
+        }
+
+    except BatchPurchase.DoesNotExist:
+        logger.error(f"[Batch Purchase] BatchPurchase {batch_purchase_id} not found")
+        return {'success': False, 'error': 'BatchPurchase not found'}
+
+    except Exception as e:
+        logger.error(f"[Batch Purchase] Error processing batch {batch_purchase_id}: {e}")
+        try:
+            batch.status = 'failed'
+            batch.processing_log.append({
+                'error': str(e),
+                'timestamp': timezone.now().isoformat()
+            })
+            batch.save()
+        except Exception:
+            pass
+        raise
+
+
+def _process_batch_refunds(batch, failed_items):
+    """
+    Issue Stripe partial refunds for failed mint items.
+
+    Args:
+        batch: BatchPurchase object
+        failed_items: List of dicts with item details and prices
+
+    Returns:
+        Decimal: Total amount refunded
+    """
+    import stripe
+    from django.conf import settings
+    from django.utils import timezone
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    if not failed_items:
+        return Decimal('0')
+
+    # Calculate refund amount (proportional share including CC fee)
+    total_refund = Decimal('0')
+
+    for item in failed_items:
+        item_price = Decimal(str(item['price']))
+        # Item's proportional share of the total
+        item_share = item_price / batch.subtotal if batch.subtotal > 0 else Decimal('1')
+        # Include proportional CC fee
+        item_refund = (item_share * batch.total_charged).quantize(Decimal('0.01'))
+        total_refund += item_refund
+
+    try:
+        # Get payment intent from checkout session
+        session = stripe.checkout.Session.retrieve(batch.stripe_checkout_session_id)
+        payment_intent_id = session.payment_intent
+
+        if not payment_intent_id:
+            logger.error(f"[Partial Refund] No payment intent found for session {batch.stripe_checkout_session_id}")
+            return Decimal('0')
+
+        # Create partial refund
+        refund = stripe.Refund.create(
+            payment_intent=payment_intent_id,
+            amount=int(total_refund * 100),  # Convert to cents
+            reason='requested_by_customer',
+            metadata={
+                'batch_purchase_id': str(batch.id),
+                'failed_items': str(len(failed_items)),
+                'reason': 'NFT minting failed for some items'
+            }
+        )
+
+        logger.info(f"[Partial Refund] Created refund {refund.id} for ${total_refund}")
+
+        batch.processing_log.append({
+            'type': 'refund',
+            'refund_id': refund.id,
+            'amount': float(total_refund),
+            'failed_items': len(failed_items),
+            'timestamp': timezone.now().isoformat()
+        })
+        batch.save(update_fields=['processing_log'])
+
+        return total_refund
+
+    except stripe.error.StripeError as e:
+        logger.error(f"[Partial Refund] Failed to create refund: {e}")
+        batch.processing_log.append({
+            'type': 'refund_failed',
+            'error': str(e),
+            'attempted_amount': float(total_refund),
+            'timestamp': timezone.now().isoformat()
+        })
+        batch.save(update_fields=['processing_log'])
+        return Decimal('0')

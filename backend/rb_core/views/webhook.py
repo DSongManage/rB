@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 from django.db import transaction
 from decimal import Decimal
 
-from ..models import Purchase, Content, User
+from ..models import Purchase, Content, User, BatchPurchase
 
 logger = logging.getLogger(__name__)
 
@@ -262,18 +262,31 @@ def _process_with_estimated_fees(purchase, charge_id):
 def handle_checkout_session_completed(session):
     """
     Update purchase record when checkout completes.
-    Purchase record was already created in the checkout endpoint.
-    This just updates it with the payment_intent_id for later processing.
+    Handles both single-item and batch (cart) purchases.
     """
     logger.info(f'[Webhook] Processing checkout session: {session["id"]}')
 
     payment_intent_id = session.get('payment_intent')
     session_id = session['id']
+    metadata = session.get('metadata', {})
 
     if not payment_intent_id:
         logger.error(f'[Webhook] No payment_intent in session {session_id}')
         return
 
+    # Check if this is a batch purchase (cart checkout)
+    batch_purchase_id = metadata.get('batch_purchase_id')
+
+    if batch_purchase_id:
+        # Batch purchase flow
+        _handle_batch_checkout_completed(session, batch_purchase_id, payment_intent_id)
+    else:
+        # Single-item purchase flow
+        _handle_single_checkout_completed(session_id, payment_intent_id)
+
+
+def _handle_single_checkout_completed(session_id, payment_intent_id):
+    """Handle single-item checkout completion (original flow)."""
     try:
         # Find purchase by checkout session ID
         purchase = Purchase.objects.get(stripe_checkout_session_id=session_id)
@@ -292,3 +305,55 @@ def handle_checkout_session_completed(session):
     except Exception as e:
         logger.error(f'[Webhook] ❌ Error processing checkout session {session_id}: {e}', exc_info=True)
         raise
+
+
+def _handle_batch_checkout_completed(session, batch_purchase_id, payment_intent_id):
+    """
+    Handle batch/cart checkout completion.
+    Triggers process_batch_purchase task to mint all items.
+    """
+    session_id = session['id']
+
+    try:
+        batch = BatchPurchase.objects.get(id=batch_purchase_id)
+
+        # Update with payment intent ID
+        batch.stripe_payment_intent_id = payment_intent_id
+        batch.status = 'payment_completed'
+        batch.save(update_fields=['stripe_payment_intent_id', 'status'])
+
+        logger.info(
+            f'[Webhook] ✅ Batch purchase {batch_purchase_id} payment completed. '
+            f'Payment intent: {payment_intent_id}. Triggering batch processing.'
+        )
+
+        # Trigger batch processing
+        _trigger_batch_purchase_processing(batch_purchase_id)
+
+    except BatchPurchase.DoesNotExist:
+        logger.error(f'[Webhook] ❌ BatchPurchase {batch_purchase_id} not found for session {session_id}')
+    except Exception as e:
+        logger.error(f'[Webhook] ❌ Error processing batch checkout {session_id}: {e}', exc_info=True)
+        raise
+
+
+def _trigger_batch_purchase_processing(batch_purchase_id):
+    """
+    Trigger batch purchase processing - tries Celery first, falls back to synchronous.
+    """
+    try:
+        from ..tasks import process_batch_purchase
+        # Try async first (preferred - doesn't block webhook response)
+        result = process_batch_purchase.delay(batch_purchase_id)
+        logger.info(f'[Webhook] ✅ Queued batch purchase processing for {batch_purchase_id} (task_id={result.id})')
+    except Exception as celery_error:
+        # Celery/Redis not available - fall back to synchronous processing
+        logger.warning(f'[Webhook] ⚠️ Celery unavailable ({celery_error}), processing batch synchronously')
+        try:
+            from ..tasks import process_batch_purchase
+            # Call the task function directly (synchronous)
+            result = process_batch_purchase(batch_purchase_id)
+            logger.info(f'[Webhook] ✅ Completed synchronous batch processing for {batch_purchase_id}: {result}')
+        except Exception as sync_error:
+            logger.error(f'[Webhook] ❌ Synchronous batch processing failed for {batch_purchase_id}: {sync_error}')
+            raise

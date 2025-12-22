@@ -12,6 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { useBetaMode } from '../hooks/useBetaMode';
 import { API_URL } from '../config';
+import AddToCartButton from './AddToCartButton';
 
 interface PaymentBreakdown {
   chapter_price: string;
@@ -239,34 +240,58 @@ export default function ChapterPurchase({
         </div>
       </div>
 
-      {/* Purchase Button */}
-      <button
-        onClick={handlePurchase}
-        disabled={loading}
-        style={{
-          padding: '14px 24px',
-          fontSize: '16px',
-          fontWeight: 600,
-          backgroundColor: loading ? '#64748b' : '#3b82f6',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          transition: 'background-color 0.2s',
-        }}
-        onMouseEnter={(e) => {
-          if (!loading) {
-            e.currentTarget.style.backgroundColor = '#2563eb';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!loading) {
-            e.currentTarget.style.backgroundColor = '#3b82f6';
-          }
-        }}
-      >
-        {loading ? 'Processing...' : `Purchase for ${breakdown?.buyer_total || `$${chapterPrice.toFixed(2)}`}`}
-      </button>
+      {/* Purchase Buttons */}
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        {/* Direct Purchase Button */}
+        <button
+          onClick={handlePurchase}
+          disabled={loading}
+          style={{
+            flex: 1,
+            minWidth: '150px',
+            padding: '14px 24px',
+            fontSize: '16px',
+            fontWeight: 600,
+            backgroundColor: loading ? '#64748b' : '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            transition: 'background-color 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (!loading) {
+              e.currentTarget.style.backgroundColor = '#2563eb';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!loading) {
+              e.currentTarget.style.backgroundColor = '#3b82f6';
+            }
+          }}
+        >
+          {loading ? 'Processing...' : `Buy Now - ${breakdown?.buyer_total || `$${chapterPrice.toFixed(2)}`}`}
+        </button>
+
+        {/* Add to Cart Button */}
+        <AddToCartButton
+          chapterId={chapterId}
+          price={chapterPrice.toFixed(2)}
+          alreadyOwned={false}
+        />
+      </div>
+
+      {/* Cart savings hint */}
+      <div style={{
+        fontSize: '12px',
+        color: '#64748b',
+        textAlign: 'center',
+        padding: '8px',
+        backgroundColor: '#1e293b',
+        borderRadius: '6px',
+      }}>
+        Add multiple chapters to your cart to save on credit card fees
+      </div>
 
       {/* Error Message */}
       {error && (

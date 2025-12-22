@@ -136,6 +136,116 @@ def format_currency(amount):
     return f'${Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP):.2f}'
 
 
+def calculate_cart_breakdown(item_prices):
+    """
+    Calculate payment breakdown for cart with SINGLE CC fee across all items.
+
+    KEY SAVINGS: One $0.30 fixed fee across all items vs per-item.
+
+    Example: 5 items at $3 each
+    - Per-item: 5 x ($3.41) = $17.05 total
+    - Cart:     ($15 + $0.30) / 0.971 = $15.76 total
+    - SAVINGS:  $1.29 (7.6%)
+
+    Args:
+        item_prices: List of Decimal/float/str prices for items in cart
+
+    Returns:
+        dict with subtotal, credit_card_fee, buyer_total, per_item_breakdown
+    """
+    GAS_FEE_PER_ITEM = Decimal('0.026')  # Estimated per-mint gas
+
+    # Convert all prices to Decimal
+    item_prices = [Decimal(str(p)) for p in item_prices]
+    num_items = len(item_prices)
+
+    if num_items == 0:
+        return {
+            'subtotal': Decimal('0'),
+            'credit_card_fee': Decimal('0'),
+            'buyer_total': Decimal('0'),
+            'stripe_fee': Decimal('0'),
+            'platform_receives': Decimal('0'),
+            'total_gas_estimate': Decimal('0'),
+            'num_items': 0,
+            'per_item_breakdown': [],
+            'savings_vs_individual': Decimal('0'),
+            'breakdown_display': {
+                'subtotal': '$0.00',
+                'credit_card_fee': '$0.00',
+                'buyer_total': '$0.00',
+                'savings': '$0.00',
+                'item_count': 0,
+            }
+        }
+
+    subtotal = sum(item_prices)
+
+    # Single CC fee calculation (the key savings!)
+    buyer_total = (subtotal + STRIPE_FIXED_FEE) / (1 - STRIPE_PERCENTAGE_FEE)
+    buyer_total = buyer_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    credit_card_fee = buyer_total - subtotal
+
+    # Stripe's actual fee
+    stripe_fee = (buyer_total * STRIPE_PERCENTAGE_FEE) + STRIPE_FIXED_FEE
+    stripe_fee = stripe_fee.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    # Platform receives (should equal subtotal)
+    platform_receives = buyer_total - stripe_fee
+
+    # Total gas for batch (each item still needs individual minting)
+    total_gas = GAS_FEE_PER_ITEM * num_items
+
+    # Per-item breakdown for distribution
+    per_item_breakdown = []
+    for price in item_prices:
+        # Each item's share of gas (proportional to price)
+        if subtotal > 0:
+            item_gas_share = (price / subtotal) * total_gas
+        else:
+            item_gas_share = GAS_FEE_PER_ITEM
+
+        usdc_to_distribute = price - item_gas_share
+        creator_share = (usdc_to_distribute * Decimal('0.90')).quantize(Decimal('0.01'))
+        platform_share = (usdc_to_distribute * Decimal('0.10')).quantize(Decimal('0.01'))
+
+        per_item_breakdown.append({
+            'item_price': price,
+            'gas_share': item_gas_share.quantize(Decimal('0.001')),
+            'creator_receives': creator_share,
+            'platform_receives': platform_share,
+        })
+
+    # Calculate savings vs individual purchases
+    if num_items > 1:
+        individual_total = Decimal('0')
+        for price in item_prices:
+            individual = (price + STRIPE_FIXED_FEE) / (1 - STRIPE_PERCENTAGE_FEE)
+            individual_total += individual.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        savings = individual_total - buyer_total
+    else:
+        savings = Decimal('0')
+
+    return {
+        'subtotal': subtotal,
+        'credit_card_fee': credit_card_fee,
+        'buyer_total': buyer_total,
+        'stripe_fee': stripe_fee,
+        'platform_receives': platform_receives,
+        'total_gas_estimate': total_gas,
+        'num_items': num_items,
+        'per_item_breakdown': per_item_breakdown,
+        'savings_vs_individual': savings.quantize(Decimal('0.01')),
+        'breakdown_display': {
+            'subtotal': format_currency(subtotal),
+            'credit_card_fee': format_currency(credit_card_fee),
+            'buyer_total': format_currency(buyer_total),
+            'savings': format_currency(savings),
+            'item_count': num_items,
+        }
+    }
+
+
 # Example usage and tests
 if __name__ == '__main__':
     test_prices = [1.00, 3.00, 5.00, 10.00, 20.00]
