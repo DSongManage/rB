@@ -302,8 +302,10 @@ export default function App() {
           display: 'grid',
           gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr',
           gap: 16,
-          marginLeft: showLibrarySidebar ? 320 : 0,
-          transition: 'margin-left 0.3s ease',
+          marginLeft: showLibrarySidebar ? 320 : 'auto',
+          marginRight: showLibrarySidebar ? 0 : 'auto',
+          width: showLibrarySidebar ? 'calc(100% - 320px)' : undefined,
+          transition: 'margin-left 0.3s ease, width 0.3s ease',
         }}
       >
         {showCreatorSidebar && <CreatorSidebar />}

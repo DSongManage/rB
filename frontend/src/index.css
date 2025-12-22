@@ -9,6 +9,10 @@
   --accent-soft: #fbbf24; /* amber-400 */
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -18,7 +22,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-width: fit-content;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 code {
