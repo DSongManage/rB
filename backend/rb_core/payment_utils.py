@@ -1,8 +1,15 @@
 """
 Payment fee calculation utilities for credit card fee pass-through.
 
-This module implements transparent fee pass-through to ensure creators
-receive exactly 90% of the chapter price they set.
+This module implements transparent fee pass-through where:
+- Buyer pays: chapter_price + CC processing fee
+- Platform receives: chapter_price (after Stripe takes its cut)
+- Gas fee is deducted before 90/10 split
+- Creator receives: 90% of (chapter_price - gas_fee)
+- Platform keeps: 10% of (chapter_price - gas_fee)
+
+The gas fee (~$0.026) covers Solana transaction costs and is shared
+proportionally between creator (90%) and platform (10%).
 """
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -60,20 +67,36 @@ def calculate_payment_breakdown(chapter_price):
     assert abs(platform_receives - chapter_price) < Decimal('0.02'), \
         f"Math error: platform_receives ({platform_receives}) != chapter_price ({chapter_price})"
 
-    # Use chapter_price as the base for splits (not platform_receives)
-    # This ensures creators always get exactly 90% of list price
-    creator_share_90 = (chapter_price * Decimal('0.90')).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-    platform_share_10 = (chapter_price * Decimal('0.10')).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
-    )
-
-    # Gas fee for Solana transaction
+    # Gas fee for Solana transaction (shared proportionally between creator and platform)
     gas_fee = Decimal('0.026')
 
-    # USDC to distribute (platform fronts this amount)
+    # USDC to distribute after gas (this is what gets split 90/10)
     usdc_to_distribute = chapter_price - gas_fee
+
+    # Actual amounts after proportional gas deduction
+    # Creator gets 90% of post-gas amount, platform gets 10%
+    creator_usdc_actual = (usdc_to_distribute * Decimal('0.90')).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    platform_usdc_actual = (usdc_to_distribute * Decimal('0.10')).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+
+    # For reference: what the split would be without gas (90/10 of chapter_price)
+    creator_share_pre_gas = (chapter_price * Decimal('0.90')).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    platform_share_pre_gas = (chapter_price * Decimal('0.10')).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+
+    # Gas paid by each party (proportional to their share)
+    creator_gas_share = (gas_fee * Decimal('0.90')).quantize(
+        Decimal('0.001'), rounding=ROUND_HALF_UP
+    )
+    platform_gas_share = (gas_fee * Decimal('0.10')).quantize(
+        Decimal('0.001'), rounding=ROUND_HALF_UP
+    )
 
     return {
         'chapter_price': chapter_price,
@@ -81,18 +104,29 @@ def calculate_payment_breakdown(chapter_price):
         'buyer_total': buyer_total,
         'stripe_fee': stripe_fee,
         'platform_receives': platform_receives,
-        'creator_share_90': creator_share_90,
-        'platform_share_10': platform_share_10,
         'gas_fee': gas_fee,
         'usdc_to_distribute': usdc_to_distribute,
 
-        # For display
+        # Actual USDC amounts (what gets transferred)
+        'creator_usdc': creator_usdc_actual,
+        'platform_usdc': platform_usdc_actual,
+
+        # Pre-gas amounts (for transparency)
+        'creator_share_90': creator_share_pre_gas,
+        'platform_share_10': platform_share_pre_gas,
+
+        # Gas breakdown
+        'creator_gas_share': creator_gas_share,
+        'platform_gas_share': platform_gas_share,
+
+        # For display - shows ACTUAL amounts creators receive
         'breakdown_display': {
             'chapter_price': format_currency(chapter_price),
             'credit_card_fee': format_currency(credit_card_fee),
             'buyer_total': format_currency(buyer_total),
-            'creator_receives': format_currency(creator_share_90),
-            'platform_receives': format_currency(platform_share_10),
+            'creator_receives': format_currency(creator_usdc_actual),
+            'platform_receives': format_currency(platform_usdc_actual),
+            'gas_fee': format_currency(gas_fee),
         }
     }
 
@@ -116,7 +150,11 @@ if __name__ == '__main__':
         print(f"  Buyer pays: {breakdown['breakdown_display']['buyer_total']}")
         print(f"  Credit card fee: {breakdown['breakdown_display']['credit_card_fee']}")
         print(f"  Stripe takes: ${breakdown['stripe_fee']:.2f}")
-        print(f"  Platform receives: ${breakdown['platform_receives']:.2f}")
-        print(f"  Creator gets (90%): {breakdown['breakdown_display']['creator_receives']}")
-        print(f"  Platform gets (10%): {breakdown['breakdown_display']['platform_receives']}")
+        print(f"  Platform receives (fiat): ${breakdown['platform_receives']:.2f}")
+        print(f"  Gas fee: ${breakdown['gas_fee']:.3f}")
         print(f"  USDC to distribute: ${breakdown['usdc_to_distribute']:.2f}")
+        print(f"  ---")
+        print(f"  Creator receives (USDC): {breakdown['breakdown_display']['creator_receives']}")
+        print(f"    (90% of ${breakdown['usdc_to_distribute']:.2f}, gas share: ${breakdown['creator_gas_share']:.3f})")
+        print(f"  Platform keeps (USDC): {breakdown['breakdown_display']['platform_receives']}")
+        print(f"    (10% of ${breakdown['usdc_to_distribute']:.2f}, gas share: ${breakdown['platform_gas_share']:.3f})")

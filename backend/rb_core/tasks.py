@@ -400,16 +400,26 @@ def process_atomic_purchase(self, purchase_id):
             total_usdc_amount=float(amount_to_distribute)
         )
 
+        # Get actual gas fee from transaction (if available)
+        actual_gas_fee = result.get('actual_gas_fee_usd') or result.get('gas_fee_usd')
+        if actual_gas_fee:
+            actual_gas_fee = Decimal(str(actual_gas_fee))
+            logger.info(f'[Atomic Purchase] ✅ Actual gas fee from blockchain: ${actual_gas_fee}')
+        else:
+            actual_gas_fee = mint_gas_fee  # Fall back to estimate
+            logger.info(f'[Atomic Purchase] ⚠️ Using estimated gas fee: ${actual_gas_fee}')
+
         logger.info(f'[Atomic Purchase] ✅ Atomic transaction completed: {result["transaction_signature"]}')
         logger.info(f'[Atomic Purchase] ✅ NFT minted: {result["nft_mint_address"]}')
         logger.info(f'[Atomic Purchase] ✅ USDC fronted from treasury: {result["platform_usdc_fronted"]}')
         logger.info(f'[Atomic Purchase] ✅ Platform earned: {result["platform_usdc_earned"]}')
 
-        # Update purchase record
+        # Update purchase record with ACTUAL values
         purchase.nft_mint_address = result['nft_mint_address']
         purchase.nft_transaction_signature = result['transaction_signature']
         purchase.transaction_signature = result['transaction_signature']
         purchase.nft_minted = True
+        purchase.mint_cost = actual_gas_fee  # ACTUAL gas fee from blockchain
         purchase.platform_usdc_fronted = Decimal(str(result['platform_usdc_fronted']))
         purchase.platform_usdc_earned = Decimal(str(result['platform_usdc_earned']))
         purchase.usdc_distribution_transaction = result['transaction_signature']
@@ -417,7 +427,9 @@ def process_atomic_purchase(self, purchase_id):
         purchase.usdc_distributed_at = timezone.now()
         purchase.status = 'completed'
         purchase.distribution_details = {
-            'collaborators': result['distributions']
+            'collaborators': result['distributions'],
+            'actual_gas_fee_usd': str(actual_gas_fee),
+            'stripe_fee_actual': str(purchase.stripe_fee) if purchase.stripe_fee else None,
         }
         purchase.save()
 
@@ -510,7 +522,9 @@ def process_atomic_purchase(self, purchase_id):
             'nft_mint': result['nft_mint_address'],
             'tx_signature': result['transaction_signature'],
             'usdc_fronted': float(result['platform_usdc_fronted']),
-            'usdc_earned': float(result['platform_usdc_earned'])
+            'usdc_earned': float(result['platform_usdc_earned']),
+            'actual_gas_fee_usd': float(actual_gas_fee),
+            'stripe_fee_actual': float(purchase.stripe_fee) if purchase.stripe_fee else None,
         }
 
     except Exception as e:
