@@ -111,11 +111,36 @@ def handle_payment_intent_succeeded(payment_intent):
                 return
 
 
+def _trigger_purchase_processing(purchase_id):
+    """
+    Trigger purchase processing - tries Celery first, falls back to synchronous.
+    This ensures purchases always complete even if Celery/Redis isn't available.
+    """
+    try:
+        from ..tasks import process_atomic_purchase
+        # Try async first (preferred - doesn't block webhook response)
+        result = process_atomic_purchase.delay(purchase_id)
+        logger.info(f'[Stripe Webhook] ✅ Queued atomic purchase processing for purchase {purchase_id} (task_id={result.id})')
+    except Exception as celery_error:
+        # Celery/Redis not available - fall back to synchronous processing
+        logger.warning(f'[Stripe Webhook] ⚠️ Celery unavailable ({celery_error}), processing synchronously')
+        try:
+            from ..tasks import process_atomic_purchase
+            # Call the task function directly (synchronous)
+            result = process_atomic_purchase(purchase_id)
+            logger.info(f'[Stripe Webhook] ✅ Completed synchronous purchase processing for {purchase_id}: {result}')
+        except Exception as sync_error:
+            logger.error(f'[Stripe Webhook] ❌ Synchronous processing failed for {purchase_id}: {sync_error}')
+            raise
+
+
 def _process_payment_intent_locked(purchase, payment_intent):
     """
     Process payment intent while holding database lock.
     This should only be called from within a transaction with select_for_update().
     """
+    import time
+
     payment_intent_id = payment_intent['id']
 
     try:
@@ -142,8 +167,23 @@ def _process_payment_intent_locked(purchase, payment_intent):
                 logger.error(f'No charge information for payment_intent {payment_intent_id}')
                 return
 
+        # Retry logic for balance_transaction - it may not be immediately available
+        if not balance_txn_id and charge_id:
+            logger.info(f'balance_transaction not in webhook payload, retrying charge retrieval...')
+            max_balance_retries = 5
+            for attempt in range(max_balance_retries):
+                time.sleep(1)  # Wait 1 second between retries
+                charge = stripe.Charge.retrieve(charge_id)
+                balance_txn_id = charge.get('balance_transaction')
+                if balance_txn_id:
+                    logger.info(f'Got balance_transaction on retry attempt {attempt + 1}')
+                    break
+                logger.info(f'balance_transaction still not available (attempt {attempt + 1}/{max_balance_retries})')
+
         if not balance_txn_id:
-            logger.error(f'No balance_transaction for charge {charge_id}')
+            # Fall back to using estimated fees and proceed anyway
+            logger.warning(f'No balance_transaction for charge {charge_id} after retries - using estimated fees')
+            _process_with_estimated_fees(purchase, charge_id)
             return
 
         # Retrieve balance transaction - contains ACTUAL fees
@@ -167,17 +207,56 @@ def _process_payment_intent_locked(purchase, payment_intent):
 
         # Trigger ATOMIC PURCHASE PROCESSING (NFT mint + USDC distribution)
         # This is the CRITICAL piece - platform fronts USDC immediately
-        try:
-            from ..tasks import process_atomic_purchase
-            process_atomic_purchase.delay(purchase.id)
-            logger.info(f'[Stripe Webhook] ✅ Queued atomic purchase processing for purchase {purchase.id}')
-        except ImportError:
-            logger.error('[Stripe Webhook] ⚠️ Celery not available - atomic processing requires Celery')
-        except Exception as e:
-            logger.error(f'[Stripe Webhook] ❌ Failed to queue atomic processing: {e}')
+        _trigger_purchase_processing(purchase.id)
     except Exception as e:
         logger.error(f'Error processing payment_intent {payment_intent_id}: {e}')
         raise
+
+
+def _process_with_estimated_fees(purchase, charge_id):
+    """
+    Fallback: Process purchase using estimated fees when balance_transaction is unavailable.
+    This ensures the purchase is still fulfilled even if Stripe hasn't settled the transaction yet.
+    The fees are calculated from the purchase's chapter_price using the same formula as checkout.
+    """
+    from .payment_utils import calculate_payment_breakdown
+
+    logger.warning(f'[Webhook] Processing purchase {purchase.id} with ESTIMATED fees (balance_txn unavailable)')
+
+    # Use the item price stored in the purchase to calculate estimated fees
+    if purchase.chapter_price is not None:
+        breakdown = calculate_payment_breakdown(purchase.chapter_price)
+        purchase.stripe_charge_id = charge_id
+        purchase.gross_amount = breakdown['buyer_total']
+        purchase.stripe_fee = breakdown['stripe_fee']  # Estimated
+        purchase.net_after_stripe = breakdown['platform_receives']
+        purchase.status = 'payment_completed'
+        purchase.save()
+
+        logger.info(
+            f'Updated purchase {purchase.id} with ESTIMATED fees: '
+            f'gross=${purchase.gross_amount}, '
+            f'stripe_fee=${purchase.stripe_fee} (estimated), '
+            f'net=${purchase.net_after_stripe}'
+        )
+    else:
+        # Legacy purchases without chapter_price - use standard estimation
+        gross = purchase.purchase_price_usd
+        estimated_fee = (Decimal('0.029') * gross + Decimal('0.30'))
+        purchase.stripe_charge_id = charge_id
+        purchase.gross_amount = gross
+        purchase.stripe_fee = estimated_fee
+        purchase.net_after_stripe = gross - estimated_fee
+        purchase.status = 'payment_completed'
+        purchase.save()
+
+        logger.info(
+            f'Updated purchase {purchase.id} with LEGACY estimated fees: '
+            f'gross=${purchase.gross_amount}, stripe_fee=${purchase.stripe_fee}'
+        )
+
+    # Still trigger atomic purchase processing - this is critical!
+    _trigger_purchase_processing(purchase.id)
 
 
 def handle_checkout_session_completed(session):

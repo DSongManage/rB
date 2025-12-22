@@ -1,1 +1,2 @@
 web: bash start.sh
+worker: celery -A renaissBlock worker -l info --concurrency=2
