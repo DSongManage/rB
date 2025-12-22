@@ -350,13 +350,16 @@ export function KindleReader({
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(processedContent) }}
             style={{
               height: settings.continuousScroll ? 'auto' : '100%',
+              // CRITICAL: width must be unconstrained for columns to extend horizontally!
+              // Without this, CSS columns only creates columns that fit in parent width
+              width: settings.continuousScroll ? '100%' : 'max-content',
+              minWidth: settings.continuousScroll ? undefined : '100%',
               // CRITICAL: No horizontal padding on the column container!
               // Padding would offset columns from page boundaries
               padding: settings.continuousScroll ? '24px 48px' : '24px 0',
               boxSizing: 'border-box',
-              // CSS Columns - columnWidth determines column size, NOT column-count
-              // For pagination: columns flow horizontally, transform slides by pageWidth
-              // column-count would LIMIT total columns, breaking pagination
+              // CSS Columns - columnWidth determines column size
+              // Columns extend horizontally, parent clips with overflow:hidden
               columnGap: effectiveColumns === 'two' ? `${COLUMN_GAP}px` : '0',
               columnFill: 'auto',
               columnWidth: settings.continuousScroll
