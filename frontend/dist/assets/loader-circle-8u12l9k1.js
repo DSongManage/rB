@@ -1,0 +1,8 @@
+import{c as a}from"./index-DX1oHBoR.js";
+/**
+ * @license lucide-react v0.553.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const e=a("loader-circle",[["path",{d:"M21 12a9 9 0 1 1-6.219-8.56",key:"13zald"}]]);export{e as L};
+//# sourceMappingURL=loader-circle-8u12l9k1.js.map

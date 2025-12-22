@@ -73,9 +73,11 @@ export function KindleReader({
   }, [htmlContent]);
 
   // Calculate the page dimensions
-  // First principles: viewport width = page width = column width (for single column)
-  // or viewport width = 2 * column width + gap (for two columns)
-  // NO padding on the column container - margins applied via CSS to content
+  // First principles:
+  // - viewport width = page width (what we see at once)
+  // - column width = viewport width / N (for N columns per page)
+  // - NO column gap in CSS - visual spacing comes from content padding
+  // - This ensures columns align EXACTLY with page boundaries
   const calculateDimensions = useCallback(() => {
     const viewport = viewportRef.current;
     const content = contentRef.current;
@@ -91,12 +93,11 @@ export function KindleReader({
     // Force single column on phones for better readability
     const effectiveCols = isPhone ? 'single' : settings.columns;
 
-    // Column width must fit EXACTLY within viewport
-    // Single column: column width = viewport width (entire page is one column)
-    // Two columns: 2 * column width + gap = viewport width
+    // Column width = viewport / N (NO gap - content padding provides spacing)
+    // This ensures N columns fit EXACTLY in one page width
     const calculatedColumnWidth = effectiveCols === 'two'
-      ? Math.floor((viewportWidth - COLUMN_GAP) / 2)
-      : viewportWidth; // Single column = full viewport width, no rounding needed
+      ? Math.floor(viewportWidth / 2)
+      : viewportWidth;
     setColumnWidth(calculatedColumnWidth);
 
     // Wait for columns to render, then calculate total pages
@@ -106,8 +107,8 @@ export function KindleReader({
 
         const scrollWidth = content.scrollWidth;
         // Pages = total scroll width / viewport width
-        // Use Math.ceil to ensure we don't lose the last partial page
-        const pages = Math.max(1, Math.ceil(scrollWidth / viewportWidth));
+        // Subtract small tolerance to avoid extra blank page from rounding
+        const pages = Math.max(1, Math.ceil((scrollWidth - 1) / viewportWidth));
         setTotalPages(pages);
 
         // Ensure current page is valid
@@ -360,7 +361,9 @@ export function KindleReader({
               boxSizing: 'border-box',
               // CSS Columns - columnWidth determines column size
               // Columns extend horizontally, parent clips with overflow:hidden
-              columnGap: effectiveColumns === 'two' ? `${COLUMN_GAP}px` : '0',
+              // NO gap - content padding (32px each side) provides visual spacing
+              // This ensures columns align EXACTLY with page boundaries
+              columnGap: 0,
               columnFill: 'auto',
               columnWidth: settings.continuousScroll
                 ? undefined
