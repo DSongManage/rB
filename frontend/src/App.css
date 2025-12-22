@@ -266,7 +266,8 @@ button:hover { background:#d97706; }
     border-left: 1px solid #2a3444;
     flex-direction: column;
     align-items: stretch;
-    gap: 0;
+    justify-content: flex-start;
+    gap: 4px;
     padding: 16px;
     transform: translateX(100%);
     transition: transform 0.3s ease;
@@ -331,6 +332,20 @@ button:hover { background:#d97706; }
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ========================================
+   Global Layout Fixes
+   ======================================== */
+
+/* Prevent horizontal scroll on desktop */
+.rb-app {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.rb-main {
+  overflow-x: hidden;
 }
 
 /* ========================================
