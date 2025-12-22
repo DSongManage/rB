@@ -1139,6 +1139,16 @@ class Purchase(models.Model):
     content = models.ForeignKey(Content, on_delete=models.PROTECT, related_name='purchases', null=True, blank=True)
     chapter = models.ForeignKey('Chapter', on_delete=models.PROTECT, related_name='purchases', null=True, blank=True)
 
+    # Batch purchase reference (for cart checkout)
+    batch_purchase = models.ForeignKey(
+        'BatchPurchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchases',
+        help_text='Parent batch purchase if from cart checkout'
+    )
+
     # Payment provider tracking
     payment_provider = models.CharField(
         max_length=20,
@@ -3066,3 +3076,269 @@ class UserLegalAcceptance(models.Model):
             }
         )
         return acceptance, created
+
+
+# =============================================================================
+# SHOPPING CART MODELS
+# =============================================================================
+
+
+class Cart(models.Model):
+    """
+    User's shopping cart for batch purchasing.
+
+    Each user has one active cart at a time.
+    Carts expire after 24 hours of inactivity to prevent stale pricing.
+
+    Cart Flow:
+    1. User adds items -> status='active'
+    2. User clicks checkout -> status='checkout' (cart locked)
+    3. Payment completes -> status='completed'
+    4. Cart abandoned/expired -> status='abandoned'
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='cart'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('checkout', 'In Checkout'),
+        ('completed', 'Completed'),
+        ('abandoned', 'Abandoned'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+
+    # Stripe session for multi-item checkout
+    stripe_checkout_session_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default=''
+    )
+
+    # Aggregated pricing (calculated at checkout)
+    subtotal = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Sum of all item prices'
+    )
+    credit_card_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Single CC fee for entire cart'
+    )
+    total = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Final amount charged to buyer'
+    )
+
+    MAX_ITEMS = 10  # Cart item limit
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['status', '-updated_at']),
+        ]
+
+    def __str__(self):
+        return f"Cart for {self.user.username} ({self.items.count()} items)"
+
+    def calculate_totals(self):
+        """
+        Calculate cart totals with SINGLE CC fee for all items.
+
+        Major savings: One $0.30 + 2.9% instead of per-item.
+        """
+        from .payment_utils import calculate_cart_breakdown
+
+        item_prices = [item.unit_price for item in self.items.all()]
+        if not item_prices:
+            self.subtotal = None
+            self.credit_card_fee = None
+            self.total = None
+            self.save(update_fields=['subtotal', 'credit_card_fee', 'total'])
+            return None
+
+        breakdown = calculate_cart_breakdown(item_prices)
+
+        self.subtotal = breakdown['subtotal']
+        self.credit_card_fee = breakdown['credit_card_fee']
+        self.total = breakdown['buyer_total']
+        self.save(update_fields=['subtotal', 'credit_card_fee', 'total'])
+
+        return breakdown
+
+    def can_add_item(self):
+        """Check if cart can accept more items."""
+        return self.items.count() < self.MAX_ITEMS
+
+    def clear(self):
+        """Remove all items from cart."""
+        self.items.all().delete()
+        self.subtotal = None
+        self.credit_card_fee = None
+        self.total = None
+        self.status = 'active'
+        self.stripe_checkout_session_id = ''
+        self.save()
+
+
+class CartItem(models.Model):
+    """
+    Individual item in a shopping cart.
+
+    Supports both Chapter and Content purchases.
+    Price is snapshot at time of add to prevent checkout surprises.
+    """
+    cart = models.ForeignKey(
+        Cart,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+
+    # Purchasable items (one must be set)
+    chapter = models.ForeignKey(
+        'Chapter',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='cart_items'
+    )
+    content = models.ForeignKey(
+        Content,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='cart_items'
+    )
+
+    # Price snapshot (at time of add)
+    unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text='Price when item was added to cart'
+    )
+
+    # Creator info for multi-author distribution
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        help_text='Item creator for revenue distribution'
+    )
+
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [
+            ('cart', 'chapter'),
+            ('cart', 'content'),
+        ]
+        ordering = ['added_at']
+        indexes = [
+            models.Index(fields=['cart', 'chapter']),
+            models.Index(fields=['cart', 'content']),
+        ]
+
+    def __str__(self):
+        item = self.chapter or self.content
+        return f"{item.title} - ${self.unit_price}"
+
+    @property
+    def item(self):
+        """Return the purchasable item (Chapter or Content)."""
+        return self.chapter or self.content
+
+    @property
+    def item_type(self):
+        """Return 'chapter' or 'content'."""
+        return 'chapter' if self.chapter else 'content'
+
+
+class BatchPurchase(models.Model):
+    """
+    Tracks a batch purchase from cart checkout.
+
+    Links to multiple individual Purchase records.
+    Handles partial fulfillment and refunds.
+
+    Batch Flow:
+    1. Cart checkout creates BatchPurchase (status='payment_pending')
+    2. Stripe webhook confirms payment (status='payment_completed')
+    3. process_batch_purchase task runs (status='processing')
+    4. Each item is minted individually with best-effort approach
+    5. Partial refunds issued for failed items
+    6. Final status: 'completed' | 'partial' | 'failed'
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='batch_purchases'
+    )
+
+    # Stripe tracking
+    stripe_checkout_session_id = models.CharField(max_length=255, unique=True)
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True, default='')
+
+    # Aggregated amounts
+    total_items = models.PositiveIntegerField()
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    credit_card_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    total_charged = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # Processing status
+    STATUS_CHOICES = [
+        ('payment_pending', 'Payment Pending'),
+        ('payment_completed', 'Payment Completed'),
+        ('processing', 'Processing Mints'),
+        ('completed', 'Completed'),
+        ('partial', 'Partially Completed'),
+        ('failed', 'Failed'),
+        ('refunded', 'Fully Refunded'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='payment_pending')
+
+    # Minting progress
+    items_minted = models.PositiveIntegerField(default=0)
+    items_failed = models.PositiveIntegerField(default=0)
+
+    # Refund tracking
+    total_refunded = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text='Total amount refunded for failed items'
+    )
+
+    # Detailed processing log
+    processing_log = models.JSONField(
+        default=list,
+        help_text='Log of minting attempts and results'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['stripe_checkout_session_id']),
+        ]
+
+    def __str__(self):
+        return f"Batch {self.id}: {self.items_minted}/{self.total_items} for {self.user.username}"

@@ -14,6 +14,8 @@ import BetaOnboarding from './components/BetaOnboarding';
 import { Footer } from './components/legal/Footer';
 import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
+import { CartProvider } from './contexts/CartContext';
+import CartIcon from './components/CartIcon';
 import {
   User, LogOut, Menu, X, Users
 } from 'lucide-react';
@@ -38,6 +40,8 @@ const CollaborationDashboard = lazy(() => import('./pages/CollaborationDashboard
 const CollaborativeProjectPage = lazy(() => import('./pages/CollaborativeProjectPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const FollowingFeedPage = lazy(() => import('./pages/FollowingFeedPage'));
+const CartPage = lazy(() => import('./pages/CartPage'));
+const CartSuccessPage = lazy(() => import('./pages/CartSuccessPage'));
 
 // Legal pages
 const TermsOfServicePage = lazy(() => import('./pages/legal/TermsOfServicePage'));
@@ -168,6 +172,7 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
+            <CartIcon />
             <NotificationBell />
             <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
               <Users size={20} />
@@ -282,6 +287,7 @@ export default function App() {
   }
 
   return (
+    <CartProvider>
     <div className="rb-app">
       <Header />
       {showLibrarySidebar && <LibrarySidebar />}
@@ -320,6 +326,8 @@ export default function App() {
                 <Route path="/legal/creator-agreement" element={<CreatorAgreementPage />} />
                 <Route path="/content/:id" element={<ContentDetail />} />
                 <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
+                <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
+                <Route path="/cart/success" element={<ProtectedRoute><CartSuccessPage /></ProtectedRoute>} />
                 <Route path="/collaborations" element={<ProtectedRoute><CollaborationDashboard /></ProtectedRoute>} />
                 <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
@@ -335,5 +343,6 @@ export default function App() {
       <TestModeBanner />
       <BetaOnboarding />
     </div>
+    </CartProvider>
   );
 }

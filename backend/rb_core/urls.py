@@ -3,6 +3,10 @@ from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
 from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicBookProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView
 from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
+from .views.cart import (
+    CartView, AddToCartView, RemoveFromCartView, ClearCartView,
+    CartCheckoutView, CartBreakdownView
+)
 from .views.webhook import stripe_webhook
 from .views.purchases import UserPurchasesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView
@@ -58,6 +62,13 @@ urlpatterns = [
     path('api/webhooks/stripe/', stripe_webhook, name='stripe_webhook'),
     path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook_legacy'),  # Legacy alias
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
+    # Shopping cart endpoints
+    path('api/cart/', CartView.as_view(), name='cart'),
+    path('api/cart/add/', AddToCartView.as_view(), name='cart_add'),
+    path('api/cart/remove/<int:item_id>/', RemoveFromCartView.as_view(), name='cart_remove'),
+    path('api/cart/clear/', ClearCartView.as_view(), name='cart_clear'),
+    path('api/cart/checkout/', CartCheckoutView.as_view(), name='cart_checkout'),
+    path('api/cart/breakdown/', CartBreakdownView.as_view(), name='cart_breakdown'),
     # Library and reading
     path('api/library/', LibraryView.as_view(), name='library'),
     path('api/content/<int:pk>/full/', FullContentView.as_view(), name='content_full'),
