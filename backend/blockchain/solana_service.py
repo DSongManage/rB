@@ -118,17 +118,24 @@ def get_actual_transaction_fee(client: 'Client', signature: str) -> Decimal:
 
     Args:
         client: Solana RPC client
-        signature: Transaction signature
+        signature: Transaction signature (string)
 
     Returns:
         Actual gas fee in USD
     """
     try:
-        from .price_oracle import get_sol_price_usd, convert_lamports_to_usd
+        from .price_oracle import convert_lamports_to_usd
+        from solders.signature import Signature
+
+        # Convert string to Signature if needed
+        if isinstance(signature, str):
+            sig = Signature.from_string(signature)
+        else:
+            sig = signature
 
         # Get transaction details
         tx_response = client.get_transaction(
-            signature,
+            sig,
             encoding="jsonParsed",
             max_supported_transaction_version=0
         )

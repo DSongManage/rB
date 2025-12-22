@@ -451,19 +451,21 @@ def process_atomic_purchase(self, purchase_id):
         }
         purchase.save()
 
-        # Create CollaboratorPayment records
+        # Create or update CollaboratorPayment records (handles reprocessing)
         from .models import User as CoreUser
         for dist in result['distributions']:
             # dist['user'] is now a username string, look up the User object
             collaborator_user = CoreUser.objects.get(username=dist['user'])
-            CollaboratorPayment.objects.create(
+            CollaboratorPayment.objects.update_or_create(
                 purchase=purchase,
                 collaborator=collaborator_user,
-                collaborator_wallet=dist['wallet'],
-                amount_usdc=Decimal(str(dist['amount'])),
-                percentage=dist['percentage'],
-                role=dist.get('role'),
-                transaction_signature=result['transaction_signature']
+                defaults={
+                    'collaborator_wallet': dist['wallet'],
+                    'amount_usdc': Decimal(str(dist['amount'])),
+                    'percentage': dist['percentage'],
+                    'role': dist.get('role'),
+                    'transaction_signature': result['transaction_signature']
+                }
             )
 
         # ═══════════════════════════════════════════════════════════════════

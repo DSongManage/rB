@@ -188,17 +188,23 @@ class Command(BaseCommand):
                 def __init__(self, username):
                     self.username = username
 
+            # Use valid Solana devnet addresses for testing
+            # These are real devnet addresses (won't have funds, but valid format)
+            TEST_WALLET_1 = 'Gu3LDkn3Acg5ZjRrzbTvpN1DXRK4gQBe7RrwuBzNUwJH'
+            TEST_WALLET_2 = '5YNmS1R9nNSCDzb5a7mMJ1dwK9uHeAAF4CmPEwKgVWr8'
+            TEST_BUYER = 'FG4Y3yX4AAchp1HvNZ7LfzFTewF2f6nDoMDCohTFrdpk'
+
             collaborators = [
                 {
                     'user': MockUser('creator1'),
-                    'wallet_address': 'Gu3LDkn3Acg5ZjRrzbTvpN1DXRK4gQBe7RrwuBzNUwJH',
+                    'wallet_address': TEST_WALLET_1,
                     'amount_usdc': 0.45,
                     'percentage': 50,
                     'role': 'author'
                 },
                 {
                     'user': MockUser('creator2'),
-                    'wallet_address': 'Gu3LDkn3Acg5ZjRrzbTvpN1DXRK4gQBe7RrwuBzNUwJH',
+                    'wallet_address': TEST_WALLET_2,
                     'amount_usdc': 0.45,
                     'percentage': 50,
                     'role': 'illustrator'
@@ -207,7 +213,7 @@ class Command(BaseCommand):
 
             self.stdout.write('Executing mock atomic transaction...')
             result = mint_and_distribute_atomic(
-                buyer_wallet_address='BuyerWallet123456789',
+                buyer_wallet_address=TEST_BUYER,
                 metadata_uri='https://arweave.net/test_metadata',
                 nft_name='Test NFT',
                 nft_symbol='TEST',
