@@ -389,8 +389,26 @@ def process_atomic_purchase(self, purchase_id):
         if not buyer_wallet:
             raise ValueError(f'User {purchase.user.username} has no wallet address')
 
-        # Get metadata URI (TODO: implement proper metadata storage)
-        metadata_uri = f'https://arweave.net/mock_{item_type}_{item.id}'
+        # Create and upload NFT metadata to IPFS
+        from blockchain.metadata_service import (
+            create_and_upload_chapter_metadata,
+            create_and_upload_content_metadata
+        )
+
+        if item_type == 'chapter':
+            metadata_uri = create_and_upload_chapter_metadata(
+                chapter=item,
+                purchase=purchase,
+                collaborators=collaborator_payments
+            )
+        else:
+            metadata_uri = create_and_upload_content_metadata(
+                content=item,
+                purchase=purchase,
+                collaborators=collaborator_payments
+            )
+
+        logger.info(f'[Atomic Purchase] Metadata uploaded to: {metadata_uri}')
 
         result = mint_and_distribute_collaborative_nft(
             buyer_wallet_address=buyer_wallet,

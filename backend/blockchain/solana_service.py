@@ -124,6 +124,8 @@ def get_actual_transaction_fee(client: 'Client', signature: str) -> Decimal:
         Actual gas fee in USD
     """
     try:
+        from .price_oracle import get_sol_price_usd, convert_lamports_to_usd
+
         # Get transaction details
         tx_response = client.get_transaction(
             signature,
@@ -139,9 +141,8 @@ def get_actual_transaction_fee(client: 'Client', signature: str) -> Decimal:
         fee_lamports = tx_response.value.transaction.meta.fee
         fee_sol = Decimal(fee_lamports) / Decimal(LAMPORTS_PER_SOL)
 
-        # Convert to USD (TODO: use actual SOL price)
-        sol_price_usd = Decimal('100')
-        fee_usd = fee_sol * sol_price_usd
+        # Convert to USD using real price oracle
+        fee_usd = convert_lamports_to_usd(fee_lamports)
 
         logger.info(f"Actual tx fee: {fee_lamports} lamports = {fee_sol} SOL = ${fee_usd}")
         return fee_usd
@@ -605,9 +606,9 @@ def get_platform_usdc_balance() -> float:
 
 def get_sol_price_usd() -> Decimal:
     """
-    Get current SOL price in USD.
+    Get current SOL price in USD from price oracle.
 
-    TODO: Integrate with price oracle (Pyth, Chainlink, or CoinGecko API)
+    Uses CoinGecko API with caching. Falls back to default if unavailable.
     """
-    # Placeholder - in production, fetch from oracle
-    return Decimal('100')
+    from .price_oracle import get_sol_price_usd as fetch_sol_price
+    return fetch_sol_price()
