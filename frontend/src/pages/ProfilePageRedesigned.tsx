@@ -147,7 +147,22 @@ export default function ProfilePageRedesigned() {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editStatus, setEditStatus] = useState('');
+  const [editRoles, setEditRoles] = useState<string[]>([]);
+  const [editGenres, setEditGenres] = useState<string[]>([]);
   const [savingAbout, setSavingAbout] = useState(false);
+
+  // Predefined options for roles and genres
+  const ROLE_OPTIONS = [
+    'Author', 'Artist', 'Illustrator', 'Manga Artist', 'Comic Artist',
+    'Cover Designer', 'Editor', 'Proofreader', 'Narrator', 'Colorist',
+    'Letterer', 'Writer', 'Researcher', 'Analyst'
+  ];
+  const GENRE_OPTIONS = [
+    'Fantasy', 'Sci-Fi', 'Romance', 'Horror', 'Mystery', 'Thriller',
+    'Manga', 'Webtoon', 'Comics', 'Non-Fiction', 'Finance', 'Business',
+    'Self-Help', 'Biography', 'History', 'Action', 'Drama', 'Comedy',
+    'Slice of Life', 'Isekai', 'LitRPG'
+  ];
 
   // External portfolio state
   const [externalPortfolio, setExternalPortfolio] = useState<ExternalPortfolioItem[]>([]);
@@ -533,6 +548,8 @@ export default function ProfilePageRedesigned() {
     setEditDisplayName(profile?.display_name || '');
     setEditLocation(profile?.location || '');
     setEditStatus(profile?.status || 'Available');
+    setEditRoles(profile?.roles || []);
+    setEditGenres(profile?.genres || []);
     setEditingAbout(true);
   };
 
@@ -556,6 +573,8 @@ export default function ProfilePageRedesigned() {
           display_name: editDisplayName,
           location: editLocation,
           status: editStatus,
+          roles: editRoles,
+          genres: editGenres,
         }),
       });
 
@@ -979,6 +998,100 @@ export default function ProfilePageRedesigned() {
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Roles */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#cbd5e1',
+                marginBottom: 8,
+              }}>
+                Your Roles <span style={{ color: '#64748b', fontWeight: 400 }}>(what you do)</span>
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {ROLE_OPTIONS.map((role) => {
+                  const isSelected = editRoles.includes(role);
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setEditRoles(editRoles.filter(r => r !== role));
+                        } else {
+                          setEditRoles([...editRoles, role]);
+                        }
+                      }}
+                      style={{
+                        background: isSelected ? 'rgba(245, 158, 11, 0.2)' : '#1e293b',
+                        border: `1px solid ${isSelected ? '#f59e0b' : '#334155'}`,
+                        color: isSelected ? '#fbbf24' : '#94a3b8',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {role}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                Select all roles that apply to you. This helps collaborators find you.
+              </div>
+            </div>
+
+            {/* Genres */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#cbd5e1',
+                marginBottom: 8,
+              }}>
+                Your Genres <span style={{ color: '#64748b', fontWeight: 400 }}>(what you create)</span>
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {GENRE_OPTIONS.map((genre) => {
+                  const isSelected = editGenres.includes(genre);
+                  return (
+                    <button
+                      key={genre}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setEditGenres(editGenres.filter(g => g !== genre));
+                        } else {
+                          setEditGenres([...editGenres, genre]);
+                        }
+                      }}
+                      style={{
+                        background: isSelected ? 'rgba(59, 130, 246, 0.2)' : '#1e293b',
+                        border: `1px solid ${isSelected ? '#3b82f6' : '#334155'}`,
+                        color: isSelected ? '#60a5fa' : '#94a3b8',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {genre}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                Select genres you work in or are interested in.
+              </div>
             </div>
 
             {/* Bio */}
