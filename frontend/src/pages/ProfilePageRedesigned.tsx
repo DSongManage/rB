@@ -101,7 +101,8 @@ type SalesAnalytics = {
 };
 
 type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics' | 'following';
-type ContentFilterType = 'all' | 'book' | 'art' | 'music' | 'film';
+type ContentFilterType = 'all' | 'book' | 'art';
+// Note: 'music' and 'film' are coming soon - not included in MVP
 type StatusFilterType = 'all' | 'published' | 'draft';
 
 // Book project with chapters (from /api/book-projects/my-published/)
@@ -1271,18 +1272,7 @@ export default function ProfilePageRedesigned() {
               active={contentFilter === 'art'}
               onClick={() => setContentFilter('art')}
             />
-            <FilterChip
-              label="Music"
-              count={inventory.filter(i => i.content_type === 'music').length}
-              active={contentFilter === 'music'}
-              onClick={() => setContentFilter('music')}
-            />
-            <FilterChip
-              label="Film"
-              count={inventory.filter(i => i.content_type === 'film' || i.content_type === 'video').length}
-              active={contentFilter === 'film'}
-              onClick={() => setContentFilter('film')}
-            />
+            {/* Music & Film coming soon - hidden from filters */}
             <div style={{ width: 1, height: 24, background: '#334155', margin: '0 8px' }} />
             <FilterChip
               label="Published"
@@ -1349,13 +1339,12 @@ export default function ProfilePageRedesigned() {
           ) : (
             (() => {
               // Filter non-book inventory based on content type filter
+              // Note: music and film are coming soon, only book and art available
               let filteredInventory = contentFilter === 'all'
                 ? inventory
                 : contentFilter === 'book'
                   ? [] // Books are shown via bookProjects
-                  : contentFilter === 'film'
-                    ? inventory.filter(i => i.content_type === 'film' || i.content_type === 'video')
-                    : inventory.filter(i => i.content_type === contentFilter);
+                  : inventory.filter(i => i.content_type === contentFilter);
 
               // Apply status filter to inventory
               if (statusFilter === 'published') {

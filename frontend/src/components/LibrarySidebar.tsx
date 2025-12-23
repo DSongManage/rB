@@ -187,7 +187,7 @@ export function LibrarySidebar() {
           overflowX: 'auto',
         }}
       >
-        {(['books', 'art', 'film', 'music'] as const).map((tab) => {
+        {(['books', 'art'] as const).map((tab) => {
           const count = library?.[tab]?.length || 0;
           const isActive = selectedTab === tab;
           return (
@@ -224,6 +224,40 @@ export function LibrarySidebar() {
             </button>
           );
         })}
+        {/* Coming Soon tabs */}
+        {(['film', 'music'] as const).map((tab) => (
+          <button
+            key={tab}
+            disabled
+            style={{
+              background: '#111827',
+              border: '1px solid #2a3444',
+              color: '#64748b',
+              padding: '6px 12px',
+              borderRadius: 18,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'not-allowed',
+              whiteSpace: 'nowrap',
+              opacity: 0.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            <span style={{
+              fontSize: 8,
+              background: '#f59e0b',
+              color: '#000',
+              padding: '1px 3px',
+              borderRadius: 2,
+              fontWeight: 700,
+            }}>
+              SOON
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Content */}

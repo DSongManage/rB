@@ -66,11 +66,11 @@ interface RoleDefinition {
 // Project type options
 type ProjectType = 'book' | 'art' | 'music' | 'video';
 
-const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string; icon: React.ReactNode; description: string }[] = [
+const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string; icon: React.ReactNode; description: string; comingSoon?: boolean }[] = [
   { value: 'book', label: 'Book', icon: <BookOpen size={28} />, description: 'Written content with chapters' },
   { value: 'art', label: 'Art', icon: <Palette size={28} />, description: 'Visual artwork and illustrations' },
-  { value: 'music', label: 'Music', icon: <Music size={28} />, description: 'Audio tracks and albums' },
-  { value: 'video', label: 'Film', icon: <Film size={28} />, description: 'Video content and films' },
+  { value: 'music', label: 'Music', icon: <Music size={28} />, description: 'Audio tracks and albums', comingSoon: true },
+  { value: 'video', label: 'Film', icon: <Film size={28} />, description: 'Video content and films', comingSoon: true },
 ];
 
 type InviteModalProps = {
@@ -515,25 +515,47 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => handleProjectTypeChange(option.value)}
+                    onClick={() => !option.comingSoon && handleProjectTypeChange(option.value)}
+                    disabled={option.comingSoon}
                     style={{
-                      background: projectType === option.value ? 'rgba(245,158,11,0.15)' : '#1e293b',
-                      border: `2px solid ${projectType === option.value ? '#f59e0b' : '#334155'}`,
+                      background: option.comingSoon
+                        ? '#1e293b'
+                        : projectType === option.value
+                          ? 'rgba(245,158,11,0.15)'
+                          : '#1e293b',
+                      border: `2px solid ${option.comingSoon ? '#334155' : projectType === option.value ? '#f59e0b' : '#334155'}`,
                       borderRadius: 12,
                       padding: 16,
-                      cursor: 'pointer',
+                      cursor: option.comingSoon ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 8,
                       transition: 'all 0.2s ease',
+                      opacity: option.comingSoon ? 0.5 : 1,
+                      position: 'relative',
                     }}
                   >
-                    <span style={{ color: projectType === option.value ? '#f59e0b' : '#94a3b8' }}>
+                    {option.comingSoon && (
+                      <span style={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        background: '#f59e0b',
+                        color: '#000',
+                        fontSize: 8,
+                        fontWeight: 700,
+                        padding: '2px 4px',
+                        borderRadius: 3,
+                      }}>
+                        SOON
+                      </span>
+                    )}
+                    <span style={{ color: option.comingSoon ? '#64748b' : projectType === option.value ? '#f59e0b' : '#94a3b8' }}>
                       {option.icon}
                     </span>
                     <span style={{
-                      color: projectType === option.value ? '#f59e0b' : '#f8fafc',
+                      color: option.comingSoon ? '#64748b' : projectType === option.value ? '#f59e0b' : '#f8fafc',
                       fontSize: 14,
                       fontWeight: 600
                     }}>

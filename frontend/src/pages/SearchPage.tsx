@@ -8,8 +8,8 @@ const TYPE_FILTERS = [
   { label: 'All', value: 'all' },
   { label: 'Books', value: 'book' },
   { label: 'Art', value: 'art' },
-  { label: 'Film', value: 'film' },
-  { label: 'Music', value: 'music' },
+  { label: 'Film', value: 'film', comingSoon: true },
+  { label: 'Music', value: 'music', comingSoon: true },
 ];
 
 const GENRE_FILTERS = [
@@ -141,10 +141,29 @@ export default function SearchPage() {
           {TYPE_FILTERS.map(f => (
             <button
               key={f.value}
-              className={`chip ${type === f.value ? 'active' : ''}`}
-              onClick={() => handleTypeChange(f.value)}
+              className={`chip ${type === f.value ? 'active' : ''} ${f.comingSoon ? 'disabled' : ''}`}
+              onClick={() => !f.comingSoon && handleTypeChange(f.value)}
+              disabled={f.comingSoon}
+              style={{
+                opacity: f.comingSoon ? 0.5 : 1,
+                cursor: f.comingSoon ? 'not-allowed' : 'pointer',
+                position: 'relative',
+              }}
             >
               {f.label}
+              {f.comingSoon && (
+                <span style={{
+                  fontSize: 9,
+                  background: '#f59e0b',
+                  color: '#000',
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                  marginLeft: 4,
+                  fontWeight: 700,
+                }}>
+                  SOON
+                </span>
+              )}
             </button>
           ))}
         </div>

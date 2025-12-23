@@ -10,7 +10,8 @@ import { PendingInviteCard } from '../components/collaboration/PendingInviteCard
 import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
 import { useAuth } from '../hooks/useAuth';
 
-type FilterType = 'all' | 'book' | 'music' | 'video' | 'art';
+type FilterType = 'all' | 'book' | 'art';
+// Note: music and video are coming soon - not included in MVP
 type SortType = 'recent' | 'oldest' | 'title';
 
 interface PendingInvite {
@@ -177,9 +178,8 @@ export default function CollaborationDashboard() {
         >
           <option value="all">All Types</option>
           <option value="book">📖 Books</option>
-          <option value="music">🎵 Music</option>
-          <option value="video">🎬 Video</option>
           <option value="art">🎨 Art</option>
+          {/* Music & Video coming soon */}
         </select>
 
         {/* Sort */}
@@ -882,7 +882,8 @@ interface NewProjectModalProps {
 
 function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
   const [title, setTitle] = useState('');
-  const [contentType, setContentType] = useState<'book' | 'music' | 'video' | 'art'>('book');
+  const [contentType, setContentType] = useState<'book' | 'art'>('book');
+  // Note: music and video are coming soon
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
@@ -1004,7 +1005,8 @@ function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
             Content Type *
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {(['book', 'music', 'video', 'art'] as const).map(type => (
+            {/* Available content types */}
+            {(['book', 'art'] as const).map(type => (
               <button
                 key={type}
                 onClick={() => setContentType(type)}
@@ -1024,11 +1026,48 @@ function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
               >
                 <span style={{ fontSize: 20 }}>
                   {type === 'book' && '📖'}
-                  {type === 'music' && '🎵'}
-                  {type === 'video' && '🎬'}
                   {type === 'art' && '🎨'}
                 </span>
                 {type.charAt(0).toUpperCase() + type.slice(1)}
+              </button>
+            ))}
+            {/* Coming soon content types */}
+            {(['music', 'video'] as const).map(type => (
+              <button
+                key={type}
+                disabled
+                style={{
+                  background: 'var(--bg)',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 8,
+                  padding: '12px 16px',
+                  color: '#64748b',
+                  cursor: 'not-allowed',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  opacity: 0.5,
+                  position: 'relative',
+                }}
+              >
+                <span style={{ fontSize: 20 }}>
+                  {type === 'music' && '🎵'}
+                  {type === 'video' && '🎬'}
+                </span>
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+                <span style={{
+                  fontSize: 9,
+                  background: '#f59e0b',
+                  color: '#000',
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                  fontWeight: 700,
+                  marginLeft: 'auto',
+                }}>
+                  SOON
+                </span>
               </button>
             ))}
           </div>

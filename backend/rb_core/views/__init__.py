@@ -220,6 +220,14 @@ class ContentListView(generics.ListCreateAPIView):
         title = (self.request.data.get('title') or '').lower()
         flagged = any(w in title for w in bad_words)
 
+        # MVP: Film and Music content types are coming soon - reject creation attempts
+        content_type_check = (self.request.data.get('content_type') or '').strip().lower()
+        if content_type_check in ('film', 'music', 'video'):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'content_type': 'Film and Music content types are coming soon. Please create Books or Art for now.'
+            })
+
         # Validate upload if a file was provided (with magic byte validation)
         if file:
             validate_upload(file)

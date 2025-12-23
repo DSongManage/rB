@@ -70,6 +70,14 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Create project and add creator as first collaborator with 100% revenue."""
+        # MVP: Music and Video content types are coming soon - reject creation attempts
+        content_type = self.request.data.get('content_type', '').strip().lower()
+        if content_type in ('music', 'video'):
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                'content_type': 'Music and Video content types are coming soon. Please create Book or Art projects for now.'
+            })
+
         user = self.request.user
         try:
             core_user = CoreUser.objects.get(username=user.username)
