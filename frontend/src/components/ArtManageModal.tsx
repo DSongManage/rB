@@ -44,10 +44,18 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
     setError('');
 
     try {
+      // Get CSRF token first
+      const csrfResponse = await fetch(`${API_URL}/api/auth/csrf/`, {
+        credentials: 'include',
+      });
+      const csrfData = await csrfResponse.json();
+      const csrfToken = csrfData?.csrfToken || '';
+
       const response = await fetch(`${API_URL}/api/content/${item.id}/unpublish/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
         },
         credentials: 'include',
       });
@@ -80,12 +88,20 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
     setError('');
 
     try {
+      // Get CSRF token first
+      const csrfResponse = await fetch(`${API_URL}/api/auth/csrf/`, {
+        credentials: 'include',
+      });
+      const csrfData = await csrfResponse.json();
+      const csrfToken = csrfData?.csrfToken || '';
+
       const response = await fetch(
         `${API_URL}/api/collaborative-projects/${item.source_project_id}/proposals/`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
           },
           credentials: 'include',
           body: JSON.stringify({
