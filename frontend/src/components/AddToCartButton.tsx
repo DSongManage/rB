@@ -36,7 +36,7 @@ export default function AddToCartButton({
   const type = chapterId ? 'chapter' : 'content';
   const itemId = chapterId || contentId || 0;
   const inCart = isInCart(itemId, type);
-  const cartFull = cart && cart.item_count >= cart.max_items;
+  const cartFull = !!(cart && cart.item_count >= cart.max_items);
 
   async function handleClick() {
     if (alreadyOwned || inCart || cartFull || loading) return;

@@ -332,7 +332,7 @@ export default function PublishTab({
           setAuthorsNote={setAuthorsNote}
           onNext={isProjectLead ? handleSaveCustomization : () => setStep('approve')}
           saving={saving}
-          authorName={project.creator_display_name || project.creator_username || 'Creator'}
+          authorName={project.created_by_username || 'Creator'}
         />
       )}
 
