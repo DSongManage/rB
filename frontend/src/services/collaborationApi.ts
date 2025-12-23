@@ -9,6 +9,12 @@ import { API_URL as API_BASE } from '../config';
 
 // ===== TypeScript Interfaces =====
 
+export interface CopyrightPreview {
+  copyright_line: string;
+  blockchain_message: string;
+  full_text: string;
+}
+
 export interface CollaborativeProject {
   id: number;
   title: string;
@@ -22,6 +28,7 @@ export interface CollaborativeProject {
   watermark_preview: boolean;
   authors_note?: string;
   estimated_earnings?: { [userId: number]: number };
+  copyright_preview?: CopyrightPreview;
   created_by: number;
   created_by_username: string;
   created_at: string;
@@ -154,6 +161,7 @@ export interface ProjectSection {
   section_type: 'text' | 'image' | 'audio' | 'video';
   title: string;
   content_html?: string;
+  synopsis?: string;
   media_file?: string;
   owner: number;
   owner_username: string;

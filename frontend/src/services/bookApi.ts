@@ -10,10 +10,23 @@ export interface Chapter {
   id: number;
   title: string;
   content_html: string;
+  synopsis: string;
   order: number;
   created_at: string;
   updated_at: string;
   is_published: boolean;
+}
+
+export interface CopyrightPreview {
+  copyright_line: string;
+  blockchain_message: string;
+  full_text: string;
+}
+
+export interface SeriesInfo {
+  id: number;
+  title: string;
+  book_count: number;
 }
 
 export interface BookProject {
@@ -24,10 +37,31 @@ export interface BookProject {
   cover_image_url?: string | null;
   chapters: Chapter[];
   chapter_count: number;
+  series?: number | null;
+  series_order?: number;
+  series_info?: SeriesInfo | null;
+  copyright_preview?: CopyrightPreview;
   created_at: string;
   updated_at: string;
   is_published: boolean;
   target_chapter_id?: number; // Set when loading by content ID of a specific chapter
+}
+
+export interface Series {
+  id: number;
+  title: string;
+  synopsis: string;
+  cover_image?: string | null;
+  cover_image_url?: string | null;
+  book_count: number;
+  books: {
+    id: number;
+    title: string;
+    series_order: number;
+    is_published: boolean;
+  }[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ContentResponse {
@@ -342,6 +376,110 @@ export const bookApi = {
     }
 
     return response.json();
+  },
+};
+
+/**
+ * Series API Service
+ *
+ * Provides functions for managing book series.
+ */
+export const seriesApi = {
+  /**
+   * Get all series for the current user
+   */
+  async getSeries(): Promise<Series[]> {
+    const response = await fetch(`${API_BASE}/api/series/`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch series');
+    return response.json();
+  },
+
+  /**
+   * Get a specific series by ID
+   */
+  async getSeriesById(id: number): Promise<Series> {
+    const response = await fetch(`${API_BASE}/api/series/${id}/`, {
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error('Failed to fetch series');
+    return response.json();
+  },
+
+  /**
+   * Create a new series
+   */
+  async createSeries(title: string, synopsis: string): Promise<Series> {
+    const csrfToken = await getFreshCsrfToken();
+    const response = await fetch(`${API_BASE}/api/series/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      body: JSON.stringify({ title, synopsis }),
+    });
+    if (!response.ok) throw new Error('Failed to create series');
+    return response.json();
+  },
+
+  /**
+   * Update a series
+   */
+  async updateSeries(id: number, data: Partial<Series>): Promise<Series> {
+    const csrfToken = await getFreshCsrfToken();
+    const response = await fetch(`${API_BASE}/api/series/${id}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to update series');
+    return response.json();
+  },
+
+  /**
+   * Delete a series
+   */
+  async deleteSeries(id: number): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
+    const response = await fetch(`${API_BASE}/api/series/${id}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    if (!response.ok) throw new Error('Failed to delete series');
+  },
+
+  /**
+   * Add a book to a series
+   */
+  async addBookToSeries(seriesId: number, bookId: number): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
+    const response = await fetch(`${API_BASE}/api/series/${seriesId}/add-book/${bookId}/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    if (!response.ok) throw new Error('Failed to add book to series');
+  },
+
+  /**
+   * Remove a book from its series
+   */
+  async removeBookFromSeries(bookId: number): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
+    const response = await fetch(`${API_BASE}/api/book-projects/${bookId}/remove-from-series/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    if (!response.ok) throw new Error('Failed to remove book from series');
   },
 };
 

@@ -3,7 +3,7 @@ from .models import (
     Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification,
     BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition,
-    ContentLike, ContentComment, ContentRating, CreatorReview, Tag
+    ContentLike, ContentComment, ContentRating, CreatorReview, Tag, Series
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -310,7 +310,7 @@ class ChapterSerializer(serializers.ModelSerializer):
     """Serializer for individual book chapters."""
     class Meta:
         model = Chapter
-        fields = ['id', 'title', 'content_html', 'order', 'created_at', 'updated_at', 'is_published']
+        fields = ['id', 'title', 'content_html', 'synopsis', 'order', 'created_at', 'updated_at', 'is_published']
         read_only_fields = ['created_at', 'updated_at', 'is_published', 'order']
 
 
@@ -319,15 +319,18 @@ class BookProjectSerializer(serializers.ModelSerializer):
     chapters = ChapterSerializer(many=True, read_only=True)
     chapter_count = serializers.SerializerMethodField()
     cover_image_url = serializers.SerializerMethodField()
-    
+    series_info = serializers.SerializerMethodField()
+    copyright_preview = serializers.SerializerMethodField()
+
     class Meta:
         model = BookProject
-        fields = ['id', 'title', 'description', 'cover_image', 'cover_image_url', 'chapters', 'chapter_count', 'created_at', 'updated_at', 'is_published']
-        read_only_fields = ['created_at', 'updated_at', 'is_published', 'chapter_count', 'cover_image_url']
-    
+        fields = ['id', 'title', 'description', 'cover_image', 'cover_image_url', 'chapters', 'chapter_count',
+                  'series', 'series_order', 'series_info', 'copyright_preview', 'created_at', 'updated_at', 'is_published']
+        read_only_fields = ['created_at', 'updated_at', 'is_published', 'chapter_count', 'cover_image_url', 'series_info', 'copyright_preview']
+
     def get_chapter_count(self, obj):
         return obj.chapters.count()
-    
+
     def get_cover_image_url(self, obj):
         if obj.cover_image:
             request = self.context.get('request')
@@ -335,6 +338,67 @@ class BookProjectSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.cover_image.url)
             return obj.cover_image.url
         return None
+
+    def get_series_info(self, obj):
+        """Return series info if book belongs to a series."""
+        if obj.series:
+            return {
+                'id': obj.series.id,
+                'title': obj.series.title,
+                'book_count': obj.series.book_count(),
+            }
+        return None
+
+    def get_copyright_preview(self, obj):
+        """Generate copyright text for preview."""
+        from datetime import datetime
+        year = datetime.now().year
+        author_name = obj.creator.username
+        if hasattr(obj.creator, 'profile') and obj.creator.profile and obj.creator.profile.display_name:
+            author_name = obj.creator.profile.display_name
+
+        copyright_line = f"(C) {year} {author_name}. All Rights Reserved."
+        blockchain_message = "Every work published on renaissBlock is timestamped on the blockchain - creating an immutable record of your authorship. No registration required."
+
+        return {
+            'copyright_line': copyright_line,
+            'blockchain_message': blockchain_message,
+            'full_text': f"{copyright_line}\n\n{blockchain_message}"
+        }
+
+
+class SeriesSerializer(serializers.ModelSerializer):
+    """Serializer for book series."""
+    book_count = serializers.SerializerMethodField()
+    cover_image_url = serializers.SerializerMethodField()
+    books = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Series
+        fields = ['id', 'title', 'synopsis', 'cover_image', 'cover_image_url',
+                  'book_count', 'books', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'book_count', 'cover_image_url']
+
+    def get_book_count(self, obj):
+        return obj.books.count()
+
+    def get_cover_image_url(self, obj):
+        if obj.cover_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.cover_image.url)
+            return obj.cover_image.url
+        return None
+
+    def get_books(self, obj):
+        """Return lightweight list of books in this series."""
+        books = obj.books.order_by('series_order', 'created_at')
+        return [{
+            'id': book.id,
+            'title': book.title,
+            'series_order': book.series_order,
+            'is_published': book.is_published,
+        } for book in books]
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -560,7 +624,7 @@ class ProjectSectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectSection
         fields = [
-            'id', 'project', 'section_type', 'title', 'content_html', 'media_file',
+            'id', 'project', 'section_type', 'title', 'content_html', 'synopsis', 'media_file',
             'owner', 'owner_username', 'order', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'owner_username', 'owner']
@@ -606,6 +670,7 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
     total_collaborators = serializers.SerializerMethodField()
     progress_percentage = serializers.SerializerMethodField()
     estimated_earnings = serializers.SerializerMethodField()
+    copyright_preview = serializers.SerializerMethodField()
 
     class Meta:
         model = CollaborativeProject
@@ -615,11 +680,11 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
             'created_by', 'created_by_username', 'created_at', 'updated_at',
             'collaborators', 'sections', 'recent_comments', 'is_fully_approved',
             'total_collaborators', 'progress_percentage', 'estimated_earnings',
-            'authors_note'
+            'authors_note', 'copyright_preview'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'created_by_username',
-            'is_fully_approved', 'total_collaborators', 'estimated_earnings'
+            'is_fully_approved', 'total_collaborators', 'estimated_earnings', 'copyright_preview'
         ]
 
     def get_recent_comments(self, obj):
@@ -659,6 +724,24 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
         for collab in obj.collaborators.filter(status='accepted'):
             earnings[collab.user_id] = round(creator_pool * float(collab.revenue_percentage) / 100, 2)
         return earnings
+
+    def get_copyright_preview(self, obj):
+        """Generate copyright text for preview."""
+        from datetime import datetime
+        year = datetime.now().year
+        # Use project owner's name for collaborative projects
+        author_name = obj.created_by.username
+        if hasattr(obj.created_by, 'profile') and obj.created_by.profile and obj.created_by.profile.display_name:
+            author_name = obj.created_by.profile.display_name
+
+        copyright_line = f"(C) {year} {author_name}. All Rights Reserved."
+        blockchain_message = "Every work published on renaissBlock is timestamped on the blockchain - creating an immutable record of your authorship. No registration required."
+
+        return {
+            'copyright_line': copyright_line,
+            'blockchain_message': blockchain_message,
+            'full_text': f"{copyright_line}\n\n{blockchain_message}"
+        }
 
 
 class CollaborativeProjectListSerializer(serializers.ModelSerializer):

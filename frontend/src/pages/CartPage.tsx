@@ -6,8 +6,9 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, CreditCard, ArrowLeft, Sparkles, Heart, AlertCircle } from 'lucide-react';
+import { ShoppingCart, Trash2, CreditCard, ArrowLeft, Sparkles, Heart, AlertCircle, BookOpen } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
+import { API_URL } from '../config';
 
 export default function CartPage() {
   const { cart, loading, error, removeFromCart, clearCart, checkout, refreshCart } = useCart();
@@ -109,58 +110,116 @@ export default function CartPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '32px' }}>
         {/* Items List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {cart.items.map(item => (
-            <div
-              key={item.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '20px',
-                backgroundColor: 'var(--bg-secondary, #1e293b)',
-                borderRadius: '12px',
-                border: '1px solid var(--border, #334155)',
-                opacity: removingId === item.id ? 0.5 : 1,
-                transition: 'opacity 0.2s ease',
-              }}
-            >
-              <div style={{ flex: 1 }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>
-                  {item.title}
-                </h3>
-                {item.book_title && (
-                  <p style={{ fontSize: '14px', color: 'var(--text-muted, #94a3b8)', marginBottom: '4px' }}>
-                    {item.book_title} &bull; Chapter {item.chapter_order}
-                  </p>
-                )}
-                <p style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                  By @{item.creator_username}
-                </p>
-              </div>
+          {cart.items.map(item => {
+            // Build cover URL - handle relative paths from Django
+            let coverSrc = null;
+            if (item.cover_url) {
+              coverSrc = item.cover_url.startsWith('http')
+                ? item.cover_url
+                : `${API_URL}${item.cover_url}`;
+            }
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <span style={{ fontSize: '18px', fontWeight: 600 }}>
-                  ${item.unit_price}
-                </span>
-                <button
-                  onClick={() => handleRemove(item.id)}
-                  disabled={removingId === item.id}
-                  style={{
-                    padding: '8px',
-                    backgroundColor: 'transparent',
-                    color: 'var(--text-error, #ef4444)',
-                    border: '1px solid var(--text-error, #ef4444)',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    opacity: removingId === item.id ? 0.5 : 1,
-                  }}
-                  title="Remove from cart"
-                >
-                  <Trash2 size={16} />
-                </button>
+            return (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex',
+                  gap: '16px',
+                  padding: '16px',
+                  backgroundColor: 'var(--bg-secondary, #1e293b)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border, #334155)',
+                  opacity: removingId === item.id ? 0.5 : 1,
+                  transition: 'opacity 0.2s ease',
+                }}
+              >
+                {/* Cover Image */}
+                <div style={{
+                  width: '80px',
+                  height: '100px',
+                  flexShrink: 0,
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  backgroundColor: 'var(--bg-tertiary, #0f172a)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  {coverSrc ? (
+                    <img
+                      src={coverSrc}
+                      alt={item.title}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <BookOpen size={32} style={{ color: 'var(--text-muted, #64748b)', opacity: 0.5 }} />
+                  )}
+                </div>
+
+                {/* Item Details */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h3 style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    marginBottom: '4px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {item.title}
+                  </h3>
+                  {item.book_title && (
+                    <p style={{
+                      fontSize: '13px',
+                      color: 'var(--text-muted, #94a3b8)',
+                      marginBottom: '4px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {item.book_title} &bull; Chapter {item.chapter_order}
+                    </p>
+                  )}
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                    By @{item.creator_username}
+                  </p>
+                </div>
+
+                {/* Price and Actions */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  justifyContent: 'space-between',
+                  flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--accent, #3b82f6)' }}>
+                    ${item.unit_price}
+                  </span>
+                  <button
+                    onClick={() => handleRemove(item.id)}
+                    disabled={removingId === item.id}
+                    style={{
+                      padding: '8px',
+                      backgroundColor: 'transparent',
+                      color: 'var(--text-error, #ef4444)',
+                      border: '1px solid var(--text-error, #ef4444)',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      opacity: removingId === item.id ? 0.5 : 1,
+                    }}
+                    title="Remove from cart"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Clear Cart */}
           <button
@@ -270,13 +329,14 @@ export default function CartPage() {
               justifyContent: 'center',
               gap: '10px',
               padding: '16px 24px',
-              backgroundColor: checkingOut ? 'var(--bg-disabled, #475569)' : 'var(--accent, #3b82f6)',
-              color: 'white',
+              backgroundColor: checkingOut ? 'var(--bg-disabled, #475569)' : '#f59e0b',
+              color: checkingOut ? '#94a3b8' : '#000',
               border: 'none',
               borderRadius: '10px',
               fontSize: '16px',
               fontWeight: 600,
               cursor: checkingOut ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s ease',
             }}
           >
             <CreditCard size={20} />

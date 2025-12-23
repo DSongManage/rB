@@ -24,6 +24,7 @@ interface Chapter {
   id: number;
   title: string;
   content_html: string;
+  synopsis: string;
   order: number;
   owner: number;
   owner_username: string;
@@ -59,6 +60,7 @@ export default function CollaborativeBookEditor({
           id: s.id,
           title: s.title,
           content_html: s.content_html || '',
+          synopsis: s.synopsis || '',
           order: s.order,
           owner: s.owner,
           owner_username: s.owner_username,
@@ -91,6 +93,7 @@ export default function CollaborativeBookEditor({
         id: newSection.id,
         title: newSection.title,
         content_html: newSection.content_html || '',
+        synopsis: newSection.synopsis || '',
         order: newSection.order,
         owner: newSection.owner,
         owner_username: newSection.owner_username,
@@ -103,16 +106,20 @@ export default function CollaborativeBookEditor({
     }
   };
 
-  const handleUpdateChapter = async (chapterId: number, title: string, content: string) => {
+  const handleUpdateChapter = async (chapterId: number, title: string, content: string, synopsis?: string) => {
     setSaving(true);
     try {
-      const updated = await collaborationApi.updateProjectSection(chapterId, {
+      const updateData: { title: string; content_html: string; synopsis?: string } = {
         title,
         content_html: content,
-      });
+      };
+      if (synopsis !== undefined) {
+        updateData.synopsis = synopsis;
+      }
+      const updated = await collaborationApi.updateProjectSection(chapterId, updateData);
       setChapters(chapters.map(ch =>
         ch.id === chapterId
-          ? { ...ch, title: updated.title, content_html: updated.content_html || '' }
+          ? { ...ch, title: updated.title, content_html: updated.content_html || '', synopsis: updated.synopsis || '' }
           : ch
       ));
       setLastSaved(new Date());
@@ -315,7 +322,7 @@ export default function CollaborativeBookEditor({
           <ChapterEditor
             chapter={selectedChapter}
             canEdit={canEditSelectedChapter || false}
-            onUpdate={(title, content) => handleUpdateChapter(selectedChapter.id, title, content)}
+            onUpdate={(title, content, synopsis) => handleUpdateChapter(selectedChapter.id, title, content, synopsis)}
             onDelete={() => handleDeleteChapter(selectedChapter.id)}
             saving={saving}
             lastSaved={lastSaved}
@@ -343,7 +350,7 @@ export default function CollaborativeBookEditor({
 interface ChapterEditorProps {
   chapter: Chapter;
   canEdit: boolean;
-  onUpdate: (title: string, content: string) => void;
+  onUpdate: (title: string, content: string, synopsis?: string) => void;
   onDelete: () => void;
   saving: boolean;
   lastSaved: Date | null;
@@ -359,11 +366,14 @@ function ChapterEditor({
 }: ChapterEditorProps) {
   const [title, setTitle] = useState(chapter.title);
   const [content, setContent] = useState(chapter.content_html);
+  const [synopsis, setSynopsis] = useState(chapter.synopsis);
+  const [showSynopsis, setShowSynopsis] = useState(false);
 
   // Sync when chapter changes
   useEffect(() => {
     setTitle(chapter.title);
     setContent(chapter.content_html);
+    setSynopsis(chapter.synopsis);
   }, [chapter.id]);
 
   // Auto-save with debounce
@@ -371,13 +381,13 @@ function ChapterEditor({
     if (!canEdit) return;
 
     const timer = setTimeout(() => {
-      if (title !== chapter.title || content !== chapter.content_html) {
-        onUpdate(title, content);
+      if (title !== chapter.title || content !== chapter.content_html || synopsis !== chapter.synopsis) {
+        onUpdate(title, content, synopsis);
       }
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [title, content]);
+  }, [title, content, synopsis]);
 
   const quillModules = {
     toolbar: [
@@ -457,6 +467,60 @@ function ChapterEditor({
           <span style={{ color: '#ef4444', marginLeft: 8 }}>
             (Read-only - you can only edit your own chapters)
           </span>
+        )}
+      </div>
+
+      {/* Synopsis Toggle */}
+      <div style={{ marginBottom: 12 }}>
+        <button
+          onClick={() => setShowSynopsis(!showSynopsis)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#94a3b8',
+            fontSize: 12,
+            cursor: 'pointer',
+            padding: '4px 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <span style={{
+            fontSize: 10,
+            transform: showSynopsis ? 'rotate(90deg)' : 'rotate(0)',
+            transition: 'transform 0.2s',
+          }}>
+            ▶
+          </span>
+          Synopsis {synopsis ? `(${synopsis.split(/\s+/).filter(w => w).length} words)` : '(optional)'}
+        </button>
+        {showSynopsis && (
+          <div style={{ marginTop: 8 }}>
+            <textarea
+              value={synopsis}
+              onChange={(e) => canEdit && setSynopsis(e.target.value)}
+              placeholder="Brief summary of this chapter (optional, max 150 words)..."
+              disabled={!canEdit}
+              maxLength={1000}
+              style={{
+                width: '100%',
+                minHeight: 80,
+                background: !canEdit ? 'rgba(100,100,100,0.05)' : 'var(--bg)',
+                border: '1px solid var(--panel-border)',
+                borderRadius: 8,
+                padding: '10px 14px',
+                color: !canEdit ? '#64748b' : 'var(--text)',
+                fontSize: 13,
+                resize: 'vertical',
+                cursor: !canEdit ? 'not-allowed' : 'text',
+                outline: 'none',
+              }}
+            />
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+              {synopsis.split(/\s+/).filter(w => w).length}/150 words recommended
+            </div>
+          </div>
         )}
       </div>
 

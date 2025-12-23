@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Play, ChevronDown, ChevronUp, User } from 'lucide-react';
 import PreviewModal from '../components/PreviewModal';
+import AddToCartButton from '../components/AddToCartButton';
 import { API_URL } from '../config';
 import { RatingSection } from '../components/social/RatingSection';
 
@@ -236,6 +237,17 @@ export default function ContentDetail(){
             <Play size={18} />
             View Preview
           </button>
+
+          {/* Add to Cart Button - shows if available for purchase */}
+          {isAuthenticated && editionsNum > 0 && priceNum > 0 && (
+            <div style={{ marginTop: 12, width: '100%' }}>
+              <AddToCartButton
+                contentId={parseInt(id!)}
+                price={priceNum.toFixed(2)}
+                alreadyOwned={data?.user_owns}
+              />
+            </div>
+          )}
         </div>
 
         {/* Content Info */}
@@ -410,6 +422,74 @@ export default function ContentDetail(){
               </div>
             )}
           </div>
+
+          {/* Synopsis/Description for Books */}
+          {data?.content_type === 'book' && data?.description && (
+            <div style={{
+              background: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 16,
+            }}>
+              <div style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#60a5fa',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: 8,
+              }}>
+                Synopsis
+              </div>
+              <p style={{
+                color: '#e2e8f0',
+                fontSize: 14,
+                lineHeight: 1.7,
+                margin: 0,
+              }}>
+                {data.description}
+              </p>
+            </div>
+          )}
+
+          {/* Series Info */}
+          {data?.series_info && (
+            <div style={{
+              background: 'rgba(139, 92, 246, 0.08)',
+              border: '1px solid rgba(139, 92, 246, 0.2)',
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 16,
+            }}>
+              <div style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#a78bfa',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: 8,
+              }}>
+                Part of Series
+              </div>
+              <div style={{
+                color: '#e2e8f0',
+                fontSize: 15,
+                fontWeight: 600,
+              }}>
+                {data.series_info.title}
+              </div>
+              {data.series_info.book_count > 1 && (
+                <div style={{
+                  color: '#94a3b8',
+                  fontSize: 12,
+                  marginTop: 4,
+                }}>
+                  {data.series_info.book_count} books in this series
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Author's Note */}
           {data?.authors_note && (

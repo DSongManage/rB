@@ -784,32 +784,83 @@ def process_batch_purchase(self, batch_purchase_id):
                 if not collaborators:
                     raise ValueError(f"No collaborators found for {item_type} {item.id}")
 
-                # Calculate USDC amounts
+                # Calculate USDC amounts - use same logic as process_atomic_purchase
                 amount_to_distribute = breakdown['usdc_to_distribute']
-                platform_usdc = (amount_to_distribute * Decimal('0.10')).quantize(Decimal('0.000001'))
+
+                # First pass: calculate total collaborator percentage to determine mode
+                total_collaborator_percentage = sum(Decimal(str(c['percentage'])) for c in collaborators)
+
+                # Platform ALWAYS gets 10%
+                platform_usdc = (amount_to_distribute * Decimal('0.10')).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+                creator_pool = amount_to_distribute - platform_usdc  # Remaining 90% for collaborators
 
                 collaborator_payments = []
-                for collab in collaborators:
-                    collab_percentage = Decimal(str(collab['percentage']))
-                    # Creator gets 90% * their percentage of total
-                    usdc_amount = (amount_to_distribute * Decimal('0.90') * collab_percentage / 100).quantize(
-                        Decimal('0.000001'), rounding=ROUND_HALF_UP
+
+                # Determine if this is collaborative content (percentages sum to ~100)
+                # or single creator content (percentage is ~90)
+                is_collaborative = total_collaborator_percentage > Decimal('95')
+
+                if is_collaborative:
+                    # COLLABORATIVE: Percentages sum to 100%, they split the 90% creator pool
+                    logger.info(f"[Batch Purchase] COLLABORATIVE MODE: Splitting creator pool among {len(collaborators)} collaborators")
+                    for collab in collaborators:
+                        collab_percentage = Decimal(str(collab['percentage']))
+                        usdc_amount = (creator_pool * collab_percentage / 100).quantize(
+                            Decimal('0.000001'), rounding=ROUND_HALF_UP
+                        )
+                        collaborator_payments.append({
+                            'user': collab['user'],
+                            'wallet_address': collab['wallet'],
+                            'amount_usdc': float(usdc_amount),
+                            'percentage': float(collab_percentage),
+                            'role': collab.get('role', 'collaborator')
+                        })
+                else:
+                    # SINGLE CREATOR: Percentage is their direct share of total (~90%)
+                    logger.info(f"[Batch Purchase] SINGLE CREATOR MODE: Direct percentage of total")
+                    for collab in collaborators:
+                        collab_percentage = Decimal(str(collab['percentage']))
+                        usdc_amount = (amount_to_distribute * collab_percentage / 100).quantize(
+                            Decimal('0.000001'), rounding=ROUND_HALF_UP
+                        )
+                        collaborator_payments.append({
+                            'user': collab['user'],
+                            'wallet_address': collab['wallet'],
+                            'amount_usdc': float(usdc_amount),
+                            'percentage': float(collab_percentage),
+                            'role': collab.get('role', 'creator')
+                        })
+
+                    # Recalculate platform fee for single creator mode (remaining after creator share)
+                    total_creator_usdc = sum(Decimal(str(p['amount_usdc'])) for p in collaborator_payments)
+                    platform_usdc = amount_to_distribute - total_creator_usdc
+
+                # Create and upload NFT metadata to IPFS (same as single-item purchases)
+                from blockchain.metadata_service import (
+                    create_and_upload_chapter_metadata,
+                    create_and_upload_content_metadata
+                )
+
+                if item_type == 'chapter':
+                    metadata_uri = create_and_upload_chapter_metadata(
+                        chapter=item,
+                        purchase=purchase,
+                        collaborators=collaborator_payments
                     )
-                    collaborator_payments.append({
-                        'user': collab['user'],
-                        'wallet_address': collab['wallet'],
-                        'amount_usdc': float(usdc_amount),
-                        'percentage': float(collab_percentage),
-                        'role': collab.get('role', 'creator')
-                    })
+                else:
+                    metadata_uri = create_and_upload_content_metadata(
+                        content=item,
+                        purchase=purchase,
+                        collaborators=collaborator_payments
+                    )
+
+                logger.info(f"[Batch Purchase] Metadata uploaded to: {metadata_uri}")
 
                 # Execute atomic mint + distribute
                 try:
                     result = mint_and_distribute_collaborative_nft(
                         buyer_wallet_address=batch.user.wallet_address,
-                        nft_name=item.title,
-                        nft_symbol="RB",
-                        nft_uri=f"https://renaisblock.com/nft/{item_type}/{item.id}",
+                        chapter_metadata_uri=metadata_uri,
                         collaborator_payments=collaborator_payments,
                         platform_usdc_amount=float(platform_usdc),
                         total_usdc_amount=float(amount_to_distribute)
@@ -823,6 +874,16 @@ def process_batch_purchase(self, batch_purchase_id):
                         'actual_gas_fee_usd': 0.026,
                         'platform_usdc_fronted': float(amount_to_distribute),
                         'platform_usdc_earned': float(platform_usdc),
+                        'distributions': [
+                            {
+                                'user': p['user'].username if hasattr(p['user'], 'username') else str(p['user']),
+                                'wallet': p['wallet_address'],
+                                'amount': p['amount_usdc'],
+                                'percentage': p['percentage'],
+                                'role': p.get('role', 'creator')
+                            }
+                            for p in collaborator_payments
+                        ]
                     }
 
                 # Update purchase with success data
@@ -918,9 +979,14 @@ def process_batch_purchase(self, batch_purchase_id):
         batch.completed_at = timezone.now()
         batch.save()
 
-        # Clear the cart
-        cart.status = 'completed'
-        cart.save(update_fields=['status'])
+        # Clear the cart - delete items and reset for next use
+        cart.items.all().delete()
+        cart.subtotal = None
+        cart.credit_card_fee = None
+        cart.total = None
+        cart.status = 'active'
+        cart.stripe_checkout_session_id = ''
+        cart.save()
 
         logger.info(f"[Batch Purchase] Completed batch {batch_purchase_id}: "
                     f"{batch.items_minted}/{batch.total_items} successful, "

@@ -5,6 +5,7 @@ import { sanitizeHtml } from '../utils/sanitize';
 import { API_URL } from '../config';
 import { LikeButton } from './social/LikeButton';
 import { ContentCommentsSection } from './social/ContentCommentsSection';
+import AddToCartButton from './AddToCartButton';
 
 // Get CSRF token from cookie (avoids rate limiting)
 function getCsrfToken(): string {
@@ -365,7 +366,17 @@ export default function PreviewModal({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              gap: 12,
             }}>
+              {/* Add to Cart Button */}
+              {isAuthenticated && price && price > 0 && (
+                <AddToCartButton
+                  contentId={contentId}
+                  price={price.toFixed(2)}
+                />
+              )}
+
+              {/* Buy Now Button (direct checkout) */}
               <button
                 onClick={handlePurchase}
                 disabled={purchasing}

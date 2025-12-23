@@ -4,8 +4,8 @@ from django.db import models
 import logging
 from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask, Tag
-from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer
+from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask, Tag, Series
+from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer, SeriesSerializer
 from ..utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from ..utils.ipfs_utils import upload_to_ipfs
 from rest_framework.response import Response
@@ -981,12 +981,23 @@ class SearchView(APIView):
         )
 
         # Only apply text search if query provided and at least 2 characters
+        # Search in title, creator username, and tags (name and slug)
         if q and len(q) >= 2:
-            qs = qs.filter(models.Q(title__icontains=q) | models.Q(creator__username__icontains=q))
+            qs = qs.filter(
+                models.Q(title__icontains=q) |
+                models.Q(creator__username__icontains=q) |
+                models.Q(tags__name__icontains=q) |
+                models.Q(tags__slug__icontains=q)
+            ).distinct()  # Avoid duplicates from tag joins
         if genre and genre != 'all':
             qs = qs.filter(genre=genre)
         if ctype and ctype != 'all':
             qs = qs.filter(content_type=ctype)
+
+        # Filter by specific tag slug (for tag-based navigation)
+        tag_slug = request.query_params.get('tag')
+        if tag_slug:
+            qs = qs.filter(tags__slug=tag_slug)
 
         # Limit results to prevent abuse
         data = ContentSerializer(qs.order_by('-view_count', '-created_at')[:50], many=True, context={'request': request}).data
@@ -1545,25 +1556,36 @@ class UserSearchView(APIView):
         if loc:
             qs = qs.filter(location__icontains=loc)
         if status_param:
-            green = {'mint-ready partner', 'chain builder', 'open node'}
-            yellow = {'selective forge', 'linked capacity', 'partial protocol'}
-            red = {'locked chain', 'sealed vault', 'exclusive mint'}
+            # Map status categories to actual status values
+            green_statuses = ['Available', 'Open to Offers', 'Open Node']
+            yellow_statuses = ['Selective', 'Booked']
+            red_statuses = ['Unavailable', 'On Hiatus']
             st = None
-            if status_param in ('green', 'high'):
-                st = list(green)
-            elif status_param in ('yellow', 'conditional'):
-                st = list(yellow)
-            elif status_param in ('red', 'low'):
-                st = list(red)
+            if status_param == 'green':
+                st = green_statuses
+            elif status_param == 'yellow':
+                st = yellow_statuses
+            elif status_param == 'red':
+                st = red_statuses
             if st:
-                qs = qs.filter(status__in=[s.title() for s in st])
+                qs = qs.filter(status__in=st)
         # Exclude current logged-in user if authenticated
         try:
             if request.user and request.user.is_authenticated:
                 qs = qs.exclude(username=request.user.username)
         except Exception:
             pass
-        qs = qs.order_by('username')[:20]
+        qs = qs.order_by('username')
+
+        # Pagination
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 12))
+        page_size = min(page_size, 50)  # Cap at 50
+        total_count = qs.count()
+        total_pages = (total_count + page_size - 1) // page_size if total_count > 0 else 1
+        start = (page - 1) * page_size
+        end = start + page_size
+        qs = qs[start:end]
         
         # Enhance response with capabilities, accomplishments, and stats (FR8)
         results = []
@@ -1630,8 +1652,16 @@ class UserSearchView(APIView):
                 'total_views': total_views,
                 'average_rating': float(p.average_review_rating) if p.average_review_rating else None,
             })
-        
-        return Response(results)
+
+        return Response({
+            'results': results,
+            'page': page,
+            'page_size': page_size,
+            'total_count': total_count,
+            'total_pages': total_pages,
+            'has_next': page < total_pages,
+            'has_prev': page > 1,
+        })
 
 
 class NotificationsView(APIView):
@@ -2314,6 +2344,119 @@ class PublicBookProjectsView(APIView):
             })
 
         return Response(result)
+
+
+# ==================== Series Views ====================
+
+class SeriesListCreateView(APIView):
+    """List all series for authenticated user or create a new one."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        series = Series.objects.filter(creator=core_user)
+        serializer = SeriesSerializer(series, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    def post(self, request):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        serializer = SeriesSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(creator=core_user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SeriesDetailView(APIView):
+    """Retrieve, update, or delete a specific series."""
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk, user):
+        core_user, _ = CoreUser.objects.get_or_create(username=user.username)
+        try:
+            return Series.objects.get(pk=pk, creator=core_user)
+        except Series.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        series = self.get_object(pk, request.user)
+        if not series:
+            return Response({'error': 'Series not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = SeriesSerializer(series, context={'request': request})
+        return Response(serializer.data)
+
+    def patch(self, request, pk):
+        series = self.get_object(pk, request.user)
+        if not series:
+            return Response({'error': 'Series not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = SeriesSerializer(series, data=request.data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        series = self.get_object(pk, request.user)
+        if not series:
+            return Response({'error': 'Series not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Check if series has published books
+        if series.books.filter(is_published=True).exists():
+            return Response(
+                {'error': 'Cannot delete series with published books'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        series.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AddBookToSeriesView(APIView):
+    """Add a book to a series."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, series_pk, book_pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            series = Series.objects.get(pk=series_pk, creator=core_user)
+            book = BookProject.objects.get(pk=book_pk, creator=core_user)
+
+            # Get next order number
+            from django.db.models import Max
+            max_order = series.books.aggregate(Max('series_order'))['series_order__max'] or 0
+
+            book.series = series
+            book.series_order = max_order + 1
+            book.save()
+
+            return Response({
+                'message': f'Added "{book.title}" to series "{series.title}"',
+                'series_order': book.series_order
+            })
+        except Series.DoesNotExist:
+            return Response({'error': 'Series not found'}, status=status.HTTP_404_NOT_FOUND)
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Book not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class RemoveBookFromSeriesView(APIView):
+    """Remove a book from its series."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, book_pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            book = BookProject.objects.get(pk=book_pk, creator=core_user)
+
+            if not book.series:
+                return Response({'error': 'Book is not in a series'}, status=status.HTTP_400_BAD_REQUEST)
+
+            series_title = book.series.title
+            book.series = None
+            book.series_order = 0
+            book.save()
+
+            return Response({'message': f'Removed "{book.title}" from series "{series_title}"'})
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Book not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
 class ChapterListCreateView(APIView):

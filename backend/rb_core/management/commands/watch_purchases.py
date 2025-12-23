@@ -11,7 +11,7 @@ Usage:
     python manage.py watch_purchases &
 
 Features:
-- Automatically detects new pending purchases
+- Automatically detects new pending purchases (single AND batch/cart)
 - Processes them immediately (simulates webhook)
 - Runs continuously in the background
 - Only works in DEBUG mode
@@ -22,14 +22,16 @@ from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
-from rb_core.models import Purchase
-from rb_core.tasks import process_atomic_purchase
+from rb_core.models import Purchase, BatchPurchase
+from rb_core.tasks import process_atomic_purchase, process_batch_purchase
 from rb_core.payment_utils import calculate_payment_breakdown
 from decimal import Decimal
+import stripe
 import time
 import logging
 
 logger = logging.getLogger(__name__)
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class Command(BaseCommand):
@@ -70,6 +72,7 @@ class Command(BaseCommand):
         self.stdout.write("=" * 70)
         self.stdout.write("")
         self.stdout.write("This will automatically process pending purchases for local testing.")
+        self.stdout.write("Watches for BOTH single-item purchases AND cart/batch purchases.")
         self.stdout.write(f"Purchases must be at least {delay_seconds} seconds old before processing.")
         self.stdout.write("Press Ctrl+C to stop.")
         self.stdout.write("")
@@ -78,33 +81,49 @@ class Command(BaseCommand):
             self.stdout.write("Running once (--once mode)...")
             self.stdout.write("")
             self.process_pending_purchases(delay_seconds)
+            self.process_pending_batch_purchases(delay_seconds)
             return
 
         processed_ids = set()
+        processed_batch_ids = set()
 
         try:
             while True:
                 # Calculate cutoff time (only process purchases older than delay_seconds)
                 cutoff_time = timezone.now() - timedelta(seconds=delay_seconds)
 
-                # Find pending purchases that are old enough (gives user time to complete Stripe checkout)
+                # ═══════════════════════════════════════════════════════════════
+                # SINGLE-ITEM PURCHASES
+                # ═══════════════════════════════════════════════════════════════
                 pending = Purchase.objects.filter(
-                    status='payment_pending',  # Simulate webhook by finding pending purchases
+                    status='payment_pending',
                     usdc_distribution_status='pending',
-                    purchased_at__lt=cutoff_time  # Only if older than cutoff
+                    purchased_at__lt=cutoff_time
                 ).exclude(id__in=processed_ids).order_by('-purchased_at')
 
-                # Debug: Show what the query found
                 count = pending.count()
                 if count > 0:
-                    self.stdout.write(f"\n[DEBUG] Found {count} purchase(s) older than {delay_seconds}s")
-                    self.stdout.write(f"[DEBUG] Cutoff time: {cutoff_time}")
-                    self.stdout.write(f"[DEBUG] Current time: {timezone.now()}")
+                    self.stdout.write(f"\n[DEBUG] Found {count} single purchase(s) older than {delay_seconds}s")
 
                 for purchase in pending:
-                    self.stdout.write(f"[DEBUG] Purchase #{purchase.id} purchased_at: {purchase.purchased_at}")
                     self.process_purchase(purchase)
                     processed_ids.add(purchase.id)
+
+                # ═══════════════════════════════════════════════════════════════
+                # BATCH/CART PURCHASES
+                # ═══════════════════════════════════════════════════════════════
+                pending_batches = BatchPurchase.objects.filter(
+                    status='payment_pending',
+                    created_at__lt=cutoff_time
+                ).exclude(id__in=processed_batch_ids).order_by('-created_at')
+
+                batch_count = pending_batches.count()
+                if batch_count > 0:
+                    self.stdout.write(f"\n[DEBUG] Found {batch_count} batch purchase(s) older than {delay_seconds}s")
+
+                for batch in pending_batches:
+                    self.process_batch(batch)
+                    processed_batch_ids.add(batch.id)
 
                 # Sleep before next check
                 time.sleep(interval)
@@ -267,5 +286,111 @@ class Command(BaseCommand):
                 self.style.ERROR(f"  ❌ Error: {e}")
             )
             logger.exception(f"Failed to process purchase {purchase.id}")
+
+        self.stdout.write("")
+
+    def process_pending_batch_purchases(self, delay_seconds=120):
+        """Process all pending batch purchases (for --once mode)."""
+        cutoff_time = timezone.now() - timedelta(seconds=delay_seconds)
+
+        pending = BatchPurchase.objects.filter(
+            status='payment_pending',
+            created_at__lt=cutoff_time
+        ).order_by('-created_at')
+
+        count = pending.count()
+
+        if count == 0:
+            self.stdout.write(self.style.SUCCESS("✅ No pending batch purchases found!"))
+            return
+
+        self.stdout.write(f"Found {count} pending batch purchase(s)")
+        self.stdout.write("")
+
+        for batch in pending:
+            self.process_batch(batch)
+
+    def process_batch(self, batch):
+        """Process a batch/cart purchase by verifying Stripe payment and triggering processing."""
+        age_seconds = (timezone.now() - batch.created_at).total_seconds()
+
+        self.stdout.write("─" * 70)
+        self.stdout.write(self.style.WARNING(f"🛒 Processing BATCH Purchase #{batch.id}"))
+        self.stdout.write(f"  👤 User: {batch.user.username}")
+        self.stdout.write(f"  📦 Items: {batch.total_items}")
+        self.stdout.write(f"  💰 Total: ${batch.total_charged}")
+        self.stdout.write(f"  ⏰ Age: {age_seconds:.0f} seconds")
+        self.stdout.write(f"  📊 Status: {batch.status}")
+        self.stdout.write(f"  🔗 Session: {batch.stripe_checkout_session_id[:30]}...")
+
+        # Safety check
+        MIN_AGE_SECONDS = 10
+        if age_seconds < MIN_AGE_SECONDS:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  ⚠️  SKIPPING: Batch is only {age_seconds:.0f}s old (min: {MIN_AGE_SECONDS}s)."
+                )
+            )
+            return
+
+        try:
+            # Verify payment with Stripe
+            self.stdout.write(f"  🔍 Checking Stripe session status...")
+            session = stripe.checkout.Session.retrieve(batch.stripe_checkout_session_id)
+
+            if session.payment_status != 'paid':
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  ⏳ Payment not completed yet (status: {session.payment_status}). Skipping."
+                    )
+                )
+                return
+
+            self.stdout.write(self.style.SUCCESS(f"  ✅ Stripe payment confirmed!"))
+
+            # Update batch status to payment_completed (simulating webhook)
+            batch.stripe_payment_intent_id = session.payment_intent or ''
+            batch.status = 'payment_completed'
+            batch.save(update_fields=['stripe_payment_intent_id', 'status'])
+
+            self.stdout.write(f"  ⚙️  Running batch processing...")
+
+            # Process the batch (this creates individual Purchase records and mints NFTs)
+            result = process_batch_purchase(batch.id)
+
+            if result.get('status') in ['completed', 'partial']:
+                self.stdout.write(
+                    self.style.SUCCESS(f"  ✅ Batch processing successful!")
+                )
+                self.stdout.write(f"     📊 Status: {result.get('status')}")
+                self.stdout.write(f"     ✅ Minted: {result.get('items_minted', 0)}/{batch.total_items}")
+                self.stdout.write(f"     ❌ Failed: {result.get('items_failed', 0)}")
+
+                if result.get('total_refunded', 0) > 0:
+                    self.stdout.write(f"     💸 Refunded: ${result.get('total_refunded', 0)}")
+
+                # Show individual item results
+                if result.get('successful_items'):
+                    self.stdout.write(f"     🎨 NFTs Minted:")
+                    for item in result['successful_items']:
+                        nft_mint = item.get('nft_mint', 'N/A')
+                        if len(nft_mint) > 20:
+                            nft_mint = nft_mint[:20] + '...'
+                        self.stdout.write(f"        → {item['item_type']} #{item['item_id']}: {nft_mint}")
+            else:
+                error = result.get('error', 'Unknown error')
+                self.stdout.write(
+                    self.style.ERROR(f"  ❌ Batch processing failed: {error}")
+                )
+
+        except stripe.error.StripeError as e:
+            self.stdout.write(
+                self.style.ERROR(f"  ❌ Stripe error: {e}")
+            )
+        except Exception as e:
+            self.stdout.write(
+                self.style.ERROR(f"  ❌ Error: {e}")
+            )
+            logger.exception(f"Failed to process batch {batch.id}")
 
         self.stdout.write("")

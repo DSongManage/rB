@@ -23,6 +23,9 @@ from ..payment_utils import calculate_cart_breakdown
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+# Stripe minimum charge is $0.50 USD
+STRIPE_MINIMUM_CHARGE = Decimal('0.50')
+
 
 class CartView(APIView):
     """
@@ -39,11 +42,31 @@ class CartView(APIView):
             defaults={'status': 'active'}
         )
 
-        # If cart was in checkout but user came back, reset to active
-        if cart.status == 'checkout':
-            cart.status = 'active'
-            cart.stripe_checkout_session_id = ''
-            cart.save(update_fields=['status', 'stripe_checkout_session_id'])
+        # If cart was in checkout but user came back, check if we should reset
+        if cart.status == 'checkout' and cart.stripe_checkout_session_id:
+            # Check if there's a pending/processing batch purchase for this session
+            pending_batch = BatchPurchase.objects.filter(
+                stripe_checkout_session_id=cart.stripe_checkout_session_id,
+                status__in=['payment_pending', 'payment_completed', 'processing']
+            ).first()
+
+            if pending_batch:
+                # Batch purchase in progress - return empty cart to frontend
+                # (items are preserved in DB for batch processing, but hidden from user)
+                return Response({
+                    'id': cart.id,
+                    'status': 'processing',  # Special status for frontend
+                    'item_count': 0,
+                    'max_items': Cart.MAX_ITEMS,
+                    'items': [],
+                    'batch_purchase_id': pending_batch.id,
+                    'batch_status': pending_batch.status,
+                })
+            else:
+                # User cancelled checkout or session expired - safe to reset
+                cart.status = 'active'
+                cart.stripe_checkout_session_id = ''
+                cart.save(update_fields=['status', 'stripe_checkout_session_id'])
 
         # Recalculate totals
         breakdown = None
@@ -57,6 +80,17 @@ class CartView(APIView):
             'creator__profile'
         ).all():
             purchasable = item.chapter or item.content
+
+            # Get cover URL - chapters use book's cover, content uses teaser_link
+            cover_url = None
+            if item.chapter and item.chapter.book_project.cover_image:
+                cover_url = item.chapter.book_project.cover_image.url
+            elif item.content and item.content.teaser_link:
+                # For art/film/music content, teaser_link might be an image
+                teaser = item.content.teaser_link
+                if teaser and any(teaser.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                    cover_url = teaser
+
             items.append({
                 'id': item.id,
                 'type': item.item_type,
@@ -68,6 +102,8 @@ class CartView(APIView):
                 # Chapter-specific
                 'book_title': item.chapter.book_project.title if item.chapter else None,
                 'chapter_order': item.chapter.order if item.chapter else None,
+                # Cover art
+                'cover_url': cover_url,
             })
 
         response_data = {
@@ -321,6 +357,20 @@ class CartCheckoutView(APIView):
                 # Calculate final totals
                 breakdown = cart.calculate_totals()
 
+                # Validate minimum charge amount for Stripe
+                if cart.total < STRIPE_MINIMUM_CHARGE:
+                    cart.status = 'active'
+                    cart.save(update_fields=['status'])
+                    return Response(
+                        {
+                            'error': f'Minimum purchase amount is ${STRIPE_MINIMUM_CHARGE}. Please add more items to your cart.',
+                            'code': 'BELOW_MINIMUM',
+                            'minimum': str(STRIPE_MINIMUM_CHARGE),
+                            'current_total': str(cart.total)
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
                 # Build Stripe line items
                 line_items = []
                 item_metadata = []
@@ -409,7 +459,7 @@ class CartCheckoutView(APIView):
                 {'error': 'No active cart found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except stripe.error.StripeError as e:
+        except stripe.StripeError as e:
             logger.error(f"[Cart Checkout] Stripe error: {e}")
             # Unlock cart on error
             try:

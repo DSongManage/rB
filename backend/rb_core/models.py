@@ -466,6 +466,31 @@ class TestFeeLog(models.Model):
     # Intentionally minimal: URL resolution lives on UserProfile
 
 
+class Series(models.Model):
+    """Series for grouping multiple books into a collection.
+
+    - Authors can create series to organize related books
+    - Series have their own synopsis and cover image
+    - Books can optionally belong to one series
+    """
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='book_series')
+    title = models.CharField(max_length=255)
+    synopsis = models.TextField(blank=True, default='', help_text="Overview of the series (max ~300 words)")
+    cover_image = models.ImageField(upload_to='series_covers/', null=True, blank=True, max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name_plural = 'Series'
+
+    def __str__(self):
+        return f"{self.title} by {self.creator.username}"
+
+    def book_count(self):
+        return self.books.count()
+
+
 class BookProject(models.Model):
     """Book project for managing multi-chapter books.
     
@@ -475,8 +500,10 @@ class BookProject(models.Model):
     """
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='book_projects')
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True, default='')
+    description = models.TextField(blank=True, default='', help_text="Book synopsis (max ~200 words)")
     cover_image = models.ImageField(upload_to='book_covers/', null=True, blank=True, max_length=500)
+    series = models.ForeignKey('Series', on_delete=models.SET_NULL, null=True, blank=True, related_name='books', help_text="Optional series this book belongs to")
+    series_order = models.PositiveIntegerField(default=0, help_text="Order of this book within the series")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_published = models.BooleanField(default=False)
@@ -499,6 +526,7 @@ class Chapter(models.Model):
     book_project = models.ForeignKey(BookProject, on_delete=models.CASCADE, related_name='chapters')
     title = models.CharField(max_length=255)
     content_html = models.TextField(blank=True, default='')  # Encrypted at rest
+    synopsis = models.TextField(blank=True, default='', help_text="Brief summary of this chapter (max ~150 words)")
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2143,6 +2171,7 @@ class ProjectSection(models.Model):
     section_type = models.CharField(max_length=16, choices=SECTION_TYPE_CHOICES)
     title = models.CharField(max_length=200, blank=True)
     content_html = models.TextField(blank=True, help_text="For text sections")
+    synopsis = models.TextField(blank=True, default='', help_text="Brief summary of this section (max ~150 words)")
     media_file = models.FileField(
         upload_to='collaborative_content/',
         blank=True,

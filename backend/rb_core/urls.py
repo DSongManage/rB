@@ -1,7 +1,7 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicBookProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView
+from .views import home, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicBookProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView, SeriesListCreateView, SeriesDetailView, AddBookToSeriesView, RemoveBookFromSeriesView
 from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
 from .views.cart import (
     CartView, AddToCartView, RemoveFromCartView, ClearCartView,
@@ -130,6 +130,11 @@ urlpatterns = [
     path('api/chapters/<int:pk>/publish/', PublishChapterView.as_view(), name='publish_chapter'),
     path('api/book-projects/<int:pk>/prepare/', PrepareBookView.as_view(), name='prepare_book'),
     path('api/book-projects/<int:pk>/publish/', PublishBookView.as_view(), name='publish_book'),
+    # Series management endpoints
+    path('api/series/', SeriesListCreateView.as_view(), name='series_list_create'),
+    path('api/series/<int:pk>/', SeriesDetailView.as_view(), name='series_detail'),
+    path('api/series/<int:series_pk>/add-book/<int:book_pk>/', AddBookToSeriesView.as_view(), name='add_book_to_series'),
+    path('api/book-projects/<int:book_pk>/remove-from-series/', RemoveBookFromSeriesView.as_view(), name='remove_book_from_series'),
     # Chapter management - content removal policy
     path('api/chapters/<int:pk>/remove/', RemoveChapterView.as_view(), name='remove_chapter'),
     path('api/chapters/<int:pk>/delist/', DelistChapterView.as_view(), name='delist_chapter'),

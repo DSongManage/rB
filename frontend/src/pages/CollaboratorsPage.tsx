@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
-import StatusEditForm from '../components/StatusEditForm';
 import InviteModal from '../components/InviteModal';
-import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen } from 'lucide-react';
+import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function CollaboratorsPage() {
   const navigate = useNavigate();
@@ -11,19 +10,34 @@ export default function CollaboratorsPage() {
   const [role, setRole] = useState('');
   const [genre, setGenre] = useState('');
   const [location, setLocation] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<any>(null);
 
-  const queryString = useMemo(()=>{
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrev, setHasPrev] = useState(false);
+
+  // Reset to page 1 when filters change
+  const filterString = useMemo(()=>{
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (role) params.set('role', role);
     if (genre) params.set('genre', genre);
     if (location) params.set('location', location);
+    if (statusFilter) params.set('status', statusFilter);
     return params.toString();
-  }, [q, role, genre, location]);
+  }, [q, role, genre, location, statusFilter]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [filterString]);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -31,17 +45,24 @@ export default function CollaboratorsPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(()=>{
       setLoading(true);
-      const url = `${API_URL}/api/users/search/?${queryString}`;
+      const params = new URLSearchParams(filterString);
+      params.set('page', String(page));
+      params.set('page_size', '12');
+      const url = `${API_URL}/api/users/search/?${params.toString()}`;
       fetch(url, { credentials: 'include' })
-        .then(r=> r.ok ? r.json() : [])
+        .then(r=> r.ok ? r.json() : { results: [] })
         .then((data)=> {
           console.log('[Collaborators] Search results:', data);
-          setResults(Array.isArray(data) ? data : []);
+          setResults(Array.isArray(data.results) ? data.results : []);
+          setTotalPages(data.total_pages || 1);
+          setTotalCount(data.total_count || 0);
+          setHasNext(data.has_next || false);
+          setHasPrev(data.has_prev || false);
         })
         .finally(()=> setLoading(false));
     }, 300);
     return ()=> { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [queryString]);
+  }, [filterString, page]);
 
   // Generate gradient background based on username
   const getGradient = (username: string) => {
@@ -60,13 +81,7 @@ export default function CollaboratorsPage() {
   };
 
   return (
-    <div className="page" style={{maxWidth:1200, margin:'0 auto', padding: '0 20px'}}>
-      {/* My Availability Status - at top for visibility */}
-      <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:20, marginBottom:24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
-        <div style={{fontWeight:700, marginBottom:12, fontSize: 16, color: '#f1f5f9'}}>My availability status</div>
-        <StatusEditForm onSaved={()=>{ /* Refresh could be added here */ }} />
-      </div>
-
+    <div style={{width: '100%'}}>
       <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:20, marginBottom:24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
         <h2 style={{margin:0, marginBottom:16, color:'#f1f5f9', fontSize:24, fontWeight:700}}>Find Collaborators</h2>
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:12}}>
@@ -74,12 +89,22 @@ export default function CollaboratorsPage() {
           <input value={role} onChange={(e)=>setRole(e.target.value)} placeholder="Role (e.g., author, artist)" style={{padding:'10px 14px'}} />
           <input value={genre} onChange={(e)=>setGenre(e.target.value)} placeholder="Genre (e.g., fantasy)" style={{padding:'10px 14px'}} />
           <input value={location} onChange={(e)=>setLocation(e.target.value)} placeholder="Location (city, state)" style={{padding:'10px 14px'}} />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{padding:'10px 14px', cursor: 'pointer'}}
+          >
+            <option value="">All Availability</option>
+            <option value="green">Available - Open to collaborate</option>
+            <option value="yellow">Selective - May consider offers</option>
+            <option value="red">Unavailable - Not taking projects</option>
+          </select>
         </div>
       </div>
 
       <div style={{
         display:'grid',
-        gridTemplateColumns:'repeat(auto-fill, minmax(340px, 1fr))',
+        gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))',
         gap:24,
         marginBottom: 32
       }}>
@@ -365,6 +390,87 @@ export default function CollaboratorsPage() {
           );
         })}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 16,
+          padding: '24px 0',
+          marginBottom: 24
+        }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={!hasPrev}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: hasPrev ? '#1e293b' : '#0f172a',
+              color: hasPrev ? '#f1f5f9' : '#475569',
+              border: '1px solid #334155',
+              padding: '10px 20px',
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: hasPrev ? 'pointer' : 'not-allowed',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <ChevronLeft size={18} />
+            Previous
+          </button>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            color: '#94a3b8',
+            fontSize: 14
+          }}>
+            <span>Page</span>
+            <span style={{
+              background: '#f59e0b',
+              color: '#000',
+              fontWeight: 700,
+              padding: '4px 12px',
+              borderRadius: 6,
+              minWidth: 32,
+              textAlign: 'center'
+            }}>
+              {page}
+            </span>
+            <span>of {totalPages}</span>
+            <span style={{ marginLeft: 8, color: '#64748b' }}>
+              ({totalCount} collaborators)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={!hasNext}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: hasNext ? '#1e293b' : '#0f172a',
+              color: hasNext ? '#f1f5f9' : '#475569',
+              border: '1px solid #334155',
+              padding: '10px 20px',
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: hasNext ? 'pointer' : 'not-allowed',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            Next
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Invite Modal */}
       {selectedRecipient && (

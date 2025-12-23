@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CollaborativeProject, collaborationApi } from '../../../services/collaborationApi';
+import CopyrightPreview from '../../BookEditor/CopyrightPreview';
 
 interface User {
   id: number;
@@ -331,6 +332,7 @@ export default function PublishTab({
           setAuthorsNote={setAuthorsNote}
           onNext={isProjectLead ? handleSaveCustomization : () => setStep('approve')}
           saving={saving}
+          authorName={project.creator_display_name || project.creator_username || 'Creator'}
         />
       )}
 
@@ -386,6 +388,7 @@ interface CustomizeStepProps {
   setAuthorsNote: (v: string) => void;
   onNext: () => void;
   saving: boolean;
+  authorName: string;
 }
 
 // Helper to count words
@@ -407,6 +410,7 @@ function CustomizeStep({
   setAuthorsNote,
   onNext,
   saving,
+  authorName,
 }: CustomizeStepProps) {
   const wordCount = countWords(authorsNote);
   const maxWords = 100;
@@ -551,6 +555,9 @@ function CustomizeStep({
         <div style={{ fontSize: 12, color: '#64748b' }}>
           Platform fee applies per terms. Changing price or editions will reset all revenue split approvals.
         </div>
+
+        {/* Copyright Preview */}
+        <CopyrightPreview authorName={authorName} />
       </div>
 
       {/* Next Button */}

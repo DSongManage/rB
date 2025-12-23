@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import TagSelector from './TagSelector';
+import CopyrightPreview from '../BookEditor/CopyrightPreview';
 
 interface ConfigureStepProps {
   contentId?: number;
+  authorName?: string;
   registerSubmit?: (fn: () => {
     teaserPercent: number;
     watermark: boolean;
@@ -18,7 +20,7 @@ function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
 
-export default function ConfigureStep({ contentId, registerSubmit }: ConfigureStepProps) {
+export default function ConfigureStep({ contentId, authorName, registerSubmit }: ConfigureStepProps) {
   const [teaser, setTeaser] = useState(10);
   const [watermark, setWatermark] = useState(false);
   const [price, setPrice] = useState(1);
@@ -179,6 +181,13 @@ export default function ConfigureStep({ contentId, registerSubmit }: ConfigureSt
             <span className="earnings-amount">${potentialEarnings.toFixed(2)}</span>
           </div>
         </div>
+      </section>
+
+      {/* Section 5: Copyright Notice */}
+      <section className="config-section">
+        <h3>Copyright Notice</h3>
+        <p className="section-hint">This notice will be associated with your published work</p>
+        <CopyrightPreview authorName={authorName || 'Author'} />
       </section>
     </div>
   );

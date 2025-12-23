@@ -14,6 +14,9 @@ from ..payment_utils import calculate_payment_breakdown
 
 logger = logging.getLogger(__name__)
 
+# Stripe minimum charge is $0.50 USD
+STRIPE_MINIMUM_CHARGE = Decimal('0.50')
+
 # Configure Stripe
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -123,6 +126,18 @@ class CreateCheckoutSessionView(APIView):
                     )
                     cancel_url = f"{settings.FRONTEND_URL}/content/{content.id}"
 
+                # Validate minimum charge amount for Stripe
+                if Decimal(str(price)) < STRIPE_MINIMUM_CHARGE:
+                    return Response(
+                        {
+                            'error': f'Minimum purchase amount is ${STRIPE_MINIMUM_CHARGE}. Please add more items to your cart.',
+                            'code': 'BELOW_MINIMUM',
+                            'minimum': str(STRIPE_MINIMUM_CHARGE),
+                            'current_total': str(price)
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
                 logger.info(
                     f'[Checkout] Creating session: '
                     f'chapter_id={chapter_id}, content_id={content_id}, '
@@ -195,7 +210,7 @@ class CreateCheckoutSessionView(APIView):
 
                     return Response(response_data, status=status.HTTP_200_OK)
 
-                except stripe.error.StripeError as e:
+                except stripe.StripeError as e:
                     logger.error(f'[Checkout] Stripe error: {e}')
                     return Response(
                         {'error': str(e), 'code': 'STRIPE_ERROR'},

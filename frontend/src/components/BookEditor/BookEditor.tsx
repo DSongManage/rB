@@ -95,10 +95,14 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
     }
   };
 
-  const handleUpdateChapter = async (chapterId: number, title: string, content: string) => {
+  const handleUpdateChapter = async (chapterId: number, title: string, content: string, synopsis?: string) => {
     setSaving(true);
     try {
-      const updatedChapter = await bookApi.updateChapter(chapterId, { title, content_html: content });
+      const updateData: Partial<Chapter> = { title, content_html: content };
+      if (synopsis !== undefined) {
+        updateData.synopsis = synopsis;
+      }
+      const updatedChapter = await bookApi.updateChapter(chapterId, updateData);
       setChapters(chapters.map(ch => ch.id === chapterId ? updatedChapter : ch));
       setLastSaved(new Date());
     } catch (err: any) {
@@ -432,6 +436,52 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
                   />
                 </label>
               </div>
+            </div>
+          </div>
+
+          {/* Book Synopsis */}
+          <div style={{
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 12,
+            padding: 12,
+            flexShrink: 0,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
+              Book Synopsis
+            </div>
+            <textarea
+              value={project?.description || ''}
+              onChange={(e) => {
+                if (project) {
+                  setProject({ ...project, description: e.target.value });
+                }
+              }}
+              onBlur={async () => {
+                if (project) {
+                  try {
+                    await bookApi.updateProject(project.id, { description: project.description });
+                  } catch (err) {
+                    console.error('Failed to update synopsis:', err);
+                  }
+                }
+              }}
+              placeholder="What is this book about? Write a compelling synopsis..."
+              style={{
+                width: '100%',
+                minHeight: 80,
+                background: 'var(--bg)',
+                border: '1px solid var(--panel-border)',
+                borderRadius: 8,
+                padding: 10,
+                color: 'var(--text)',
+                fontSize: 12,
+                resize: 'vertical',
+                outline: 'none',
+              }}
+            />
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+              {(project?.description || '').split(/\s+/).filter(w => w).length}/200 words recommended
             </div>
           </div>
 

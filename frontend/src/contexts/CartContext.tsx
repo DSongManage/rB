@@ -18,6 +18,7 @@ interface CartItem {
   added_at: string;
   book_title?: string;
   chapter_order?: number;
+  cover_url?: string;
 }
 
 interface BreakdownDisplay {

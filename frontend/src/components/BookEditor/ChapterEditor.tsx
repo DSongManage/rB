@@ -6,7 +6,7 @@ import ChapterManagement from '../ChapterManagement';
 
 interface ChapterEditorProps {
   chapter: Chapter | null;
-  onUpdateChapter: (chapterId: number, title: string, content: string) => void;
+  onUpdateChapter: (chapterId: number, title: string, content: string, synopsis?: string) => void;
   saving: boolean;
   lastSaved: Date | null;
   showManagement?: boolean;
@@ -23,7 +23,9 @@ export default function ChapterEditor({
 }: ChapterEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [synopsis, setSynopsis] = useState('');
   const [showManagementPanel, setShowManagementPanel] = useState(false);
+  const [showSynopsis, setShowSynopsis] = useState(false);
 
   // Track whether we're syncing from props to avoid triggering save
   const isSyncingFromProps = useRef(false);
@@ -37,6 +39,7 @@ export default function ChapterEditor({
       lastLoadedChapterId.current = chapter.id;
       setTitle(chapter.title);
       setContent(chapter.content_html || '');
+      setSynopsis(chapter.synopsis || '');
       // Reset sync flag after state updates are processed
       requestAnimationFrame(() => {
         isSyncingFromProps.current = false;
@@ -45,8 +48,9 @@ export default function ChapterEditor({
       lastLoadedChapterId.current = null;
       setTitle('');
       setContent('');
+      setSynopsis('');
     }
-  }, [chapter?.id, chapter?.title, chapter?.content_html]);
+  }, [chapter?.id, chapter?.title, chapter?.content_html, chapter?.synopsis]);
 
   // Debounced save - only trigger if user made changes (not syncing from props)
   useEffect(() => {
@@ -54,13 +58,13 @@ export default function ChapterEditor({
 
     const timer = setTimeout(() => {
       // Double-check we're not syncing and there are actual changes
-      if (!isSyncingFromProps.current && (title !== chapter.title || content !== chapter.content_html)) {
-        onUpdateChapter(chapter.id, title, content);
+      if (!isSyncingFromProps.current && (title !== chapter.title || content !== chapter.content_html || synopsis !== chapter.synopsis)) {
+        onUpdateChapter(chapter.id, title, content, synopsis);
       }
     }, 3000); // 3 second debounce
 
     return () => clearTimeout(timer);
-  }, [title, content, chapter, onUpdateChapter]);
+  }, [title, content, synopsis, chapter, onUpdateChapter]);
 
   // Memoize word count calculation - must be before any early returns to follow Rules of Hooks
   const wordCount = useMemo(() => {
@@ -166,6 +170,55 @@ export default function ChapterEditor({
             cursor: isMinted ? 'not-allowed' : 'text',
           }}
         />
+        {/* Synopsis toggle and field */}
+        <div>
+          <button
+            onClick={() => setShowSynopsis(!showSynopsis)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              fontSize: 12,
+              cursor: 'pointer',
+              padding: '4px 0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 10, transform: showSynopsis ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
+              ▶
+            </span>
+            Synopsis {synopsis ? `(${synopsis.split(/\s+/).filter(w => w).length} words)` : '(optional)'}
+          </button>
+          {showSynopsis && (
+            <div style={{ marginTop: 8 }}>
+              <textarea
+                value={synopsis}
+                onChange={(e) => !isMinted && setSynopsis(e.target.value)}
+                placeholder="Brief summary of this chapter (optional, max 150 words)..."
+                disabled={isMinted}
+                maxLength={1000}
+                style={{
+                  width: '100%',
+                  minHeight: 80,
+                  background: isMinted ? 'rgba(100,100,100,0.05)' : 'var(--bg)',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: isMinted ? '#64748b' : 'var(--text)',
+                  fontSize: 13,
+                  resize: 'vertical',
+                  cursor: isMinted ? 'not-allowed' : 'text',
+                  outline: 'none',
+                }}
+              />
+              <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+                {synopsis.split(/\s+/).filter(w => w).length}/150 words recommended
+              </div>
+            </div>
+          )}
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 11, color: '#64748b' }}>
             {wordCount.toLocaleString()} words

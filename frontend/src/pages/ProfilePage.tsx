@@ -319,10 +319,10 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="page" style={{maxWidth: 1100, margin: '0 auto'}}>
-      {/* Profile Banner - Click to upload */}
-      <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16, marginBottom:16, display:'grid', gridTemplateColumns:'72px 1fr auto', gap:16, alignItems:'center', backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : undefined, backgroundSize:'cover', backgroundPosition:'center', cursor:(profile? 'pointer':'default'), position:'relative'}} onClick={onBannerClick}>
-        <div onClick={(e)=>{ e.stopPropagation(); onAvatarClick(); }} style={{width:56, height:56, borderRadius:12, background:'#111', overflow:'hidden', display:'grid', placeItems:'center', color:'var(--accent)', fontWeight:700, cursor:'pointer'}} title="Click to upload avatar">
+    <div className="page" style={{width: '100%'}}>
+      {/* Profile Banner - Click to upload - Full width */}
+      <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:16, padding:24, marginBottom:24, display:'grid', gridTemplateColumns:'100px 1fr auto', gap:24, alignItems:'center', backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', backgroundSize:'cover', backgroundPosition:'center', cursor:(profile? 'pointer':'default'), position:'relative', minHeight: 180}} onClick={onBannerClick}>
+        <div onClick={(e)=>{ e.stopPropagation(); onAvatarClick(); }} style={{width:88, height:88, borderRadius:16, background:'#111', overflow:'hidden', display:'grid', placeItems:'center', color:'var(--accent)', fontWeight:700, fontSize:32, cursor:'pointer', border:'3px solid rgba(245,158,11,0.3)'}} title="Click to upload avatar">
           {(profile?.avatar || profile?.avatar_url) ? (<img src={(profile?.avatar || profile?.avatar_url) as string} alt="avatar" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e) => { if (profile) { profile.avatar = undefined; profile.avatar_url = undefined; } e.currentTarget.style.display = 'none'; }} />) : ((user?.username||'?').slice(0,1).toUpperCase())}
         </div>
         <div>
@@ -421,7 +421,7 @@ export default function ProfilePage() {
         onWalletUpdate={refreshStatus}
       />
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:12, marginBottom:16}}>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:20, marginBottom:24}}>
         <StatCard label="Content" value={String(dash.content_count)} />
         <StatCard label="Sales (USDC)" value={`$${dash.sales}`} />
         <StatCard label="Tier" value={dash.tier || '—'} />
@@ -522,8 +522,8 @@ export default function ProfilePage() {
         />
       )}
 
-      <div style={{display:'grid', gridTemplateColumns:'360px 1fr', gap:16}}>
-        <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>
+      <div style={{display:'grid', gridTemplateColumns:'minmax(320px, 400px) 1fr', gap:24}}>
+        <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:20}}>
           <div style={{display:'grid', gridTemplateColumns:'1fr auto', alignItems:'baseline'}}>
             <div style={{fontWeight:600, color:'var(--text)', marginBottom:8}}>Profile settings</div>
             <a href="/collaborators" style={{fontSize:12}}>Open Collaborators Search →</a>
@@ -540,9 +540,9 @@ export default function ProfilePage() {
           />
           <div style={{marginTop:8, fontSize:12, color:'#94a3b8'}}>{status}</div>
         </div>
-        <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>
+        <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:24}}>
           {/* Tabbed Interface */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: '1px solid #334155', paddingBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid #334155', paddingBottom: 16 }}>
             {[
               { key: 'content', label: 'My Content', count: inventory.length },
               { key: 'collaborations', label: 'Collaborations', count: 0 },
@@ -819,9 +819,9 @@ export default function ProfilePage() {
 
 function StatCard({label, value}:{label:string; value:string}) {
   return (
-    <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:12}}>
-      <div style={{fontSize:12, color:'#9ca3af'}}>{label}</div>
-      <div style={{fontSize:18, fontWeight:700, color:'var(--text)', marginTop:4}}>{value}</div>
+    <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:16}}>
+      <div style={{fontSize:13, color:'#9ca3af', marginBottom:8}}>{label}</div>
+      <div style={{fontSize:24, fontWeight:700, color:'var(--text)'}}>{value}</div>
     </div>
   );
 }

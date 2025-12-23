@@ -302,14 +302,16 @@ export default function App() {
           display: 'grid',
           gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr',
           gap: 16,
-          marginLeft: showLibrarySidebar ? 320 : 'auto',
-          marginRight: showLibrarySidebar ? 0 : 'auto',
-          width: showLibrarySidebar ? 'calc(100% - 320px)' : undefined,
+          ...(showLibrarySidebar ? {
+            marginLeft: 320,
+            marginRight: 0,
+            width: 'calc(100% - 320px)',
+          } : {}),
           transition: 'margin-left 0.3s ease, width 0.3s ease',
         }}
       >
         {showCreatorSidebar && <CreatorSidebar />}
-        <div>
+        <div style={{ width: '100%', minWidth: 0 }}>
           {/* Mobile Library - shown at top of home page for mobile users */}
           {showMobileLibrary && <MobileLibrary />}
           <ErrorBoundary>
