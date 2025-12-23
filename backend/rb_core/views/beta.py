@@ -4,7 +4,7 @@ Beta access management views.
 Handles beta access requests, invite code validation, and approval workflow.
 """
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from django.core.mail import send_mail
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def request_beta_access(request):
     """
@@ -140,6 +141,7 @@ def approve_beta_request(request):
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def validate_invite_code(request):
     """
@@ -176,6 +178,7 @@ def validate_invite_code(request):
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def mark_invite_used(request):
     """
