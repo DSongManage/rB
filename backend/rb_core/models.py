@@ -360,6 +360,30 @@ class UserProfile(models.Model):
     creator_agreement_accepted_at = models.DateTimeField(null=True, blank=True, help_text="When user accepted Creator Agreement")
     creator_agreement_version = models.CharField(max_length=20, blank=True, default='', help_text="Version of Creator Agreement accepted")
 
+    # Bridge.xyz Payout Preferences
+    PAYOUT_DESTINATION_CHOICES = [
+        ('wallet', 'Web3 Wallet'),
+        ('bridge', 'Bank Account (via Bridge)'),
+        ('split', 'Split (Wallet + Bank)'),
+    ]
+    payout_destination = models.CharField(
+        max_length=32,
+        choices=PAYOUT_DESTINATION_CHOICES,
+        default='wallet',
+        help_text="Where to send USDC earnings"
+    )
+    bridge_payout_percentage = models.PositiveSmallIntegerField(
+        default=100,
+        validators=[MaxValueValidator(100)],
+        help_text="Percentage sent to Bridge (rest goes to wallet). Only used when payout_destination='split'"
+    )
+    pending_bridge_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        default=Decimal('0'),
+        help_text="Accumulated USDC awaiting Bridge payout threshold ($10)"
+    )
+
     def save(self, *args, **kwargs):
         # Ensure handle mirrors auth username on create; treat as immutable afterwards
         if not self.pk:
@@ -1340,6 +1364,9 @@ class Purchase(models.Model):
         choices=[
             ('payment_pending', 'Payment Pending'),
             ('payment_completed', 'Payment Completed'),
+            ('bridge_pending', 'Awaiting Bridge Conversion'),      # Bridge on-ramp
+            ('bridge_converting', 'Converting USD to USDC'),       # Bridge on-ramp
+            ('usdc_received', 'USDC Received'),                    # Bridge on-ramp
             ('minting', 'Minting NFT'),
             ('completed', 'Completed'),
             ('failed', 'Failed'),
@@ -3332,6 +3359,9 @@ class BatchPurchase(models.Model):
     STATUS_CHOICES = [
         ('payment_pending', 'Payment Pending'),
         ('payment_completed', 'Payment Completed'),
+        ('bridge_pending', 'Awaiting Bridge Conversion'),      # Bridge on-ramp
+        ('bridge_converting', 'Converting USD to USDC'),       # Bridge on-ramp
+        ('usdc_received', 'USDC Received'),                    # Bridge on-ramp
         ('processing', 'Processing Mints'),
         ('completed', 'Completed'),
         ('partial', 'Partially Completed'),
@@ -3371,3 +3401,326 @@ class BatchPurchase(models.Model):
 
     def __str__(self):
         return f"Batch {self.id}: {self.items_minted}/{self.total_items} for {self.user.username}"
+
+
+# =============================================================================
+# Bridge.xyz Integration Models
+# =============================================================================
+
+class BridgeCustomer(models.Model):
+    """Maps a user to their Bridge.xyz customer record for off-ramp functionality.
+
+    Bridge.xyz provides USDC → USD conversion via liquidation addresses.
+    This model tracks the KYC status and links to the Bridge customer.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='bridge_customer')
+    bridge_customer_id = models.CharField(max_length=128, unique=True, help_text="Bridge's customer ID")
+
+    # KYC Status
+    KYC_STATUS_CHOICES = [
+        ('not_started', 'Not Started'),
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('incomplete', 'Incomplete'),
+    ]
+    kyc_status = models.CharField(max_length=32, choices=KYC_STATUS_CHOICES, default='not_started')
+    kyc_link = models.URLField(blank=True, help_text="KYC verification URL from Bridge")
+    kyc_completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Bridge Customer'
+        verbose_name_plural = 'Bridge Customers'
+        indexes = [
+            models.Index(fields=['kyc_status']),
+        ]
+
+    def __str__(self):
+        return f"Bridge Customer: {self.user.username} ({self.kyc_status})"
+
+
+class BridgeExternalAccount(models.Model):
+    """Linked bank account via Bridge.xyz.
+
+    Stores non-sensitive account metadata for display purposes.
+    Actual account details are stored securely in Bridge's systems.
+    """
+    bridge_customer = models.ForeignKey(
+        BridgeCustomer,
+        on_delete=models.CASCADE,
+        related_name='external_accounts'
+    )
+    bridge_external_account_id = models.CharField(max_length=128, unique=True)
+
+    # Account info (non-sensitive, for display only)
+    account_name = models.CharField(max_length=255, help_text="e.g., 'Chase ****1234'")
+    bank_name = models.CharField(max_length=255, blank=True)
+    last_four = models.CharField(max_length=4, blank=True)
+
+    ACCOUNT_TYPE_CHOICES = [
+        ('checking', 'Checking'),
+        ('savings', 'Savings'),
+    ]
+    account_type = models.CharField(max_length=32, choices=ACCOUNT_TYPE_CHOICES, blank=True)
+
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False, help_text="Default account for new liquidation addresses")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_default', '-created_at']
+        indexes = [
+            models.Index(fields=['bridge_customer', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.account_name} ({self.bank_name})"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one default account per customer
+        if self.is_default:
+            BridgeExternalAccount.objects.filter(
+                bridge_customer=self.bridge_customer,
+                is_default=True
+            ).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
+class BridgeLiquidationAddress(models.Model):
+    """Solana address that auto-converts USDC to fiat via Bridge.xyz.
+
+    When USDC is sent to this address, Bridge automatically:
+    1. Detects the incoming transaction
+    2. Converts USDC to USD
+    3. Deposits USD to the linked bank account
+
+    This enables automatic off-ramp for creator earnings.
+    """
+    bridge_customer = models.ForeignKey(
+        BridgeCustomer,
+        on_delete=models.CASCADE,
+        related_name='liquidation_addresses'
+    )
+    external_account = models.ForeignKey(
+        BridgeExternalAccount,
+        on_delete=models.PROTECT,
+        related_name='liquidation_addresses',
+        help_text="Bank account to receive converted funds"
+    )
+    bridge_liquidation_address_id = models.CharField(max_length=128, unique=True)
+
+    # The actual Solana address for receiving USDC
+    solana_address = models.CharField(max_length=44, unique=True, help_text="Solana address for USDC deposits")
+
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_primary = models.BooleanField(default=False, help_text="Primary address for receiving payouts")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_primary', '-created_at']
+        indexes = [
+            models.Index(fields=['bridge_customer', 'is_active']),
+            models.Index(fields=['solana_address']),
+        ]
+
+    def __str__(self):
+        return f"Liquidation: {self.solana_address[:8]}... → {self.external_account.account_name}"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one primary address per customer
+        if self.is_primary:
+            BridgeLiquidationAddress.objects.filter(
+                bridge_customer=self.bridge_customer,
+                is_primary=True
+            ).exclude(pk=self.pk).update(is_primary=False)
+        super().save(*args, **kwargs)
+
+
+class BridgeDrain(models.Model):
+    """Tracks individual off-ramp transactions (drains) via Bridge.xyz.
+
+    A 'drain' is when Bridge converts USDC from a liquidation address
+    to USD and deposits it to the user's bank account.
+    """
+    liquidation_address = models.ForeignKey(
+        BridgeLiquidationAddress,
+        on_delete=models.CASCADE,
+        related_name='drains'
+    )
+    bridge_drain_id = models.CharField(max_length=128, unique=True)
+
+    # Transaction details
+    usdc_amount = models.DecimalField(max_digits=18, decimal_places=6, help_text="USDC received")
+    usd_amount = models.DecimalField(max_digits=18, decimal_places=2, help_text="USD deposited after conversion")
+    fee_amount = models.DecimalField(max_digits=18, decimal_places=2, default=0, help_text="Bridge conversion fee")
+
+    # Source transaction (Solana)
+    source_tx_signature = models.CharField(max_length=128, blank=True, help_text="Solana tx that funded this drain")
+
+    # Status
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='pending')
+
+    # Timestamps from Bridge
+    initiated_at = models.DateTimeField(help_text="When Bridge detected the incoming USDC")
+    completed_at = models.DateTimeField(null=True, blank=True, help_text="When USD was deposited to bank")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-initiated_at']
+        indexes = [
+            models.Index(fields=['liquidation_address', 'status']),
+            models.Index(fields=['status', '-initiated_at']),
+            models.Index(fields=['source_tx_signature']),
+        ]
+
+    def __str__(self):
+        return f"Drain {self.bridge_drain_id}: ${self.usdc_amount} USDC → ${self.usd_amount} USD ({self.status})"
+
+
+class BridgeOnRampTransfer(models.Model):
+    """
+    Tracks USD → USDC on-ramp conversions via Bridge.xyz Transfers API.
+
+    This model links Stripe payments to Bridge conversions to purchase fulfillment.
+    It's the key reconciliation record that ensures we can track the flow:
+    Stripe payment → Bridge conversion → USDC delivery → NFT minting
+
+    The platform no longer fronts USDC from treasury - Bridge handles the conversion
+    and delivers USDC directly to the platform's Solana wallet.
+    """
+
+    # Link to purchase (single or batch) - only one should be set
+    purchase = models.OneToOneField(
+        'Purchase',
+        on_delete=models.CASCADE,
+        related_name='bridge_onramp',
+        null=True,
+        blank=True,
+        help_text='Single purchase this on-ramp is for'
+    )
+    batch_purchase = models.OneToOneField(
+        'BatchPurchase',
+        on_delete=models.CASCADE,
+        related_name='bridge_onramp',
+        null=True,
+        blank=True,
+        help_text='Batch purchase this on-ramp is for'
+    )
+
+    # Bridge Transfer IDs
+    bridge_transfer_id = models.CharField(
+        max_length=128,
+        unique=True,
+        help_text="Bridge's transfer ID from Transfers API"
+    )
+    bridge_source_deposit_id = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text="Bridge's source deposit ID (if using virtual accounts)"
+    )
+
+    # Stripe Reference (for reconciliation)
+    stripe_payment_intent_id = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text="Stripe payment intent ID that funded this transfer"
+    )
+
+    # Amounts
+    usd_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="USD amount sent to Bridge (after Stripe fees)"
+    )
+    usdc_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="USDC received from Bridge (may differ due to Bridge fees)"
+    )
+    bridge_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Bridge's conversion fee"
+    )
+
+    # Destination (Platform's Solana wallet)
+    destination_wallet = models.CharField(
+        max_length=44,
+        help_text="Platform's Solana wallet address where USDC is delivered"
+    )
+
+    # Status tracking
+    ONRAMP_STATUS_CHOICES = [
+        ('pending', 'Pending - Transfer Created'),
+        ('awaiting_funds', 'Awaiting Funds from Stripe'),
+        ('funds_received', 'Funds Received by Bridge'),
+        ('converting', 'Converting USD to USDC'),
+        ('completed', 'Completed - USDC Delivered'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded via Stripe'),
+    ]
+    status = models.CharField(
+        max_length=32,
+        choices=ONRAMP_STATUS_CHOICES,
+        default='pending'
+    )
+    failure_reason = models.TextField(
+        blank=True,
+        help_text="Reason for failure if status is 'failed'"
+    )
+
+    # Timing
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    funds_received_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When Bridge received USD funds"
+    )
+    conversion_completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When Bridge delivered USDC to platform wallet"
+    )
+
+    # Solana transaction reference
+    solana_tx_signature = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text="Solana transaction where Bridge delivered USDC"
+    )
+
+    class Meta:
+        verbose_name = 'Bridge On-Ramp Transfer'
+        verbose_name_plural = 'Bridge On-Ramp Transfers'
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['bridge_transfer_id']),
+            models.Index(fields=['stripe_payment_intent_id']),
+            models.Index(fields=['status', '-created_at']),
+        ]
+
+    def __str__(self):
+        usdc_str = f"{self.usdc_amount}" if self.usdc_amount else "pending"
+        return f"OnRamp {self.bridge_transfer_id}: ${self.usd_amount} → {usdc_str} USDC ({self.status})"

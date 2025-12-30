@@ -1,15 +1,21 @@
 """
-Payment fee calculation utilities for credit card fee pass-through.
+Payment fee calculation utilities for processing fee pass-through.
 
 This module implements transparent fee pass-through where:
-- Buyer pays: chapter_price + CC processing fee
-- Platform receives: chapter_price (after Stripe takes its cut)
+- Buyer pays: chapter_price + Processing Fee (CC + Bridge)
+- Platform receives: chapter_price (after Stripe & Bridge take their cut)
 - Gas fee is deducted before 90/10 split
 - Creator receives: 90% of (chapter_price - gas_fee)
 - Platform keeps: 10% of (chapter_price - gas_fee)
 
 The gas fee (~$0.026) covers Solana transaction costs and is shared
 proportionally between creator (90%) and platform (10%).
+
+Processing Fee includes:
+- Stripe: 2.9% + $0.30 (credit card processing)
+- Bridge: ~0.1% (USD → USDC on-ramp conversion)
+
+The combined "Processing Fee" is shown as a single line item to users.
 """
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -18,16 +24,21 @@ from decimal import Decimal, ROUND_HALF_UP
 STRIPE_PERCENTAGE_FEE = Decimal('0.029')  # 2.9%
 STRIPE_FIXED_FEE = Decimal('0.30')        # $0.30
 
+# Bridge fee structure (USD → USDC on-ramp)
+BRIDGE_PERCENTAGE_FEE = Decimal('0.001')  # 0.1%
+
 
 def calculate_payment_breakdown(chapter_price):
     """
-    Calculate complete payment breakdown with CC fee pass-through.
+    Calculate complete payment breakdown with processing fee pass-through.
 
-    The formula ensures that after Stripe takes its fee, the platform
-    receives exactly the chapter price. This allows creators to get
-    exactly 90% of the price they set.
+    The formula ensures that after Stripe and Bridge take their fees,
+    the platform receives exactly the chapter price. This allows creators
+    to get exactly 90% of the price they set.
 
-    Formula: buyer_total = (chapter_price + 0.30) / (1 - 0.029)
+    Processing Fee = Stripe (2.9% + $0.30) + Bridge (~0.1%)
+
+    Formula: buyer_total = (chapter_price + 0.30) / (1 - 0.029 - 0.001)
 
     Args:
         chapter_price (Decimal|float|str): The chapter's list price
@@ -36,9 +47,11 @@ def calculate_payment_breakdown(chapter_price):
         dict: Complete breakdown of the payment
         {
             'chapter_price': Decimal,
-            'credit_card_fee': Decimal,
+            'processing_fee': Decimal,  # Combined Stripe + Bridge
+            'credit_card_fee': Decimal,  # Alias for backwards compatibility
             'buyer_total': Decimal,
             'stripe_fee': Decimal,
+            'bridge_fee': Decimal,
             'platform_receives': Decimal,
             'creator_share_90': Decimal,
             'platform_share_10': Decimal,
@@ -49,22 +62,28 @@ def calculate_payment_breakdown(chapter_price):
     """
     chapter_price = Decimal(str(chapter_price))
 
-    # Calculate buyer total (what buyer pays to cover Stripe fees)
-    buyer_total = (chapter_price + STRIPE_FIXED_FEE) / (1 - STRIPE_PERCENTAGE_FEE)
+    # Combined percentage fee (Stripe + Bridge)
+    combined_percentage = STRIPE_PERCENTAGE_FEE + BRIDGE_PERCENTAGE_FEE  # 3.0%
+
+    # Calculate buyer total (what buyer pays to cover all processing fees)
+    buyer_total = (chapter_price + STRIPE_FIXED_FEE) / (1 - combined_percentage)
     buyer_total = buyer_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-    # Calculate credit card fee (what we show to buyer)
-    credit_card_fee = buyer_total - chapter_price
+    # Calculate processing fee (what we show to buyer - single combined line)
+    processing_fee = buyer_total - chapter_price
 
     # Calculate what Stripe actually takes
     stripe_fee = (buyer_total * STRIPE_PERCENTAGE_FEE) + STRIPE_FIXED_FEE
     stripe_fee = stripe_fee.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-    # Platform receives (should equal chapter_price after Stripe fee)
-    platform_receives = buyer_total - stripe_fee
+    # Calculate what Bridge takes (USD → USDC conversion)
+    bridge_fee = (buyer_total * BRIDGE_PERCENTAGE_FEE).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-    # Verify our math is correct (within 1 cent tolerance due to rounding)
-    assert abs(platform_receives - chapter_price) < Decimal('0.02'), \
+    # Platform receives (should equal chapter_price after Stripe + Bridge fees)
+    platform_receives = buyer_total - stripe_fee - bridge_fee
+
+    # Verify our math is correct (within 2 cents tolerance due to rounding)
+    assert abs(platform_receives - chapter_price) < Decimal('0.03'), \
         f"Math error: platform_receives ({platform_receives}) != chapter_price ({chapter_price})"
 
     # Gas fee for Solana transaction (shared proportionally between creator and platform)
@@ -100,9 +119,11 @@ def calculate_payment_breakdown(chapter_price):
 
     return {
         'chapter_price': chapter_price,
-        'credit_card_fee': credit_card_fee,
+        'processing_fee': processing_fee,  # Combined Stripe + Bridge (for display)
+        'credit_card_fee': processing_fee,  # Alias for backwards compatibility
         'buyer_total': buyer_total,
         'stripe_fee': stripe_fee,
+        'bridge_fee': bridge_fee,
         'platform_receives': platform_receives,
         'gas_fee': gas_fee,
         'usdc_to_distribute': usdc_to_distribute,
@@ -122,7 +143,8 @@ def calculate_payment_breakdown(chapter_price):
         # For display - shows ACTUAL amounts creators receive
         'breakdown_display': {
             'chapter_price': format_currency(chapter_price),
-            'credit_card_fee': format_currency(credit_card_fee),
+            'processing_fee': format_currency(processing_fee),  # Single combined line
+            'credit_card_fee': format_currency(processing_fee),  # Alias
             'buyer_total': format_currency(buyer_total),
             'creator_receives': format_currency(creator_usdc_actual),
             'platform_receives': format_currency(platform_usdc_actual),
@@ -138,22 +160,27 @@ def format_currency(amount):
 
 def calculate_cart_breakdown(item_prices):
     """
-    Calculate payment breakdown for cart with SINGLE CC fee across all items.
+    Calculate payment breakdown for cart with SINGLE processing fee across all items.
 
     KEY SAVINGS: One $0.30 fixed fee across all items vs per-item.
 
+    Processing Fee = Stripe (2.9% + $0.30) + Bridge (~0.1%)
+
     Example: 5 items at $3 each
-    - Per-item: 5 x ($3.41) = $17.05 total
-    - Cart:     ($15 + $0.30) / 0.971 = $15.76 total
-    - SAVINGS:  $1.29 (7.6%)
+    - Per-item: 5 x ($3.42) = $17.10 total
+    - Cart:     ($15 + $0.30) / 0.970 = $15.77 total
+    - SAVINGS:  $1.33 (7.8%)
 
     Args:
         item_prices: List of Decimal/float/str prices for items in cart
 
     Returns:
-        dict with subtotal, credit_card_fee, buyer_total, per_item_breakdown
+        dict with subtotal, processing_fee, buyer_total, per_item_breakdown
     """
     GAS_FEE_PER_ITEM = Decimal('0.026')  # Estimated per-mint gas
+
+    # Combined percentage fee (Stripe + Bridge)
+    combined_percentage = STRIPE_PERCENTAGE_FEE + BRIDGE_PERCENTAGE_FEE  # 3.0%
 
     # Convert all prices to Decimal
     item_prices = [Decimal(str(p)) for p in item_prices]
@@ -162,9 +189,11 @@ def calculate_cart_breakdown(item_prices):
     if num_items == 0:
         return {
             'subtotal': Decimal('0'),
-            'credit_card_fee': Decimal('0'),
+            'processing_fee': Decimal('0'),
+            'credit_card_fee': Decimal('0'),  # Alias
             'buyer_total': Decimal('0'),
             'stripe_fee': Decimal('0'),
+            'bridge_fee': Decimal('0'),
             'platform_receives': Decimal('0'),
             'total_gas_estimate': Decimal('0'),
             'num_items': 0,
@@ -172,7 +201,8 @@ def calculate_cart_breakdown(item_prices):
             'savings_vs_individual': Decimal('0'),
             'breakdown_display': {
                 'subtotal': '$0.00',
-                'credit_card_fee': '$0.00',
+                'processing_fee': '$0.00',
+                'credit_card_fee': '$0.00',  # Alias
                 'buyer_total': '$0.00',
                 'savings': '$0.00',
                 'item_count': 0,
@@ -181,17 +211,20 @@ def calculate_cart_breakdown(item_prices):
 
     subtotal = sum(item_prices)
 
-    # Single CC fee calculation (the key savings!)
-    buyer_total = (subtotal + STRIPE_FIXED_FEE) / (1 - STRIPE_PERCENTAGE_FEE)
+    # Single processing fee calculation (the key savings!)
+    buyer_total = (subtotal + STRIPE_FIXED_FEE) / (1 - combined_percentage)
     buyer_total = buyer_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    credit_card_fee = buyer_total - subtotal
+    processing_fee = buyer_total - subtotal
 
     # Stripe's actual fee
     stripe_fee = (buyer_total * STRIPE_PERCENTAGE_FEE) + STRIPE_FIXED_FEE
     stripe_fee = stripe_fee.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
+    # Bridge's fee
+    bridge_fee = (buyer_total * BRIDGE_PERCENTAGE_FEE).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
     # Platform receives (should equal subtotal)
-    platform_receives = buyer_total - stripe_fee
+    platform_receives = buyer_total - stripe_fee - bridge_fee
 
     # Total gas for batch (each item still needs individual minting)
     total_gas = GAS_FEE_PER_ITEM * num_items
@@ -220,7 +253,7 @@ def calculate_cart_breakdown(item_prices):
     if num_items > 1:
         individual_total = Decimal('0')
         for price in item_prices:
-            individual = (price + STRIPE_FIXED_FEE) / (1 - STRIPE_PERCENTAGE_FEE)
+            individual = (price + STRIPE_FIXED_FEE) / (1 - combined_percentage)
             individual_total += individual.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         savings = individual_total - buyer_total
     else:
@@ -228,9 +261,11 @@ def calculate_cart_breakdown(item_prices):
 
     return {
         'subtotal': subtotal,
-        'credit_card_fee': credit_card_fee,
+        'processing_fee': processing_fee,  # Combined Stripe + Bridge (for display)
+        'credit_card_fee': processing_fee,  # Alias for backwards compatibility
         'buyer_total': buyer_total,
         'stripe_fee': stripe_fee,
+        'bridge_fee': bridge_fee,
         'platform_receives': platform_receives,
         'total_gas_estimate': total_gas,
         'num_items': num_items,
@@ -238,7 +273,8 @@ def calculate_cart_breakdown(item_prices):
         'savings_vs_individual': savings.quantize(Decimal('0.01')),
         'breakdown_display': {
             'subtotal': format_currency(subtotal),
-            'credit_card_fee': format_currency(credit_card_fee),
+            'processing_fee': format_currency(processing_fee),  # Single combined line
+            'credit_card_fee': format_currency(processing_fee),  # Alias
             'buyer_total': format_currency(buyer_total),
             'savings': format_currency(savings),
             'item_count': num_items,

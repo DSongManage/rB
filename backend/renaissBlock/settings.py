@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from decimal import Decimal
 import os  # For environment variables and paths (PEP 8 compliant)
 import dj_database_url  # For parsing DATABASE_URL in production
 
@@ -398,6 +399,16 @@ FEATURE_COLLABORATIVE_MINTING = os.getenv('FEATURE_COLLABORATIVE_MINTING', 'true
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
+
+# Bridge.xyz Configuration (USDC -> USD Off-ramp)
+# API key for Bridge.xyz - get from https://dashboard.bridge.xyz
+BRIDGE_API_KEY = os.getenv('BRIDGE_API_KEY', '')
+# Webhook secret for verifying Bridge webhook signatures
+BRIDGE_WEBHOOK_SECRET = os.getenv('BRIDGE_WEBHOOK_SECRET', '')
+# Use sandbox environment (True for testing, False for production)
+BRIDGE_SANDBOX_MODE = os.getenv('BRIDGE_SANDBOX_MODE', 'true').lower() in ('1', 'true', 'yes', 'on')
+# Minimum USDC amount to trigger a Bridge payout (prevents dust transactions)
+BRIDGE_MIN_PAYOUT_THRESHOLD = Decimal(os.getenv('BRIDGE_MIN_PAYOUT_THRESHOLD', '10.00'))
 
 # Platform USDC wallet address for treasury operations
 # This is the Solana wallet that holds USDC treasury and fronts payments

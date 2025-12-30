@@ -3,7 +3,8 @@ from .models import (
     Content, UserProfile, User, BookProject, Chapter, Purchase, ReadingProgress,
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification,
     BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition,
-    ContentLike, ContentComment, ContentRating, CreatorReview, Tag, Series
+    ContentLike, ContentComment, ContentRating, CreatorReview, Tag, Series,
+    BridgeCustomer, BridgeExternalAccount, BridgeLiquidationAddress, BridgeDrain
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -1318,3 +1319,154 @@ class CreatorReviewSerializer(serializers.ModelSerializer):
         if value < 1 or value > 5:
             raise serializers.ValidationError("Rating must be between 1 and 5")
         return value
+
+
+# =============================================================================
+# Bridge.xyz Serializers (USDC -> USD Off-ramp)
+# =============================================================================
+
+class BridgeCustomerSerializer(serializers.ModelSerializer):
+    """Serializer for Bridge customer records."""
+
+    class Meta:
+        model = BridgeCustomer
+        fields = [
+            'id', 'bridge_customer_id', 'kyc_status', 'kyc_link',
+            'kyc_completed_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'bridge_customer_id', 'kyc_status', 'kyc_link',
+                           'kyc_completed_at', 'created_at', 'updated_at']
+
+
+class BridgeExternalAccountSerializer(serializers.ModelSerializer):
+    """Serializer for linked bank accounts via Bridge."""
+
+    class Meta:
+        model = BridgeExternalAccount
+        fields = [
+            'id', 'bridge_external_account_id', 'account_name', 'bank_name',
+            'last_four', 'account_type', 'is_active', 'is_default',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'bridge_external_account_id', 'account_name',
+                           'bank_name', 'last_four', 'account_type',
+                           'created_at', 'updated_at']
+
+
+class BridgeLiquidationAddressSerializer(serializers.ModelSerializer):
+    """Serializer for Bridge liquidation addresses (USDC -> USD conversion)."""
+    external_account = BridgeExternalAccountSerializer(read_only=True)
+    external_account_id = serializers.IntegerField(write_only=True, required=False)
+
+    class Meta:
+        model = BridgeLiquidationAddress
+        fields = [
+            'id', 'bridge_liquidation_address_id', 'solana_address',
+            'external_account', 'external_account_id',
+            'is_active', 'is_primary', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'bridge_liquidation_address_id', 'solana_address',
+                           'external_account', 'created_at', 'updated_at']
+
+
+class BridgeDrainSerializer(serializers.ModelSerializer):
+    """Serializer for off-ramp transactions (drains)."""
+    liquidation_address = BridgeLiquidationAddressSerializer(read_only=True)
+
+    class Meta:
+        model = BridgeDrain
+        fields = [
+            'id', 'bridge_drain_id', 'usdc_amount', 'usd_amount', 'fee_amount',
+            'source_tx_signature', 'status', 'initiated_at', 'completed_at',
+            'liquidation_address', 'created_at', 'updated_at'
+        ]
+        read_only_fields = fields  # All fields are read-only (populated from Bridge webhooks)
+
+
+class PayoutPreferencesSerializer(serializers.Serializer):
+    """Serializer for user payout preferences."""
+    payout_destination = serializers.ChoiceField(
+        choices=UserProfile.PAYOUT_DESTINATION_CHOICES,
+        help_text="Where to send USDC earnings"
+    )
+    bridge_payout_percentage = serializers.IntegerField(
+        min_value=1,
+        max_value=100,
+        help_text="Percentage sent to Bridge (rest goes to wallet)"
+    )
+    pending_bridge_amount = serializers.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        read_only=True,
+        help_text="Accumulated USDC awaiting Bridge payout threshold"
+    )
+
+    def validate(self, data):
+        """Validate payout preferences."""
+        destination = data.get('payout_destination')
+        percentage = data.get('bridge_payout_percentage', 100)
+
+        # If destination is 'wallet', percentage is ignored
+        if destination == 'wallet':
+            data['bridge_payout_percentage'] = 100
+
+        # If destination is 'bridge', percentage must be 100
+        if destination == 'bridge':
+            data['bridge_payout_percentage'] = 100
+
+        return data
+
+
+class BridgeOnboardingStatusSerializer(serializers.Serializer):
+    """Serializer for Bridge onboarding status overview."""
+    has_bridge_customer = serializers.BooleanField()
+    kyc_status = serializers.CharField(allow_null=True)
+    kyc_link = serializers.URLField(allow_null=True, allow_blank=True)
+    has_bank_account = serializers.BooleanField()
+    has_liquidation_address = serializers.BooleanField()
+    is_fully_setup = serializers.BooleanField()
+    payout_destination = serializers.CharField()
+    bridge_payout_percentage = serializers.IntegerField()
+    pending_bridge_amount = serializers.DecimalField(max_digits=18, decimal_places=6)
+
+
+class ManualBankAccountSerializer(serializers.Serializer):
+    """Serializer for manual bank account linking."""
+    account_number = serializers.CharField(
+        min_length=4,
+        max_length=17,
+        help_text="Bank account number"
+    )
+    routing_number = serializers.CharField(
+        min_length=9,
+        max_length=9,
+        help_text="9-digit ABA routing number"
+    )
+    account_type = serializers.ChoiceField(
+        choices=['checking', 'savings'],
+        default='checking'
+    )
+    account_owner_name = serializers.CharField(
+        max_length=255,
+        required=False,
+        help_text="Name on the bank account"
+    )
+
+    def validate_routing_number(self, value):
+        """Validate routing number format."""
+        if not value.isdigit() or len(value) != 9:
+            raise serializers.ValidationError("Routing number must be 9 digits")
+        return value
+
+    def validate_account_number(self, value):
+        """Validate account number format."""
+        if not value.isdigit():
+            raise serializers.ValidationError("Account number must contain only digits")
+        return value
+
+
+class PlaidLinkAccountSerializer(serializers.Serializer):
+    """Serializer for Plaid-linked bank account."""
+    plaid_processor_token = serializers.CharField(
+        help_text="Processor token from Plaid Link"
+    )

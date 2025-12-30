@@ -44,6 +44,7 @@ const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const FollowingFeedPage = lazy(() => import('./pages/FollowingFeedPage'));
 const CartPage = lazy(() => import('./pages/CartPage'));
 const CartSuccessPage = lazy(() => import('./pages/CartSuccessPage'));
+const PayoutSettingsPage = lazy(() => import('./pages/PayoutSettingsPage'));
 
 // Legal pages
 const TermsOfServicePage = lazy(() => import('./pages/legal/TermsOfServicePage'));
@@ -343,6 +344,7 @@ export default function App() {
                 <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />
+                <Route path="/payout-settings" element={<ProtectedRoute><PayoutSettingsPage /></ProtectedRoute>} />
               </Routes>
             </Suspense>
           </ErrorBoundary>

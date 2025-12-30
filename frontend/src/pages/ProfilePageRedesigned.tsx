@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import ArtManageModal from '../components/ArtManageModal';
 import { getFollowing, unfollowUser, FollowUser } from '../services/socialApi';
+import { BridgeOnboardingBanner } from '../components/bridge';
 
 interface ExternalPortfolioItem {
   id: number;
@@ -1955,18 +1956,51 @@ export default function ProfilePageRedesigned() {
             padding: 24,
             marginBottom: 24,
           }}>
-            <h3 style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: '#f8fafc',
-              marginBottom: 20,
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              justifyContent: 'space-between',
+              marginBottom: 20,
             }}>
-              <DollarSign size={20} style={{ color: '#10b981' }} />
-              Sales Overview
-            </h3>
+              <h3 style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: '#f8fafc',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+              }}>
+                <DollarSign size={20} style={{ color: '#10b981' }} />
+                Sales Overview
+              </h3>
+              <Link
+                to="/payout-settings"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 16px',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  color: '#94a3b8',
+                  fontSize: 14,
+                  textDecoration: 'none',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#334155';
+                  e.currentTarget.style.color = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#1e293b';
+                  e.currentTarget.style.color = '#94a3b8';
+                }}
+              >
+                <Settings size={16} />
+                Payout Settings
+              </Link>
+            </div>
 
             <div style={{
               display: 'grid',
@@ -2014,6 +2048,9 @@ export default function ProfilePageRedesigned() {
               </div>
             </div>
           </div>
+
+          {/* Bridge Onboarding Banner */}
+          <BridgeOnboardingBanner className="mb-6" />
 
           {/* Content Performance - Expandable Cards */}
           {salesAnalytics && (salesAnalytics.content_sales.length > 0 || salesAnalytics.collaboration_sales.length > 0) && (

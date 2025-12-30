@@ -1,10 +1,10 @@
 /**
  * ChapterPurchase Component
  *
- * Displays chapter purchase UI with transparent credit card fee breakdown.
+ * Displays chapter purchase UI with transparent processing fee breakdown.
  * Shows buyers exactly what they're paying and where it goes:
  * - Chapter price (set by creator)
- * - Credit card processing fee
+ * - Processing fee (credit card + crypto conversion)
  * - Total amount charged
  * - Creator receives 90% of chapter price
  */
@@ -16,7 +16,8 @@ import AddToCartButton from './AddToCartButton';
 
 interface PaymentBreakdown {
   chapter_price: string;
-  credit_card_fee: string;
+  processing_fee: string;  // Combined CC + Bridge fee
+  credit_card_fee?: string;  // Alias for backwards compatibility
   buyer_total: string;
   creator_receives: string;
   platform_receives: string;
@@ -200,8 +201,8 @@ export default function ChapterPurchase({
                 <span style={{ fontWeight: 500 }}>{breakdown.chapter_price}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: '#94a3b8' }}>Credit card fee:</span>
-                <span style={{ fontWeight: 500 }}>{breakdown.credit_card_fee}</span>
+                <span style={{ color: '#94a3b8' }}>Processing fee:</span>
+                <span style={{ fontWeight: 500 }}>{breakdown.processing_fee || breakdown.credit_card_fee}</span>
               </div>
               <div style={{
                 display: 'flex',
@@ -234,7 +235,7 @@ export default function ChapterPurchase({
           {breakdown && (
             <>
               The creator receives <strong>{breakdown.creator_receives}</strong> (90% of the chapter price).
-              The credit card fee is passed to you so creators get their full share.
+              The processing fee is passed to you so creators get their full share.
             </>
           )}
         </div>
@@ -290,7 +291,7 @@ export default function ChapterPurchase({
         backgroundColor: '#1e293b',
         borderRadius: '6px',
       }}>
-        Add multiple chapters to your cart to save on credit card fees
+        Add multiple chapters to your cart to save on processing fees
       </div>
 
       {/* Error Message */}
@@ -329,7 +330,7 @@ export default function ChapterPurchase({
         textAlign: 'center',
         lineHeight: '1.4',
       }}>
-        Secure payment via Stripe • NFT ownership recorded on blockchain
+        Secure payment via Stripe • NFT minted on Solana (typically 5-30 min)
       </div>
     </div>
   );

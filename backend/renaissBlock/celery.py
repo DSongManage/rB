@@ -33,7 +33,11 @@ app.conf.beat_schedule = {
         'task': 'rb_core.tasks.weekly_treasury_reconciliation',
         'schedule': crontab(day_of_week='monday', hour=9, minute=0),
     },
-    # Add more scheduled tasks here as needed
+    # Check for stale Bridge on-ramp transfers - every 15 minutes
+    'check-stale-bridge-onramp-transfers': {
+        'task': 'rb_core.tasks.check_stale_onramp_transfers',
+        'schedule': crontab(minute='*/15'),  # Every 15 minutes
+    },
 }
 
 

@@ -4,8 +4,125 @@ Celery tasks for async NFT minting and payment processing.
 
 import logging
 from decimal import Decimal, ROUND_HALF_UP
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+def get_payout_destinations(user, usdc_amount):
+    """
+    Determine payout destination(s) for a user based on their Bridge setup and preferences.
+
+    Returns a list of (address, amount) tuples. For split payouts, returns two entries.
+    Handles $10 minimum threshold for Bridge payouts.
+
+    Args:
+        user: User model instance
+        usdc_amount: Decimal amount of USDC to distribute
+
+    Returns:
+        list: List of dicts with 'address' and 'amount' keys
+    """
+    from .models import UserProfile
+
+    # Get user profile
+    try:
+        profile = user.profile
+    except UserProfile.DoesNotExist:
+        logger.warning(f'[Payout] User {user.username} has no profile, using wallet_address attribute')
+        wallet = getattr(user, 'wallet_address', None)
+        if wallet:
+            return [{'address': wallet, 'amount': usdc_amount, 'destination_type': 'wallet'}]
+        raise ValueError(f'User {user.username} has no wallet address')
+
+    wallet_address = profile.wallet_address
+    if not wallet_address:
+        raise ValueError(f'User {user.username} has no wallet address')
+
+    # Default: 100% to wallet if no Bridge setup
+    if not hasattr(user, 'bridge_customer'):
+        return [{'address': wallet_address, 'amount': usdc_amount, 'destination_type': 'wallet'}]
+
+    bridge_customer = user.bridge_customer
+
+    # If KYC not approved, send to wallet
+    if bridge_customer.kyc_status != 'approved':
+        logger.info(f'[Payout] User {user.username} KYC not approved, sending to wallet')
+        return [{'address': wallet_address, 'amount': usdc_amount, 'destination_type': 'wallet'}]
+
+    # Get primary liquidation address
+    liquidation_address = bridge_customer.liquidation_addresses.filter(
+        is_active=True, is_primary=True
+    ).first()
+
+    if not liquidation_address:
+        logger.info(f'[Payout] User {user.username} has no liquidation address, sending to wallet')
+        return [{'address': wallet_address, 'amount': usdc_amount, 'destination_type': 'wallet'}]
+
+    # Based on payout preference
+    if profile.payout_destination == 'wallet':
+        return [{'address': wallet_address, 'amount': usdc_amount, 'destination_type': 'wallet'}]
+
+    elif profile.payout_destination == 'bridge':
+        # 100% to Bridge - check threshold
+        min_threshold = getattr(settings, 'BRIDGE_MIN_PAYOUT_THRESHOLD', Decimal('10.00'))
+        accumulated = profile.pending_bridge_amount + usdc_amount
+
+        if accumulated >= min_threshold:
+            # Reset accumulator and send to Bridge
+            profile.pending_bridge_amount = Decimal('0')
+            profile.save()
+            logger.info(f'[Payout] User {user.username} Bridge payout: ${accumulated} to {liquidation_address.solana_address}')
+            return [{'address': liquidation_address.solana_address, 'amount': accumulated, 'destination_type': 'bridge'}]
+        else:
+            # Below threshold, accumulate and send to wallet
+            profile.pending_bridge_amount = accumulated
+            profile.save()
+            logger.info(f'[Payout] User {user.username} below threshold, accumulating ${accumulated}, sending to wallet')
+            return [{'address': wallet_address, 'amount': usdc_amount, 'destination_type': 'wallet'}]
+
+    elif profile.payout_destination == 'split':
+        # Split between wallet and Bridge
+        bridge_pct = Decimal(str(profile.bridge_payout_percentage)) / Decimal('100')
+        wallet_pct = Decimal('1') - bridge_pct
+
+        bridge_portion = (usdc_amount * bridge_pct).quantize(Decimal('0.000001'), rounding=ROUND_HALF_UP)
+        wallet_portion = usdc_amount - bridge_portion  # Ensure no rounding loss
+
+        distributions = []
+
+        # Wallet portion always goes immediately
+        if wallet_portion > 0:
+            distributions.append({
+                'address': wallet_address,
+                'amount': wallet_portion,
+                'destination_type': 'wallet'
+            })
+
+        # Bridge portion: threshold check
+        min_threshold = getattr(settings, 'BRIDGE_MIN_PAYOUT_THRESHOLD', Decimal('10.00'))
+        accumulated = profile.pending_bridge_amount + bridge_portion
+
+        if accumulated >= min_threshold:
+            profile.pending_bridge_amount = Decimal('0')
+            distributions.append({
+                'address': liquidation_address.solana_address,
+                'amount': accumulated,
+                'destination_type': 'bridge'
+            })
+            logger.info(f'[Payout] User {user.username} split: ${wallet_portion} to wallet, ${accumulated} to Bridge')
+        else:
+            # Add to accumulator, redirect Bridge portion to wallet for now
+            profile.pending_bridge_amount = accumulated
+            if bridge_portion > 0:
+                distributions[0]['amount'] = distributions[0]['amount'] + bridge_portion
+            logger.info(f'[Payout] User {user.username} split: ${usdc_amount} to wallet (Bridge portion ${bridge_portion} accumulating at ${accumulated})')
+
+        profile.save()
+        return distributions
+
+    # Fallback to wallet
+    return [{'address': wallet_address, 'amount': usdc_amount, 'destination_type': 'wallet'}]
 
 # Try to import Celery, but make tasks work without it for MVP
 try:
@@ -341,14 +458,34 @@ def process_atomic_purchase(self, purchase_id):
                     Decimal('0.000001'), rounding=ROUND_HALF_UP
                 )
 
-                collaborator_payments.append({
-                    'user': collab['user'],
-                    'wallet_address': collab['wallet'],
-                    'amount_usdc': float(usdc_amount),
-                    'percentage': float(collab_percentage),
-                    'role': collab.get('role', 'collaborator')
-                })
-                logger.info(f'[Atomic Purchase]   {collab["user"].username}: {collab_percentage}% of creator pool = ${usdc_amount} USDC')
+                # Get payout destinations (may be split between wallet and Bridge)
+                try:
+                    destinations = get_payout_destinations(collab['user'], usdc_amount)
+                    for dest in destinations:
+                        collaborator_payments.append({
+                            'user': collab['user'],
+                            'wallet_address': dest['address'],
+                            'amount_usdc': float(dest['amount']),
+                            'percentage': float(collab_percentage),
+                            'role': collab.get('role', 'collaborator'),
+                            'destination_type': dest.get('destination_type', 'wallet')
+                        })
+                        logger.info(
+                            f'[Atomic Purchase]   {collab["user"].username}: '
+                            f'{collab_percentage}% of creator pool = ${dest["amount"]} USDC to {dest.get("destination_type", "wallet")}'
+                        )
+                except Exception as e:
+                    # Fallback to original wallet if Bridge lookup fails
+                    logger.warning(f'[Atomic Purchase] Failed to get payout destinations for {collab["user"].username}: {e}, using original wallet')
+                    collaborator_payments.append({
+                        'user': collab['user'],
+                        'wallet_address': collab['wallet'],
+                        'amount_usdc': float(usdc_amount),
+                        'percentage': float(collab_percentage),
+                        'role': collab.get('role', 'collaborator'),
+                        'destination_type': 'wallet'
+                    })
+                    logger.info(f'[Atomic Purchase]   {collab["user"].username}: {collab_percentage}% of creator pool = ${usdc_amount} USDC')
         else:
             # SINGLE CREATOR: Percentage is their direct share of total (~90%)
             # This maintains backward compatibility with non-collaborative content
@@ -360,14 +497,34 @@ def process_atomic_purchase(self, purchase_id):
                     Decimal('0.000001'), rounding=ROUND_HALF_UP
                 )
 
-                collaborator_payments.append({
-                    'user': collab['user'],
-                    'wallet_address': collab['wallet'],
-                    'amount_usdc': float(usdc_amount),
-                    'percentage': float(collab_percentage),
-                    'role': collab.get('role', 'collaborator')
-                })
-                logger.info(f'[Atomic Purchase]   {collab["user"].username}: {collab_percentage}% of total = ${usdc_amount} USDC')
+                # Get payout destinations (may be split between wallet and Bridge)
+                try:
+                    destinations = get_payout_destinations(collab['user'], usdc_amount)
+                    for dest in destinations:
+                        collaborator_payments.append({
+                            'user': collab['user'],
+                            'wallet_address': dest['address'],
+                            'amount_usdc': float(dest['amount']),
+                            'percentage': float(collab_percentage),
+                            'role': collab.get('role', 'collaborator'),
+                            'destination_type': dest.get('destination_type', 'wallet')
+                        })
+                        logger.info(
+                            f'[Atomic Purchase]   {collab["user"].username}: '
+                            f'{collab_percentage}% of total = ${dest["amount"]} USDC to {dest.get("destination_type", "wallet")}'
+                        )
+                except Exception as e:
+                    # Fallback to original wallet if Bridge lookup fails
+                    logger.warning(f'[Atomic Purchase] Failed to get payout destinations for {collab["user"].username}: {e}, using original wallet')
+                    collaborator_payments.append({
+                        'user': collab['user'],
+                        'wallet_address': collab['wallet'],
+                        'amount_usdc': float(usdc_amount),
+                        'percentage': float(collab_percentage),
+                        'role': collab.get('role', 'collaborator'),
+                        'destination_type': 'wallet'
+                    })
+                    logger.info(f'[Atomic Purchase]   {collab["user"].username}: {collab_percentage}% of total = ${usdc_amount} USDC')
 
             # Recalculate platform fee for single creator mode (remaining after creator share)
             total_creator_usdc = sum(Decimal(str(p['amount_usdc'])) for p in collaborator_payments)
@@ -1095,3 +1252,331 @@ def _process_batch_refunds(batch, failed_items):
         })
         batch.save(update_fields=['processing_log'])
         return Decimal('0')
+
+
+# =============================================================================
+# Bridge On-Ramp Tasks (USD → USDC for Purchases)
+# =============================================================================
+
+@shared_task(bind=True, max_retries=3)
+def initiate_bridge_onramp(self, purchase_id=None, batch_purchase_id=None):
+    """
+    Initiate Bridge on-ramp transfer after Stripe payment succeeds.
+
+    Called by Stripe webhook when payment_intent.succeeded.
+    Creates a Bridge transfer to convert USD → USDC.
+
+    Flow:
+    1. Get purchase/batch from database
+    2. Update status to 'bridge_pending'
+    3. Call Bridge API to create transfer
+    4. Create BridgeOnRampTransfer record
+    5. Wait for Bridge webhook (transfer.completed) to trigger NFT minting
+
+    Args:
+        purchase_id: Single purchase ID (for individual purchases)
+        batch_purchase_id: Batch purchase ID (for cart purchases)
+
+    Returns:
+        dict: Result with Bridge transfer ID and status
+    """
+    from django.utils import timezone
+    from .models import Purchase, BatchPurchase, BridgeOnRampTransfer
+    from .services.bridge_service import BridgeService, BridgeAPIError
+
+    try:
+        # Determine if single or batch purchase
+        if purchase_id:
+            purchase = Purchase.objects.get(id=purchase_id)
+            batch = None
+            usd_amount = purchase.gross_amount or purchase.purchase_price_usd
+            stripe_payment_intent_id = purchase.stripe_payment_intent_id or ''
+            external_id = f"purchase_{purchase_id}"
+            logger.info(f"[Bridge On-Ramp] Processing single purchase {purchase_id} for ${usd_amount}")
+        elif batch_purchase_id:
+            batch = BatchPurchase.objects.get(id=batch_purchase_id)
+            purchase = None
+            usd_amount = batch.total_charged
+            stripe_payment_intent_id = batch.stripe_payment_intent_id or ''
+            external_id = f"batch_{batch_purchase_id}"
+            logger.info(f"[Bridge On-Ramp] Processing batch purchase {batch_purchase_id} for ${usd_amount}")
+        else:
+            raise ValueError("Must provide either purchase_id or batch_purchase_id")
+
+        # Update status to bridge_pending
+        if purchase:
+            purchase.status = 'bridge_pending'
+            purchase.save(update_fields=['status'])
+        if batch:
+            batch.status = 'bridge_pending'
+            batch.save(update_fields=['status'])
+
+        # Get platform USDC wallet from settings
+        platform_wallet = getattr(settings, 'PLATFORM_USDC_WALLET_ADDRESS', '')
+        if not platform_wallet:
+            raise ValueError("PLATFORM_USDC_WALLET_ADDRESS not configured")
+
+        # Initialize Bridge service
+        bridge = BridgeService()
+
+        # Create on-ramp transfer
+        transfer_result = bridge.create_onramp_transfer(
+            amount=usd_amount,
+            destination_address=platform_wallet,
+            external_id=external_id,
+        )
+
+        logger.info(f"[Bridge On-Ramp] Transfer created: {transfer_result.get('id')}")
+        logger.info(f"[Bridge On-Ramp] Transfer state: {transfer_result.get('state')}")
+
+        # Create BridgeOnRampTransfer record
+        onramp = BridgeOnRampTransfer.objects.create(
+            purchase=purchase,
+            batch_purchase=batch,
+            bridge_transfer_id=transfer_result['id'],
+            stripe_payment_intent_id=stripe_payment_intent_id,
+            usd_amount=usd_amount,
+            destination_wallet=platform_wallet,
+            status='pending',
+        )
+
+        # Update status to bridge_converting
+        if purchase:
+            purchase.status = 'bridge_converting'
+            purchase.save(update_fields=['status'])
+        if batch:
+            batch.status = 'bridge_converting'
+            batch.save(update_fields=['status'])
+
+        logger.info(f"[Bridge On-Ramp] ✅ Transfer {transfer_result['id']} initiated for {external_id}")
+
+        return {
+            'success': True,
+            'bridge_transfer_id': transfer_result['id'],
+            'onramp_id': onramp.id,
+            'status': transfer_result.get('state', 'pending'),
+            'usd_amount': str(usd_amount),
+        }
+
+    except (Purchase.DoesNotExist, BatchPurchase.DoesNotExist) as e:
+        logger.error(f"[Bridge On-Ramp] Purchase not found: {e}")
+        return {'success': False, 'error': 'Purchase not found'}
+
+    except BridgeAPIError as e:
+        logger.error(f"[Bridge On-Ramp] Bridge API error: {e}")
+
+        # Retry with exponential backoff
+        try:
+            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+        except Exception:
+            # Max retries exceeded - trigger Stripe refund
+            logger.error(f"[Bridge On-Ramp] Max retries exceeded, initiating refund")
+            _initiate_stripe_refund(purchase_id, batch_purchase_id, "Bridge conversion failed")
+            return {'success': False, 'error': str(e), 'refund_initiated': True}
+
+    except Exception as e:
+        logger.error(f"[Bridge On-Ramp] Unexpected error: {e}")
+        logger.exception(e)
+
+        # Mark as failed
+        if purchase_id:
+            try:
+                Purchase.objects.filter(id=purchase_id).update(status='failed')
+            except Exception:
+                pass
+        if batch_purchase_id:
+            try:
+                BatchPurchase.objects.filter(id=batch_purchase_id).update(status='failed')
+            except Exception:
+                pass
+
+        raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+
+
+@shared_task
+def check_stale_onramp_transfers():
+    """
+    Celery beat task: Check for stale Bridge on-ramp transfers.
+
+    Runs every 15 minutes. Checks for transfers stuck in pending/converting
+    states for too long and takes action:
+    - <1 hour: Log warning, continue waiting
+    - 1-4 hours: Fetch status from Bridge API
+    - >4 hours: Mark as failed, initiate refund
+
+    Returns:
+        dict: Summary of stale transfers processed
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import BridgeOnRampTransfer
+    from .services.bridge_service import BridgeService, BridgeAPIError
+
+    logger.info("[Bridge Stale Check] Checking for stale on-ramp transfers...")
+
+    now = timezone.now()
+    stale_warning_threshold = now - timedelta(hours=1)
+    stale_check_threshold = now - timedelta(hours=2)
+    stale_fail_threshold = now - timedelta(hours=4)
+
+    # Get pending/converting transfers
+    stale_transfers = BridgeOnRampTransfer.objects.filter(
+        status__in=['pending', 'awaiting_funds', 'funds_received', 'converting'],
+        created_at__lt=stale_warning_threshold
+    ).select_related('purchase', 'batch_purchase')
+
+    results = {
+        'checked': 0,
+        'updated': 0,
+        'failed': 0,
+        'refunded': 0,
+    }
+
+    bridge = BridgeService()
+
+    for onramp in stale_transfers:
+        results['checked'] += 1
+        age = now - onramp.created_at
+        age_hours = age.total_seconds() / 3600
+
+        logger.info(f"[Bridge Stale Check] Transfer {onramp.bridge_transfer_id} is {age_hours:.1f} hours old (status: {onramp.status})")
+
+        # Check if should fail
+        if onramp.created_at < stale_fail_threshold:
+            logger.warning(f"[Bridge Stale Check] Transfer {onramp.bridge_transfer_id} is >4 hours old, marking as failed")
+
+            onramp.status = 'failed'
+            onramp.failure_reason = 'Transfer timed out (>4 hours)'
+            onramp.save(update_fields=['status', 'failure_reason'])
+
+            # Update purchase/batch status
+            if onramp.purchase:
+                onramp.purchase.status = 'failed'
+                onramp.purchase.save(update_fields=['status'])
+            if onramp.batch_purchase:
+                onramp.batch_purchase.status = 'failed'
+                onramp.batch_purchase.save(update_fields=['status'])
+
+            # Initiate refund
+            _initiate_stripe_refund(
+                onramp.purchase.id if onramp.purchase else None,
+                onramp.batch_purchase.id if onramp.batch_purchase else None,
+                "Bridge conversion timed out"
+            )
+
+            results['failed'] += 1
+            results['refunded'] += 1
+            continue
+
+        # Check if should poll Bridge API
+        if onramp.created_at < stale_check_threshold:
+            try:
+                transfer_status = bridge.get_transfer(onramp.bridge_transfer_id)
+                new_state = transfer_status.get('state', '')
+
+                logger.info(f"[Bridge Stale Check] Transfer {onramp.bridge_transfer_id} state from API: {new_state}")
+
+                # Map Bridge states to our statuses
+                state_mapping = {
+                    'awaiting_funds': 'awaiting_funds',
+                    'funds_received': 'funds_received',
+                    'in_review': 'converting',
+                    'completed': 'completed',
+                    'failed': 'failed',
+                    'returned': 'failed',
+                }
+
+                if new_state in state_mapping:
+                    onramp.status = state_mapping[new_state]
+
+                    if new_state == 'completed':
+                        onramp.usdc_amount = Decimal(str(transfer_status.get('destination_amount', 0)))
+                        onramp.conversion_completed_at = now
+                        if transfer_status.get('receipt', {}).get('destination_tx_hash'):
+                            onramp.solana_tx_signature = transfer_status['receipt']['destination_tx_hash']
+
+                        # Trigger NFT minting
+                        if onramp.purchase:
+                            onramp.purchase.status = 'usdc_received'
+                            onramp.purchase.save(update_fields=['status'])
+                            process_atomic_purchase.delay(onramp.purchase.id)
+                        if onramp.batch_purchase:
+                            onramp.batch_purchase.status = 'usdc_received'
+                            onramp.batch_purchase.save(update_fields=['status'])
+                            process_batch_purchase.delay(onramp.batch_purchase.id)
+
+                    elif new_state in ['failed', 'returned']:
+                        onramp.failure_reason = transfer_status.get('failure_reason', 'Transfer failed')
+                        _initiate_stripe_refund(
+                            onramp.purchase.id if onramp.purchase else None,
+                            onramp.batch_purchase.id if onramp.batch_purchase else None,
+                            onramp.failure_reason
+                        )
+                        results['refunded'] += 1
+
+                    onramp.save()
+                    results['updated'] += 1
+
+            except BridgeAPIError as e:
+                logger.warning(f"[Bridge Stale Check] Failed to fetch status for {onramp.bridge_transfer_id}: {e}")
+
+    logger.info(f"[Bridge Stale Check] Complete: {results}")
+    return results
+
+
+def _initiate_stripe_refund(purchase_id, batch_purchase_id, reason):
+    """
+    Helper to initiate Stripe refund for failed Bridge transfers.
+
+    Args:
+        purchase_id: Single purchase ID or None
+        batch_purchase_id: Batch purchase ID or None
+        reason: Reason for refund
+    """
+    import stripe
+    from .models import Purchase, BatchPurchase
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    try:
+        if purchase_id:
+            purchase = Purchase.objects.get(id=purchase_id)
+            payment_intent_id = purchase.stripe_payment_intent_id
+            amount = purchase.gross_amount or purchase.purchase_price_usd
+            metadata_key = 'purchase_id'
+            metadata_value = str(purchase_id)
+        elif batch_purchase_id:
+            batch = BatchPurchase.objects.get(id=batch_purchase_id)
+            payment_intent_id = batch.stripe_payment_intent_id
+            amount = batch.total_charged
+            metadata_key = 'batch_purchase_id'
+            metadata_value = str(batch_purchase_id)
+        else:
+            logger.error("[Stripe Refund] No purchase_id or batch_purchase_id provided")
+            return
+
+        if not payment_intent_id:
+            logger.error(f"[Stripe Refund] No payment_intent_id found for {metadata_key}={metadata_value}")
+            return
+
+        refund = stripe.Refund.create(
+            payment_intent=payment_intent_id,
+            reason='requested_by_customer',
+            metadata={
+                metadata_key: metadata_value,
+                'refund_reason': reason,
+            }
+        )
+
+        logger.info(f"[Stripe Refund] Created refund {refund.id} for ${amount}: {reason}")
+
+        # Update status
+        if purchase_id:
+            Purchase.objects.filter(id=purchase_id).update(status='refunded')
+        if batch_purchase_id:
+            BatchPurchase.objects.filter(id=batch_purchase_id).update(status='refunded')
+
+    except stripe.error.StripeError as e:
+        logger.error(f"[Stripe Refund] Failed to create refund: {e}")
+    except Exception as e:
+        logger.error(f"[Stripe Refund] Unexpected error: {e}")

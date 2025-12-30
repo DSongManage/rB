@@ -7,8 +7,15 @@ from .views.cart import (
     CartView, AddToCartView, RemoveFromCartView, ClearCartView,
     CartCheckoutView, CartBreakdownView
 )
-from .views.webhook import stripe_webhook
-from .views.purchases import UserPurchasesView
+from .views.webhook import stripe_webhook, bridge_webhook
+from .views.bridge import (
+    BridgeOnboardingStatusView, CreateBridgeCustomerView, GetKYCLinkView, GetKYCStatusView,
+    ListExternalAccountsView, LinkBankAccountPlaidView, LinkBankAccountManualView,
+    DeleteExternalAccountView, SetDefaultExternalAccountView,
+    ListLiquidationAddressesView, CreateLiquidationAddressView, SetPrimaryLiquidationAddressView,
+    ListPayoutsView, GetPayoutPreferencesView, UpdatePayoutPreferencesView
+)
+from .views.purchases import UserPurchasesView, PurchaseStatusView, BatchPurchaseStatusView
 from .views.library import LibraryView, FullContentView, ReadingProgressView
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
@@ -62,6 +69,8 @@ urlpatterns = [
     path('api/webhooks/stripe/', stripe_webhook, name='stripe_webhook'),
     path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook_legacy'),  # Legacy alias
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
+    path('api/purchases/<int:purchase_id>/status/', PurchaseStatusView.as_view(), name='purchase_status'),
+    path('api/batch-purchases/<int:batch_id>/status/', BatchPurchaseStatusView.as_view(), name='batch_purchase_status'),
     # Shopping cart endpoints
     path('api/cart/', CartView.as_view(), name='cart'),
     path('api/cart/add/', AddToCartView.as_view(), name='cart_add'),
@@ -179,6 +188,23 @@ urlpatterns = [
     path('api/users/<int:user_id>/ratings/',
          get_user_ratings,
          name='user-ratings'),
+    # Bridge.xyz Payout Integration
+    path('api/webhooks/bridge/', bridge_webhook, name='bridge_webhook'),
+    path('api/bridge/status/', BridgeOnboardingStatusView.as_view(), name='bridge_status'),
+    path('api/bridge/customer/create/', CreateBridgeCustomerView.as_view(), name='bridge_customer_create'),
+    path('api/bridge/kyc/link/', GetKYCLinkView.as_view(), name='bridge_kyc_link'),
+    path('api/bridge/kyc/status/', GetKYCStatusView.as_view(), name='bridge_kyc_status'),
+    path('api/bridge/accounts/', ListExternalAccountsView.as_view(), name='bridge_accounts'),
+    path('api/bridge/accounts/plaid/', LinkBankAccountPlaidView.as_view(), name='bridge_account_plaid'),
+    path('api/bridge/accounts/manual/', LinkBankAccountManualView.as_view(), name='bridge_account_manual'),
+    path('api/bridge/accounts/<int:account_id>/', DeleteExternalAccountView.as_view(), name='bridge_account_delete'),
+    path('api/bridge/accounts/<int:account_id>/default/', SetDefaultExternalAccountView.as_view(), name='bridge_account_default'),
+    path('api/bridge/liquidation-addresses/', ListLiquidationAddressesView.as_view(), name='bridge_liquidation_list'),
+    path('api/bridge/liquidation-addresses/create/', CreateLiquidationAddressView.as_view(), name='bridge_liquidation_create'),
+    path('api/bridge/liquidation-addresses/<int:address_id>/primary/', SetPrimaryLiquidationAddressView.as_view(), name='bridge_liquidation_primary'),
+    path('api/bridge/payouts/', ListPayoutsView.as_view(), name='bridge_payouts'),
+    path('api/bridge/preferences/', GetPayoutPreferencesView.as_view(), name='bridge_preferences_get'),
+    path('api/bridge/preferences/update/', UpdatePayoutPreferencesView.as_view(), name='bridge_preferences_update'),
 ]
 
 # Development-only endpoints (not exposed in production)
