@@ -9,6 +9,7 @@ import MintStep from './MintStep';
 import ShareStep from './ShareStep';
 import StepIndicator from './StepIndicator';
 import BookEditor from '../BookEditor/BookEditor';
+import SoloComicEditor from './SoloComicEditor';
 import './CreateWizard.css';
 
 type Payload = { title: string; type: 'text' | 'image' | 'video'; file?: File; textHtml?: string };
@@ -25,12 +26,14 @@ export default function CreateWizard() {
   // Flow mode: 'full' for fresh uploads, 'publish' when content already exists
   const [flowMode, setFlowMode] = useState<FlowMode>('full');
   const [step, setStep] = useState(0);
-  const [ctype, setCtype] = useState<'text' | 'image' | 'video' | 'none'>('none');
+  const [ctype, setCtype] = useState<'text' | 'image' | 'video' | 'comic' | 'none'>('none');
   const [, setPayload] = useState<Payload | undefined>();
   const [contentId, setContentId] = useState<number | undefined>();
   const [msg, setMsg] = useState('');
   const [maxStep, setMaxStep] = useState(0);
   const [showBookEditor, setShowBookEditor] = useState(false);
+  const [showComicEditor, setShowComicEditor] = useState(false);
+  const [comicProjectId, setComicProjectId] = useState<number | undefined>(undefined);
   const [minted, setMinted] = useState(false);
 
   // Get current step labels based on flow mode
@@ -52,6 +55,20 @@ export default function CreateWizard() {
       }
     }
   }, [searchParams, navigate]);
+
+  // Check for projectId parameter (for editing existing comic projects)
+  useEffect(() => {
+    const typeParam = searchParams.get('type');
+    const projectIdParam = searchParams.get('projectId');
+    if (typeParam === 'comic' && projectIdParam) {
+      const projectId = parseInt(projectIdParam, 10);
+      if (!isNaN(projectId)) {
+        setComicProjectId(projectId);
+        setShowComicEditor(true);
+        setCtype('comic');
+      }
+    }
+  }, [searchParams]);
 
   async function fetchCsrf() {
     try {
@@ -143,6 +160,15 @@ export default function CreateWizard() {
     setMaxStep(0);
   };
 
+  // Handle comic editor publish
+  const handleComicPublish = (publishedContentId: number) => {
+    setContentId(publishedContentId);
+    setShowComicEditor(false);
+    setFlowMode('publish');
+    setStep(0); // First step in publish flow (Configure)
+    setMaxStep(0);
+  };
+
   // Save customizations helper
   const saveCustomizations = async () => {
     if (!collectCustomize || !contentId) return;
@@ -176,6 +202,22 @@ export default function CreateWizard() {
           setCtype('none');
           setStep(0);
         }}
+      />
+    );
+  }
+
+  // If comic editor is active, show it instead of the wizard
+  if (showComicEditor) {
+    return (
+      <SoloComicEditor
+        onPublish={handleComicPublish}
+        onBack={() => {
+          setShowComicEditor(false);
+          setComicProjectId(undefined);
+          setCtype('none');
+          setStep(0);
+        }}
+        existingProjectId={comicProjectId}
       />
     );
   }
@@ -238,6 +280,8 @@ export default function CreateWizard() {
           setCtype(t);
           if (t === 'text') {
             setShowBookEditor(true);
+          } else if (t === 'comic') {
+            setShowComicEditor(true);
           } else {
             setMaxStep(Math.max(maxStep, 0));
             setStep(1);
@@ -245,7 +289,7 @@ export default function CreateWizard() {
         }} />
       )}
 
-      {renderFullFlow && step === 1 && ctype !== 'none' && (
+      {renderFullFlow && step === 1 && ctype !== 'none' && ctype !== 'comic' && (
         <CreateStep
           type={ctype}
           registerSubmit={registerSubmit}

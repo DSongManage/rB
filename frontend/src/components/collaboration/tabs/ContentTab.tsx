@@ -10,6 +10,7 @@ import CollaborativeBookEditor from '../CollaborativeBookEditor';
 import CollaborativeArtEditor from '../CollaborativeArtEditor';
 import CollaborativeMusicEditor from '../CollaborativeMusicEditor';
 import CollaborativeVideoEditor from '../CollaborativeVideoEditor';
+import CollaborativeComicEditor from '../CollaborativeComicEditor';
 import ReviewerInterface from '../ReviewerInterface';
 import { Eye, Palette, Music, Video, FileText, AlertCircle } from 'lucide-react';
 
@@ -248,6 +249,15 @@ function renderByProjectType(
     case 'video':
       return (
         <CollaborativeVideoEditor
+          project={project}
+          currentUser={currentUser}
+          onProjectUpdate={onProjectUpdate}
+        />
+      );
+
+    case 'comic':
+      return (
+        <CollaborativeComicEditor
           project={project}
           currentUser={currentUser}
           onProjectUpdate={onProjectUpdate}

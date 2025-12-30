@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 
-export default function TypeSelect({ onSelect }:{ onSelect:(t:'text'|'image'|'video')=>void }){
-  const [hovered, setHovered] = useState<'text'|'image'|'video'|'none'>('none');
-  const card = (t:'text'|'image'|'video', title:string, desc:string, disabled?: boolean, comingSoon?: boolean) => (
+export default function TypeSelect({ onSelect }:{ onSelect:(t:'text'|'image'|'video'|'comic')=>void }){
+  const [hovered, setHovered] = useState<'text'|'image'|'video'|'comic'|'none'>('none');
+  const card = (t:'text'|'image'|'video'|'comic', title:string, desc:string, disabled?: boolean, comingSoon?: boolean) => (
     <button
       onMouseEnter={()=> !disabled && setHovered(t)}
       onMouseLeave={()=> setHovered('none')}
@@ -44,6 +44,7 @@ export default function TypeSelect({ onSelect }:{ onSelect:(t:'text'|'image'|'vi
   return (
     <div style={{display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12}}>
       {card('text', 'Write a Book', 'Create a book with chapters, organize, and publish as a series or complete work')}
+      {card('comic', 'Create a Comic Book', 'Design pages with panels, artwork, and speech bubbles')}
       {card('image', 'Upload Image / Art', 'PNG/JPG/WebP up to 50MB; watermark optional')}
       {card('video', 'Upload Video / Song', 'MP4/MOV/MP3 up to 50MB; auto-compress', true, true)}
     </div>

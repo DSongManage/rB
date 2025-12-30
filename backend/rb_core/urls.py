@@ -16,11 +16,12 @@ from .views.bridge import (
     ListPayoutsView, GetPayoutPreferencesView, UpdatePayoutPreferencesView
 )
 from .views.purchases import UserPurchasesView, PurchaseStatusView, BatchPurchaseStatusView
-from .views.library import LibraryView, FullContentView, ReadingProgressView
+from .views.library import LibraryView, FullContentView, ReadingProgressView, ComicPreviewView, ComicReaderDataView
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
     ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet
 )
+from .views.comic import ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet, ComicSeriesViewSet, ComicIssueViewSet
 from .views.notifications import NotificationViewSet
 from .views.social import (
     ContentLikeView, ContentCommentViewSet, ContentRatingViewSet, CreatorReviewViewSet,
@@ -50,6 +51,13 @@ router.register(r'role-definitions', RoleDefinitionViewSet, basename='role-defin
 router.register(r'content-comments', ContentCommentViewSet, basename='content-comment')
 router.register(r'content-ratings', ContentRatingViewSet, basename='content-rating')
 router.register(r'creator-reviews', CreatorReviewViewSet, basename='creator-review')
+# Comic collaboration ViewSets
+router.register(r'comic-pages', ComicPageViewSet, basename='comic-page')
+router.register(r'comic-panels', ComicPanelViewSet, basename='comic-panel')
+router.register(r'speech-bubbles', SpeechBubbleViewSet, basename='speech-bubble')
+# Comic series and issues
+router.register(r'comic-series', ComicSeriesViewSet, basename='comic-series')
+router.register(r'comic-issues', ComicIssueViewSet, basename='comic-issue')
 
 urlpatterns = [
     path('', home, name='home'),
@@ -81,6 +89,8 @@ urlpatterns = [
     # Library and reading
     path('api/library/', LibraryView.as_view(), name='library'),
     path('api/content/<int:pk>/full/', FullContentView.as_view(), name='content_full'),
+    path('api/content/<int:pk>/comic-preview/', ComicPreviewView.as_view(), name='comic_preview'),
+    path('api/content/<int:pk>/comic-reader-data/', ComicReaderDataView.as_view(), name='comic_reader_data'),
     path('api/reading-progress/', ReadingProgressView.as_view(), name='reading_progress'),
     path('api/reading-progress/<int:content_id>/', ReadingProgressView.as_view(), name='reading_progress_detail'),
     path('api/analytics/fees/', AnalyticsFeesView.as_view(), name='analytics_fees'),

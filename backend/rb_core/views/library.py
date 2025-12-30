@@ -4,8 +4,8 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 
-from ..models import Purchase, Content, ReadingProgress
-from ..serializers import ContentSerializer, ReadingProgressSerializer
+from ..models import Purchase, Content, ReadingProgress, ComicPage, CollaborativeProject
+from ..serializers import ContentSerializer, ReadingProgressSerializer, ComicPageSerializer
 
 
 class LibraryView(APIView):
@@ -42,7 +42,8 @@ class LibraryView(APIView):
             'books': [],
             'art': [],
             'film': [],
-            'music': []
+            'music': [],
+            'comics': []
         }
 
         # Track content IDs to prevent duplicates
@@ -82,6 +83,8 @@ class LibraryView(APIView):
                 library['film'].append(item)
             elif content_type == 'music':
                 library['music'].append(item)
+            elif content_type == 'comic':
+                library['comics'].append(item)
             else:
                 # Default to books if unknown
                 library['books'].append(item)
@@ -214,3 +217,124 @@ class ReadingProgressView(APIView):
             progress_list = ReadingProgress.objects.filter(user=request.user)
             serializer = ReadingProgressSerializer(progress_list, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ComicPreviewView(APIView):
+    """Get comic preview pages for public viewing (no ownership required)."""
+
+    permission_classes = []  # Public endpoint
+
+    def get(self, request, pk):
+        """Get limited comic pages for preview."""
+        try:
+            content = Content.objects.select_related('creator').get(id=pk)
+        except Content.DoesNotExist:
+            return Response(
+                {'error': 'Content not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only allow for comic content
+        if content.content_type != 'comic':
+            return Response(
+                {'error': 'This content is not a comic'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get the linked CollaborativeProject
+        project = content.source_collaborative_project.filter(
+            content_type='comic'
+        ).first()
+
+        if not project:
+            return Response(
+                {'error': 'Comic data not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all pages
+        all_pages = ComicPage.objects.filter(project=project).order_by('page_number')
+        total_pages = all_pages.count()
+
+        if total_pages == 0:
+            return Response({
+                'content_id': content.id,
+                'title': content.title,
+                'creator': content.creator.display_name if hasattr(content.creator, 'display_name') and content.creator.display_name else content.creator.username,
+                'total_pages': 0,
+                'preview_pages': 0,
+                'pages': [],
+                'is_preview': True
+            }, status=status.HTTP_200_OK)
+
+        # Calculate preview pages based on teaser_percent
+        # For comics: show at least 1 page, max based on percentage
+        teaser_percent = content.teaser_percent or 10
+        preview_page_count = max(1, int(total_pages * teaser_percent / 100))
+        # Cap at 3 pages for preview to leave incentive to purchase
+        preview_page_count = min(preview_page_count, 3)
+
+        # Get only the preview pages
+        preview_pages = all_pages[:preview_page_count]
+
+        serializer = ComicPageSerializer(preview_pages, many=True)
+
+        return Response({
+            'content_id': content.id,
+            'title': content.title,
+            'creator': content.creator.display_name if hasattr(content.creator, 'display_name') and content.creator.display_name else content.creator.username,
+            'total_pages': total_pages,
+            'preview_pages': preview_page_count,
+            'pages': serializer.data,
+            'is_preview': True
+        }, status=status.HTTP_200_OK)
+
+
+class ComicReaderDataView(APIView):
+    """Get comic pages/panels/bubbles for reading a published comic."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        """Get full comic data for owned comics."""
+        try:
+            content = Content.objects.select_related('creator').get(id=pk)
+        except Content.DoesNotExist:
+            return Response(
+                {'error': 'Content not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check ownership
+        is_owned = content.is_owned_by(request.user)
+
+        if not is_owned:
+            return Response(
+                {'error': 'You do not own this content', 'code': 'NOT_OWNED'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Get the linked CollaborativeProject (comic source)
+        project = content.source_collaborative_project.filter(
+            content_type='comic'
+        ).first()
+
+        if not project:
+            return Response(
+                {'error': 'Comic data not found. This content may not be a comic.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all pages for the comic project, ordered by page number
+        pages = ComicPage.objects.filter(project=project).order_by('page_number')
+
+        # Serialize the pages (includes nested panels and speech bubbles)
+        serializer = ComicPageSerializer(pages, many=True)
+
+        return Response({
+            'content_id': content.id,
+            'title': content.title,
+            'creator': content.creator.display_name if hasattr(content.creator, 'display_name') and content.creator.display_name else content.creator.username,
+            'total_pages': pages.count(),
+            'pages': serializer.data
+        }, status=status.HTTP_200_OK)

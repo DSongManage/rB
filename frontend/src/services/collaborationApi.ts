@@ -18,7 +18,7 @@ export interface CopyrightPreview {
 export interface CollaborativeProject {
   id: number;
   title: string;
-  content_type: 'book' | 'music' | 'video' | 'art';
+  content_type: 'book' | 'music' | 'video' | 'art' | 'comic';
   description: string;
   status: 'draft' | 'active' | 'ready_for_mint' | 'minted' | 'cancelled';
   milestones: Milestone[];
@@ -39,6 +39,8 @@ export interface CollaborativeProject {
   is_fully_approved: boolean;
   total_collaborators: number;
   progress_percentage: number;
+  is_solo: boolean;
+  cover_image?: string | null;
 }
 
 export interface CollaborativeProjectListItem {
@@ -50,7 +52,10 @@ export interface CollaborativeProjectListItem {
   created_by_username: string;
   total_collaborators: number;
   created_at: string;
+  updated_at: string;
   price_usd: number;
+  is_solo: boolean;
+  cover_image?: string | null;
 }
 
 // Contract task interface for task-based collaboration
@@ -234,9 +239,10 @@ export interface InviteCollaboratorData {
 
 export interface CreateProjectData {
   title: string;
-  content_type: 'book' | 'music' | 'video' | 'art';
+  content_type: 'book' | 'music' | 'video' | 'art' | 'comic';
   description?: string;
   milestones?: Milestone[];
+  is_solo?: boolean;
 }
 
 export interface CreateSectionData {
@@ -1233,6 +1239,540 @@ export const collaborationApi = {
 
     return handleResponse(response);
   },
+
+  // ===== Comic Page Management =====
+
+  /**
+   * Get all pages for a comic project
+   */
+  async getComicPages(projectId: number): Promise<ComicPage[]> {
+    const response = await fetch(
+      `${API_BASE}/api/comic-pages/?project=${projectId}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+    return handleResponse<ComicPage[]>(response);
+  },
+
+  /**
+   * Get a single comic page with panels and bubbles
+   */
+  async getComicPage(pageId: number): Promise<ComicPage> {
+    const response = await fetch(
+      `${API_BASE}/api/comic-pages/${pageId}/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+    return handleResponse<ComicPage>(response);
+  },
+
+  /**
+   * Create a new comic page
+   */
+  async createComicPage(data: CreateComicPageData): Promise<ComicPage> {
+    const response = await fetch(`${API_BASE}/api/comic-pages/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicPage>(response);
+  },
+
+  /**
+   * Update a comic page
+   */
+  async updateComicPage(pageId: number, data: Partial<CreateComicPageData>): Promise<ComicPage> {
+    const response = await fetch(`${API_BASE}/api/comic-pages/${pageId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicPage>(response);
+  },
+
+  /**
+   * Delete a comic page
+   */
+  async deleteComicPage(pageId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/comic-pages/${pageId}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete page: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Reorder a comic page
+   */
+  async reorderComicPage(pageId: number, newPosition: number): Promise<{ status: string; new_position: number }> {
+    const response = await fetch(`${API_BASE}/api/comic-pages/${pageId}/reorder/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ new_position: newPosition }),
+    });
+    return handleResponse(response);
+  },
+
+  // ===== Comic Panel Management =====
+
+  /**
+   * Get all panels for a comic page
+   */
+  async getComicPanels(pageId: number): Promise<ComicPanel[]> {
+    const response = await fetch(
+      `${API_BASE}/api/comic-panels/?page=${pageId}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+    return handleResponse<ComicPanel[]>(response);
+  },
+
+  /**
+   * Create a new comic panel
+   */
+  async createComicPanel(data: CreateComicPanelData): Promise<ComicPanel> {
+    const response = await fetch(`${API_BASE}/api/comic-panels/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicPanel>(response);
+  },
+
+  /**
+   * Update a comic panel
+   */
+  async updateComicPanel(panelId: number, data: Partial<CreateComicPanelData>): Promise<ComicPanel> {
+    const response = await fetch(`${API_BASE}/api/comic-panels/${panelId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicPanel>(response);
+  },
+
+  /**
+   * Delete a comic panel
+   */
+  async deleteComicPanel(panelId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/comic-panels/${panelId}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete panel: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Upload artwork to a panel
+   */
+  async uploadPanelArtwork(panelId: number, artworkFile: File): Promise<ComicPanel> {
+    const formData = new FormData();
+    formData.append('artwork', artworkFile);
+
+    const response = await fetch(`${API_BASE}/api/comic-panels/${panelId}/upload_artwork/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData,
+    });
+    return handleResponse<ComicPanel>(response);
+  },
+
+  /**
+   * Batch update panel positions (for drag operations)
+   */
+  async batchUpdatePanelPositions(
+    panels: Array<{
+      id: number;
+      x_percent?: number;
+      y_percent?: number;
+      width_percent?: number;
+      height_percent?: number;
+      z_index?: number;
+      rotation?: number;
+    }>
+  ): Promise<{ updated: number[] }> {
+    const response = await fetch(`${API_BASE}/api/comic-panels/batch_update_positions/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ panels }),
+    });
+    return handleResponse(response);
+  },
+
+  // ===== Speech Bubble Management =====
+
+  /**
+   * Get all speech bubbles for a panel
+   */
+  async getSpeechBubbles(panelId: number): Promise<SpeechBubble[]> {
+    const response = await fetch(
+      `${API_BASE}/api/speech-bubbles/?panel=${panelId}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+    return handleResponse<SpeechBubble[]>(response);
+  },
+
+  /**
+   * Create a new speech bubble
+   */
+  async createSpeechBubble(data: CreateSpeechBubbleData): Promise<SpeechBubble> {
+    const response = await fetch(`${API_BASE}/api/speech-bubbles/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<SpeechBubble>(response);
+  },
+
+  /**
+   * Update a speech bubble
+   */
+  async updateSpeechBubble(bubbleId: number, data: Partial<CreateSpeechBubbleData>): Promise<SpeechBubble> {
+    const response = await fetch(`${API_BASE}/api/speech-bubbles/${bubbleId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<SpeechBubble>(response);
+  },
+
+  /**
+   * Delete a speech bubble
+   */
+  async deleteSpeechBubble(bubbleId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/speech-bubbles/${bubbleId}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete bubble: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Batch create speech bubbles
+   */
+  async batchCreateSpeechBubbles(bubbles: CreateSpeechBubbleData[]): Promise<{ created: SpeechBubble[] }> {
+    const response = await fetch(`${API_BASE}/api/speech-bubbles/batch_create/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ bubbles }),
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Batch update speech bubble positions
+   */
+  async batchUpdateBubblePositions(
+    bubbles: Array<{
+      id: number;
+      x_percent?: number;
+      y_percent?: number;
+      width_percent?: number;
+      height_percent?: number;
+      z_index?: number;
+    }>
+  ): Promise<{ updated: number[] }> {
+    const response = await fetch(`${API_BASE}/api/speech-bubbles/batch_update_positions/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ bubbles }),
+    });
+    return handleResponse(response);
+  },
+
+  // ===== Comic Series Management =====
+
+  /**
+   * Get all comic series for current user
+   */
+  async getComicSeries(): Promise<ComicSeriesListItem[]> {
+    const response = await fetch(`${API_BASE}/api/comic-series/`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse<ComicSeriesListItem[]>(response);
+  },
+
+  /**
+   * Get a single comic series with details
+   */
+  async getComicSeriesDetail(seriesId: number): Promise<ComicSeries> {
+    const response = await fetch(`${API_BASE}/api/comic-series/${seriesId}/`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse<ComicSeries>(response);
+  },
+
+  /**
+   * Create a new comic series
+   */
+  async createComicSeries(data: CreateComicSeriesData): Promise<ComicSeries> {
+    const response = await fetch(`${API_BASE}/api/comic-series/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicSeries>(response);
+  },
+
+  /**
+   * Update a comic series
+   */
+  async updateComicSeries(seriesId: number, data: Partial<CreateComicSeriesData>): Promise<ComicSeries> {
+    const response = await fetch(`${API_BASE}/api/comic-series/${seriesId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicSeries>(response);
+  },
+
+  /**
+   * Delete a comic series
+   */
+  async deleteComicSeries(seriesId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/comic-series/${seriesId}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete series: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Publish an entire comic series
+   */
+  async publishComicSeries(seriesId: number): Promise<{ content_id: number; message: string }> {
+    const response = await fetch(`${API_BASE}/api/comic-series/${seriesId}/publish/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    return handleResponse(response);
+  },
+
+  // ===== Comic Issue Management =====
+
+  /**
+   * Get all comic issues (optionally filtered by series or project)
+   */
+  async getComicIssues(params?: { series?: number; project?: number }): Promise<ComicIssueListItem[]> {
+    let url = `${API_BASE}/api/comic-issues/`;
+    if (params) {
+      const queryParams = new URLSearchParams();
+      if (params.series) queryParams.append('series', params.series.toString());
+      if (params.project) queryParams.append('project', params.project.toString());
+      if (queryParams.toString()) url += `?${queryParams.toString()}`;
+    }
+    const response = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse<ComicIssueListItem[]>(response);
+  },
+
+  /**
+   * Get a single comic issue with pages
+   */
+  async getComicIssueDetail(issueId: number): Promise<ComicIssue> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/${issueId}/`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse<ComicIssue>(response);
+  },
+
+  /**
+   * Create a new comic issue
+   */
+  async createComicIssue(data: CreateComicIssueData): Promise<ComicIssue> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicIssue>(response);
+  },
+
+  /**
+   * Update a comic issue
+   */
+  async updateComicIssue(issueId: number, data: Partial<CreateComicIssueData>): Promise<ComicIssue> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/${issueId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<ComicIssue>(response);
+  },
+
+  /**
+   * Delete a comic issue
+   */
+  async deleteComicIssue(issueId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/${issueId}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete issue: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Prepare a comic issue for minting (validates and generates preview)
+   */
+  async prepareComicIssue(issueId: number): Promise<{ ready: boolean; preview_data: any; errors?: string[] }> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/${issueId}/prepare/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Publish a single comic issue
+   */
+  async publishComicIssue(issueId: number): Promise<{ content_id: number; message: string }> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/${issueId}/publish/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Get pages for a specific issue
+   */
+  async getComicIssuePages(issueId: number): Promise<ComicPage[]> {
+    const response = await fetch(`${API_BASE}/api/comic-pages/?issue=${issueId}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse<ComicPage[]>(response);
+  },
 };
 
 // ===== Additional TypeScript Interfaces =====
@@ -1303,4 +1843,217 @@ export interface CollaboratorRatingData {
   would_collab_again: number;
   private_note?: string;
   public_feedback?: string;
+}
+
+// ===== Comic Book Collaboration Interfaces =====
+
+export type BubbleType = 'oval' | 'thought' | 'shout' | 'whisper' | 'narrative' | 'caption' | 'radio' | 'burst';
+export type PointerDirection = 'none' | 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type BorderStyle = 'solid' | 'dashed' | 'none' | 'jagged' | 'wavy';
+export type ArtworkFit = 'contain' | 'cover' | 'fill';
+export type PageFormat = 'standard' | 'manga' | 'webtoon' | 'custom';
+
+export interface SpeechBubble {
+  id: number;
+  panel: number;
+  bubble_type: BubbleType;
+  x_percent: number;
+  y_percent: number;
+  width_percent: number;
+  height_percent: number;
+  z_index: number;
+  text: string;
+  font_family: string;
+  font_size: number;
+  font_color: string;
+  font_weight: 'normal' | 'bold';
+  font_style: 'normal' | 'italic';
+  text_align: 'left' | 'center' | 'right';
+  background_color: string;
+  border_color: string;
+  border_width: number;
+  pointer_direction: PointerDirection;
+  pointer_position: number;
+  writer?: number;
+  writer_username?: string;
+  order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComicPanel {
+  id: number;
+  page: number;
+  x_percent: number;
+  y_percent: number;
+  width_percent: number;
+  height_percent: number;
+  z_index: number;
+  border_style: BorderStyle;
+  border_width: number;
+  border_color: string;
+  border_radius: number;
+  background_color: string;
+  rotation: number;
+  skew_x: number;  // Horizontal skew for diagonal effect (-45 to 45)
+  skew_y: number;  // Vertical skew for diagonal effect (-45 to 45)
+  artwork?: string;
+  artwork_fit: ArtworkFit;
+  artist?: number;
+  artist_username?: string;
+  order: number;
+  speech_bubbles: SpeechBubble[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComicPage {
+  id: number;
+  project?: number | null;
+  issue?: number | null;
+  page_number: number;
+  page_format: PageFormat;
+  canvas_width: number;
+  canvas_height: number;
+  background_image?: string;
+  background_color: string;
+  panels: ComicPanel[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComicPageListItem {
+  id: number;
+  project: number;
+  page_number: number;
+  page_format: PageFormat;
+  panel_count: number;
+}
+
+export interface CreateComicPageData {
+  project?: number;
+  issue?: number;
+  page_format?: PageFormat;
+  canvas_width?: number;
+  canvas_height?: number;
+  background_color?: string;
+}
+
+export interface CreateComicPanelData {
+  page: number;
+  x_percent?: number;
+  y_percent?: number;
+  width_percent?: number;
+  height_percent?: number;
+  z_index?: number;
+  border_style?: BorderStyle;
+  border_width?: number;
+  border_color?: string;
+  border_radius?: number;
+  background_color?: string;
+  rotation?: number;
+  skew_x?: number;
+  skew_y?: number;
+  artwork_fit?: ArtworkFit;
+}
+
+export interface CreateSpeechBubbleData {
+  panel: number;
+  bubble_type?: BubbleType;
+  x_percent?: number;
+  y_percent?: number;
+  width_percent?: number;
+  height_percent?: number;
+  z_index?: number;
+  text?: string;
+  font_family?: string;
+  font_size?: number;
+  font_color?: string;
+  font_weight?: 'normal' | 'bold';
+  font_style?: 'normal' | 'italic';
+  text_align?: 'left' | 'center' | 'right';
+  background_color?: string;
+  border_color?: string;
+  border_width?: number;
+  pointer_direction?: PointerDirection;
+  pointer_position?: number;
+}
+
+// ===== Comic Series & Issue Interfaces =====
+
+export interface ComicSeries {
+  id: number;
+  creator: number;
+  creator_username: string;
+  title: string;
+  synopsis: string;
+  cover_image?: string | null;
+  is_published: boolean;
+  published_content?: number | null;
+  issue_count: number;
+  total_pages: number;
+  created_at: string;
+  updated_at: string;
+  issues?: ComicIssue[];
+}
+
+export interface ComicSeriesListItem {
+  id: number;
+  creator: number;
+  creator_username: string;
+  title: string;
+  cover_image?: string | null;
+  is_published: boolean;
+  issue_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComicIssue {
+  id: number;
+  series?: number | null;
+  series_title?: string | null;
+  project?: number | null;
+  project_title?: string | null;
+  title: string;
+  issue_number: number;
+  synopsis: string;
+  cover_image?: string | null;
+  price: number;
+  is_published: boolean;
+  is_listed: boolean;
+  published_content?: number | null;
+  page_count: number;
+  created_at: string;
+  updated_at: string;
+  pages?: ComicPage[];
+}
+
+export interface ComicIssueListItem {
+  id: number;
+  series?: number | null;
+  project?: number | null;
+  title: string;
+  issue_number: number;
+  cover_image?: string | null;
+  price: number;
+  is_published: boolean;
+  is_listed: boolean;
+  page_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateComicSeriesData {
+  title: string;
+  synopsis?: string;
+}
+
+export interface CreateComicIssueData {
+  series?: number;
+  project?: number;
+  title: string;
+  issue_number?: number;
+  synopsis?: string;
+  price?: number;
 }

@@ -1511,6 +1511,99 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'created_at': timezone.now().isoformat()
         })
 
+    @action(detail=True, methods=['post'], url_path='prepare_comic_for_mint')
+    def prepare_comic_for_mint(self, request, pk=None):
+        """Prepare a comic project for minting by creating a Content record.
+
+        This is used for solo comics created through the studio.
+        Creates a Content record with content_type='art' (comics are visual content)
+        and links it to the CollaborativeProject.
+
+        Returns:
+        - content_id: int - The ID of the created Content record
+        """
+        project = self.get_object()
+
+        # Verify user is the project creator
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project creator can publish'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if project.content_type != 'comic':
+            return Response(
+                {'error': 'Project is not a comic'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate comic has at least one page with content
+        pages = project.comic_pages.all()
+        if not pages.exists():
+            return Response(
+                {'error': 'Comic must have at least one page'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if any panels have artwork
+        has_artwork = False
+        first_panel_with_art = None
+        for page in pages.order_by('page_number'):
+            panel = page.panels.filter(artwork__isnull=False).exclude(artwork='').first()
+            if panel:
+                if not has_artwork:
+                    first_panel_with_art = panel
+                has_artwork = True
+                break
+
+        if not has_artwork:
+            return Response(
+                {'error': 'Comic must have at least one panel with artwork'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get teaser image from first panel with artwork
+        teaser_link = ''
+        if first_panel_with_art and first_panel_with_art.artwork:
+            teaser_link = first_panel_with_art.artwork.url
+
+        # Check if Content already exists for this project
+        existing_content = Content.objects.filter(
+            source_collaborative_project=project
+        ).first()
+
+        if existing_content:
+            # Update existing
+            existing_content.title = project.title or 'Untitled Comic'
+            existing_content.teaser_link = teaser_link
+            existing_content.save()
+            content = existing_content
+        else:
+            # Create new Content record
+            content = Content.objects.create(
+                creator=core_user,
+                title=project.title or 'Untitled Comic',
+                teaser_link=teaser_link,
+                content_type='comic',  # Comics have dedicated viewer
+                genre='other',
+                inventory_status='draft',
+            )
+            # Link to the project
+            content.source_collaborative_project.add(project)
+
+        return Response({
+            'content_id': content.id,
+            'message': 'Comic prepared for minting'
+        }, status=status.HTTP_201_CREATED)
+
 
 class ProjectSectionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing project sections.
@@ -2118,6 +2211,8 @@ class RoleDefinitionViewSet(viewsets.ReadOnlyModelViewSet):
                 queryset = queryset.filter(applicable_to_music=True)
             elif project_type == 'video':
                 queryset = queryset.filter(applicable_to_video=True)
+            elif project_type == 'comic':
+                queryset = queryset.filter(applicable_to_comic=True)
 
         # Optional filter by category
         category = self.request.query_params.get('category')
@@ -2142,9 +2237,11 @@ class RoleDefinitionViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(applicable_to_music=True)
         elif project_type == 'video':
             queryset = queryset.filter(applicable_to_video=True)
+        elif project_type == 'comic':
+            queryset = queryset.filter(applicable_to_comic=True)
         else:
             return Response(
-                {'error': f'Invalid project type: {project_type}. Must be book, art, music, or video.'},
+                {'error': f'Invalid project type: {project_type}. Must be book, art, music, video, or comic.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

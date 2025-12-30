@@ -84,6 +84,7 @@ class Content(models.Model):
         ('art', 'Art'),
         ('film', 'Film'),
         ('music', 'Music'),
+        ('comic', 'Comic'),
     ]
     GENRES = [
         ('fantasy', 'Fantasy'),
@@ -1567,6 +1568,7 @@ class RoleDefinition(models.Model):
     applicable_to_art = models.BooleanField(default=False)
     applicable_to_music = models.BooleanField(default=False)
     applicable_to_video = models.BooleanField(default=False)
+    applicable_to_comic = models.BooleanField(default=False)
 
     # Default permissions (JSON)
     default_permissions = models.JSONField(
@@ -1600,6 +1602,7 @@ class RoleDefinition(models.Model):
             'art': self.applicable_to_art,
             'music': self.applicable_to_music,
             'video': self.applicable_to_video,
+            'comic': self.applicable_to_comic,
         }
         return mapping.get(project_type, False)
 
@@ -1618,6 +1621,7 @@ class CollaborativeProject(models.Model):
         ('music', 'Music'),
         ('video', 'Video'),
         ('art', 'Art'),
+        ('comic', 'Comic'),
     ]
 
     STATUS_CHOICES = [
@@ -1673,6 +1677,19 @@ class CollaborativeProject(models.Model):
         on_delete=models.SET_NULL,
         related_name='source_collaborative_project',
         help_text="Content record created when project is minted"
+    )
+    # Flag to indicate solo projects (created through solo creation flow)
+    is_solo = models.BooleanField(
+        default=False,
+        help_text="True if this is a solo project (single creator, no collaborators)"
+    )
+    # Cover image for the project
+    cover_image = models.ImageField(
+        upload_to='project_covers/',
+        null=True,
+        blank=True,
+        max_length=500,
+        help_text="Cover image for the project"
     )
 
     class Meta:
@@ -2371,6 +2388,456 @@ class CommentAttachment(models.Model):
                 return f"{size:.1f} {unit}"
             size /= 1024.0
         return f"{size:.1f} TB"
+
+
+# =============================================================================
+# Comic Book Collaboration Models
+# =============================================================================
+
+class ComicSeries(models.Model):
+    """Series container for multiple comic issues/volumes.
+
+    Similar to BookProject but for sequential comic publications.
+    Allows publishing individual issues or the entire series as NFTs.
+    """
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='comic_series')
+    title = models.CharField(max_length=255)
+    synopsis = models.TextField(blank=True, default='', help_text="Series description")
+    cover_image = models.ImageField(upload_to='comic_series_covers/', null=True, blank=True, max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_published = models.BooleanField(default=False)
+    published_content = models.ForeignKey(
+        Content,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='source_comic_series'
+    )
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name_plural = 'Comic Series'
+
+    def __str__(self):
+        return f"{self.title} by {self.creator.username}"
+
+    def issue_count(self):
+        return self.issues.count()
+
+
+class ComicIssue(models.Model):
+    """Individual comic issue within a series or standalone.
+
+    Like Chapter for books - can be published individually or as part of series.
+    Each issue contains multiple pages with panels and speech bubbles.
+    """
+    # Can belong to a series OR be standalone via CollaborativeProject
+    series = models.ForeignKey(
+        ComicSeries,
+        on_delete=models.CASCADE,
+        related_name='issues',
+        null=True,
+        blank=True,
+        help_text="Optional series this issue belongs to"
+    )
+    # Also linked to CollaborativeProject for collaboration features
+    project = models.ForeignKey(
+        'CollaborativeProject',
+        on_delete=models.CASCADE,
+        related_name='comic_issues',
+        null=True,
+        blank=True,
+        help_text="Collaborative project for this issue"
+    )
+
+    title = models.CharField(max_length=255)
+    issue_number = models.PositiveIntegerField(default=1)
+    synopsis = models.TextField(blank=True, default='', help_text="Issue synopsis")
+    cover_image = models.ImageField(upload_to='comic_issue_covers/', null=True, blank=True, max_length=500)
+
+    # Pricing
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=1.00,
+        help_text="Price in USD for this issue"
+    )
+
+    # Publishing state
+    is_published = models.BooleanField(default=False)
+    published_content = models.ForeignKey(
+        Content,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='source_comic_issue'
+    )
+
+    # Marketplace listing
+    is_listed = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Whether this issue is visible in the marketplace"
+    )
+    delisted_at = models.DateTimeField(null=True, blank=True)
+    delisted_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='delisted_comic_issues'
+    )
+    delisted_reason = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['issue_number', 'created_at']
+
+    def __str__(self):
+        if self.series:
+            return f"{self.series.title} - Issue #{self.issue_number}: {self.title}"
+        return f"Issue #{self.issue_number}: {self.title}"
+
+    def page_count(self):
+        return self.issue_pages.count()
+
+    def get_collaborators_with_wallets(self):
+        """Get collaborators from linked project or series creator."""
+        if self.project:
+            # Delegate to project's collaboration system
+            collaborators = []
+            for role in self.project.collaborators.filter(status='accepted'):
+                if role.user.wallet_address:
+                    collaborators.append({
+                        'user': role.user,
+                        'wallet': role.user.wallet_address,
+                        'percentage': role.revenue_percentage,
+                        'role': role.role
+                    })
+            return collaborators
+
+        # Solo issue - return series creator or issue owner
+        creator = self.series.creator if self.series else None
+        if creator and creator.wallet_address:
+            return [{
+                'user': creator,
+                'wallet': creator.wallet_address,
+                'percentage': 90,
+                'role': 'creator'
+            }]
+        return []
+
+    def get_purchase_count(self):
+        """Count how many purchases (NFT mints) this issue has."""
+        if not self.published_content:
+            return 0
+        from .models import Purchase
+        return Purchase.objects.filter(
+            content=self.published_content,
+            refunded=False,
+            status__in=['payment_completed', 'completed', 'minting']
+        ).count()
+
+    def has_any_sales(self):
+        """Check if any NFTs have been minted/sold for this issue."""
+        return self.get_purchase_count() > 0
+
+
+class ComicPage(models.Model):
+    """Represents a single page in a comic book project.
+
+    - Each page contains multiple panels
+    - Pages are ordered sequentially
+    - Pages can have different aspect ratios (standard, manga, webtoon)
+    """
+
+    PAGE_FORMAT_CHOICES = [
+        ('standard', 'Standard (Letter 8.5x11)'),
+        ('manga', 'Manga (B5)'),
+        ('webtoon', 'Webtoon (Vertical Scroll)'),
+        ('custom', 'Custom'),
+    ]
+
+    # New: Pages can belong to an issue (for chapter-based publishing)
+    issue = models.ForeignKey(
+        ComicIssue,
+        on_delete=models.CASCADE,
+        related_name='issue_pages',
+        null=True,
+        blank=True,
+        help_text="Issue this page belongs to (for chapter-based publishing)"
+    )
+    # Legacy: Keep project FK for backward compatibility during migration
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        related_name='comic_pages',
+        null=True,  # Made nullable for migration
+        blank=True
+    )
+    page_number = models.PositiveIntegerField()
+    page_format = models.CharField(
+        max_length=20,
+        choices=PAGE_FORMAT_CHOICES,
+        default='standard'
+    )
+    # Canvas dimensions in pixels (for custom sizing)
+    canvas_width = models.PositiveIntegerField(default=2550)  # 8.5" at 300dpi
+    canvas_height = models.PositiveIntegerField(default=3300)  # 11" at 300dpi
+
+    # Page-level background (optional)
+    background_image = models.FileField(
+        upload_to='comic_pages/',
+        blank=True,
+        null=True
+    )
+    background_color = models.CharField(max_length=7, default='#FFFFFF')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['page_number']
+        # Note: unique_together with nullable fields may not enforce uniqueness
+        # We use both constraints to support migration period
+        constraints = [
+            models.UniqueConstraint(
+                fields=['issue', 'page_number'],
+                name='unique_issue_page_number',
+                condition=models.Q(issue__isnull=False)
+            ),
+            models.UniqueConstraint(
+                fields=['project', 'page_number'],
+                name='unique_project_page_number',
+                condition=models.Q(project__isnull=False)
+            ),
+        ]
+
+    def __str__(self):
+        if self.issue:
+            return f"{self.issue.title} - Page {self.page_number}"
+        elif self.project:
+            return f"{self.project.title} - Page {self.page_number}"
+        return f"Page {self.page_number}"
+
+
+class ComicPanel(models.Model):
+    """Individual panel within a comic page.
+
+    - Freeform positioning (x, y, width, height as percentages)
+    - Can overlap other panels for creative layouts
+    - Artist uploads art, writer adds bubbles separately
+    """
+
+    BORDER_STYLE_CHOICES = [
+        ('solid', 'Solid'),
+        ('dashed', 'Dashed'),
+        ('none', 'None'),
+        ('jagged', 'Jagged/Action'),
+        ('wavy', 'Wavy'),
+    ]
+
+    ARTWORK_FIT_CHOICES = [
+        ('contain', 'Contain'),
+        ('cover', 'Cover'),
+        ('fill', 'Fill'),
+    ]
+
+    page = models.ForeignKey(
+        ComicPage,
+        on_delete=models.CASCADE,
+        related_name='panels'
+    )
+
+    # Positioning (as percentages 0-100 of page canvas)
+    x_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    y_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    width_percent = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+    height_percent = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+
+    # Z-index for layering
+    z_index = models.IntegerField(default=0)
+
+    # Panel styling
+    border_style = models.CharField(
+        max_length=20,
+        choices=BORDER_STYLE_CHOICES,
+        default='solid'
+    )
+    border_width = models.PositiveIntegerField(default=2)
+    border_color = models.CharField(max_length=7, default='#000000')
+    border_radius = models.PositiveIntegerField(default=0)
+    background_color = models.CharField(max_length=7, default='#FFFFFF')
+
+    # Rotation in degrees (-180 to 180)
+    rotation = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    # Skew transforms for diagonal/dynamic panel effects (-45 to 45 degrees)
+    skew_x = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    skew_y = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    # Panel content (artwork uploaded by artist)
+    artwork = models.FileField(
+        upload_to='comic_panels/',
+        max_length=500,  # Allow long filenames
+        blank=True,
+        null=True,
+        help_text="Panel artwork uploaded by artist"
+    )
+    artwork_fit = models.CharField(
+        max_length=20,
+        choices=ARTWORK_FIT_CHOICES,
+        default='cover'
+    )
+
+    # Ownership/assignment
+    artist = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_panels',
+        help_text="Artist responsible for this panel's artwork"
+    )
+
+    order = models.PositiveIntegerField(default=0, help_text="Reading order within page")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['page', 'order', 'z_index']
+
+    def __str__(self):
+        return f"Panel {self.order} on Page {self.page.page_number}"
+
+
+class SpeechBubble(models.Model):
+    """Speech bubble/text overlay on a comic panel.
+
+    - Supports multiple bubble styles (oval, thought, shout, narrative)
+    - Positioned relative to parent panel
+    - Pointer can be positioned to point at characters
+    """
+
+    BUBBLE_TYPE_CHOICES = [
+        ('oval', 'Standard Oval'),
+        ('thought', 'Thought Cloud'),
+        ('shout', 'Shout/Jagged'),
+        ('whisper', 'Whisper (dotted)'),
+        ('narrative', 'Narrative Box'),
+        ('caption', 'Caption'),
+        ('radio', 'Radio/Electronic'),
+        ('burst', 'Action Burst'),
+    ]
+
+    POINTER_DIRECTION_CHOICES = [
+        ('none', 'None'),
+        ('top', 'Top'),
+        ('bottom', 'Bottom'),
+        ('left', 'Left'),
+        ('right', 'Right'),
+        ('top-left', 'Top Left'),
+        ('top-right', 'Top Right'),
+        ('bottom-left', 'Bottom Left'),
+        ('bottom-right', 'Bottom Right'),
+    ]
+
+    TEXT_ALIGN_CHOICES = [
+        ('left', 'Left'),
+        ('center', 'Center'),
+        ('right', 'Right'),
+    ]
+
+    FONT_WEIGHT_CHOICES = [
+        ('normal', 'Normal'),
+        ('bold', 'Bold'),
+    ]
+
+    FONT_STYLE_CHOICES = [
+        ('normal', 'Normal'),
+        ('italic', 'Italic'),
+    ]
+
+    panel = models.ForeignKey(
+        ComicPanel,
+        on_delete=models.CASCADE,
+        related_name='speech_bubbles'
+    )
+
+    bubble_type = models.CharField(
+        max_length=20,
+        choices=BUBBLE_TYPE_CHOICES,
+        default='oval'
+    )
+
+    # Positioning within panel (as percentages)
+    x_percent = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+    y_percent = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+    width_percent = models.DecimalField(max_digits=5, decimal_places=2, default=30)
+    height_percent = models.DecimalField(max_digits=5, decimal_places=2, default=20)
+
+    # Z-index for bubble layering
+    z_index = models.IntegerField(default=10)
+
+    # Text content
+    text = models.TextField(blank=True)
+    font_family = models.CharField(max_length=100, default='Comic Sans MS')
+    font_size = models.PositiveIntegerField(default=14)
+    font_color = models.CharField(max_length=7, default='#000000')
+    font_weight = models.CharField(
+        max_length=10,
+        choices=FONT_WEIGHT_CHOICES,
+        default='normal'
+    )
+    font_style = models.CharField(
+        max_length=10,
+        choices=FONT_STYLE_CHOICES,
+        default='normal'
+    )
+    text_align = models.CharField(
+        max_length=10,
+        choices=TEXT_ALIGN_CHOICES,
+        default='center'
+    )
+
+    # Bubble styling
+    background_color = models.CharField(max_length=7, default='#FFFFFF')
+    border_color = models.CharField(max_length=7, default='#000000')
+    border_width = models.PositiveIntegerField(default=2)
+
+    # Pointer/tail
+    pointer_direction = models.CharField(
+        max_length=20,
+        choices=POINTER_DIRECTION_CHOICES,
+        default='bottom'
+    )
+    # Pointer position along the edge (0-100%)
+    pointer_position = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+
+    # Ownership
+    writer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='written_bubbles'
+    )
+
+    # Order for reading sequence
+    order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['panel', 'order', 'z_index']
+
+    def __str__(self):
+        return f"{self.bubble_type} bubble in Panel {self.panel.order}"
 
 
 class Notification(models.Model):

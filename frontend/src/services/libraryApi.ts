@@ -21,6 +21,81 @@ export interface Library {
   art: LibraryItem[];
   film: LibraryItem[];
   music: LibraryItem[];
+  comics: LibraryItem[];
+}
+
+// Comic Reader Data Types
+export interface SpeechBubbleData {
+  id: number;
+  bubble_type: string;
+  x_percent: number;
+  y_percent: number;
+  width_percent: number;
+  height_percent: number;
+  z_index: number;
+  text: string;
+  font_family: string;
+  font_size: number;
+  font_color: string;
+  font_weight: string;
+  font_style: string;
+  text_align: string;
+  background_color: string;
+  border_color: string;
+  border_width: number;
+  pointer_direction: string;
+  pointer_position: number;
+  order: number;
+}
+
+export interface ComicPanelData {
+  id: number;
+  x_percent: number;
+  y_percent: number;
+  width_percent: number;
+  height_percent: number;
+  z_index: number;
+  border_style: string;
+  border_width: number;
+  border_color: string;
+  border_radius: number;
+  background_color: string;
+  rotation: number;
+  skew_x: number;
+  skew_y: number;
+  artwork?: string;
+  artwork_fit: string;
+  order: number;
+  speech_bubbles: SpeechBubbleData[];
+}
+
+export interface ComicPageData {
+  id: number;
+  page_number: number;
+  page_format: string;
+  canvas_width: number;
+  canvas_height: number;
+  background_image?: string;
+  background_color: string;
+  panels: ComicPanelData[];
+}
+
+export interface ComicReaderData {
+  content_id: number;
+  title: string;
+  creator: string;
+  total_pages: number;
+  pages: ComicPageData[];
+}
+
+export interface ComicPreviewData {
+  content_id: number;
+  title: string;
+  creator: string;
+  total_pages: number;
+  preview_pages: number;
+  pages: ComicPageData[];
+  is_preview: boolean;
 }
 
 export interface FullContent {
@@ -154,6 +229,47 @@ export const libraryApi = {
 
     if (!response.ok) {
       throw new Error(`Failed to fetch all progress: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Get comic reader data (pages, panels, speech bubbles) for owned comics
+   */
+  async getComicReaderData(contentId: number): Promise<ComicReaderData> {
+    const response = await fetch(`${API_BASE}/api/content/${contentId}/comic-reader-data/`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        throw new Error('You do not own this content');
+      }
+      if (response.status === 404) {
+        throw new Error('Comic data not found');
+      }
+      throw new Error(`Failed to fetch comic data: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  /**
+   * Get comic preview data (limited pages for non-owners)
+   */
+  async getComicPreviewData(contentId: number): Promise<ComicPreviewData> {
+    const response = await fetch(`${API_BASE}/api/content/${contentId}/comic-preview/`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Comic data not found');
+      }
+      throw new Error(`Failed to fetch comic preview: ${response.statusText}`);
     }
 
     return response.json();

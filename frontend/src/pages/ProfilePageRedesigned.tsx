@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 import { WalletManagementPanel } from '../components/WalletManagementPanel';
 import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
-import { collaborationApi, CollaborativeProject, CollaboratorRole } from '../services/collaborationApi';
+import { collaborationApi, CollaborativeProject, CollaborativeProjectListItem, CollaboratorRole } from '../services/collaborationApi';
 import { API_URL } from '../config';
 import {
   MapPin, Wallet, CheckCircle, BookOpen, Users,
@@ -102,7 +102,7 @@ type SalesAnalytics = {
 };
 
 type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics' | 'following';
-type ContentFilterType = 'all' | 'book' | 'art';
+type ContentFilterType = 'all' | 'book' | 'comic' | 'art';
 // Note: 'music' and 'film' are coming soon - not included in MVP
 type StatusFilterType = 'all' | 'published' | 'draft';
 
@@ -174,6 +174,7 @@ export default function ProfilePageRedesigned() {
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all');
   const [inventory, setInventory] = useState<any[]>([]);
   const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
+  const [soloComicProjects, setSoloComicProjects] = useState<CollaborativeProjectListItem[]>([]);
   const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
@@ -241,7 +242,9 @@ export default function ProfilePageRedesigned() {
     setCollaborationsLoading(true);
     try {
       const projects = await collaborationApi.getCollaborativeProjects();
-      setCollaborations(projects);
+      // Filter out solo projects - they should not appear in collaborations
+      const collaborativeOnly = projects.filter((p: any) => !p.is_solo);
+      setCollaborations(collaborativeOnly);
     } catch (err) {
       console.error('Failed to load collaborations:', err);
       setCollaborations([]);
@@ -478,6 +481,15 @@ export default function ProfilePageRedesigned() {
         }
       })
       .catch(() => setBookProjects([]));
+
+    // Fetch solo comic projects (drafts created in solo studio)
+    collaborationApi.getCollaborativeProjects()
+      .then(projects => {
+        // Filter to only solo comic projects
+        const soloComics = projects.filter((p: any) => p.is_solo && p.content_type === 'comic');
+        setSoloComicProjects(soloComics);
+      })
+      .catch(() => setSoloComicProjects([]));
   }, [status]);
 
   const onAvatarClick = () => {
@@ -1322,7 +1334,7 @@ export default function ProfilePageRedesigned() {
         <Tab
           icon={<BookOpen size={18} />}
           label="My Content"
-          count={inventory.length + bookProjects.length}
+          count={inventory.length + bookProjects.length + soloComicProjects.filter(c => c.status === 'draft').length}
           active={activeTab === 'content'}
           onClick={() => setActiveTab('content')}
         />
@@ -1355,7 +1367,7 @@ export default function ProfilePageRedesigned() {
       </div>
 
       {/* Content Type Sub-filters + Create Button */}
-      {activeTab === 'content' && (inventory.length > 0 || bookProjects.length > 0) && (
+      {activeTab === 'content' && (inventory.length > 0 || bookProjects.length > 0 || soloComicProjects.length > 0) && (
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -1370,7 +1382,10 @@ export default function ProfilePageRedesigned() {
           }}>
             <FilterChip
               label="All"
-              count={inventory.length + bookProjects.length}
+              count={
+                // inventory includes minted comics, so only count draft comics from soloComicProjects
+                inventory.length + bookProjects.length + soloComicProjects.filter(c => c.status === 'draft').length
+              }
               active={contentFilter === 'all'}
               onClick={() => setContentFilter('all')}
             />
@@ -1379,6 +1394,16 @@ export default function ProfilePageRedesigned() {
               count={bookProjects.length}
               active={contentFilter === 'book'}
               onClick={() => setContentFilter('book')}
+            />
+            <FilterChip
+              label="Comics"
+              count={
+                // Drafts from soloComicProjects + published from inventory
+                soloComicProjects.filter(c => c.status === 'draft').length +
+                inventory.filter(i => i.content_type === 'comic' && i.inventory_status === 'minted').length
+              }
+              active={contentFilter === 'comic'}
+              onClick={() => setContentFilter('comic')}
             />
             <FilterChip
               label="Art"
@@ -1391,6 +1416,7 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="Published"
               count={
+                // Published comics are in inventory (Content records), not soloComicProjects
                 inventory.filter(i => i.inventory_status === 'minted').length +
                 bookProjects.filter(b => b.published_chapters > 0).length
               }
@@ -1400,8 +1426,10 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="Drafts"
               count={
-                inventory.filter(i => i.inventory_status === 'draft').length +
-                bookProjects.filter(b => b.published_chapters === 0).length
+                // Draft comics are in soloComicProjects, not inventory
+                inventory.filter(i => i.inventory_status === 'draft' && i.content_type !== 'comic').length +
+                bookProjects.filter(b => b.published_chapters === 0).length +
+                soloComicProjects.filter(c => c.status === 'draft').length
               }
               active={statusFilter === 'draft'}
               onClick={() => setStatusFilter(statusFilter === 'draft' ? 'all' : 'draft')}
@@ -1442,7 +1470,7 @@ export default function ProfilePageRedesigned() {
       {/* TAB CONTENT */}
       {activeTab === 'content' && (
         <div>
-          {inventory.length === 0 && bookProjects.length === 0 ? (
+          {inventory.length === 0 && bookProjects.length === 0 && soloComicProjects.length === 0 ? (
             <EmptyState
               icon={<FileText size={64} />}
               title="No content yet"
@@ -1454,11 +1482,14 @@ export default function ProfilePageRedesigned() {
             (() => {
               // Filter non-book inventory based on content type filter
               // Note: music and film are coming soon, only book and art available
+              // Comics: drafts shown via soloComicProjects, published shown via inventory
               let filteredInventory = contentFilter === 'all'
                 ? inventory
                 : contentFilter === 'book'
-                  ? [] // Books are shown via bookProjects
-                  : inventory.filter(i => i.content_type === contentFilter);
+                  ? [] // Books shown via bookProjects
+                  : contentFilter === 'comic'
+                    ? inventory.filter(i => i.content_type === 'comic') // Published comics from inventory
+                    : inventory.filter(i => i.content_type === contentFilter);
 
               // Apply status filter to inventory
               if (statusFilter === 'published') {
@@ -1479,7 +1510,21 @@ export default function ProfilePageRedesigned() {
                 filteredBooks = filteredBooks.filter(b => b.published_chapters === 0);
               }
 
-              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0;
+              // Filter solo comic projects by content type
+              // NOTE: Only show DRAFT comics from soloComicProjects.
+              // Published/minted comics are shown via inventory (Content records) to avoid duplication.
+              let filteredComics = contentFilter === 'all' || contentFilter === 'comic'
+                ? soloComicProjects.filter(c => c.status === 'draft')
+                : [];
+
+              // Apply status filter to comics (only drafts remain in filteredComics)
+              if (statusFilter === 'published') {
+                // Published comics come from inventory, not soloComicProjects
+                filteredComics = [];
+              }
+              // statusFilter === 'draft' already handled above (only drafts included)
+
+              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0 || filteredComics.length > 0;
 
               const filterLabel = statusFilter !== 'all'
                 ? `${statusFilter} ${contentFilter}`
@@ -1519,6 +1564,108 @@ export default function ProfilePageRedesigned() {
                       onEditBook={() => navigate(`/studio?editBookProject=${book.id}`)}
                     />
                   ))}
+                  {/* Render solo comic projects */}
+                  {filteredComics.map((comic) => {
+                    // Format date safely
+                    const dateStr = comic.updated_at || comic.created_at;
+                    let formattedDate = 'Recently';
+                    if (dateStr) {
+                      const date = new Date(dateStr);
+                      if (!isNaN(date.getTime())) {
+                        formattedDate = date.toLocaleDateString();
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={`comic-${comic.id}`}
+                        style={{
+                          background: '#1e293b',
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          border: '1px solid #334155',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onClick={() => navigate(`/studio?mode=solo&type=comic&projectId=${comic.id}`)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = '#f59e0b';
+                          e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = '#334155';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                      >
+                        {/* Comic thumbnail - show cover image if available */}
+                        <div style={{
+                          height: 160,
+                          background: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#64748b',
+                          overflow: 'hidden',
+                        }}>
+                          {comic.cover_image ? (
+                            <img
+                              src={comic.cover_image}
+                              alt={comic.title}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                            />
+                          ) : (
+                            <Palette size={48} />
+                          )}
+                        </div>
+                        <div style={{ padding: 16 }}>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginBottom: 8,
+                          }}>
+                            <span style={{
+                              background: comic.status === 'draft' ? '#64748b' : '#22c55e',
+                              color: '#fff',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              textTransform: 'uppercase',
+                            }}>
+                              {comic.status}
+                            </span>
+                            <span style={{
+                              background: '#f59e0b20',
+                              color: '#f59e0b',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                            }}>
+                              COMIC
+                            </span>
+                          </div>
+                          <h4 style={{
+                            margin: 0,
+                            fontSize: 16,
+                            fontWeight: 700,
+                            color: '#e2e8f0',
+                            marginBottom: 4,
+                          }}>
+                            {comic.title}
+                          </h4>
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            Updated {formattedDate}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                   {/* Render non-book content */}
                   {filteredInventory.map((item) => (
                     <ContentCard

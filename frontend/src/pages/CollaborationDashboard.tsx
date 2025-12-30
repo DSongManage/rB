@@ -70,9 +70,10 @@ export default function CollaborationDashboard() {
 
   // Filter and sort projects
   const filteredAndSortedProjects = useMemo(() => {
-    let filtered = projects;
+    // First filter out solo projects - they should not appear in collaborations
+    let filtered = projects.filter(p => !p.is_solo);
 
-    // Apply filter
+    // Apply content type filter
     if (filter !== 'all') {
       filtered = filtered.filter(p => p.content_type === filter);
     }

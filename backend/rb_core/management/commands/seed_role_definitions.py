@@ -20,6 +20,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": False,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["text"],
             "edit": {"scope": "all", "types": ["text"]},
@@ -37,6 +38,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": False,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["text"],
             "edit": {"scope": "all", "types": ["text"]},
@@ -54,6 +56,7 @@ STANDARD_ROLES = [
         "applicable_to_art": True,
         "applicable_to_music": False,
         "applicable_to_video": False,
+        "applicable_to_comic": True,
         "default_permissions": {
             "create": ["image"],
             "edit": {"scope": "own", "types": ["image"]},
@@ -66,11 +69,12 @@ STANDARD_ROLES = [
     {
         "name": "Cover Artist",
         "category": "contributor",
-        "description": "Designs the book cover and promotional artwork",
+        "description": "Designs the cover and promotional artwork",
         "applicable_to_book": True,
-        "applicable_to_art": True,
+        "applicable_to_art": False,
         "applicable_to_music": True,
         "applicable_to_video": False,
+        "applicable_to_comic": True,
         "default_permissions": {
             "create": ["image"],
             "edit": {"scope": "assigned", "types": ["image"]},
@@ -88,6 +92,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": True,
+        "applicable_to_comic": True,
         "default_permissions": {
             "create": [],
             "edit": {"scope": "none", "types": []},
@@ -105,6 +110,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": False,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": [],
             "edit": {"scope": "none", "types": []},
@@ -122,6 +128,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": False,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["audio"],
             "edit": {"scope": "own", "types": ["audio"]},
@@ -143,6 +150,7 @@ STANDARD_ROLES = [
         "applicable_to_art": True,
         "applicable_to_music": False,
         "applicable_to_video": False,
+        "applicable_to_comic": True,
         "default_permissions": {
             "create": ["image"],
             "edit": {"scope": "all", "types": ["image"]},
@@ -160,6 +168,7 @@ STANDARD_ROLES = [
         "applicable_to_art": True,
         "applicable_to_music": False,
         "applicable_to_video": False,
+        "applicable_to_comic": True,
         "default_permissions": {
             "create": ["image"],
             "edit": {"scope": "own", "types": ["image"]},
@@ -177,6 +186,7 @@ STANDARD_ROLES = [
         "applicable_to_art": True,
         "applicable_to_music": False,
         "applicable_to_video": True,
+        "applicable_to_comic": True,
         "default_permissions": {
             "create": [],
             "edit": {"scope": "none", "types": []},
@@ -185,6 +195,82 @@ STANDARD_ROLES = [
         "ui_components": ["content_viewer", "comment_panel", "task_tracker"],
         "icon": "eye",
         "color": "#06b6d4"
+    },
+
+    # ========================
+    # COMIC PROJECT ROLES
+    # ========================
+    {
+        "name": "Writer",
+        "category": "creator",
+        "description": "Writes comic scripts including dialogue, narration, and panel descriptions",
+        "applicable_to_book": False,
+        "applicable_to_art": False,
+        "applicable_to_music": False,
+        "applicable_to_video": False,
+        "applicable_to_comic": True,
+        "default_permissions": {
+            "create": ["text"],
+            "edit": {"scope": "all", "types": ["text"]},
+            "review": ["text", "image"]
+        },
+        "ui_components": ["chapter_editor", "bubble_editor", "content_viewer", "comment_panel", "task_tracker"],
+        "icon": "pen",
+        "color": "#f59e0b"
+    },
+    {
+        "name": "Colorist",
+        "category": "contributor",
+        "description": "Colors the line art and adds visual depth to panels",
+        "applicable_to_book": False,
+        "applicable_to_art": False,
+        "applicable_to_music": False,
+        "applicable_to_video": False,
+        "applicable_to_comic": True,
+        "default_permissions": {
+            "create": ["image"],
+            "edit": {"scope": "own", "types": ["image"]},
+            "review": ["image"]
+        },
+        "ui_components": ["image_uploader", "panel_viewer", "task_tracker"],
+        "icon": "palette",
+        "color": "#ec4899"
+    },
+    {
+        "name": "Letterer",
+        "category": "contributor",
+        "description": "Creates and positions speech bubbles, captions, and sound effects",
+        "applicable_to_book": False,
+        "applicable_to_art": False,
+        "applicable_to_music": False,
+        "applicable_to_video": False,
+        "applicable_to_comic": True,
+        "default_permissions": {
+            "create": ["text"],
+            "edit": {"scope": "own", "types": ["text"]},
+            "review": ["text", "image"]
+        },
+        "ui_components": ["bubble_editor", "content_viewer", "task_tracker"],
+        "icon": "type",
+        "color": "#8b5cf6"
+    },
+    {
+        "name": "Inker",
+        "category": "contributor",
+        "description": "Inks over pencil artwork to create final line art",
+        "applicable_to_book": False,
+        "applicable_to_art": False,
+        "applicable_to_music": False,
+        "applicable_to_video": False,
+        "applicable_to_comic": True,
+        "default_permissions": {
+            "create": ["image"],
+            "edit": {"scope": "own", "types": ["image"]},
+            "review": ["image"]
+        },
+        "ui_components": ["image_uploader", "panel_viewer", "task_tracker"],
+        "icon": "pen-tool",
+        "color": "#64748b"
     },
 
     # ========================
@@ -198,6 +284,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": True,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["audio"],
             "edit": {"scope": "all", "types": ["audio"]},
@@ -215,6 +302,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": True,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["audio"],
             "edit": {"scope": "all", "types": ["audio"]},
@@ -232,6 +320,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": True,
         "applicable_to_video": False,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["audio"],
             "edit": {"scope": "own", "types": ["audio"]},
@@ -249,6 +338,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": True,
         "applicable_to_video": False,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["text"],
             "edit": {"scope": "own", "types": ["text"]},
@@ -266,6 +356,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": True,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": [],
             "edit": {"scope": "all", "types": ["audio"]},
@@ -287,6 +378,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["video", "image", "audio", "text"],
             "edit": {"scope": "all", "types": ["video", "image", "audio", "text"]},
@@ -304,6 +396,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["video"],
             "edit": {"scope": "own", "types": ["video"]},
@@ -321,6 +414,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["video"],
             "edit": {"scope": "all", "types": ["video"]},
@@ -338,6 +432,7 @@ STANDARD_ROLES = [
         "applicable_to_art": False,
         "applicable_to_music": False,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["text"],
             "edit": {"scope": "own", "types": ["text"]},
@@ -352,9 +447,10 @@ STANDARD_ROLES = [
         "category": "contributor",
         "description": "Creates animated content and motion graphics",
         "applicable_to_book": False,
-        "applicable_to_art": True,
+        "applicable_to_art": False,
         "applicable_to_music": True,
         "applicable_to_video": True,
+        "applicable_to_comic": False,
         "default_permissions": {
             "create": ["video", "image"],
             "edit": {"scope": "own", "types": ["video", "image"]},
@@ -376,6 +472,7 @@ STANDARD_ROLES = [
         "applicable_to_art": True,
         "applicable_to_music": True,
         "applicable_to_video": True,
+        "applicable_to_comic": True,
         "default_permissions": {
             "create": [],
             "edit": {"scope": "none", "types": []},

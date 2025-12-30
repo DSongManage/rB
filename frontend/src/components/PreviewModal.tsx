@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, Share2, X } from 'lucide-react';
+import { MessageCircle, Share2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { sanitizeHtml } from '../utils/sanitize';
 import { API_URL } from '../config';
 import { LikeButton } from './social/LikeButton';
 import { ContentCommentsSection } from './social/ContentCommentsSection';
 import AddToCartButton from './AddToCartButton';
+import { libraryApi, type ComicPreviewData, type ComicPageData } from '../services/libraryApi';
+import { ComicPageRenderer } from './reader/ComicPageRenderer';
 
 // Get CSRF token from cookie (avoids rate limiting)
 function getCsrfToken(): string {
@@ -23,7 +25,7 @@ type Props = {
   open: boolean;
   onClose: ()=>void;
   teaserUrl?: string;
-  contentType?: 'book'|'art'|'film'|'music';
+  contentType?: 'book'|'art'|'film'|'music'|'comic';
   contentId?: number;
   price?: number;
   editions?: number;
@@ -61,6 +63,10 @@ export default function PreviewModal({
   const [showComments, setShowComments] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUsername, setCurrentUsername] = useState<string | undefined>();
+
+  // Comic preview state
+  const [comicPreview, setComicPreview] = useState<ComicPreviewData | null>(null);
+  const [currentComicPage, setCurrentComicPage] = useState(0);
 
   // Check auth status
   useEffect(() => {
@@ -116,6 +122,29 @@ export default function PreviewModal({
     }
     return ()=> { active = false; };
   }, [open, type, teaserUrl]);
+
+  // Load comic preview data
+  useEffect(() => {
+    let active = true;
+    if (open && type === 'comic' && contentId) {
+      setLoading(true);
+      setCurrentComicPage(0);
+      libraryApi.getComicPreviewData(contentId)
+        .then(data => {
+          if (active) {
+            setComicPreview(data);
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setComicPreview(null);
+            setLoading(false);
+          }
+        });
+    }
+    return () => { active = false; };
+  }, [open, type, contentId]);
 
   const safe = useMemo(()=> sanitizeHtml(html), [html]);
 
@@ -353,6 +382,153 @@ export default function PreviewModal({
             {type === 'music' && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <audio src={teaserUrl} controls style={{ width: '100%', maxWidth: 500 }} />
+              </div>
+            )}
+            {type === 'comic' && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                position: 'relative',
+              }}>
+                {loading ? (
+                  <div style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>
+                    Loading comic preview...
+                  </div>
+                ) : comicPreview && comicPreview.pages.length > 0 ? (
+                  <>
+                    {/* Comic Page Display */}
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <ComicPageRenderer
+                          page={comicPreview.pages[currentComicPage]}
+                          zoom={1}
+                          fitToContainer={true}
+                        />
+                      </div>
+
+                      {/* Navigation Arrows */}
+                      {currentComicPage > 0 && (
+                        <button
+                          onClick={() => setCurrentComicPage(p => Math.max(0, p - 1))}
+                          style={{
+                            position: 'absolute',
+                            left: 16,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'rgba(0,0,0,0.7)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: 48,
+                            height: 48,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            color: '#fff',
+                            zIndex: 10,
+                          }}
+                        >
+                          <ChevronLeft size={28} />
+                        </button>
+                      )}
+                      {currentComicPage < comicPreview.pages.length - 1 && (
+                        <button
+                          onClick={() => setCurrentComicPage(p => Math.min(comicPreview.pages.length - 1, p + 1))}
+                          style={{
+                            position: 'absolute',
+                            right: 16,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'rgba(0,0,0,0.7)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: 48,
+                            height: 48,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            color: '#fff',
+                            zIndex: 10,
+                          }}
+                        >
+                          <ChevronRight size={28} />
+                        </button>
+                      )}
+
+                      {/* Watermark Overlay */}
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        pointerEvents: 'none',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignContent: 'center',
+                        justifyContent: 'center',
+                        gap: '40px 60px',
+                        overflow: 'hidden',
+                      }}>
+                        {Array.from({ length: 20 }).map((_, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              color: 'rgba(255, 255, 255, 0.15)',
+                              fontSize: 14,
+                              fontWeight: 700,
+                              transform: 'rotate(-30deg)',
+                              whiteSpace: 'nowrap',
+                              userSelect: 'none',
+                              letterSpacing: 3,
+                              textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                            }}
+                          >
+                            renaissBlock
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Page Counter & Preview Info */}
+                    <div style={{
+                      padding: '12px 16px',
+                      background: 'rgba(0,0,0,0.5)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      borderRadius: 8,
+                      marginTop: 12,
+                    }}>
+                      <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                        Page {currentComicPage + 1} of {comicPreview.preview_pages}
+                      </span>
+                      <span style={{
+                        color: '#f59e0b',
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}>
+                        Preview ({comicPreview.preview_pages} of {comicPreview.total_pages} pages)
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>
+                    No comic preview available
+                  </div>
+                )}
               </div>
             )}
           </div>

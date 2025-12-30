@@ -4,7 +4,8 @@ from .models import (
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, Notification,
     BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition,
     ContentLike, ContentComment, ContentRating, CreatorReview, Tag, Series,
-    BridgeCustomer, BridgeExternalAccount, BridgeLiquidationAddress, BridgeDrain
+    BridgeCustomer, BridgeExternalAccount, BridgeLiquidationAddress, BridgeDrain,
+    ComicPage, ComicPanel, SpeechBubble, ComicSeries, ComicIssue
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -529,7 +530,7 @@ class RoleDefinitionSerializer(serializers.ModelSerializer):
         model = RoleDefinition
         fields = [
             'id', 'name', 'category', 'description',
-            'applicable_to_book', 'applicable_to_art', 'applicable_to_music', 'applicable_to_video',
+            'applicable_to_book', 'applicable_to_art', 'applicable_to_music', 'applicable_to_video', 'applicable_to_comic',
             'default_permissions', 'ui_components', 'icon', 'color', 'is_active'
         ]
         read_only_fields = ['id', 'created_at']
@@ -681,10 +682,10 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
             'created_by', 'created_by_username', 'created_at', 'updated_at',
             'collaborators', 'sections', 'recent_comments', 'is_fully_approved',
             'total_collaborators', 'progress_percentage', 'estimated_earnings',
-            'authors_note', 'copyright_preview'
+            'authors_note', 'copyright_preview', 'is_solo', 'cover_image'
         ]
         read_only_fields = [
-            'id', 'created_at', 'updated_at', 'created_by_username',
+            'id', 'created_at', 'updated_at', 'created_by', 'created_by_username',
             'is_fully_approved', 'total_collaborators', 'estimated_earnings', 'copyright_preview'
         ]
 
@@ -755,9 +756,9 @@ class CollaborativeProjectListSerializer(serializers.ModelSerializer):
         model = CollaborativeProject
         fields = [
             'id', 'title', 'content_type', 'status', 'created_by', 'created_by_username',
-            'total_collaborators', 'created_at', 'price_usd'
+            'total_collaborators', 'created_at', 'updated_at', 'price_usd', 'is_solo', 'cover_image'
         ]
-        read_only_fields = ['id', 'created_at', 'created_by', 'created_by_username', 'total_collaborators']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by', 'created_by_username', 'total_collaborators']
 
     def get_total_collaborators(self, obj):
         """Count accepted collaborators."""
@@ -1470,3 +1471,157 @@ class PlaidLinkAccountSerializer(serializers.Serializer):
     plaid_processor_token = serializers.CharField(
         help_text="Processor token from Plaid Link"
     )
+
+
+# =============================================================================
+# Comic Book Collaboration Serializers
+# =============================================================================
+
+class SpeechBubbleSerializer(serializers.ModelSerializer):
+    """Serializer for speech bubbles on comic panels."""
+    writer_username = serializers.CharField(source='writer.username', read_only=True, allow_null=True)
+
+    class Meta:
+        model = SpeechBubble
+        fields = [
+            'id', 'panel', 'bubble_type',
+            'x_percent', 'y_percent', 'width_percent', 'height_percent',
+            'z_index', 'text', 'font_family', 'font_size', 'font_color',
+            'font_weight', 'font_style', 'text_align',
+            'background_color', 'border_color', 'border_width',
+            'pointer_direction', 'pointer_position',
+            'writer', 'writer_username', 'order',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'writer_username']
+
+
+class ComicPanelSerializer(serializers.ModelSerializer):
+    """Serializer for comic panels with nested speech bubbles."""
+    artist_username = serializers.CharField(source='artist.username', read_only=True, allow_null=True)
+    speech_bubbles = SpeechBubbleSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ComicPanel
+        fields = [
+            'id', 'page',
+            'x_percent', 'y_percent', 'width_percent', 'height_percent',
+            'z_index', 'border_style', 'border_width', 'border_color',
+            'border_radius', 'background_color', 'rotation',
+            'skew_x', 'skew_y',  # For diagonal/dynamic panel effects
+            'artwork', 'artwork_fit',
+            'artist', 'artist_username', 'order',
+            'speech_bubbles',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'artist_username', 'speech_bubbles']
+
+
+class ComicPageSerializer(serializers.ModelSerializer):
+    """Serializer for comic pages with nested panels."""
+    panels = ComicPanelSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ComicPage
+        fields = [
+            'id', 'issue', 'project', 'page_number', 'page_format',
+            'canvas_width', 'canvas_height',
+            'background_image', 'background_color',
+            'panels',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'page_number', 'created_at', 'updated_at', 'panels']
+        extra_kwargs = {
+            'project': {'required': False, 'allow_null': True},
+            'issue': {'required': False, 'allow_null': True},
+        }
+
+
+class ComicPageListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for page list views."""
+    panel_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComicPage
+        fields = ['id', 'project', 'page_number', 'page_format', 'panel_count']
+        read_only_fields = ['id', 'panel_count']
+
+    def get_panel_count(self, obj):
+        """Count panels on this page."""
+        return obj.panels.count()
+
+
+class ComicIssueSerializer(serializers.ModelSerializer):
+    """Serializer for comic issues."""
+    page_count = serializers.SerializerMethodField()
+    pages = ComicPageSerializer(source='issue_pages', many=True, read_only=True)
+
+    class Meta:
+        model = ComicIssue
+        fields = [
+            'id', 'series', 'project', 'title', 'issue_number',
+            'synopsis', 'cover_image', 'price',
+            'is_published', 'is_listed',
+            'page_count', 'pages',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'page_count', 'pages', 'created_at', 'updated_at']
+
+    def get_page_count(self, obj):
+        return obj.issue_pages.count()
+
+
+class ComicIssueListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for issue list views."""
+    page_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComicIssue
+        fields = [
+            'id', 'series', 'project', 'title', 'issue_number',
+            'synopsis', 'cover_image', 'price',
+            'is_published', 'is_listed', 'page_count',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'page_count', 'created_at', 'updated_at']
+
+    def get_page_count(self, obj):
+        return obj.issue_pages.count()
+
+
+class ComicSeriesSerializer(serializers.ModelSerializer):
+    """Serializer for comic series."""
+    issue_count = serializers.SerializerMethodField()
+    issues = ComicIssueListSerializer(many=True, read_only=True)
+    creator_username = serializers.CharField(source='creator.username', read_only=True)
+
+    class Meta:
+        model = ComicSeries
+        fields = [
+            'id', 'creator', 'creator_username', 'title', 'synopsis',
+            'cover_image', 'is_published',
+            'issue_count', 'issues',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'creator', 'creator_username', 'issue_count', 'issues', 'created_at', 'updated_at']
+
+    def get_issue_count(self, obj):
+        return obj.issues.count()
+
+
+class ComicSeriesListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for series list views."""
+    issue_count = serializers.SerializerMethodField()
+    creator_username = serializers.CharField(source='creator.username', read_only=True)
+
+    class Meta:
+        model = ComicSeries
+        fields = [
+            'id', 'creator_username', 'title', 'synopsis',
+            'cover_image', 'is_published', 'issue_count',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'creator_username', 'issue_count', 'created_at', 'updated_at']
+
+    def get_issue_count(self, obj):
+        return obj.issues.count()

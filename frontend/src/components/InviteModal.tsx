@@ -3,7 +3,7 @@ import {
   BookOpen, Palette, Music, Film, Check, Plus, User,
   Pen, Users, Image, CheckCircle, FileText, Mic, Mic2,
   Brush, PaintBucket, Eye, Sliders, Volume2, Video,
-  Scissors, PlayCircle, Briefcase
+  Scissors, PlayCircle, Briefcase, LayoutGrid, Type, PenTool
 } from 'lucide-react';
 import { API_URL } from '../config';
 
@@ -31,6 +31,8 @@ const RoleIcon = ({ icon, size = 20 }: { icon: string; size?: number }) => {
     case 'scissors': return <Scissors {...iconProps} />;
     case 'play-circle': return <PlayCircle {...iconProps} />;
     case 'briefcase': return <Briefcase {...iconProps} />;
+    case 'type': return <Type {...iconProps} />;
+    case 'pen-tool': return <PenTool {...iconProps} />;
     default: return <User {...iconProps} />;
   }
 };
@@ -53,6 +55,7 @@ interface RoleDefinition {
   applicable_to_art: boolean;
   applicable_to_music: boolean;
   applicable_to_video: boolean;
+  applicable_to_comic: boolean;
   default_permissions: {
     create: string[];
     edit: { scope: string; types: string[] };
@@ -64,10 +67,11 @@ interface RoleDefinition {
 }
 
 // Project type options
-type ProjectType = 'book' | 'art' | 'music' | 'video';
+type ProjectType = 'book' | 'art' | 'music' | 'video' | 'comic';
 
 const PROJECT_TYPE_OPTIONS: { value: ProjectType; label: string; icon: React.ReactNode; description: string; comingSoon?: boolean }[] = [
   { value: 'book', label: 'Book', icon: <BookOpen size={28} />, description: 'Written content with chapters' },
+  { value: 'comic', label: 'Comic', icon: <LayoutGrid size={28} />, description: 'Comic books with panels' },
   { value: 'art', label: 'Art', icon: <Palette size={28} />, description: 'Visual artwork and illustrations' },
   { value: 'music', label: 'Music', icon: <Music size={28} />, description: 'Audio tracks and albums', comingSoon: true },
   { value: 'video', label: 'Film', icon: <Film size={28} />, description: 'Video content and films', comingSoon: true },
@@ -225,6 +229,12 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
         setCanEditImages(true); // For thumbnails
         setCanEditAudio(true);
         setCanEditVideo(true);
+        break;
+      case 'comic':
+        setCanEditText(true);   // For speech bubbles
+        setCanEditImages(true); // For panel artwork
+        setCanEditAudio(false);
+        setCanEditVideo(false);
         break;
     }
   };

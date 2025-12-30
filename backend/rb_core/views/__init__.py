@@ -404,7 +404,7 @@ class InviteView(APIView):
         project_type = request.data.get('project_type', 'book')  # Project type: book, art, music, video
 
         # Validate project_type
-        valid_types = ['book', 'art', 'music', 'video']
+        valid_types = ['book', 'art', 'music', 'video', 'comic']
         if project_type not in valid_types:
             project_type = 'book'  # Fallback to book if invalid
         
@@ -606,7 +606,15 @@ class MintView(APIView):
                 if book_project:
                     book_project.is_published = True
                     book_project.save()
-                
+
+                # If this content is linked to a collaborative project (comic), mark as minted
+                collab_projects = c.source_collaborative_project.all()
+                for collab_project in collab_projects:
+                    if collab_project.status != 'minted':
+                        collab_project.status = 'minted'
+                        collab_project.save()
+                        logger.info(f'[MINT] Updated CollaborativeProject {collab_project.id} status to minted')
+
                 # Log platform fee amount to TestFeeLog for MVP tracking
                 try:
                     fee_bps = int(getattr(settings, 'PLATFORM_FEE_BPS', 1000))

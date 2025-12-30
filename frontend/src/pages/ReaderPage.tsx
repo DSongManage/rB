@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { libraryApi, type FullContent } from '../services/libraryApi';
+import { libraryApi, type FullContent, type ComicReaderData } from '../services/libraryApi';
 import { KindleReader } from '../components/reader';
+import { ComicReader } from '../components/reader/ComicReader';
 import { ArrowLeft, ZoomIn, ZoomOut, Maximize2, Download } from 'lucide-react';
 import DOMPurify from 'dompurify';
 
@@ -323,6 +324,7 @@ export function ReaderPage() {
   const { contentId } = useParams<{ contentId: string }>();
   const navigate = useNavigate();
   const [content, setContent] = useState<FullContent | null>(null);
+  const [comicData, setComicData] = useState<ComicReaderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const progressUpdateTimer = useRef<NodeJS.Timeout | null>(null);
@@ -335,8 +337,22 @@ export function ReaderPage() {
       try {
         setLoading(true);
         setError(null);
+        setComicData(null);
+
         const data = await libraryApi.getFullContent(parseInt(contentId));
         setContent(data);
+
+        // If it's a comic, also load the comic pages/panels data
+        if (data.content_type === 'comic') {
+          try {
+            const comic = await libraryApi.getComicReaderData(parseInt(contentId));
+            setComicData(comic);
+          } catch (comicErr) {
+            console.error('Failed to load comic data:', comicErr);
+            // Don't fail the whole load, just show an error for comic
+            setError('Failed to load comic pages. Please try again.');
+          }
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load content');
         console.error('Content load error:', err);
@@ -478,6 +494,61 @@ export function ReaderPage() {
   }
 
   // Render different viewers based on content type
+
+  // Comic viewer
+  if (content.content_type === 'comic') {
+    if (comicData && comicData.pages.length > 0) {
+      return (
+        <ComicReader
+          contentId={contentId || ''}
+          title={content.title}
+          comicData={comicData}
+          onBack={handleBack}
+        />
+      );
+    } else {
+      // Comic data not loaded or no pages
+      return (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#0a0f1a',
+            padding: 24,
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>📚</div>
+            <div style={{ color: '#f8fafc', fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
+              {content.title}
+            </div>
+            <div style={{ color: '#94a3b8', marginBottom: 24 }}>
+              {error || 'Comic pages not available'}
+            </div>
+            <button
+              onClick={handleBack}
+              style={{
+                background: '#f59e0b',
+                color: '#111827',
+                padding: '10px 20px',
+                borderRadius: 8,
+                border: 'none',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Art viewer
   if (content.content_type === 'art') {
     // Art viewer - display the image
     if (content.teaser_link) {
