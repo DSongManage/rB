@@ -9,6 +9,7 @@ import InviteModal from '../components/InviteModal';
 import { CreatorReviewsSection } from '../components/social/CreatorReviewsSection';
 import { FollowButton } from '../components/social/FollowButton';
 import { API_URL } from '../config';
+import { useMobile } from '../hooks/useMobile';
 
 // Book chapter interface for grouped display
 interface BookChapter {
@@ -139,6 +140,7 @@ export default function PublicProfilePage() {
   const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
   // Track follower count separately so it updates when follow/unfollow happens
   const [followerCount, setFollowerCount] = useState<number>(0);
+  const { isMobile, isPhone } = useMobile();
 
   useEffect(() => {
     if (!username) return;
@@ -257,20 +259,20 @@ export default function PublicProfilePage() {
         </div>
 
         {/* Profile Info */}
-        <div style={{ padding: '0 32px 32px', position: 'relative' }}>
+        <div style={{ padding: isPhone ? '0 16px 24px' : '0 32px 32px', position: 'relative' }}>
           {/* Avatar */}
           <div style={{
-            width: 140,
-            height: 140,
+            width: isPhone ? 100 : 140,
+            height: isPhone ? 100 : 140,
             borderRadius: '50%',
             background: p.avatar ? `url(${p.avatar}) center/cover` : '#374151',
-            border: '6px solid #1e293b',
-            marginTop: -70,
+            border: isPhone ? '4px solid #1e293b' : '6px solid #1e293b',
+            marginTop: isPhone ? -50 : -70,
             marginBottom: 16,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 48,
+            fontSize: isPhone ? 36 : 48,
             fontWeight: 700,
             color: '#f59e0b',
             boxShadow: '0 4px 6px rgba(0,0,0,0.2)'
@@ -278,10 +280,10 @@ export default function PublicProfilePage() {
             {!p.avatar && (p.username || '?').slice(0, 1).toUpperCase()}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 24 }}>
-            <div style={{ flex: 1, minWidth: 300 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: isPhone ? 16 : 24 }}>
+            <div style={{ flex: 1, minWidth: isPhone ? 0 : 300 }}>
               {/* Name & Username */}
-              <h1 style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 28, margin: '0 0 4px' }}>
+              <h1 style={{ color: '#f1f5f9', fontWeight: 700, fontSize: isPhone ? 22 : 28, margin: '0 0 4px' }}>
                 {p.display_name || `@${p.username}`}
               </h1>
               <div style={{ color: '#94a3b8', fontSize: 16, marginBottom: 12 }}>

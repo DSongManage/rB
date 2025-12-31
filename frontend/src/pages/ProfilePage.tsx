@@ -12,6 +12,7 @@ import { InviteResponseModal } from '../components/collaboration/InviteResponseM
 import { collaborationApi, CollaborativeProject, CollaboratorRole } from '../services/collaborationApi';
 import { API_URL } from '../config';
 import { Eye, Plus, Trash2, ExternalLink, GripVertical, Edit2, Settings } from 'lucide-react';
+import { useMobile } from '../hooks/useMobile';
 
 interface ExternalPortfolioItem {
   id: number;
@@ -67,6 +68,7 @@ export default function ProfilePage() {
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [editingPortfolioItem, setEditingPortfolioItem] = useState<ExternalPortfolioItem | null>(null);
   const [activeTab, setActiveTab] = useState<'content' | 'collaborations' | 'portfolio' | 'analytics'>('content');
+  const { isMobile, isPhone } = useMobile();
 
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json());
@@ -321,11 +323,28 @@ export default function ProfilePage() {
   return (
     <div className="page" style={{width: '100%'}}>
       {/* Profile Banner - Click to upload - Full width */}
-      <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:16, padding:24, marginBottom:24, display:'grid', gridTemplateColumns:'100px 1fr auto', gap:24, alignItems:'center', backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', backgroundSize:'cover', backgroundPosition:'center', cursor:(profile? 'pointer':'default'), position:'relative', minHeight: 180}} onClick={onBannerClick}>
-        <div onClick={(e)=>{ e.stopPropagation(); onAvatarClick(); }} style={{width:88, height:88, borderRadius:16, background:'#111', overflow:'hidden', display:'grid', placeItems:'center', color:'var(--accent)', fontWeight:700, fontSize:32, cursor:'pointer', border:'3px solid rgba(245,158,11,0.3)'}} title="Click to upload avatar">
+      <div style={{
+        background:'var(--panel)',
+        border:'1px solid var(--panel-border)',
+        borderRadius:16,
+        padding: isPhone ? 16 : 24,
+        marginBottom:24,
+        display: isPhone ? 'flex' : 'grid',
+        flexDirection: isPhone ? 'column' : undefined,
+        gridTemplateColumns: isPhone ? undefined : (isMobile ? '80px 1fr' : '100px 1fr auto'),
+        gap: isPhone ? 16 : 24,
+        alignItems: isPhone ? 'center' : 'center',
+        backgroundImage: (profile?.banner || profile?.banner_url)? `url(${profile?.banner || profile?.banner_url})` : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        backgroundSize:'cover',
+        backgroundPosition:'center',
+        cursor:(profile? 'pointer':'default'),
+        position:'relative',
+        minHeight: isPhone ? 'auto' : 180
+      }} onClick={onBannerClick}>
+        <div onClick={(e)=>{ e.stopPropagation(); onAvatarClick(); }} style={{width: isPhone ? 72 : 88, height: isPhone ? 72 : 88, borderRadius:16, background:'#111', overflow:'hidden', display:'grid', placeItems:'center', color:'var(--accent)', fontWeight:700, fontSize: isPhone ? 28 : 32, cursor:'pointer', border:'3px solid rgba(245,158,11,0.3)'}} title="Click to upload avatar">
           {(profile?.avatar || profile?.avatar_url) ? (<img src={(profile?.avatar || profile?.avatar_url) as string} alt="avatar" style={{width:'100%', height:'100%', objectFit:'cover'}} onError={(e) => { if (profile) { profile.avatar = undefined; profile.avatar_url = undefined; } e.currentTarget.style.display = 'none'; }} />) : ((user?.username||'?').slice(0,1).toUpperCase())}
         </div>
-        <div>
+        <div style={{ textAlign: isPhone ? 'center' : 'left', width: isPhone ? '100%' : 'auto' }}>
           <InlineEditable
             value={profile?.display_name || user?.username || ''}
             placeholder="Display name"
@@ -368,7 +387,16 @@ export default function ProfilePage() {
           </div>
         </div>
         {/* View Public Profile Button */}
-        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+        <div onClick={(e) => e.stopPropagation()} style={{
+          display: 'flex',
+          flexDirection: isPhone ? 'row' : 'column',
+          gap: 8,
+          alignItems: isPhone ? 'center' : 'flex-end',
+          justifyContent: isPhone ? 'center' : 'flex-start',
+          width: isPhone ? '100%' : 'auto',
+          marginTop: isPhone ? 8 : 0,
+          ...(isMobile && !isPhone ? { position: 'absolute' as const, top: 16, right: 16 } : {})
+        }}>
           <Link
             to={`/profile/${profile?.username || user?.username}`}
             style={{
@@ -378,16 +406,16 @@ export default function ProfilePage() {
               background: 'rgba(245,158,11,0.15)',
               color: '#f59e0b',
               border: '1px solid rgba(245,158,11,0.3)',
-              padding: '8px 14px',
+              padding: isPhone ? '6px 10px' : '8px 14px',
               borderRadius: 8,
-              fontSize: 13,
+              fontSize: isPhone ? 12 : 13,
               fontWeight: 600,
               textDecoration: 'none',
               transition: 'all 0.2s ease'
             }}
           >
-            <Eye size={16} />
-            View Public Profile
+            <Eye size={isPhone ? 14 : 16} />
+            {isPhone ? 'Public' : 'View Public Profile'}
           </Link>
           <button
             onClick={(e) => { e.stopPropagation(); /* Could open settings modal */ }}
@@ -398,14 +426,14 @@ export default function ProfilePage() {
               background: 'transparent',
               color: '#94a3b8',
               border: '1px solid #334155',
-              padding: '8px 14px',
+              padding: isPhone ? '6px 10px' : '8px 14px',
               borderRadius: 8,
-              fontSize: 13,
+              fontSize: isPhone ? 12 : 13,
               fontWeight: 500,
               cursor: 'pointer'
             }}
           >
-            <Settings size={16} />
+            <Settings size={isPhone ? 14 : 16} />
             Settings
           </button>
         </div>
@@ -421,7 +449,7 @@ export default function ProfilePage() {
         onWalletUpdate={refreshStatus}
       />
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:20, marginBottom:24}}>
+      <div style={{display:'grid', gridTemplateColumns: isPhone ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isPhone ? 12 : 20, marginBottom:24}}>
         <StatCard label="Content" value={String(dash.content_count)} />
         <StatCard label="Sales (USDC)" value={`$${dash.sales}`} />
         <StatCard label="Tier" value={dash.tier || '—'} />
