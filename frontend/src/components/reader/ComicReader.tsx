@@ -392,7 +392,7 @@ export function ComicReader({ contentId, title, comicData, onBack }: ComicReader
         }}
         onClick={() => setShowUI((s) => !s)}
       >
-        {currentPageData && <ComicPageRenderer page={currentPageData} zoom={zoom} />}
+        {currentPageData && <ComicPageRenderer page={currentPageData} zoom={zoom} fitToContainer />}
       </div>
 
       {/* Navigation click zones */}

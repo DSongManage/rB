@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Rnd } from 'react-rnd';
 import {
   CollaborativeProject,
@@ -8,8 +8,11 @@ import {
   BubbleType,
   ComicIssue,
   ComicIssueListItem,
+  DividerLine,
   collaborationApi,
 } from '../../services/collaborationApi';
+import { LineBasedEditor, LINE_TEMPLATES, ORIENTATION_PRESETS, LineTemplate, LineBasedEditorRef } from './lineEditor';
+import { DividerLineData } from './lineEditor/LineRenderer';
 import {
   Plus,
   Trash2,
@@ -256,6 +259,9 @@ export default function CollaborativeComicEditor({
   const [pages, setPages] = useState<ComicPage[]>([]);
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [selectedPanelId, setSelectedPanelId] = useState<number | null>(null);
+  const [selectedComputedPanelId, setSelectedComputedPanelId] = useState<string | null>(null); // For line-based editor
+  const [computedPanels, setComputedPanels] = useState<import('../../utils/regionCalculator').ComputedPanel[]>([]);
+  const [panelArtworkMap, setPanelArtworkMap] = useState<Map<string, string>>(new Map()); // Maps computed panel ID to artwork URL
   const [selectedBubbleId, setSelectedBubbleId] = useState<number | null>(null);
   const [mode, setMode] = useState<EditorMode>('layout');
   const [loading, setLoading] = useState(true);
@@ -275,9 +281,26 @@ export default function CollaborativeComicEditor({
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const lineEditorRef = useRef<LineBasedEditorRef>(null);
+
+  // Sync refs to prevent race conditions during save/reload
+  const isReloadingRef = useRef(false);
+  const lastPageIdRef = useRef<number | null>(null);
+
+  // Guard to prevent duplicate initial load (React StrictMode runs effects twice)
+  const isInitialLoadRunningRef = useRef(false);
+  const hasInitializedRef = useRef(false);
 
   // Canvas dimension tracking for pixel-based positioning
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 0, height: 0 });
+
+  // Track available space for responsive canvas sizing
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [availableCanvasSpace, setAvailableCanvasSpace] = useState({ width: 800, height: 700 });
+
+  // Stable canvas size for bubble positioning - prevents drift on re-renders
+  // This is updated from LineBasedEditor and persists across renders
+  const [stableCanvasSize, setStableCanvasSize] = useState({ width: 550, height: 712 });
 
   // Smart alignment guides state
   const [guides, setGuides] = useState<{
@@ -307,10 +330,21 @@ export default function CollaborativeComicEditor({
 
   // Load issues and pages on mount
   useEffect(() => {
+    // Guard against React StrictMode double-invocation
+    if (hasInitializedRef.current || isInitialLoadRunningRef.current) {
+      return;
+    }
     loadIssuesAndPages();
   }, [project.id]);
 
   const loadIssuesAndPages = async () => {
+    // Prevent concurrent calls (React StrictMode protection)
+    if (isInitialLoadRunningRef.current) {
+      console.log('[INIT] Skipping duplicate loadIssuesAndPages call');
+      return;
+    }
+    isInitialLoadRunningRef.current = true;
+
     setLoading(true);
     setError('');
     try {
@@ -339,12 +373,14 @@ export default function CollaborativeComicEditor({
         });
         setPages([{ ...newPage, panels: newPage.panels || [] }]);
       }
+      hasInitializedRef.current = true;
     } catch (err: any) {
       setError(err.message || 'Failed to load comic');
       // Fallback: try loading pages directly from project (backwards compat)
       await loadPages();
     } finally {
       setLoading(false);
+      isInitialLoadRunningRef.current = false;
     }
   };
 
@@ -358,6 +394,7 @@ export default function CollaborativeComicEditor({
       setPages(normalizedPages);
       setSelectedPageIndex(0);
       setSelectedPanelId(null);
+      setSelectedComputedPanelId(null);
       setSelectedBubbleId(null);
       // Update the page count in issues state to match actual loaded pages
       updateIssuePageCount(issueId, normalizedPages.length);
@@ -384,6 +421,7 @@ export default function CollaborativeComicEditor({
     setSelectedIssueId(issueId);
     setShowIssueDropdown(false);
     setSelectedPanelId(null);
+    setSelectedComputedPanelId(null);
     setSelectedBubbleId(null);
     setLoading(true);
     try {
@@ -414,6 +452,7 @@ export default function CollaborativeComicEditor({
       setPages([]);
       setSelectedPageIndex(0);
       setSelectedPanelId(null);
+      setSelectedComputedPanelId(null);
       setSelectedBubbleId(null);
       // Create first blank page for the new issue (only send issue, not project)
       const newPage = await collaborationApi.createComicPage({
@@ -516,6 +555,77 @@ export default function CollaborativeComicEditor({
     };
   }, []);
 
+  // Track canvas container size for responsive canvas sizing
+  useEffect(() => {
+    const updateAvailableSpace = () => {
+      if (canvasContainerRef.current) {
+        const rect = canvasContainerRef.current.getBoundingClientRect();
+        // Leave some padding (32px total for padding inside container)
+        const availableWidth = Math.max(400, rect.width - 32);
+        const availableHeight = Math.max(400, rect.height - 40); // Minimal reserved space for cleaner look
+        setAvailableCanvasSpace({ width: availableWidth, height: availableHeight });
+      }
+    };
+
+    // Initial update
+    updateAvailableSpace();
+
+    // Watch for resize
+    const resizeObserver = new ResizeObserver(updateAvailableSpace);
+    if (canvasContainerRef.current) {
+      resizeObserver.observe(canvasContainerRef.current);
+    }
+
+    window.addEventListener('resize', updateAvailableSpace);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateAvailableSpace);
+    };
+  }, []);
+
+  // Update stable canvas size when LineBasedEditor reports dimensions
+  // This runs periodically to catch dimension changes and ensures bubble positions stay consistent
+  useEffect(() => {
+    const updateStableSize = () => {
+      const size = lineEditorRef.current?.getCanvasSize();
+      if (size && size.width > 0 && size.height > 0) {
+        // Only update if dimensions actually changed to avoid unnecessary re-renders
+        setStableCanvasSize(prev => {
+          if (Math.abs(prev.width - size.width) > 1 || Math.abs(prev.height - size.height) > 1) {
+            return { width: size.width, height: size.height };
+          }
+          return prev;
+        });
+      }
+    };
+
+    // Update immediately and then periodically
+    updateStableSize();
+    const intervalId = setInterval(updateStableSize, 500);
+
+    return () => clearInterval(intervalId);
+  }, [currentPage?.id, availableCanvasSpace]); // Re-run when page or available space changes
+
+  // Keyboard shortcut for deleting selected bubble
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle Delete/Backspace when a bubble is selected
+      if (!selectedBubbleId || !canEditText || mode !== 'text') return;
+
+      // Don't delete if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDeleteBubble(selectedBubbleId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedBubbleId, canEditText, mode]);
+
   const loadPages = async () => {
     setLoading(true);
     setError('');
@@ -588,7 +698,10 @@ export default function CollaborativeComicEditor({
   const handleSave = async () => {
     // Changes are already saved automatically, but this gives user confidence
     // by refreshing the data from server
+    console.log('[SAVE] Starting save, setting isReloadingRef=true');
     setSaving(true);
+    // IMPORTANT: Set reload flag to prevent artwork map rebuild with stale data
+    isReloadingRef.current = true;
     try {
       // Load pages for the current issue, not the project
       if (selectedIssueId) {
@@ -596,12 +709,20 @@ export default function CollaborativeComicEditor({
       } else {
         await loadPages();
       }
+      console.log('[SAVE] Pages reloaded successfully');
       setLastSaved(new Date());
       setError('');
     } catch (err: any) {
+      console.log('[SAVE] Error during save:', err);
       setError(err.message || 'Failed to save');
     } finally {
       setSaving(false);
+      // Allow state to settle before re-enabling artwork map updates
+      // This gives computedPanels time to sync with the new page data
+      setTimeout(() => {
+        console.log('[SAVE] Clearing isReloadingRef after 100ms');
+        isReloadingRef.current = false;
+      }, 100);
     }
   };
 
@@ -747,6 +868,7 @@ export default function CollaborativeComicEditor({
       setPages(updatedPages);
       setShowTemplates(false);
       setSelectedPanelId(null);
+      setSelectedComputedPanelId(null);
     } catch (err: any) {
       setError(err.message || 'Failed to apply template');
     } finally {
@@ -769,12 +891,257 @@ export default function CollaborativeComicEditor({
       };
       setPages(updatedPages);
       setSelectedPanelId(null);
+      setSelectedComputedPanelId(null);
     } catch (err: any) {
       setError(err.message || 'Failed to delete panel');
     } finally {
       setSaving(false);
     }
   };
+
+  // ============ LINE-BASED EDITOR HANDLERS ============
+
+  // Convert API DividerLine to component DividerLineData
+  const toDividerLineData = (line: DividerLine): DividerLineData => ({
+    id: line.id,
+    line_type: line.line_type as 'straight' | 'bezier',
+    start_x: line.start_x,
+    start_y: line.start_y,
+    end_x: line.end_x,
+    end_y: line.end_y,
+    control1_x: line.control1_x ?? undefined,
+    control1_y: line.control1_y ?? undefined,
+    control2_x: line.control2_x ?? undefined,
+    control2_y: line.control2_y ?? undefined,
+    thickness: line.thickness ?? undefined,
+    color: line.color ?? undefined,
+  });
+
+  // Get divider lines for current page as DividerLineData[]
+  const currentDividerLines: DividerLineData[] = useMemo(() => {
+    if (!currentPage?.divider_lines) return [];
+    return currentPage.divider_lines.map(toDividerLineData);
+  }, [currentPage?.divider_lines]);
+
+  // Helper to round coordinate values to 4 decimal places (matches backend precision)
+  const roundCoord = (val: number | undefined): number | undefined => {
+    if (val === undefined) return undefined;
+    return Math.round(val * 10000) / 10000;
+  };
+
+  // Create a new divider line
+  const handleLineCreate = async (lineData: Omit<DividerLineData, 'id'>) => {
+    if (!canEditPanels || !currentPage) return;
+
+    setSaving(true);
+    try {
+      const newLine = await collaborationApi.createDividerLine({
+        page: currentPage.id,
+        line_type: lineData.line_type,
+        start_x: roundCoord(lineData.start_x)!,
+        start_y: roundCoord(lineData.start_y)!,
+        end_x: roundCoord(lineData.end_x)!,
+        end_y: roundCoord(lineData.end_y)!,
+        control1_x: roundCoord(lineData.control1_x),
+        control1_y: roundCoord(lineData.control1_y),
+        control2_x: roundCoord(lineData.control2_x),
+        control2_y: roundCoord(lineData.control2_y),
+        thickness: lineData.thickness,
+        color: lineData.color,
+      });
+
+      // Update local state
+      const updatedPages = [...pages];
+      updatedPages[selectedPageIndex] = {
+        ...currentPage,
+        divider_lines: [...(currentPage.divider_lines || []), newLine],
+      };
+      setPages(updatedPages);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create line');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Update an existing divider line
+  const handleLineUpdate = async (lineId: number, updates: Partial<DividerLineData>) => {
+    if (!canEditPanels || !currentPage) return;
+
+    try {
+      // Round coordinate values before sending
+      const roundedUpdates: Partial<DividerLineData> = { ...updates };
+      if (roundedUpdates.start_x !== undefined) roundedUpdates.start_x = roundCoord(roundedUpdates.start_x)!;
+      if (roundedUpdates.start_y !== undefined) roundedUpdates.start_y = roundCoord(roundedUpdates.start_y)!;
+      if (roundedUpdates.end_x !== undefined) roundedUpdates.end_x = roundCoord(roundedUpdates.end_x)!;
+      if (roundedUpdates.end_y !== undefined) roundedUpdates.end_y = roundCoord(roundedUpdates.end_y)!;
+      if (roundedUpdates.control1_x !== undefined) roundedUpdates.control1_x = roundCoord(roundedUpdates.control1_x);
+      if (roundedUpdates.control1_y !== undefined) roundedUpdates.control1_y = roundCoord(roundedUpdates.control1_y);
+      if (roundedUpdates.control2_x !== undefined) roundedUpdates.control2_x = roundCoord(roundedUpdates.control2_x);
+      if (roundedUpdates.control2_y !== undefined) roundedUpdates.control2_y = roundCoord(roundedUpdates.control2_y);
+
+      const updatedLine = await collaborationApi.updateDividerLine(lineId, roundedUpdates);
+
+      // Update local state
+      const updatedPages = [...pages];
+      updatedPages[selectedPageIndex] = {
+        ...currentPage,
+        divider_lines: currentPage.divider_lines.map((l) =>
+          l.id === lineId ? updatedLine : l
+        ),
+      };
+      setPages(updatedPages);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update line');
+    }
+  };
+
+  // Delete a divider line
+  const handleLineDelete = async (lineId: number) => {
+    if (!canEditPanels || !currentPage) return;
+
+    try {
+      await collaborationApi.deleteDividerLine(lineId);
+
+      // Update local state
+      const updatedPages = [...pages];
+      updatedPages[selectedPageIndex] = {
+        ...currentPage,
+        divider_lines: currentPage.divider_lines.filter((l) => l.id !== lineId),
+      };
+      setPages(updatedPages);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete line');
+    }
+  };
+
+  // Apply a line template
+  const handleApplyLineTemplate = async (template: LineTemplate) => {
+    if (!canEditPanels || !currentPage) return;
+
+    setSaving(true);
+    try {
+      // Delete existing lines
+      for (const line of currentPage.divider_lines || []) {
+        await collaborationApi.deleteDividerLine(line.id);
+      }
+
+      // Create new lines from template
+      if (template.lines.length > 0) {
+        const result = await collaborationApi.batchCreateDividerLines(
+          currentPage.id,
+          template.lines.map((l) => ({
+            line_type: l.line_type,
+            start_x: roundCoord(l.start_x)!,
+            start_y: roundCoord(l.start_y)!,
+            end_x: roundCoord(l.end_x)!,
+            end_y: roundCoord(l.end_y)!,
+            control1_x: roundCoord(l.control1_x),
+            control1_y: roundCoord(l.control1_y),
+            control2_x: roundCoord(l.control2_x),
+            control2_y: roundCoord(l.control2_y),
+          }))
+        );
+
+        // Update local state
+        const updatedPages = [...pages];
+        updatedPages[selectedPageIndex] = {
+          ...currentPage,
+          divider_lines: result.created,
+        };
+        setPages(updatedPages);
+      } else {
+        // Empty template - clear all lines
+        const updatedPages = [...pages];
+        updatedPages[selectedPageIndex] = {
+          ...currentPage,
+          divider_lines: [],
+        };
+        setPages(updatedPages);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to apply template');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Update page orientation
+  const handleOrientationChange = async (orientation: string) => {
+    if (!canEditPanels || !currentPage) return;
+
+    try {
+      await collaborationApi.updateComicPage(currentPage.id, { orientation } as any);
+
+      const updatedPages = [...pages];
+      updatedPages[selectedPageIndex] = {
+        ...currentPage,
+        orientation: orientation as any,
+      };
+      setPages(updatedPages);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update orientation');
+    }
+  };
+
+  // Update gutter mode
+  const handleGutterModeChange = async (gutterMode: boolean) => {
+    if (!canEditPanels || !currentPage) return;
+
+    try {
+      await collaborationApi.updateComicPage(currentPage.id, { gutter_mode: gutterMode } as any);
+
+      const updatedPages = [...pages];
+      updatedPages[selectedPageIndex] = {
+        ...currentPage,
+        gutter_mode: gutterMode,
+      };
+      setPages(updatedPages);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update gutter mode');
+    }
+  };
+
+  // Update gutter width
+  const handleGutterWidthChange = async (width: number) => {
+    if (!canEditPanels || !currentPage) return;
+
+    try {
+      await collaborationApi.updateComicPage(currentPage.id, { default_gutter_width: width } as any);
+
+      const updatedPages = [...pages];
+      updatedPages[selectedPageIndex] = {
+        ...currentPage,
+        default_gutter_width: width,
+      };
+      setPages(updatedPages);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update gutter width');
+    }
+  };
+
+  // Update line color
+  const handleLineColorChange = async (color: string) => {
+    if (!canEditPanels || !currentPage) return;
+
+    try {
+      await collaborationApi.updateComicPage(currentPage.id, { default_line_color: color } as any);
+
+      const updatedPages = [...pages];
+      updatedPages[selectedPageIndex] = {
+        ...currentPage,
+        default_line_color: color,
+      };
+      setPages(updatedPages);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update line color');
+    }
+  };
+
+  // Check if using line-based layout (version 2+)
+  const useLineBasedLayout = currentPage && (currentPage.layout_version ?? 2) >= 2;
+
+  // ============ END LINE-BASED EDITOR HANDLERS ============
 
   // Snap-to-grid helper (5% increments for clean alignment)
   const GRID_SIZE = 5;
@@ -968,6 +1335,193 @@ export default function CollaborativeComicEditor({
     }
   };
 
+  // Artwork upload for computed panels (line-based editor)
+  const handleComputedPanelArtworkUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    computedPanelId: string
+  ) => {
+    if (!canEditPanels || !currentPage) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setError('Please upload a PNG, JPG, WebP, or GIF image');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      setError('File size must be under 50MB');
+      return;
+    }
+
+    // Find the computed panel
+    const computedPanel = computedPanels.find((p) => p.id === computedPanelId);
+    if (!computedPanel) {
+      setError('Panel region not found');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      // First, check if we already have a ComicPanel for this region (by bounding box overlap)
+      let targetPanel = currentPage.panels.find((p) => {
+        const panelBounds = {
+          x: p.x_percent,
+          y: p.y_percent,
+          width: p.width_percent,
+          height: p.height_percent,
+        };
+        const overlap = calculateBoundsOverlap(computedPanel.bounds, panelBounds);
+        return overlap > 0.3; // 30% IoU threshold
+      });
+
+      if (!targetPanel) {
+        // Create a new ComicPanel for this computed region
+        // Round to 2 decimal places to fit within database constraints (max_digits=5)
+        targetPanel = await collaborationApi.createComicPanel({
+          page: currentPage.id,
+          x_percent: Math.round(computedPanel.bounds.x * 100) / 100,
+          y_percent: Math.round(computedPanel.bounds.y * 100) / 100,
+          width_percent: Math.round(computedPanel.bounds.width * 100) / 100,
+          height_percent: Math.round(computedPanel.bounds.height * 100) / 100,
+          border_style: 'none',
+        });
+
+        // Add to local state
+        const updatedPages = [...pages];
+        updatedPages[selectedPageIndex].panels.push({
+          ...targetPanel,
+          speech_bubbles: [],
+        });
+        setPages(updatedPages);
+      }
+
+      // Upload artwork to the panel
+      const updatedPanel = await collaborationApi.uploadPanelArtwork(targetPanel.id, file);
+
+      // Update local state
+      const updatedPages = [...pages];
+      const panelIndex = updatedPages[selectedPageIndex].panels.findIndex((p) => p.id === targetPanel!.id);
+      if (panelIndex >= 0) {
+        updatedPages[selectedPageIndex].panels[panelIndex] = {
+          ...updatedPanel,
+          speech_bubbles: updatedPages[selectedPageIndex].panels[panelIndex].speech_bubbles,
+        };
+      }
+      setPages(updatedPages);
+
+      // Update artwork map for immediate display
+      const newArtworkMap = new Map(panelArtworkMap);
+      newArtworkMap.set(computedPanelId, updatedPanel.artwork || '');
+      setPanelArtworkMap(newArtworkMap);
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload artwork');
+    } finally {
+      setSaving(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Sync computed panels with existing artwork when panels change
+  // Helper: Calculate bounding box overlap (IoU - Intersection over Union)
+  const calculateBoundsOverlap = (
+    bounds1: { x: number; y: number; width: number; height: number },
+    bounds2: { x: number; y: number; width: number; height: number }
+  ): number => {
+    const x1 = Math.max(bounds1.x, bounds2.x);
+    const y1 = Math.max(bounds1.y, bounds2.y);
+    const x2 = Math.min(bounds1.x + bounds1.width, bounds2.x + bounds2.width);
+    const y2 = Math.min(bounds1.y + bounds1.height, bounds2.y + bounds2.height);
+
+    if (x2 <= x1 || y2 <= y1) return 0; // No overlap
+
+    const intersection = (x2 - x1) * (y2 - y1);
+    const area1 = bounds1.width * bounds1.height;
+    const area2 = bounds2.width * bounds2.height;
+    const union = area1 + area2 - intersection;
+
+    return union > 0 ? intersection / union : 0;
+  };
+
+  // Just store computed panels - artwork map is rebuilt separately
+  const handlePanelsComputed = useCallback((panels: import('../../utils/regionCalculator').ComputedPanel[]) => {
+    setComputedPanels(panels);
+  }, []);
+
+  // Rebuild artwork map whenever computed panels or page panels change
+  // This ensures the map is always in sync with the data
+  useEffect(() => {
+    // Skip if no page data
+    if (!currentPage) {
+      return;
+    }
+
+    // Track page changes for debugging
+    const pageChanged = lastPageIdRef.current !== currentPage.id;
+    if (pageChanged) {
+      lastPageIdRef.current = currentPage.id;
+    }
+
+    // Check if we're waiting for computed panels
+    const hasLines = (currentPage.divider_lines?.length ?? 0) > 0;
+    const waitingForComputedPanels = hasLines && computedPanels.length === 0;
+
+    console.log('[ARTWORK] useEffect triggered', {
+      currentPageId: currentPage.id,
+      pageChanged,
+      computedPanelsCount: computedPanels.length,
+      panelsWithArtwork: currentPage.panels.filter(p => p.artwork).length,
+      waitingForComputedPanels,
+    });
+
+    // If we have lines but no computed panels yet, set up a retry
+    // This handles the case where page changes before panels are computed
+    if (waitingForComputedPanels) {
+      console.log('[ARTWORK] Waiting for computedPanels, will retry...');
+      const retryTimeout = setTimeout(() => {
+        // Force a re-render to trigger this effect again
+        setPanelArtworkMap(prev => new Map(prev));
+      }, 100);
+      return () => clearTimeout(retryTimeout);
+    }
+
+    const newArtworkMap = new Map<string, string>();
+
+    // For each panel with artwork, find the best matching computed panel
+    for (const panel of currentPage.panels) {
+      if (!panel.artwork) continue;
+
+      // Parse bounds as floats - API returns strings like "0.00"
+      const panelBounds = {
+        x: parseFloat(String(panel.x_percent)) || 0,
+        y: parseFloat(String(panel.y_percent)) || 0,
+        width: parseFloat(String(panel.width_percent)) || 0,
+        height: parseFloat(String(panel.height_percent)) || 0,
+      };
+
+      // Find best matching computed panel by IoU (lower threshold 5% for robustness)
+      let bestMatch: { id: string; iou: number } | null = null;
+      for (const computedPanel of computedPanels) {
+        const iou = calculateBoundsOverlap(computedPanel.bounds, panelBounds);
+        if (iou > 0.05 && (!bestMatch || iou > bestMatch.iou)) {
+          bestMatch = { id: computedPanel.id, iou };
+        }
+      }
+
+      if (bestMatch) {
+        newArtworkMap.set(bestMatch.id, panel.artwork);
+        console.log('[ARTWORK] Matched panel', panel.id, 'to computed', bestMatch.id, 'IoU:', bestMatch.iou.toFixed(3));
+      } else {
+        console.log('[ARTWORK] No match for panel', panel.id, 'bounds:', panelBounds);
+      }
+    }
+
+    console.log('[ARTWORK] New map built:', Array.from(newArtworkMap.entries()));
+    setPanelArtworkMap(newArtworkMap);
+  }, [currentPage?.panels, currentPage?.id, currentPage?.divider_lines, computedPanels]);
+
   // Speech bubble management
   const handleAddBubble = async (panelId: number) => {
     if (!canEditText || !currentPage) return;
@@ -1119,6 +1673,92 @@ export default function CollaborativeComicEditor({
     [pages, selectedPageIndex, currentPage, canEditText]
   );
 
+  // Canvas-relative bubble move handler (for draggable bubbles)
+  const handleBubbleMove = useCallback(
+    async (bubbleId: number, panelId: number, xPercent: number, yPercent: number) => {
+      if (!canEditText || !currentPage) return;
+
+      // Clamp values to 0-100 and round to 2 decimal places (backend limit)
+      const clampedX = Math.round(Math.max(0, Math.min(100, xPercent)) * 100) / 100;
+      const clampedY = Math.round(Math.max(0, Math.min(100, yPercent)) * 100) / 100;
+
+      console.log('[BUBBLE] Move - bubbleId:', bubbleId, 'new position:', { xPercent: clampedX, yPercent: clampedY });
+
+      // Update local state
+      const updatedPages = [...pages];
+      const panelIdx = currentPage.panels.findIndex(p => p.id === panelId);
+      if (panelIdx >= 0) {
+        const bubbleIdx = currentPage.panels[panelIdx].speech_bubbles.findIndex(b => b.id === bubbleId);
+        if (bubbleIdx >= 0) {
+          updatedPages[selectedPageIndex].panels[panelIdx].speech_bubbles[bubbleIdx] = {
+            ...currentPage.panels[panelIdx].speech_bubbles[bubbleIdx],
+            x_percent: clampedX,
+            y_percent: clampedY,
+          };
+          setPages(updatedPages);
+        }
+      }
+
+      // Save to server
+      try {
+        const response = await collaborationApi.updateSpeechBubble(bubbleId, {
+          x_percent: clampedX,
+          y_percent: clampedY,
+        });
+        console.log('[BUBBLE] Move saved to server:', response);
+      } catch (err: any) {
+        console.error('[BUBBLE] Failed to update bubble position:', err);
+      }
+    },
+    [pages, selectedPageIndex, currentPage, canEditText]
+  );
+
+  // Canvas-relative bubble resize handler
+  const handleBubbleResize = useCallback(
+    async (bubbleId: number, panelId: number, xPercent: number, yPercent: number, widthPercent: number, heightPercent: number) => {
+      if (!canEditText || !currentPage) return;
+
+      // Clamp values and round to 2 decimal places (backend limit)
+      const clampedX = Math.round(Math.max(0, Math.min(100, xPercent)) * 100) / 100;
+      const clampedY = Math.round(Math.max(0, Math.min(100, yPercent)) * 100) / 100;
+      const clampedW = Math.round(Math.max(5, Math.min(100, widthPercent)) * 100) / 100;
+      const clampedH = Math.round(Math.max(5, Math.min(100, heightPercent)) * 100) / 100;
+
+      console.log('[BUBBLE] Resize - bubbleId:', bubbleId, 'new bounds:', { x: clampedX, y: clampedY, w: clampedW, h: clampedH });
+
+      // Update local state
+      const updatedPages = [...pages];
+      const panelIdx = currentPage.panels.findIndex(p => p.id === panelId);
+      if (panelIdx >= 0) {
+        const bubbleIdx = currentPage.panels[panelIdx].speech_bubbles.findIndex(b => b.id === bubbleId);
+        if (bubbleIdx >= 0) {
+          updatedPages[selectedPageIndex].panels[panelIdx].speech_bubbles[bubbleIdx] = {
+            ...currentPage.panels[panelIdx].speech_bubbles[bubbleIdx],
+            x_percent: clampedX,
+            y_percent: clampedY,
+            width_percent: clampedW,
+            height_percent: clampedH,
+          };
+          setPages(updatedPages);
+        }
+      }
+
+      // Save to server
+      try {
+        const response = await collaborationApi.updateSpeechBubble(bubbleId, {
+          x_percent: clampedX,
+          y_percent: clampedY,
+          width_percent: clampedW,
+          height_percent: clampedH,
+        });
+        console.log('[BUBBLE] Resize saved to server:', response);
+      } catch (err: any) {
+        console.error('[BUBBLE] Failed to update bubble size:', err);
+      }
+    },
+    [pages, selectedPageIndex, currentPage, canEditText]
+  );
+
   // Render loading state
   if (loading) {
     return (
@@ -1138,11 +1778,13 @@ export default function CollaborativeComicEditor({
   }
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 300px)', minHeight: 600 }}>
+    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 140px)', minHeight: 500, padding: '16px 24px' }}>
       {/* Left Sidebar - Page Navigator */}
       <div
         style={{
           width: 160,
+          minWidth: 160,
+          flexShrink: 0,
           background: '#1e293b',
           borderRadius: 12,
           padding: 12,
@@ -1382,24 +2024,129 @@ export default function CollaborativeComicEditor({
                   overflow: 'hidden',
                 }}
               >
-                {/* Mini panel previews - match editor styling */}
-                {(page.panels || []).map((panel) => (
-                  <div
-                    key={panel.id}
+                {/* SVG for line-based layouts - shows divider lines AND artwork */}
+                {(page.divider_lines || []).length > 0 ? (
+                  <svg
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
                     style={{
                       position: 'absolute',
-                      left: `${panel.x_percent}%`,
-                      top: `${panel.y_percent}%`,
-                      width: `${panel.width_percent}%`,
-                      height: `${panel.height_percent}%`,
-                      border: `${Math.max(1, (panel.border_width || 2) / 2)}px solid ${panel.border_color || '#000000'}`,
-                      borderRadius: panel.border_radius || 0,
-                      background: panel.artwork ? `url(${panel.artwork}) center/cover` : (panel.background_color || '#ffffff'),
-                      transform: `rotate(${panel.rotation || 0}deg) skewX(${panel.skew_x || 0}deg) skewY(${panel.skew_y || 0}deg)`,
-                      transformOrigin: 'center center',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
                     }}
-                  />
-                ))}
+                  >
+                    {/* For current page, render computed panels with artwork using polygon clipping */}
+                    {selectedPageIndex === index && computedPanels.length > 0 && (
+                      <>
+                        {/* Define clip paths for each computed panel */}
+                        <defs>
+                          {computedPanels.map((panel) => (
+                            <clipPath key={`thumb-clip-${panel.id}`} id={`thumb-clip-${panel.id}`}>
+                              <polygon
+                                points={panel.vertices.map(v => `${v.x},${v.y}`).join(' ')}
+                              />
+                            </clipPath>
+                          ))}
+                        </defs>
+                        {/* Render artwork clipped to panel polygons */}
+                        {computedPanels.map((panel) => {
+                          const artworkUrl = panelArtworkMap.get(panel.id);
+                          if (!artworkUrl) return null;
+                          return (
+                            <image
+                              key={`thumb-art-${panel.id}`}
+                              href={artworkUrl}
+                              x={panel.bounds.x}
+                              y={panel.bounds.y}
+                              width={panel.bounds.width}
+                              height={panel.bounds.height}
+                              preserveAspectRatio="xMidYMid slice"
+                              clipPath={`url(#thumb-clip-${panel.id})`}
+                            />
+                          );
+                        })}
+                      </>
+                    )}
+                    {/* For non-current pages, render panel artwork from database */}
+                    {selectedPageIndex !== index && (page.panels || []).map((panel) => {
+                      if (!panel.artwork) return null;
+                      return (
+                        <image
+                          key={`thumb-panel-${panel.id}`}
+                          href={panel.artwork}
+                          x={panel.x_percent}
+                          y={panel.y_percent}
+                          width={panel.width_percent}
+                          height={panel.height_percent}
+                          preserveAspectRatio="xMidYMid slice"
+                        />
+                      );
+                    })}
+                    {/* Divider lines on top */}
+                    {(page.divider_lines || []).map((line) => (
+                      <line
+                        key={line.id}
+                        x1={line.start_x}
+                        y1={line.start_y}
+                        x2={line.end_x}
+                        y2={line.end_y}
+                        stroke={line.color || page.default_line_color || '#6b7280'}
+                        strokeWidth={Math.max(0.5, (line.thickness || page.default_gutter_width || 2) * 0.3)}
+                        strokeLinecap="round"
+                      />
+                    ))}
+                    {/* Speech bubbles on thumbnails */}
+                    {(page.panels || []).flatMap((panel) =>
+                      (panel.speech_bubbles || []).map((bubble) => (
+                        <g key={`thumb-bubble-${bubble.id}`}>
+                          {bubble.bubble_type === 'narrative' || bubble.bubble_type === 'caption' ? (
+                            <rect
+                              x={Number(bubble.x_percent)}
+                              y={Number(bubble.y_percent)}
+                              width={Number(bubble.width_percent)}
+                              height={Number(bubble.height_percent)}
+                              fill={bubble.background_color || '#fff'}
+                              stroke={bubble.border_color || '#000'}
+                              strokeWidth={0.5}
+                              rx={1}
+                            />
+                          ) : (
+                            <ellipse
+                              cx={Number(bubble.x_percent) + Number(bubble.width_percent) / 2}
+                              cy={Number(bubble.y_percent) + Number(bubble.height_percent) / 2}
+                              rx={Number(bubble.width_percent) / 2}
+                              ry={Number(bubble.height_percent) / 2}
+                              fill={bubble.background_color || '#fff'}
+                              stroke={bubble.border_color || '#000'}
+                              strokeWidth={0.5}
+                            />
+                          )}
+                        </g>
+                      ))
+                    )}
+                  </svg>
+                ) : (
+                  /* Legacy panel-based layout - no divider lines */
+                  (page.panels || []).map((panel) => (
+                    <div
+                      key={panel.id}
+                      style={{
+                        position: 'absolute',
+                        left: `${panel.x_percent}%`,
+                        top: `${panel.y_percent}%`,
+                        width: `${panel.width_percent}%`,
+                        height: `${panel.height_percent}%`,
+                        border: `${Math.max(1, (panel.border_width || 2) / 2)}px solid ${panel.border_color || '#000000'}`,
+                        borderRadius: panel.border_radius || 0,
+                        background: panel.artwork ? `url(${panel.artwork}) center/cover` : (panel.background_color || '#ffffff'),
+                        transform: `rotate(${panel.rotation || 0}deg) skewX(${panel.skew_x || 0}deg) skewY(${panel.skew_y || 0}deg)`,
+                        transformOrigin: 'center center',
+                      }}
+                    />
+                  ))
+                )}
               </div>
               <span
                 style={{
@@ -1533,75 +2280,7 @@ export default function CollaborativeComicEditor({
               <ChevronRight size={16} />
             </button>
 
-            {/* Layout mode buttons */}
-            {mode === 'layout' && canEditPanels && (
-              <>
-                {/* Templates button */}
-                <button
-                  onClick={() => setShowTemplates(true)}
-                  disabled={saving}
-                  style={{
-                    background: '#6366f1',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '6px 12px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <Grid3X3 size={14} /> Templates
-                </button>
-
-                {/* Fill Gap button - only show if panels exist */}
-                {currentPage?.panels.length > 0 && (
-                  <button
-                    onClick={handleFillGap}
-                    disabled={saving}
-                    style={{
-                      background: '#8b5cf6',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 6,
-                      padding: '6px 12px',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    <Maximize2 size={14} /> Fill Gap
-                  </button>
-                )}
-
-                {/* Add panel button */}
-                <button
-                  onClick={handleAddPanel}
-                  disabled={saving}
-                  style={{
-                    background: '#22c55e',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '6px 12px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <Plus size={14} /> Add Panel
-                </button>
-              </>
-            )}
+            {/* Legacy layout mode buttons removed - line-based editor has its own toolbar */}
 
             {/* Bubble type selector for text mode */}
             {mode === 'text' && canEditText && selectedPanelId && (
@@ -1680,8 +2359,9 @@ export default function CollaborativeComicEditor({
           </div>
         )}
 
-        {/* Canvas Container - Fixed aspect ratio like a real comic page */}
+        {/* Canvas Container */}
         <div
+          ref={canvasContainerRef}
           style={{
             flex: 1,
             display: 'flex',
@@ -1690,115 +2370,246 @@ export default function CollaborativeComicEditor({
             padding: 16,
             background: '#0f172a',
             borderRadius: 8,
-            overflow: 'auto',
+            overflow: 'hidden',
+            minWidth: 0, // Allow flex item to shrink below content size
+            minHeight: 0,
           }}
         >
-          {/* Fixed aspect ratio comic page (8.5:11 US Letter) */}
-          <div
-            ref={canvasRef}
-            style={{
-              width: '100%',
-              maxWidth: 550,
-              aspectRatio: '8.5 / 11',
-              background: '#fff',
-              borderRadius: 4,
-              position: 'relative',
-              overflow: 'visible', // Allow panels to extend off-page like PowerPoint
-              boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2)',
-              flexShrink: 0,
-              // Visual page boundary indicator
-              outline: '2px dashed rgba(59, 130, 246, 0.5)',
-              outlineOffset: '-2px',
-            }}
-          >
-          {currentPage?.panels.map((panel) => (
-            <PanelComponent
-              key={panel.id}
-              panel={panel}
-              isSelected={selectedPanelId === panel.id}
-              isDragging={draggingPanelId === panel.id}
-              canEdit={canEditPanels}
-              canEditText={canEditText}
-              mode={mode}
-              selectedBubbleId={selectedBubbleId}
-              canvasWidth={canvasDimensions.width}
-              canvasHeight={canvasDimensions.height}
-              onSelect={() => {
-                setSelectedPanelId(panel.id);
-                setSelectedBubbleId(null);
-              }}
-              onPositionChange={(x, y, w, h) =>
-                handlePanelPositionChange(panel.id, x, y, w, h)
-              }
-              onDragStart={() => setDraggingPanelId(panel.id)}
-              onDrag={(x, y, w, h) => calculateGuides(panel.id, x, y, w, h)}
-              onDragEnd={clearGuides}
-              onDelete={() => handleDeletePanel(panel.id)}
-              onUploadArtwork={(e) => handleArtworkUpload(e, panel.id)}
-              onSelectBubble={setSelectedBubbleId}
-              onBubbleTextChange={handleBubbleTextChange}
-              onBubblePositionChange={handleBubblePositionChange}
-              onDeleteBubble={handleDeleteBubble}
-            />
-          ))}
+          {/* Line-based editor for v2 pages (all modes) */}
+          {useLineBasedLayout ? (
+            <LineBasedEditor
+              ref={lineEditorRef}
+              lines={currentDividerLines}
+              orientation={currentPage?.orientation || 'portrait'}
+              gutterMode={currentPage?.gutter_mode ?? true}
+              defaultGutterWidth={Number(currentPage?.default_gutter_width) || 2}
+              defaultLineColor={currentPage?.default_line_color || '#6b7280'}
+              onLineCreate={handleLineCreate}
+              onLineUpdate={handleLineUpdate}
+              onLineDelete={handleLineDelete}
+              onApplyTemplate={handleApplyLineTemplate}
+              onOrientationChange={handleOrientationChange}
+              onGutterModeChange={handleGutterModeChange}
+              onGutterWidthChange={handleGutterWidthChange}
+              onLineColorChange={handleLineColorChange}
+              canEdit={canEditPanels && mode === 'layout'}
+              selectedPanelId={selectedComputedPanelId}
+              onPanelSelect={setSelectedComputedPanelId}
+              onPanelsComputed={handlePanelsComputed}
+              showPanelNumbers={mode === 'layout' || mode === 'artwork'}
+              panelArtwork={panelArtworkMap}
+              maxCanvasWidth={availableCanvasSpace.width}
+              maxCanvasHeight={availableCanvasSpace.height}
+            >
+              {/* Speech bubble overlay - rendered inside canvas container */}
+              {/* Bubbles use canvas-relative positioning (x_percent/y_percent are % of canvas) */}
+              {/* Bubbles visible in all modes, but only editable in text mode */}
+              {(() => {
+                // Use stable canvas size for consistent bubble positioning
+                // This prevents position drift when ref is temporarily unavailable
+                const displayWidth = stableCanvasSize.width;
+                const displayHeight = stableCanvasSize.height;
 
-          {/* Smart alignment guides - professional dashed style */}
-          {guides.vertical.map((x, i) => (
+                // Collect all bubbles from all panels
+                const allBubbles = currentPage?.panels.flatMap(panel =>
+                  panel.speech_bubbles?.map(bubble => ({ ...bubble, panelId: panel.id })) || []
+                ) || [];
+
+                return allBubbles.map((bubble) => {
+                  // Position bubble relative to canvas (x_percent/y_percent are 0-100 of canvas)
+                  const bubbleX = (bubble.x_percent / 100) * displayWidth;
+                  const bubbleY = (bubble.y_percent / 100) * displayHeight;
+                  const bubbleW = (bubble.width_percent / 100) * displayWidth;
+                  const bubbleH = (bubble.height_percent / 100) * displayHeight;
+
+                  console.log('[BUBBLE] Render - bubble:', bubble.id, {
+                    stored: { x: bubble.x_percent, y: bubble.y_percent, w: bubble.width_percent, h: bubble.height_percent },
+                    calculated: { x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH },
+                    canvasSize: { displayWidth, displayHeight },
+                  });
+
+                  return (
+                    <Rnd
+                      key={bubble.id}
+                      position={{ x: bubbleX, y: bubbleY }}
+                      size={{ width: bubbleW, height: bubbleH }}
+                      onDragStop={(_e, d) => {
+                        // Convert pixel position back to percentage
+                        const newXPercent = (d.x / displayWidth) * 100;
+                        const newYPercent = (d.y / displayHeight) * 100;
+                        handleBubbleMove(bubble.id, bubble.panelId, newXPercent, newYPercent);
+                      }}
+                      onResizeStop={(_e, _direction, ref, _delta, position) => {
+                        const newWidth = parseInt(ref.style.width, 10);
+                        const newHeight = parseInt(ref.style.height, 10);
+                        const newXPercent = (position.x / displayWidth) * 100;
+                        const newYPercent = (position.y / displayHeight) * 100;
+                        const newWidthPercent = (newWidth / displayWidth) * 100;
+                        const newHeightPercent = (newHeight / displayHeight) * 100;
+                        handleBubbleResize(bubble.id, bubble.panelId, newXPercent, newYPercent, newWidthPercent, newHeightPercent);
+                      }}
+                      bounds="parent"
+                      enableResizing={mode === 'text' && canEditText && selectedBubbleId === bubble.id}
+                      disableDragging={mode !== 'text' || !canEditText}
+                      style={{
+                        background: bubble.background_color || '#fff',
+                        border: `${bubble.border_width || 2}px solid ${bubble.border_color || '#000'}`,
+                        borderRadius: bubble.bubble_type === 'narrative' || bubble.bubble_type === 'caption' ? 4 : '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4,
+                        cursor: mode === 'text' && canEditText ? 'move' : 'default',
+                        boxShadow: mode === 'text' && selectedBubbleId === bubble.id ? '0 0 0 2px #3b82f6' : 'none',
+                        zIndex: 100,
+                        overflow: 'hidden',
+                        pointerEvents: mode === 'text' ? 'auto' : 'none',
+                      }}
+                      onClick={() => mode === 'text' && setSelectedBubbleId(bubble.id)}
+                    >
+                      {mode === 'text' && canEditText && selectedBubbleId === bubble.id ? (
+                        <textarea
+                          value={bubble.text || ''}
+                          onChange={(e) => handleBubbleTextChange(bubble.id, e.target.value)}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            border: 'none',
+                            background: 'transparent',
+                            resize: 'none',
+                            textAlign: bubble.text_align as any || 'center',
+                            fontSize: Math.max(10, Math.min(bubbleH * 0.25, 16)),
+                            fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
+                            color: '#000',
+                            outline: 'none',
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: Math.max(10, Math.min(bubbleH * 0.25, 16)),
+                            fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
+                            color: '#000',
+                            textAlign: bubble.text_align as any || 'center',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {bubble.text || 'Enter text...'}
+                        </span>
+                      )}
+                    </Rnd>
+                  );
+                });
+              })()}
+            </LineBasedEditor>
+          ) : (
+            /* Legacy panel-based editor */
             <div
-              key={`v-guide-${i}`}
+              ref={canvasRef}
               style={{
-                position: 'absolute',
-                left: x - 1,
-                top: 0,
-                width: 2,
-                height: '100%',
-                background: 'linear-gradient(to bottom, #f59e0b 50%, transparent 50%)',
-                backgroundSize: '2px 8px',
-                pointerEvents: 'none',
-                zIndex: 9999,
-                boxShadow: '0 0 4px rgba(245, 158, 11, 0.5)',
-              }}
-            />
-          ))}
-          {guides.horizontal.map((y, i) => (
-            <div
-              key={`h-guide-${i}`}
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: y - 1,
                 width: '100%',
-                height: 2,
-                background: 'linear-gradient(to right, #f59e0b 50%, transparent 50%)',
-                backgroundSize: '8px 2px',
-                pointerEvents: 'none',
-                zIndex: 9999,
-                boxShadow: '0 0 4px rgba(245, 158, 11, 0.5)',
-              }}
-            />
-          ))}
-
-          {/* Empty state */}
-          {currentPage?.panels.length === 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                textAlign: 'center',
-                color: '#64748b',
+                maxWidth: 550,
+                aspectRatio: '8.5 / 11',
+                background: '#fff',
+                borderRadius: 4,
+                position: 'relative',
+                overflow: 'visible',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2)',
+                flexShrink: 0,
+                outline: '2px dashed rgba(59, 130, 246, 0.5)',
+                outlineOffset: '-2px',
               }}
             >
-              <Layout size={48} style={{ marginBottom: 8, opacity: 0.5 }} />
-              <p style={{ fontSize: 14, margin: 0 }}>
-                {canEditPanels
-                  ? 'Click "Add Panel" to start creating your comic!'
-                  : 'No panels yet. Waiting for artist to add panels.'}
-              </p>
+              {currentPage?.panels.map((panel) => (
+                <PanelComponent
+                  key={panel.id}
+                  panel={panel}
+                  isSelected={selectedPanelId === panel.id}
+                  isDragging={draggingPanelId === panel.id}
+                  canEdit={canEditPanels}
+                  canEditText={canEditText}
+                  mode={mode}
+                  selectedBubbleId={selectedBubbleId}
+                  canvasWidth={canvasDimensions.width}
+                  canvasHeight={canvasDimensions.height}
+                  onSelect={() => {
+                    setSelectedPanelId(panel.id);
+                    setSelectedBubbleId(null);
+                  }}
+                  onPositionChange={(x, y, w, h) =>
+                    handlePanelPositionChange(panel.id, x, y, w, h)
+                  }
+                  onDragStart={() => setDraggingPanelId(panel.id)}
+                  onDrag={(x, y, w, h) => calculateGuides(panel.id, x, y, w, h)}
+                  onDragEnd={clearGuides}
+                  onDelete={() => handleDeletePanel(panel.id)}
+                  onUploadArtwork={(e) => handleArtworkUpload(e, panel.id)}
+                  onSelectBubble={setSelectedBubbleId}
+                  onBubbleTextChange={handleBubbleTextChange}
+                  onBubblePositionChange={handleBubblePositionChange}
+                  onDeleteBubble={handleDeleteBubble}
+                />
+              ))}
+
+              {/* Smart alignment guides - professional dashed style */}
+              {guides.vertical.map((x, i) => (
+                <div
+                  key={`v-guide-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: x - 1,
+                    top: 0,
+                    width: 2,
+                    height: '100%',
+                    background: 'linear-gradient(to bottom, #f59e0b 50%, transparent 50%)',
+                    backgroundSize: '2px 8px',
+                    pointerEvents: 'none',
+                    zIndex: 9999,
+                    boxShadow: '0 0 4px rgba(245, 158, 11, 0.5)',
+                  }}
+                />
+              ))}
+              {guides.horizontal.map((y, i) => (
+                <div
+                  key={`h-guide-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: y - 1,
+                    width: '100%',
+                    height: 2,
+                    background: 'linear-gradient(to right, #f59e0b 50%, transparent 50%)',
+                    backgroundSize: '8px 2px',
+                    pointerEvents: 'none',
+                    zIndex: 9999,
+                    boxShadow: '0 0 4px rgba(245, 158, 11, 0.5)',
+                  }}
+                />
+              ))}
+
+              {/* Empty state for legacy editor */}
+              {currentPage?.panels.length === 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    color: '#64748b',
+                  }}
+                >
+                  <Layout size={48} style={{ marginBottom: 8, opacity: 0.5 }} />
+                  <p style={{ fontSize: 14, margin: 0 }}>
+                    {canEditPanels
+                      ? 'Click "Add Panel" to start creating your comic!'
+                      : 'No panels yet. Waiting for artist to add panels.'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
-          </div>
         </div>
       </div>
 
@@ -1806,6 +2617,8 @@ export default function CollaborativeComicEditor({
       <div
         style={{
           width: 200,
+          minWidth: 200,
+          flexShrink: 0,
           background: '#1e293b',
           borderRadius: 12,
           padding: 12,
@@ -1816,7 +2629,277 @@ export default function CollaborativeComicEditor({
       >
         <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: 12 }}>Properties</span>
 
-        {selectedPanelId ? (
+        {/* Computed panel selected (line-based editor) */}
+        {useLineBasedLayout && selectedComputedPanelId ? (
+          (() => {
+            const panelIndex = computedPanels?.findIndex(p => p.id === selectedComputedPanelId) ?? -1;
+            const selectedPanel = panelIndex >= 0 ? computedPanels[panelIndex] : null;
+            const hasArtwork = panelArtworkMap?.has(selectedComputedPanelId) ?? false;
+            const displayIndex = panelIndex >= 0 ? panelIndex + 1 : '?';
+
+            return (
+              <>
+                <div style={{
+                  background: '#0f172a',
+                  borderRadius: 8,
+                  padding: 12,
+                  border: '1px solid #334155',
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 8,
+                  }}>
+                    <div style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      background: '#f59e0b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#000',
+                    }}>
+                      {displayIndex}
+                    </div>
+                    <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600 }}>
+                      Panel {displayIndex}
+                    </span>
+                  </div>
+
+                  {selectedPanel && (
+                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                      Size: {Math.round(selectedPanel.bounds.width)}% × {Math.round(selectedPanel.bounds.height)}%
+                    </div>
+                  )}
+
+                  {hasArtwork && (
+                    <div style={{
+                      marginTop: 8,
+                      fontSize: 11,
+                      color: '#22c55e',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}>
+                      <Image size={12} /> Artwork uploaded
+                    </div>
+                  )}
+                </div>
+
+                {/* Artwork upload for computed panels */}
+                {canEditPanels && mode === 'artwork' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        background: hasArtwork ? '#334155' : '#22c55e',
+                        color: '#fff',
+                        padding: '10px 12px',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Upload size={14} /> {hasArtwork ? 'Replace Artwork' : 'Upload Artwork'}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={(e) => {
+                          if (selectedComputedPanelId) {
+                            handleComputedPanelArtworkUpload(e, selectedComputedPanelId);
+                          }
+                        }}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {mode === 'layout' && (
+                  <p style={{ color: '#64748b', fontSize: 11, margin: 0 }}>
+                    Switch to <strong style={{ color: '#94a3b8' }}>Artwork</strong> mode to upload images.
+                  </p>
+                )}
+
+                {mode === 'text' && canEditText && selectedPanel && (() => {
+                  // Find the ComicPanel associated with this computed panel
+                  const matchingComicPanel = currentPage?.panels.find((p) => {
+                    const panelBounds = {
+                      x: p.x_percent,
+                      y: p.y_percent,
+                      width: p.width_percent,
+                      height: p.height_percent,
+                    };
+                    return calculateBoundsOverlap(selectedPanel.bounds, panelBounds) > 0.3;
+                  });
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {/* Bubble type selector */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>
+                          Bubble Type
+                        </span>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          {(['oval', 'thought', 'shout', 'whisper', 'narrative'] as BubbleType[]).map((type) => (
+                            <button
+                              key={type}
+                              onClick={() => setNewBubbleType(type)}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                border: newBubbleType === type ? '1px solid #3b82f6' : '1px solid #334155',
+                                background: newBubbleType === type ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
+                                color: newBubbleType === type ? '#3b82f6' : '#94a3b8',
+                                textTransform: 'capitalize',
+                              }}
+                            >
+                              {type}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          if (!selectedPanel || !currentPage) return;
+                          setSaving(true);
+                          try {
+                            let targetPanel = matchingComicPanel;
+                            if (!targetPanel) {
+                              // Create a ComicPanel to hold the speech bubble
+                              targetPanel = await collaborationApi.createComicPanel({
+                                page: currentPage.id,
+                                x_percent: Math.round(selectedPanel.bounds.x * 100) / 100,
+                                y_percent: Math.round(selectedPanel.bounds.y * 100) / 100,
+                                width_percent: Math.round(selectedPanel.bounds.width * 100) / 100,
+                                height_percent: Math.round(selectedPanel.bounds.height * 100) / 100,
+                                border_style: 'none',
+                              });
+                              // Add to local state
+                              const updatedPages = [...pages];
+                              updatedPages[selectedPageIndex].panels.push({
+                                ...targetPanel,
+                                speech_bubbles: [],
+                              });
+                              setPages(updatedPages);
+                            }
+                            // Now add the speech bubble - positioned at canvas center
+                            // x_percent/y_percent are now canvas-relative (0-100 of canvas)
+                            const newBubble = await collaborationApi.createSpeechBubble({
+                              panel: targetPanel.id,
+                              bubble_type: newBubbleType,
+                              x_percent: 35, // Center-ish on canvas
+                              y_percent: 40,
+                              width_percent: 25, // 25% of canvas width
+                              height_percent: 15, // 15% of canvas height
+                              text: 'Enter text...',
+                            });
+                            // Update local state
+                            const updatedPages = [...pages];
+                            const panelIdx = updatedPages[selectedPageIndex].panels.findIndex(
+                              (p) => p.id === targetPanel!.id
+                            );
+                            if (panelIdx >= 0) {
+                              updatedPages[selectedPageIndex].panels[panelIdx].speech_bubbles = [
+                                ...updatedPages[selectedPageIndex].panels[panelIdx].speech_bubbles,
+                                newBubble,
+                              ];
+                              setPages(updatedPages);
+                            }
+                            setSelectedBubbleId(newBubble.id);
+                          } catch (err: any) {
+                            setError(err.message || 'Failed to add speech bubble');
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                        disabled={saving}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          background: '#3b82f6',
+                          color: '#fff',
+                          padding: '10px 12px',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: saving ? 'wait' : 'pointer',
+                          border: 'none',
+                        }}
+                      >
+                        <MessageCircle size={14} /> Add Speech Bubble
+                      </button>
+
+                      {/* List existing bubbles */}
+                      {matchingComicPanel?.speech_bubbles && matchingComicPanel.speech_bubbles.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>
+                            Bubbles ({matchingComicPanel.speech_bubbles.length})
+                          </span>
+                          {matchingComicPanel.speech_bubbles.map((bubble, i) => (
+                            <div
+                              key={bubble.id}
+                              onClick={() => setSelectedBubbleId(bubble.id)}
+                              style={{
+                                background: selectedBubbleId === bubble.id ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
+                                border: `1px solid ${selectedBubbleId === bubble.id ? '#3b82f6' : '#334155'}`,
+                                borderRadius: 4,
+                                padding: 6,
+                                fontSize: 10,
+                                color: '#94a3b8',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <span>Bubble {i + 1}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteBubble(bubble.id);
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#ef4444',
+                                  cursor: 'pointer',
+                                  padding: 2,
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p style={{ color: '#64748b', fontSize: 10, margin: 0 }}>
+                        Bubbles will appear in the page preview. Full visual editing coming soon.
+                      </p>
+                    </div>
+                  );
+                })()}
+              </>
+            );
+          })()
+        ) : selectedPanelId ? (
           <>
             <div style={{ color: '#94a3b8', fontSize: 11 }}>
               Panel #{currentPage?.panels.findIndex((p) => p.id === selectedPanelId)! + 1}

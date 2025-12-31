@@ -215,7 +215,12 @@ export default function CollaborativeProjectPage() {
   ).length || 0;
 
   return (
-    <div className="page" style={{ maxWidth: 1400, margin: '0 auto', padding: 24 }}>
+    <div className="page" style={{
+      maxWidth: activeTab === 'content' ? 'none' : 1400,
+      width: '100%',
+      margin: '0 auto',
+      padding: activeTab === 'content' ? '24px 16px' : 24
+    }}>
       {/* Header */}
       <div style={{
         display: 'flex',

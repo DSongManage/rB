@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../../config';
 import {
   collaborationApi,
@@ -24,6 +25,7 @@ export default function SoloComicEditor({
   onBack,
   existingProjectId,
 }: SoloComicEditorProps) {
+  const navigate = useNavigate();
   const [project, setProject] = useState<CollaborativeProject | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,11 +40,26 @@ export default function SoloComicEditor({
   const [showCoverModal, setShowCoverModal] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
+  // Guard to prevent duplicate initialization (React StrictMode runs effects twice)
+  const isInitializingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
+
   useEffect(() => {
+    // Guard against React StrictMode double-invocation
+    if (hasInitializedRef.current || isInitializingRef.current) {
+      return;
+    }
     initializeProject();
   }, [existingProjectId]);
 
   const initializeProject = async () => {
+    // Prevent concurrent calls (React StrictMode protection)
+    if (isInitializingRef.current) {
+      console.log('[SoloComicEditor] Skipping duplicate initializeProject call');
+      return;
+    }
+    isInitializingRef.current = true;
+
     setLoading(true);
     setError('');
 
@@ -81,10 +98,12 @@ export default function SoloComicEditor({
         });
         setProject(newProject);
       }
+      hasInitializedRef.current = true;
     } catch (err: any) {
       setError(err.message || 'Failed to initialize comic editor');
     } finally {
       setLoading(false);
+      isInitializingRef.current = false;
     }
   };
 
@@ -135,7 +154,8 @@ export default function SoloComicEditor({
     setDeleting(true);
     try {
       await collaborationApi.deleteCollaborativeProject(project.id);
-      onBack(); // Navigate back after deletion
+      // Navigate to profile page after deletion
+      navigate('/profile');
     } catch (err: any) {
       setError(err.message || 'Failed to delete comic');
       setDeleting(false);
@@ -280,7 +300,7 @@ export default function SoloComicEditor({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '12px 16px',
+          padding: '12px 24px',
           borderBottom: '1px solid var(--panel-border)',
           background: 'var(--panel)',
         }}

@@ -25,6 +25,22 @@ export interface Library {
 }
 
 // Comic Reader Data Types
+export interface DividerLineData {
+  id: number;
+  line_type: 'straight' | 'bezier';
+  start_x: number;
+  start_y: number;
+  end_x: number;
+  end_y: number;
+  control1_x?: number;
+  control1_y?: number;
+  control2_x?: number;
+  control2_y?: number;
+  thickness: number;
+  color: string;
+  order: number;
+}
+
 export interface SpeechBubbleData {
   id: number;
   bubble_type: string;
@@ -78,6 +94,13 @@ export interface ComicPageData {
   background_image?: string;
   background_color: string;
   panels: ComicPanelData[];
+  divider_lines: DividerLineData[];
+  // Line-based layout fields
+  orientation?: string;
+  gutter_mode?: string;
+  default_gutter_width?: number;
+  default_line_color?: string;
+  layout_version?: number;
 }
 
 export interface ComicReaderData {

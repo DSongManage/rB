@@ -50,10 +50,10 @@ export default function StudioPage() {
     return (
       <CreatorAgreementGate>
         <div style={{
-          maxWidth: 1100,
-          margin: '0 auto',
+          width: '100%',
+          maxWidth: 'none',
           height: 'calc(100vh - 80px)', // Account for header
-          padding: '0 16px',
+          padding: '0 24px',
           overflow: 'hidden',
         }}>
           <BookEditor
@@ -207,7 +207,7 @@ export default function StudioPage() {
 
   return (
     <CreatorAgreementGate>
-      <div className="page" style={{maxWidth:1100, margin:'0 auto'}}>
+      <div className="page" style={{ width: '100%', maxWidth: 'none', padding: '0 24px' }}>
         <CreateWizard />
       </div>
     </CreatorAgreementGate>

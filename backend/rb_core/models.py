@@ -2552,6 +2552,7 @@ class ComicPage(models.Model):
     - Each page contains multiple panels
     - Pages are ordered sequentially
     - Pages can have different aspect ratios (standard, manga, webtoon)
+    - Supports line-based panel layout (v2) or legacy rectangle-based (v1)
     """
 
     PAGE_FORMAT_CHOICES = [
@@ -2559,6 +2560,17 @@ class ComicPage(models.Model):
         ('manga', 'Manga (B5)'),
         ('webtoon', 'Webtoon (Vertical Scroll)'),
         ('custom', 'Custom'),
+    ]
+
+    # Page orientation presets for the line-based editor
+    ORIENTATION_CHOICES = [
+        ('portrait', 'Portrait (8.5x11)'),
+        ('landscape', 'Landscape (11x8.5)'),
+        ('square', 'Square (10x10)'),
+        ('webtoon', 'Webtoon (Vertical Scroll)'),
+        ('manga_b5', 'Manga B5'),
+        ('social_square', 'Social Square (1:1)'),
+        ('social_story', 'Social Story (9:16)'),
     ]
 
     # New: Pages can belong to an issue (for chapter-based publishing)
@@ -2595,6 +2607,33 @@ class ComicPage(models.Model):
         null=True
     )
     background_color = models.CharField(max_length=7, default='#FFFFFF')
+
+    # Line-based layout settings (v2)
+    orientation = models.CharField(
+        max_length=20,
+        choices=ORIENTATION_CHOICES,
+        default='portrait',
+        help_text="Page orientation/aspect ratio preset"
+    )
+    gutter_mode = models.BooleanField(
+        default=True,
+        help_text="True = visible gutters between panels, False = border lines only"
+    )
+    default_gutter_width = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=2.0,
+        help_text="Default gutter/line width in percentage of page width"
+    )
+    default_line_color = models.CharField(
+        max_length=7,
+        default='#6b7280',  # Grey like pencil
+        help_text="Default color for divider lines"
+    )
+    layout_version = models.IntegerField(
+        default=2,
+        help_text="1 = legacy rectangle-based panels, 2 = line-based dividers"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -2838,6 +2877,73 @@ class SpeechBubble(models.Model):
 
     def __str__(self):
         return f"{self.bubble_type} bubble in Panel {self.panel.order}"
+
+
+class DividerLine(models.Model):
+    """A line that divides a comic page into panel regions.
+
+    - Lines can be straight or bezier curves
+    - Lines connect page edges or other lines (T-junctions)
+    - Panel regions are computed from the enclosed areas
+    - Supports per-line styling overrides
+    """
+
+    LINE_TYPE_CHOICES = [
+        ('straight', 'Straight'),
+        ('bezier', 'Bezier Curve'),
+    ]
+
+    page = models.ForeignKey(
+        ComicPage,
+        on_delete=models.CASCADE,
+        related_name='divider_lines'
+    )
+
+    # Line type
+    line_type = models.CharField(
+        max_length=20,
+        choices=LINE_TYPE_CHOICES,
+        default='straight'
+    )
+
+    # Start and end points (percentages 0-100)
+    start_x = models.DecimalField(max_digits=10, decimal_places=4)
+    start_y = models.DecimalField(max_digits=10, decimal_places=4)
+    end_x = models.DecimalField(max_digits=10, decimal_places=4)
+    end_y = models.DecimalField(max_digits=10, decimal_places=4)
+
+    # Bezier control points (optional, for curved lines)
+    control1_x = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    control1_y = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    control2_x = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+    control2_y = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True)
+
+    # Line styling (override page defaults if set)
+    thickness = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Line thickness in percentage of page width. Overrides page default if set."
+    )
+    color = models.CharField(
+        max_length=7,
+        null=True,
+        blank=True,
+        help_text="Line color in hex. Overrides page default if set."
+    )
+
+    # Order for rendering/reading
+    order = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['page', 'order']
+
+    def __str__(self):
+        return f"{self.line_type} line on Page {self.page.page_number}"
 
 
 class Notification(models.Model):

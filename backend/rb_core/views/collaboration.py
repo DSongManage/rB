@@ -17,7 +17,8 @@ from decimal import Decimal, InvalidOperation
 
 from ..models import (
     CollaborativeProject, CollaboratorRole, ProjectSection,
-    ProjectComment, User as CoreUser, Content, ContractTask, RoleDefinition
+    ProjectComment, User as CoreUser, Content, ContractTask, RoleDefinition,
+    ComicPage
 )
 from ..serializers import (
     CollaborativeProjectSerializer, CollaborativeProjectListSerializer,
@@ -1546,7 +1547,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             )
 
         # Validate comic has at least one page with content
-        pages = project.comic_pages.all()
+        # Pages are linked via issues, so query through the issue relationship
+        pages = ComicPage.objects.filter(issue__project=project)
         if not pages.exists():
             return Response(
                 {'error': 'Comic must have at least one page'},

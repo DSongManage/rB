@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 
-from ..models import Purchase, Content, ReadingProgress, ComicPage, CollaborativeProject
+from ..models import Purchase, Content, ReadingProgress, ComicPage, CollaborativeProject, ComicIssue
 from ..serializers import ContentSerializer, ReadingProgressSerializer, ComicPageSerializer
 
 
@@ -252,8 +252,25 @@ class ComicPreviewView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Get all pages
-        all_pages = ComicPage.objects.filter(project=project).order_by('page_number')
+        # Get all pages that have panel content (pages may be linked directly to project or via issues)
+        # Only include pages that have at least one panel with non-empty artwork
+        # Order by issue number first, then page number
+        from django.db.models import Exists, OuterRef
+        from ..models import ComicPanel
+
+        # Subquery to check if page has at least one panel with artwork
+        has_artwork = ComicPanel.objects.filter(
+            page=OuterRef('pk'),
+            artwork__isnull=False
+        ).exclude(artwork='')
+
+        all_pages = ComicPage.objects.filter(
+            Q(project=project) | Q(issue__project=project)
+        ).annotate(
+            has_panel_artwork=Exists(has_artwork)
+        ).filter(
+            has_panel_artwork=True
+        ).distinct().order_by('issue__issue_number', 'page_number')
         total_pages = all_pages.count()
 
         if total_pages == 0:
@@ -325,8 +342,26 @@ class ComicReaderDataView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Get all pages for the comic project, ordered by page number
-        pages = ComicPage.objects.filter(project=project).order_by('page_number')
+        # Get all pages for the comic project that have panel content
+        # Pages may be linked directly to project or via issues
+        # Only include pages that have at least one panel with non-empty artwork
+        # Order by issue number first, then page number
+        from django.db.models import Exists, OuterRef
+        from ..models import ComicPanel
+
+        # Subquery to check if page has at least one panel with artwork
+        has_artwork = ComicPanel.objects.filter(
+            page=OuterRef('pk'),
+            artwork__isnull=False
+        ).exclude(artwork='')
+
+        pages = ComicPage.objects.filter(
+            Q(project=project) | Q(issue__project=project)
+        ).annotate(
+            has_panel_artwork=Exists(has_artwork)
+        ).filter(
+            has_panel_artwork=True
+        ).distinct().order_by('issue__issue_number', 'page_number')
 
         # Serialize the pages (includes nested panels and speech bubbles)
         serializer = ComicPageSerializer(pages, many=True)

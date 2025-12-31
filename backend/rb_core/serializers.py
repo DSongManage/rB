@@ -5,7 +5,7 @@ from .models import (
     BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition,
     ContentLike, ContentComment, ContentRating, CreatorReview, Tag, Series,
     BridgeCustomer, BridgeExternalAccount, BridgeLiquidationAddress, BridgeDrain,
-    ComicPage, ComicPanel, SpeechBubble, ComicSeries, ComicIssue
+    ComicPage, ComicPanel, SpeechBubble, ComicSeries, ComicIssue, DividerLine
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -1496,6 +1496,21 @@ class SpeechBubbleSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at', 'writer_username']
 
 
+class DividerLineSerializer(serializers.ModelSerializer):
+    """Serializer for divider lines that split comic pages into panels."""
+
+    class Meta:
+        model = DividerLine
+        fields = [
+            'id', 'page', 'line_type',
+            'start_x', 'start_y', 'end_x', 'end_y',
+            'control1_x', 'control1_y', 'control2_x', 'control2_y',
+            'thickness', 'color', 'order',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
 class ComicPanelSerializer(serializers.ModelSerializer):
     """Serializer for comic panels with nested speech bubbles."""
     artist_username = serializers.CharField(source='artist.username', read_only=True, allow_null=True)
@@ -1518,8 +1533,9 @@ class ComicPanelSerializer(serializers.ModelSerializer):
 
 
 class ComicPageSerializer(serializers.ModelSerializer):
-    """Serializer for comic pages with nested panels."""
+    """Serializer for comic pages with nested panels and divider lines."""
     panels = ComicPanelSerializer(many=True, read_only=True)
+    divider_lines = DividerLineSerializer(many=True, read_only=True)
 
     class Meta:
         model = ComicPage
@@ -1527,10 +1543,14 @@ class ComicPageSerializer(serializers.ModelSerializer):
             'id', 'issue', 'project', 'page_number', 'page_format',
             'canvas_width', 'canvas_height',
             'background_image', 'background_color',
-            'panels',
+            # Line-based layout fields
+            'orientation', 'gutter_mode', 'default_gutter_width',
+            'default_line_color', 'layout_version',
+            # Nested content
+            'panels', 'divider_lines',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'page_number', 'created_at', 'updated_at', 'panels']
+        read_only_fields = ['id', 'page_number', 'created_at', 'updated_at', 'panels', 'divider_lines']
         extra_kwargs = {
             'project': {'required': False, 'allow_null': True},
             'issue': {'required': False, 'allow_null': True},

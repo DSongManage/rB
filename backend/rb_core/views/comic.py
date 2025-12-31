@@ -14,13 +14,13 @@ from django.shortcuts import get_object_or_404
 from django.db import models, transaction
 
 from ..models import (
-    ComicPage, ComicPanel, SpeechBubble,
+    ComicPage, ComicPanel, SpeechBubble, DividerLine,
     CollaborativeProject, CollaboratorRole,
     ComicSeries, ComicIssue, Content
 )
 from ..serializers import (
     ComicPageSerializer,
-    ComicPanelSerializer, SpeechBubbleSerializer,
+    ComicPanelSerializer, SpeechBubbleSerializer, DividerLineSerializer,
     ComicSeriesSerializer, ComicSeriesListSerializer,
     ComicIssueSerializer, ComicIssueListSerializer
 )
@@ -247,19 +247,9 @@ class ComicPanelViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create panel, assigning artist if user has image permissions."""
         page = serializer.validated_data.get('page')
-        project = page.project
 
-        # Check user permissions
-        user_role = project.collaborators.filter(
-            user=self.request.user,
-            status='accepted'
-        ).first()
-
-        can_edit_images = False
-        if user_role:
-            can_edit_images = user_role.can_edit_images
-        elif project.created_by == self.request.user:
-            can_edit_images = True
+        # Check user permissions - handle both project and issue-based pages
+        can_edit_images = self._check_edit_permission(page)
 
         # Auto-assign order
         last_panel = page.panels.order_by('-order').first()
@@ -270,23 +260,44 @@ class ComicPanelViewSet(viewsets.ModelViewSet):
 
         serializer.save(order=next_order, artist=artist)
 
+    def _check_edit_permission(self, page):
+        """Check if current user can edit panels on this page."""
+        # Check via direct project
+        if page.project:
+            if page.project.created_by == self.request.user:
+                return True
+            user_role = page.project.collaborators.filter(
+                user=self.request.user,
+                status='accepted'
+            ).first()
+            if user_role and user_role.can_edit_images:
+                return True
+
+        # Check via issue
+        if page.issue:
+            # Series-based issue
+            if page.issue.series and page.issue.series.creator == self.request.user:
+                return True
+            # Project-based issue
+            if page.issue.project:
+                if page.issue.project.created_by == self.request.user:
+                    return True
+                user_role = page.issue.project.collaborators.filter(
+                    user=self.request.user,
+                    status='accepted'
+                ).first()
+                if user_role and user_role.can_edit_images:
+                    return True
+
+        return False
+
     @action(detail=True, methods=['post'])
     def upload_artwork(self, request, pk=None):
         """Upload artwork image to a panel."""
         panel = self.get_object()
-        project = panel.page.project
 
         # Check user has image edit permissions
-        user_role = project.collaborators.filter(
-            user=request.user,
-            status='accepted'
-        ).first()
-
-        can_edit_images = False
-        if user_role:
-            can_edit_images = user_role.can_edit_images
-        elif project.created_by == request.user:
-            can_edit_images = True
+        can_edit_images = self._check_edit_permission(panel.page)
 
         if not can_edit_images:
             return Response(
@@ -347,17 +358,7 @@ class ComicPanelViewSet(viewsets.ModelViewSet):
                     continue
 
                 # Verify permission
-                project = panel.page.project
-                user_role = project.collaborators.filter(
-                    user=request.user,
-                    status='accepted'
-                ).first()
-
-                can_edit = False
-                if user_role:
-                    can_edit = user_role.can_edit_images
-                elif project.created_by == request.user:
-                    can_edit = True
+                can_edit = self._check_edit_permission(panel.page)
 
                 if not can_edit:
                     continue
@@ -385,6 +386,66 @@ class SpeechBubbleViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser]
     pagination_class = None  # Return raw array for frontend
 
+    def _check_text_permission(self, page):
+        """Check if current user can edit text on this page."""
+        # Check via direct project
+        if page.project:
+            if page.project.created_by == self.request.user:
+                return True
+            user_role = page.project.collaborators.filter(
+                user=self.request.user,
+                status='accepted'
+            ).first()
+            if user_role and user_role.can_edit_text:
+                return True
+
+        # Check via issue
+        if page.issue:
+            # Series-based issue
+            if page.issue.series and page.issue.series.creator == self.request.user:
+                return True
+            # Project-based issue
+            if page.issue.project:
+                if page.issue.project.created_by == self.request.user:
+                    return True
+                user_role = page.issue.project.collaborators.filter(
+                    user=self.request.user,
+                    status='accepted'
+                ).first()
+                if user_role and user_role.can_edit_text:
+                    return True
+
+        return False
+
+    def _check_access(self, page):
+        """Check if current user has any access to this page."""
+        # Check via direct project
+        if page.project:
+            if page.project.created_by == self.request.user:
+                return True
+            user_role = page.project.collaborators.filter(
+                user=self.request.user,
+                status='accepted'
+            ).first()
+            if user_role:
+                return True
+
+        # Check via issue
+        if page.issue:
+            if page.issue.series and page.issue.series.creator == self.request.user:
+                return True
+            if page.issue.project:
+                if page.issue.project.created_by == self.request.user:
+                    return True
+                user_role = page.issue.project.collaborators.filter(
+                    user=self.request.user,
+                    status='accepted'
+                ).first()
+                if user_role:
+                    return True
+
+        return False
+
     def get_queryset(self):
         """Filter bubbles by panel and verify user access."""
         # For detail views (retrieve, update, destroy), allow lookup by ID
@@ -397,15 +458,9 @@ class SpeechBubbleViewSet(viewsets.ModelViewSet):
             return SpeechBubble.objects.none()
 
         panel = get_object_or_404(ComicPanel, id=panel_id)
-        project = panel.page.project
 
         # Verify user has access
-        user_role = project.collaborators.filter(
-            user=self.request.user,
-            status='accepted'
-        ).first()
-
-        if not user_role and project.created_by != self.request.user:
+        if not self._check_access(panel.page):
             return SpeechBubble.objects.none()
 
         return SpeechBubble.objects.filter(panel_id=panel_id)
@@ -413,19 +468,9 @@ class SpeechBubbleViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create bubble, assigning writer if user has text permissions."""
         panel = serializer.validated_data.get('panel')
-        project = panel.page.project
 
         # Check user permissions
-        user_role = project.collaborators.filter(
-            user=self.request.user,
-            status='accepted'
-        ).first()
-
-        can_edit_text = False
-        if user_role:
-            can_edit_text = user_role.can_edit_text
-        elif project.created_by == self.request.user:
-            can_edit_text = True
+        can_edit_text = self._check_text_permission(panel.page)
 
         if not can_edit_text:
             raise PermissionError("You don't have permission to add speech bubbles")
@@ -439,19 +484,9 @@ class SpeechBubbleViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """Update bubble, checking permissions."""
         bubble = self.get_object()
-        project = bubble.panel.page.project
 
         # Check user permissions
-        user_role = project.collaborators.filter(
-            user=self.request.user,
-            status='accepted'
-        ).first()
-
-        can_edit_text = False
-        if user_role:
-            can_edit_text = user_role.can_edit_text
-        elif project.created_by == self.request.user:
-            can_edit_text = True
+        can_edit_text = self._check_text_permission(bubble.panel.page)
 
         if not can_edit_text:
             raise PermissionError("You don't have permission to edit speech bubbles")
@@ -481,19 +516,8 @@ class SpeechBubbleViewSet(viewsets.ModelViewSet):
                 except ComicPanel.DoesNotExist:
                     continue
 
-                project = panel.page.project
-
                 # Check permissions
-                user_role = project.collaborators.filter(
-                    user=request.user,
-                    status='accepted'
-                ).first()
-
-                can_edit_text = False
-                if user_role:
-                    can_edit_text = user_role.can_edit_text
-                elif project.created_by == request.user:
-                    can_edit_text = True
+                can_edit_text = self._check_text_permission(panel.page)
 
                 if not can_edit_text:
                     continue
@@ -532,17 +556,7 @@ class SpeechBubbleViewSet(viewsets.ModelViewSet):
                     continue
 
                 # Verify permission
-                project = bubble.panel.page.project
-                user_role = project.collaborators.filter(
-                    user=request.user,
-                    status='accepted'
-                ).first()
-
-                can_edit = False
-                if user_role:
-                    can_edit = user_role.can_edit_text
-                elif project.created_by == request.user:
-                    can_edit = True
+                can_edit = self._check_text_permission(bubble.panel.page)
 
                 if not can_edit:
                     continue
@@ -807,3 +821,185 @@ class ComicIssueViewSet(viewsets.ModelViewSet):
             'message': 'Issue published successfully',
             'content_id': issue.published_content.id
         })
+
+
+class DividerLineViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing divider lines on comic pages.
+
+    - Create/update/delete divider lines
+    - Lines split the page into panel regions
+    - Supports straight lines and bezier curves
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = DividerLineSerializer
+    parser_classes = [JSONParser]
+    pagination_class = None
+
+    def get_queryset(self):
+        """Filter lines by page and verify user access."""
+        # For detail views, allow lookup by ID with permission check
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            return DividerLine.objects.all()
+
+        # For list views, require page parameter
+        page_id = self.request.query_params.get('page')
+        if not page_id:
+            return DividerLine.objects.none()
+
+        page = get_object_or_404(ComicPage, id=page_id)
+
+        # Verify user has access via project or issue
+        if page.project:
+            user_role = page.project.collaborators.filter(
+                user=self.request.user,
+                status='accepted'
+            ).first()
+            if not user_role and page.project.created_by != self.request.user:
+                return DividerLine.objects.none()
+        elif page.issue:
+            if page.issue.series and page.issue.series.creator != self.request.user:
+                return DividerLine.objects.none()
+            if page.issue.project:
+                user_role = page.issue.project.collaborators.filter(
+                    user=self.request.user,
+                    status='accepted'
+                ).first()
+                if not user_role and page.issue.project.created_by != self.request.user:
+                    return DividerLine.objects.none()
+
+        return DividerLine.objects.filter(page_id=page_id).order_by('order')
+
+    def perform_create(self, serializer):
+        """Create a new divider line, checking permissions."""
+        page = serializer.validated_data.get('page')
+
+        # Verify user has edit access
+        can_edit = self._check_edit_permission(page)
+        if not can_edit:
+            raise PermissionError("You don't have permission to edit this page")
+
+        # Auto-assign order
+        last_line = page.divider_lines.order_by('-order').first()
+        next_order = (last_line.order + 1) if last_line else 0
+
+        serializer.save(order=next_order)
+
+    def perform_update(self, serializer):
+        """Update divider line, checking permissions."""
+        line = self.get_object()
+        can_edit = self._check_edit_permission(line.page)
+        if not can_edit:
+            raise PermissionError("You don't have permission to edit this page")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Delete divider line, checking permissions."""
+        can_edit = self._check_edit_permission(instance.page)
+        if not can_edit:
+            raise PermissionError("You don't have permission to edit this page")
+        instance.delete()
+
+    def _check_edit_permission(self, page):
+        """Check if current user can edit the page layout."""
+        if page.project:
+            if page.project.created_by == self.request.user:
+                return True
+            user_role = page.project.collaborators.filter(
+                user=self.request.user,
+                status='accepted'
+            ).first()
+            if user_role and user_role.can_edit_images:
+                return True
+        elif page.issue:
+            if page.issue.series and page.issue.series.creator == self.request.user:
+                return True
+            if page.issue.project:
+                if page.issue.project.created_by == self.request.user:
+                    return True
+                user_role = page.issue.project.collaborators.filter(
+                    user=self.request.user,
+                    status='accepted'
+                ).first()
+                if user_role and user_role.can_edit_images:
+                    return True
+        return False
+
+    @action(detail=False, methods=['post'])
+    def batch_create(self, request):
+        """Batch create multiple divider lines (for templates)."""
+        lines_data = request.data.get('lines', [])
+        page_id = request.data.get('page')
+
+        if not page_id:
+            return Response(
+                {'error': 'page is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not isinstance(lines_data, list):
+            return Response(
+                {'error': 'lines must be a list'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        page = get_object_or_404(ComicPage, id=page_id)
+        can_edit = self._check_edit_permission(page)
+        if not can_edit:
+            return Response(
+                {'error': 'Permission denied'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        created_lines = []
+        with transaction.atomic():
+            # Clear existing lines if requested
+            if request.data.get('clear_existing', False):
+                page.divider_lines.all().delete()
+
+            for i, line_data in enumerate(lines_data):
+                line_data['page'] = page_id
+                serializer = DividerLineSerializer(data=line_data)
+                if serializer.is_valid():
+                    line = serializer.save(order=i)
+                    created_lines.append(DividerLineSerializer(line).data)
+
+        return Response({'created': created_lines})
+
+    @action(detail=False, methods=['post'])
+    def batch_update(self, request):
+        """Batch update multiple divider lines."""
+        updates = request.data.get('lines', [])
+
+        if not isinstance(updates, list):
+            return Response(
+                {'error': 'lines must be a list'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        updated_lines = []
+        with transaction.atomic():
+            for update in updates:
+                line_id = update.get('id')
+                if not line_id:
+                    continue
+
+                try:
+                    line = DividerLine.objects.get(id=line_id)
+                except DividerLine.DoesNotExist:
+                    continue
+
+                can_edit = self._check_edit_permission(line.page)
+                if not can_edit:
+                    continue
+
+                # Update allowed fields
+                for field in ['line_type', 'start_x', 'start_y', 'end_x', 'end_y',
+                              'control1_x', 'control1_y', 'control2_x', 'control2_y',
+                              'thickness', 'color', 'order']:
+                    if field in update:
+                        setattr(line, field, update[field])
+
+                line.save()
+                updated_lines.append(line.id)
+
+        return Response({'updated': updated_lines})

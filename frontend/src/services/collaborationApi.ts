@@ -1561,6 +1561,124 @@ export const collaborationApi = {
     return handleResponse(response);
   },
 
+  // ===== Divider Line Management (Line-based Panel Layout) =====
+
+  /**
+   * Get divider lines for a page
+   */
+  async getDividerLines(pageId: number): Promise<DividerLine[]> {
+    const response = await fetch(`${API_BASE}/api/divider-lines/?page=${pageId}`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    return handleResponse<DividerLine[]>(response);
+  },
+
+  /**
+   * Create a new divider line
+   */
+  async createDividerLine(data: CreateDividerLineData): Promise<DividerLine> {
+    const response = await fetch(`${API_BASE}/api/divider-lines/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<DividerLine>(response);
+  },
+
+  /**
+   * Update a divider line
+   */
+  async updateDividerLine(lineId: number, data: Partial<CreateDividerLineData>): Promise<DividerLine> {
+    const response = await fetch(`${API_BASE}/api/divider-lines/${lineId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<DividerLine>(response);
+  },
+
+  /**
+   * Delete a divider line
+   */
+  async deleteDividerLine(lineId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/divider-lines/${lineId}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete divider line: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Batch create divider lines (for applying templates)
+   */
+  async batchCreateDividerLines(
+    pageId: number,
+    lines: Omit<CreateDividerLineData, 'page'>[],
+    clearExisting: boolean = false
+  ): Promise<{ created: DividerLine[] }> {
+    const response = await fetch(`${API_BASE}/api/divider-lines/batch_create/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ page: pageId, lines, clear_existing: clearExisting }),
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Batch update divider lines
+   */
+  async batchUpdateDividerLines(
+    lines: Array<{
+      id: number;
+      line_type?: LineType;
+      start_x?: number;
+      start_y?: number;
+      end_x?: number;
+      end_y?: number;
+      control1_x?: number;
+      control1_y?: number;
+      control2_x?: number;
+      control2_y?: number;
+      thickness?: number;
+      color?: string;
+      order?: number;
+    }>
+  ): Promise<{ updated: number[] }> {
+    const response = await fetch(`${API_BASE}/api/divider-lines/batch_update/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ lines }),
+    });
+    return handleResponse(response);
+  },
+
   // ===== Comic Series Management =====
 
   /**
@@ -1907,6 +2025,46 @@ export interface ComicPanel {
   updated_at: string;
 }
 
+// Divider Line types for line-based panel layout
+export type LineType = 'straight' | 'bezier';
+
+export interface DividerLine {
+  id: number;
+  page: number;
+  line_type: LineType;
+  start_x: number;
+  start_y: number;
+  end_x: number;
+  end_y: number;
+  control1_x?: number | null;
+  control1_y?: number | null;
+  control2_x?: number | null;
+  control2_y?: number | null;
+  thickness?: number | null;
+  color?: string | null;
+  order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDividerLineData {
+  page: number;
+  line_type?: LineType;
+  start_x: number;
+  start_y: number;
+  end_x: number;
+  end_y: number;
+  control1_x?: number;
+  control1_y?: number;
+  control2_x?: number;
+  control2_y?: number;
+  thickness?: number;
+  color?: string;
+}
+
+// Page orientation types
+export type PageOrientation = 'portrait' | 'landscape' | 'square' | 'webtoon' | 'manga_b5' | 'social_square' | 'social_story';
+
 export interface ComicPage {
   id: number;
   project?: number | null;
@@ -1917,7 +2075,15 @@ export interface ComicPage {
   canvas_height: number;
   background_image?: string;
   background_color: string;
+  // Line-based layout fields
+  orientation: PageOrientation;
+  gutter_mode: boolean;
+  default_gutter_width: number;
+  default_line_color: string;
+  layout_version: number;
+  // Content
   panels: ComicPanel[];
+  divider_lines: DividerLine[];
   created_at: string;
   updated_at: string;
 }

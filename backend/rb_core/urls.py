@@ -21,7 +21,7 @@ from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
     ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet
 )
-from .views.comic import ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet, ComicSeriesViewSet, ComicIssueViewSet
+from .views.comic import ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet, ComicSeriesViewSet, ComicIssueViewSet, DividerLineViewSet
 from .views.notifications import NotificationViewSet
 from .views.social import (
     ContentLikeView, ContentCommentViewSet, ContentRatingViewSet, CreatorReviewViewSet,
@@ -55,6 +55,7 @@ router.register(r'creator-reviews', CreatorReviewViewSet, basename='creator-revi
 router.register(r'comic-pages', ComicPageViewSet, basename='comic-page')
 router.register(r'comic-panels', ComicPanelViewSet, basename='comic-panel')
 router.register(r'speech-bubbles', SpeechBubbleViewSet, basename='speech-bubble')
+router.register(r'divider-lines', DividerLineViewSet, basename='divider-line')
 # Comic series and issues
 router.register(r'comic-series', ComicSeriesViewSet, basename='comic-series')
 router.register(r'comic-issues', ComicIssueViewSet, basename='comic-issue')

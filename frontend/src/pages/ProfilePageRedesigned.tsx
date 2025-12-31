@@ -1672,7 +1672,14 @@ export default function ProfilePageRedesigned() {
                       key={item.id}
                       item={item}
                       onView={() => openReader(item.id)}
-                      onEdit={() => navigate(`/studio?editContent=${item.id}`)}
+                      onEdit={() => {
+                        // Comics with a source project should go to the collaborative project editor
+                        if (item.content_type === 'comic' && item.source_project_id) {
+                          navigate(`/collaborative-project/${item.source_project_id}`);
+                        } else {
+                          navigate(`/studio?editContent=${item.id}`);
+                        }
+                      }}
                       onManage={() => {
                         setManageItem(item);
                         setShowManageModal(true);
@@ -3114,8 +3121,9 @@ function BookProjectCard({
 // Content Card Component
 function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: () => void; onEdit: () => void; onManage?: () => void }) {
   const isPublished = item.inventory_status === 'minted';
-  // Published non-book content (art, music, film) should show Manage instead of Edit
-  const isPublishedNonBook = isPublished && item.content_type !== 'book';
+  // Published non-book/non-comic content (art, music, film) should show Manage instead of Edit
+  // Comics and books need Edit button so creators can add new issues/chapters
+  const isPublishedNonBook = isPublished && item.content_type !== 'book' && item.content_type !== 'comic';
 
   return (
     <div style={{
@@ -3263,7 +3271,7 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
               Manage
             </button>
           ) : (
-            // Drafts or published books: Show Edit button
+            // Drafts or published books/comics: Show Edit button
             <button
               onClick={onEdit}
               style={{

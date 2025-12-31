@@ -13,6 +13,14 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+
+// Mock ResizeObserver (not available in jsdom)
+class MockResizeObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+}
+global.ResizeObserver = MockResizeObserver as any;
 import CollaborativeComicEditor from '../CollaborativeComicEditor';
 import { collaborationApi } from '../../../services/collaborationApi';
 
@@ -20,7 +28,10 @@ import { collaborationApi } from '../../../services/collaborationApi';
 vi.mock('../../../services/collaborationApi', () => ({
   collaborationApi: {
     getComicPages: vi.fn(),
+    getComicIssues: vi.fn(),
+    getComicIssuePages: vi.fn(),
     createComicPage: vi.fn(),
+    createComicIssue: vi.fn(),
     deleteComicPage: vi.fn(),
     createComicPanel: vi.fn(),
     updateComicPanel: vi.fn(),
@@ -29,6 +40,7 @@ vi.mock('../../../services/collaborationApi', () => ({
     updateSpeechBubble: vi.fn(),
     deleteSpeechBubble: vi.fn(),
     uploadPanelArtwork: vi.fn(),
+    updateComicIssue: vi.fn(),
   },
 }));
 
@@ -39,6 +51,39 @@ vi.mock('react-rnd', () => ({
       {children}
     </div>
   ),
+}));
+
+// Mock LineBasedEditor to avoid complex canvas rendering and support forwardRef
+vi.mock('../lineEditor', () => ({
+  LineBasedEditor: React.forwardRef(({ panelArtwork, onPanelsComputed, children }: any, ref: any) => {
+    React.useImperativeHandle(ref, () => ({
+      getCanvasRect: () => ({ left: 0, top: 0, width: 550, height: 712 }),
+      getCanvasSize: () => ({ width: 550, height: 712 }),
+    }), []);
+    React.useEffect(() => {
+      if (onPanelsComputed) {
+        onPanelsComputed([
+          {
+            id: 'panel-0-25-25',
+            vertices: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 50 }, { x: 0, y: 50 }],
+            bounds: { x: 0, y: 0, width: 50, height: 50 },
+            centroid: { x: 25, y: 25 },
+          },
+        ]);
+      }
+    }, [onPanelsComputed]);
+    return (
+      <div data-testid="line-based-editor" style={{ position: 'relative' }}>
+        {children}
+      </div>
+    );
+  }),
+  LINE_TEMPLATES: [],
+  ORIENTATION_PRESETS: {
+    portrait: { width: 8.5, height: 11 },
+    landscape: { width: 11, height: 8.5 },
+    square: { width: 10, height: 10 },
+  },
 }));
 
 const mockProject = {
@@ -91,9 +136,20 @@ const mockBubble = {
   order: 0,
 };
 
+// Default mock issue for tests
+const mockIssue = {
+  id: 1,
+  project: 1,
+  title: 'Issue #1',
+  issue_number: 1,
+  page_count: 1,
+};
+
 describe('CollaborativeComicEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: mock issues to return one issue
+    vi.mocked(collaborationApi.getComicIssues).mockResolvedValue([mockIssue]);
   });
 
   afterEach(() => {
@@ -103,7 +159,7 @@ describe('CollaborativeComicEditor', () => {
   describe('Initial Loading', () => {
     it('shows loading state while fetching pages', async () => {
       // Never resolve to keep loading
-      vi.mocked(collaborationApi.getComicPages).mockImplementation(
+      vi.mocked(collaborationApi.getComicIssuePages).mockImplementation(
         () => new Promise(() => {})
       );
 
@@ -119,8 +175,8 @@ describe('CollaborativeComicEditor', () => {
     });
 
     it('renders without crashing when pages array is empty', async () => {
-      // API returns empty array, then createComicPage creates first page
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([]);
+      // API returns empty array, then createComicPage creates first page for the issue
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([]);
       vi.mocked(collaborationApi.createComicPage).mockResolvedValue(mockPage);
 
       render(
@@ -130,9 +186,10 @@ describe('CollaborativeComicEditor', () => {
         />
       );
 
+      // Page is created for the issue (not the project directly)
       await waitFor(() => {
         expect(collaborationApi.createComicPage).toHaveBeenCalledWith({
-          project: mockProject.id,
+          issue: mockIssue.id,
         });
       });
 
@@ -147,7 +204,7 @@ describe('CollaborativeComicEditor', () => {
         ...mockPage,
         panels: [mockPanel],
       };
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([pageWithPanel]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([pageWithPanel]);
 
       render(
         <CollaborativeComicEditor
@@ -165,7 +222,7 @@ describe('CollaborativeComicEditor', () => {
     });
 
     it('displays error message on API failure', async () => {
-      vi.mocked(collaborationApi.getComicPages).mockRejectedValue(
+      vi.mocked(collaborationApi.getComicIssuePages).mockRejectedValue(
         new Error('Network error')
       );
 
@@ -185,7 +242,7 @@ describe('CollaborativeComicEditor', () => {
   describe('Empty State Handling (Bug Fix Verification)', () => {
     it('handles panel operations gracefully when currentPage is undefined', async () => {
       // Simulate the bug scenario: pages array is empty
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([]);
       // Delay page creation to test the undefined state
       vi.mocked(collaborationApi.createComicPage).mockImplementation(
         () => new Promise((resolve) => setTimeout(() => resolve(mockPage), 100))
@@ -209,7 +266,7 @@ describe('CollaborativeComicEditor', () => {
 
   describe('Page Operations', () => {
     beforeEach(() => {
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([mockPage]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([mockPage]);
     });
 
     it('creates a new page when add page button is clicked', async () => {
@@ -231,9 +288,10 @@ describe('CollaborativeComicEditor', () => {
       const addPageButton = screen.getByRole('button', { name: 'Add' });
       fireEvent.click(addPageButton);
 
+      // When issue is selected, page is created for the issue (not the project directly)
       await waitFor(() => {
         expect(collaborationApi.createComicPage).toHaveBeenCalledWith({
-          project: mockProject.id,
+          issue: mockIssue.id,
         });
       });
     });
@@ -243,7 +301,7 @@ describe('CollaborativeComicEditor', () => {
         mockPage,
         { ...mockPage, id: 2, page_number: 2 },
       ];
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue(pages);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue(pages);
 
       render(
         <CollaborativeComicEditor
@@ -303,7 +361,7 @@ describe('CollaborativeComicEditor', () => {
 
   describe('Panel Operations', () => {
     beforeEach(() => {
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([mockPage]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([mockPage]);
     });
 
     it('adds a panel when add panel button is clicked', async () => {
@@ -337,9 +395,9 @@ describe('CollaborativeComicEditor', () => {
       }
     });
 
-    it('deletes a panel when delete button is clicked', async () => {
+    it('renders page with panel data', async () => {
       const pageWithPanel = { ...mockPage, panels: [mockPanel] };
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([pageWithPanel]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([pageWithPanel]);
       vi.mocked(collaborationApi.deleteComicPanel).mockResolvedValue(undefined);
 
       render(
@@ -353,9 +411,8 @@ describe('CollaborativeComicEditor', () => {
         expect(screen.queryByText(/loading comic editor/i)).not.toBeInTheDocument();
       });
 
-      // Panel should be visible
-      const panelElements = screen.queryAllByTestId('rnd-wrapper');
-      expect(panelElements.length).toBeGreaterThan(0);
+      // Line-based editor should be visible (panels are rendered through it)
+      expect(screen.getByTestId('line-based-editor')).toBeInTheDocument();
     });
   });
 
@@ -371,10 +428,10 @@ describe('CollaborativeComicEditor', () => {
     };
 
     beforeEach(() => {
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([pageWithPanelAndBubble]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([pageWithPanelAndBubble]);
     });
 
-    it('displays speech bubbles on panels', async () => {
+    it('displays speech bubbles on panels in text mode', async () => {
       render(
         <CollaborativeComicEditor
           project={mockProject}
@@ -386,8 +443,14 @@ describe('CollaborativeComicEditor', () => {
         expect(screen.queryByText(/loading comic editor/i)).not.toBeInTheDocument();
       });
 
-      // Bubble text should be visible
-      expect(screen.getByText('Hello!')).toBeInTheDocument();
+      // Switch to text mode to see speech bubbles (bubbles are only visible in text mode for line-based editor)
+      const textButton = screen.getByRole('button', { name: /text/i });
+      fireEvent.click(textButton);
+
+      // Bubble text should be visible in text mode
+      await waitFor(() => {
+        expect(screen.getByText('Hello!')).toBeInTheDocument();
+      });
     });
 
     it('creates a speech bubble when add bubble button is clicked', async () => {
@@ -429,6 +492,14 @@ describe('CollaborativeComicEditor', () => {
       );
 
       await waitFor(() => {
+        expect(screen.queryByText(/loading comic editor/i)).not.toBeInTheDocument();
+      });
+
+      // Switch to text mode to see speech bubbles
+      const textButton = screen.getByRole('button', { name: /text/i });
+      fireEvent.click(textButton);
+
+      await waitFor(() => {
         expect(screen.getByText('Hello!')).toBeInTheDocument();
       });
 
@@ -442,7 +513,7 @@ describe('CollaborativeComicEditor', () => {
 
   describe('Permission Handling', () => {
     it('shows panel controls when user has image edit permission', async () => {
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([mockPage]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([mockPage]);
 
       render(
         <CollaborativeComicEditor
@@ -460,7 +531,7 @@ describe('CollaborativeComicEditor', () => {
     });
 
     it('shows text controls when user has text edit permission', async () => {
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([mockPage]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([mockPage]);
 
       render(
         <CollaborativeComicEditor
@@ -492,7 +563,7 @@ describe('CollaborativeComicEditor', () => {
         ],
       };
 
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([mockPage]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([mockPage]);
 
       render(
         <CollaborativeComicEditor
@@ -513,7 +584,7 @@ describe('CollaborativeComicEditor', () => {
 
   describe('Mode Switching', () => {
     beforeEach(() => {
-      vi.mocked(collaborationApi.getComicPages).mockResolvedValue([mockPage]);
+      vi.mocked(collaborationApi.getComicIssuePages).mockResolvedValue([mockPage]);
     });
 
     it('switches between layout, artwork, and text modes', async () => {
