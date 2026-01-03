@@ -2,7 +2,9 @@
 
 interface ImportMetaEnv {
   readonly VITE_WEB3AUTH_CLIENT_ID: string
-  // Add more env variables as needed
+  readonly VITE_SOLANA_NETWORK?: string
+  readonly VITE_SOLANA_RPC_URL?: string
+  readonly VITE_API_URL?: string
 }
 
 interface ImportMeta {

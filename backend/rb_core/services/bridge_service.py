@@ -22,6 +22,7 @@ On-Ramp Flow (Purchases):
 """
 import logging
 import requests
+import uuid
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
 from django.conf import settings
@@ -67,7 +68,7 @@ class BridgeService:
     """
 
     BASE_URL = "https://api.bridge.xyz/v0"
-    SANDBOX_URL = "https://api-sandbox.bridge.xyz/v0"
+    SANDBOX_URL = "https://api.sandbox.bridge.xyz/v0"
 
     # Default timeout for API requests (seconds)
     DEFAULT_TIMEOUT = 30
@@ -118,12 +119,17 @@ class BridgeService:
             BridgeAPIError: On API errors or network failures
         """
         url = f"{self.base_url}{endpoint}"
+        headers = self._headers()
+
+        # Bridge API requires Idempotency-Key for POST requests
+        if method.upper() == "POST":
+            headers["Idempotency-Key"] = str(uuid.uuid4())
 
         try:
             response = requests.request(
                 method,
                 url,
-                headers=self._headers(),
+                headers=headers,
                 json=data,
                 params=params,
                 timeout=timeout,
