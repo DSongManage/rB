@@ -58,7 +58,7 @@ export default defineConfig({
   // Build config
   build: {
     outDir: 'dist',
-    sourcemap: true, // Enable sourcemaps for production debugging
+    sourcemap: false, // Disabled in production for security
     // Increase chunk size warning limit for Web3Auth bundles
     chunkSizeWarningLimit: 1000,
     // Optimize for production

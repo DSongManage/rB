@@ -34,7 +34,7 @@ class CreateCheckoutSessionView(APIView):
         content_id = request.data.get('content_id')
         chapter_id = request.data.get('chapter_id')
 
-        print(f'[Checkout] Request received: chapter_id={chapter_id}, content_id={content_id}')
+        logger.debug(f'[Checkout] Request received: chapter_id={chapter_id}, content_id={content_id}')
 
         if not content_id and not chapter_id:
             return Response(
@@ -76,9 +76,9 @@ class CreateCheckoutSessionView(APIView):
                     # Calculate payment breakdown with CC fee pass-through
                     # chapter.price is a DecimalField on the Chapter model
                     chapter_price = chapter.price
-                    print(f'[Checkout] Chapter price from model: ${chapter_price}')
+                    logger.debug(f'[Checkout] Chapter price from model: ${chapter_price}')
                     breakdown = calculate_payment_breakdown(chapter_price)
-                    print(f'[Checkout] Fee breakdown: buyer_total=${breakdown["buyer_total"]}, chapter_price=${breakdown["chapter_price"]}')
+                    logger.debug(f'[Checkout] Fee breakdown: buyer_total=${breakdown["buyer_total"]}, chapter_price=${breakdown["chapter_price"]}')
 
                     price = breakdown['buyer_total']  # Buyer pays this amount (includes CC fee)
                     item_title = f'{chapter.book_project.title} - Chapter {chapter.order}: {chapter.title}'
@@ -113,9 +113,9 @@ class CreateCheckoutSessionView(APIView):
 
                     # Calculate payment breakdown with CC fee pass-through
                     content_price = content.price_usd
-                    print(f'[Checkout] Content price from model: ${content_price}')
+                    logger.debug(f'[Checkout] Content price from model: ${content_price}')
                     breakdown = calculate_payment_breakdown(content_price)
-                    print(f'[Checkout] Fee breakdown: buyer_total=${breakdown["buyer_total"]}, content_price=${breakdown["chapter_price"]}')
+                    logger.debug(f'[Checkout] Fee breakdown: buyer_total=${breakdown["buyer_total"]}, content_price=${breakdown["chapter_price"]}')
 
                     price = breakdown['buyer_total']  # Buyer pays this amount (includes CC fee)
                     item_title = content.title
@@ -191,11 +191,11 @@ class CreateCheckoutSessionView(APIView):
                         'buyer_total': breakdown['buyer_total'],
                     }
 
-                    print(f'[Checkout] Adding fee breakdown to purchase: item_price={breakdown["chapter_price"]}, cc_fee={breakdown["credit_card_fee"]}, buyer_total={breakdown["buyer_total"]}')
+                    logger.debug(f'[Checkout] Adding fee breakdown to purchase: item_price={breakdown["chapter_price"]}, cc_fee={breakdown["credit_card_fee"]}, buyer_total={breakdown["buyer_total"]}')
 
                     purchase = Purchase.objects.create(**purchase_data)
 
-                    print(f'[Checkout] ✅ Purchase #{purchase.id} created with chapter_price={purchase.chapter_price}')
+                    logger.debug(f'[Checkout] Purchase #{purchase.id} created with chapter_price={purchase.chapter_price}')
 
                     # Prepare response
                     response_data = {

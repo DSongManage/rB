@@ -259,21 +259,15 @@ export default function AuthPage() {
         }),
       });
 
-      console.log('[Login] Response status:', res.status);
-      console.log('[Login] Response headers:', [...res.headers.entries()]);
-
       const data = await res.json();
-      console.log('[Login] Response data:', data);
 
       if (res.ok) {
         // Login successful
         setMsg('Login successful! Redirecting...');
-        console.log('[Login] Cookies after login:', document.cookie);
 
         // Wait a moment for session to be fully established, then hard reload to profile
         // Hard reload ensures fresh auth state check
         setTimeout(() => {
-          console.log('[Login] Redirecting to /profile...');
           window.location.href = '/profile';
         }, 500);
       } else {
