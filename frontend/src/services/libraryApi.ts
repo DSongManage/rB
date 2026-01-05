@@ -14,6 +14,7 @@ export interface LibraryItem {
   content_type: string;
   purchased_at: string;
   progress: number;
+  last_read_at: string | null;
 }
 
 export interface Library {

@@ -14,6 +14,7 @@ import {
 import ArtManageModal from '../components/ArtManageModal';
 import { getFollowing, unfollowUser, FollowUser } from '../services/socialApi';
 import { BridgeOnboardingBanner } from '../components/bridge';
+import { useMobile } from '../hooks/useMobile';
 
 interface ExternalPortfolioItem {
   id: number;
@@ -132,6 +133,7 @@ interface BookProject {
 
 export default function ProfilePageRedesigned() {
   const navigate = useNavigate();
+  const { isMobile, isPhone } = useMobile();
   const [user, setUser] = useState<UserStatus>(null);
   const [content, setContent] = useState<any[]>([]);
   const [status, setStatus] = useState('');
@@ -621,7 +623,7 @@ export default function ProfilePageRedesigned() {
     <div style={{
       maxWidth: 1200,
       margin: '0 auto',
-      padding: '40px 24px',
+      padding: isMobile ? '16px 12px' : '40px 24px',
     }}>
       {/* Hidden file inputs for avatar and banner */}
       <input ref={avatarInputRef} onChange={onAvatarSelected} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} />
@@ -635,9 +637,9 @@ export default function ProfilePageRedesigned() {
             ? `linear-gradient(rgba(15,23,42,0.7), rgba(15,23,42,0.9)), url(${profile?.banner || profile?.banner_url}) center/cover`
             : '#0f172a',
           border: '1px solid #1e293b',
-          borderRadius: 16,
-          padding: 32,
-          marginBottom: 24,
+          borderRadius: isMobile ? 12 : 16,
+          padding: isMobile ? 16 : 32,
+          marginBottom: isMobile ? 16 : 24,
           position: 'relative',
           cursor: 'pointer',
         }}
@@ -646,8 +648,8 @@ export default function ProfilePageRedesigned() {
         {/* Top Right Buttons */}
         <div style={{
           position: 'absolute',
-          top: 24,
-          right: 24,
+          top: isMobile ? 12 : 24,
+          right: isMobile ? 12 : 24,
           display: 'flex',
           gap: 8,
         }}>
@@ -659,31 +661,31 @@ export default function ProfilePageRedesigned() {
               background: 'rgba(245,158,11,0.15)',
               border: '1px solid rgba(245,158,11,0.3)',
               color: '#f59e0b',
-              height: 40,
-              padding: '0 14px',
+              height: isMobile ? 36 : 40,
+              padding: isMobile ? '0 10px' : '0 14px',
               borderRadius: 8,
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               cursor: 'pointer',
               textDecoration: 'none',
-              fontSize: 13,
+              fontSize: isMobile ? 12 : 13,
               fontWeight: 600,
               transition: 'all 0.2s',
             }}
           >
-            <Eye size={18} />
-            View Public Profile
+            <Eye size={isMobile ? 16 : 18} />
+            {isPhone ? 'Public' : 'View Public Profile'}
           </Link>
         </div>
 
         {/* Avatar + User Info */}
-        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: isPhone ? 'column' : 'row', gap: isPhone ? 12 : 24, alignItems: isPhone ? 'center' : 'flex-start', marginBottom: 16, marginTop: isPhone ? 32 : 0 }}>
           <div
             onClick={(e) => { e.stopPropagation(); onAvatarClick(); }}
             style={{
-              width: 100,
-              height: 100,
+              width: isPhone ? 80 : 100,
+              height: isPhone ? 80 : 100,
               borderRadius: '50%',
               overflow: 'hidden',
               cursor: 'pointer',
@@ -714,15 +716,15 @@ export default function ProfilePageRedesigned() {
                 }}
               />
             ) : (
-              <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 40 }}>
+              <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: isPhone ? 32 : 40 }}>
                 {(user?.username || '?').slice(0, 1).toUpperCase()}
               </span>
             )}
           </div>
 
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, textAlign: isPhone ? 'center' : 'left' }}>
             <div style={{
-              fontSize: 32,
+              fontSize: isPhone ? 24 : 32,
               fontWeight: 700,
               color: '#f8fafc',
               marginBottom: 8,
@@ -732,11 +734,12 @@ export default function ProfilePageRedesigned() {
 
             {profile?.location && (
               <div style={{
-                fontSize: 15,
+                fontSize: isPhone ? 14 : 15,
                 color: '#94a3b8',
                 marginBottom: 8,
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: isPhone ? 'center' : 'flex-start',
                 gap: 6,
               }}>
                 <MapPin size={16} /> {profile.location}
@@ -746,9 +749,11 @@ export default function ProfilePageRedesigned() {
             <div style={{
               display: 'flex',
               alignItems: 'center',
+              justifyContent: isPhone ? 'center' : 'flex-start',
               gap: 12,
               fontSize: 14,
               color: '#cbd5e1',
+              flexWrap: 'wrap',
             }}>
               {profile?.status && (
                 <>
@@ -1250,73 +1255,139 @@ export default function ProfilePageRedesigned() {
                 </div>
 
                 {/* Actions */}
-                <div style={{
-                  display: 'flex',
-                  gap: 12,
-                  marginTop: 16,
-                  paddingTop: 16,
-                  borderTop: '1px solid #334155',
-                }}>
-                  <button
-                    onClick={(e) => handleAcceptInvite(project.id, e)}
-                    disabled={isProcessing}
-                    style={{
-                      flex: 1,
-                      background: '#10b981',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '12px 20px',
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
+                {(() => {
+                  // Check if there's a pending counter-proposal
+                  const hasCounterProposal = invite.proposed_percentage !== null &&
+                    invite.proposed_percentage !== undefined &&
+                    Math.abs(Number(invite.proposed_percentage) - Number(invite.revenue_percentage)) > 0.001;
+
+                  if (hasCounterProposal) {
+                    // Pending counter-proposal state
+                    return (
+                      <div style={{
+                        marginTop: 16,
+                        paddingTop: 16,
+                        borderTop: '1px solid #334155',
+                      }}>
+                        <div style={{
+                          background: 'linear-gradient(135deg, #f59e0b10 0%, #fbbf2410 100%)',
+                          border: '1px solid #f59e0b40',
+                          borderRadius: 10,
+                          padding: 16,
+                          textAlign: 'center',
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8,
+                            marginBottom: 8,
+                          }}>
+                            <Clock size={18} style={{ color: '#f59e0b' }} />
+                            <span style={{ color: '#f59e0b', fontSize: 15, fontWeight: 600 }}>
+                              Counter-Proposal Pending
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, color: '#fbbf24', fontSize: 13, lineHeight: 1.5 }}>
+                            You proposed <strong>{invite.proposed_percentage}%</strong> revenue
+                            (original offer: {invite.revenue_percentage}%)
+                          </p>
+                          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 12 }}>
+                            Waiting for @{project.created_by_username} to respond
+                          </p>
+                          <button
+                            onClick={(e) => handleDeclineInvite(project.id, e)}
+                            disabled={isProcessing}
+                            style={{
+                              marginTop: 12,
+                              background: 'transparent',
+                              color: '#ef4444',
+                              border: '1px solid #ef4444',
+                              padding: '8px 16px',
+                              borderRadius: 8,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            Withdraw & Decline
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Normal action buttons
+                  return (
+                    <div style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <Check size={18} />
-                    {isProcessing ? 'Processing...' : 'Accept Invite'}
-                  </button>
-                  <button
-                    onClick={(e) => handleDeclineInvite(project.id, e)}
-                    disabled={isProcessing}
-                    style={{
-                      background: 'transparent',
-                      color: '#ef4444',
-                      border: '1px solid #ef4444',
-                      padding: '12px 20px',
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <XCircle size={18} />
-                    Decline
-                  </button>
-                  <button
-                    onClick={() => setSelectedInviteProjectId(project.id)}
-                    disabled={isProcessing}
-                    style={{
-                      background: 'transparent',
-                      color: '#94a3b8',
-                      border: '1px solid #334155',
-                      padding: '12px 20px',
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    View Details
-                  </button>
-                </div>
+                      gap: 12,
+                      marginTop: 16,
+                      paddingTop: 16,
+                      borderTop: '1px solid #334155',
+                    }}>
+                      <button
+                        onClick={(e) => handleAcceptInvite(project.id, e)}
+                        disabled={isProcessing}
+                        style={{
+                          flex: 1,
+                          background: '#10b981',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '12px 20px',
+                          borderRadius: 10,
+                          fontSize: 14,
+                          fontWeight: 700,
+                          cursor: isProcessing ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <Check size={18} />
+                        {isProcessing ? 'Processing...' : 'Accept Invite'}
+                      </button>
+                      <button
+                        onClick={(e) => handleDeclineInvite(project.id, e)}
+                        disabled={isProcessing}
+                        style={{
+                          background: 'transparent',
+                          color: '#ef4444',
+                          border: '1px solid #ef4444',
+                          padding: '12px 20px',
+                          borderRadius: 10,
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: isProcessing ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <XCircle size={18} />
+                        Decline
+                      </button>
+                      <button
+                        onClick={() => setSelectedInviteProjectId(project.id)}
+                        disabled={isProcessing}
+                        style={{
+                          background: 'transparent',
+                          color: '#94a3b8',
+                          border: '1px solid #334155',
+                          padding: '12px 20px',
+                          borderRadius: 10,
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: isProcessing ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             );
             })}
@@ -1330,6 +1401,10 @@ export default function ProfilePageRedesigned() {
         gap: 4,
         borderBottom: '1px solid #1e293b',
         marginBottom: 16,
+        overflowX: isMobile ? 'auto' : 'visible',
+        WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
       }}>
         <Tab
           icon={<BookOpen size={18} />}
@@ -1370,15 +1445,19 @@ export default function ProfilePageRedesigned() {
       {activeTab === 'content' && (inventory.length > 0 || bookProjects.length > 0 || soloComicProjects.length > 0) && (
         <div style={{
           display: 'flex',
+          flexDirection: isPhone ? 'column' : 'row',
           justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-          gap: 16,
+          alignItems: isPhone ? 'stretch' : 'center',
+          marginBottom: isMobile ? 16 : 24,
+          gap: isPhone ? 12 : 16,
         }}>
           <div style={{
             display: 'flex',
             gap: 8,
             flexWrap: 'wrap',
+            overflowX: isPhone ? 'auto' : 'visible',
+            WebkitOverflowScrolling: 'touch',
+            paddingBottom: isPhone ? 4 : 0,
           }}>
             <FilterChip
               label="All"
@@ -1675,7 +1754,7 @@ export default function ProfilePageRedesigned() {
                       onEdit={() => {
                         // Comics with a source project should go to the collaborative project editor
                         if (item.content_type === 'comic' && item.source_project_id) {
-                          navigate(`/collaborative-project/${item.source_project_id}`);
+                          navigate(`/collaborations/${item.source_project_id}?tab=content`);
                         } else {
                           navigate(`/studio?editContent=${item.id}`);
                         }
@@ -1747,63 +1826,115 @@ export default function ProfilePageRedesigned() {
                           </div>
                         </div>
                         {/* Action buttons */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <button
-                            onClick={(e) => handleAcceptInvite(project.id, e)}
-                            disabled={isProcessing}
-                            style={{
-                              background: '#10b981',
-                              color: '#fff',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              fontWeight: 600,
-                              cursor: isProcessing ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              fontSize: 13,
-                              transition: 'all 0.2s',
-                            }}
-                            title="Accept invitation"
-                          >
-                            <Check size={16} />
-                            {isProcessing ? '...' : 'Accept'}
-                          </button>
-                          <button
-                            onClick={(e) => handleDeclineInvite(project.id, e)}
-                            disabled={isProcessing}
-                            style={{
-                              background: 'transparent',
-                              color: '#ef4444',
-                              border: '1px solid #ef4444',
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              fontWeight: 600,
-                              cursor: isProcessing ? 'not-allowed' : 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              fontSize: 13,
-                              transition: 'all 0.2s',
-                            }}
-                            title="Decline invitation"
-                          >
-                            <XCircle size={16} />
-                            Deny
-                          </button>
-                          <div style={{
-                            background: '#f59e0b20',
-                            color: '#f59e0b',
-                            padding: '4px 12px',
-                            borderRadius: 12,
-                            fontSize: 12,
-                            fontWeight: 600,
-                            marginLeft: 4,
-                          }}>
-                            Invite
-                          </div>
-                        </div>
+                        {(() => {
+                          // Check if there's a pending counter-proposal
+                          const hasCounterProposal = invite.proposed_percentage !== null &&
+                            invite.proposed_percentage !== undefined &&
+                            Math.abs(Number(invite.proposed_percentage) - Number(invite.revenue_percentage)) > 0.001;
+
+                          if (hasCounterProposal) {
+                            // Pending counter-proposal state (compact)
+                            return (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{
+                                  background: '#f59e0b20',
+                                  color: '#f59e0b',
+                                  padding: '6px 12px',
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                }}>
+                                  <Clock size={14} />
+                                  Pending ({invite.proposed_percentage}%)
+                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeclineInvite(project.id, e);
+                                  }}
+                                  disabled={isProcessing}
+                                  style={{
+                                    background: 'transparent',
+                                    color: '#ef4444',
+                                    border: '1px solid #ef4444',
+                                    padding: '6px 10px',
+                                    borderRadius: 6,
+                                    fontWeight: 600,
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    fontSize: 12,
+                                  }}
+                                  title="Withdraw counter-proposal and decline"
+                                >
+                                  Withdraw
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          // Normal action buttons
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <button
+                                onClick={(e) => handleAcceptInvite(project.id, e)}
+                                disabled={isProcessing}
+                                style={{
+                                  background: '#10b981',
+                                  color: '#fff',
+                                  border: 'none',
+                                  padding: '8px 12px',
+                                  borderRadius: 6,
+                                  fontWeight: 600,
+                                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  fontSize: 13,
+                                  transition: 'all 0.2s',
+                                }}
+                                title="Accept invitation"
+                              >
+                                <Check size={16} />
+                                {isProcessing ? '...' : 'Accept'}
+                              </button>
+                              <button
+                                onClick={(e) => handleDeclineInvite(project.id, e)}
+                                disabled={isProcessing}
+                                style={{
+                                  background: 'transparent',
+                                  color: '#ef4444',
+                                  border: '1px solid #ef4444',
+                                  padding: '8px 12px',
+                                  borderRadius: 6,
+                                  fontWeight: 600,
+                                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  fontSize: 13,
+                                  transition: 'all 0.2s',
+                                }}
+                                title="Decline invitation"
+                              >
+                                <XCircle size={16} />
+                                Deny
+                              </button>
+                              <div style={{
+                                background: '#f59e0b20',
+                                color: '#f59e0b',
+                                padding: '4px 12px',
+                                borderRadius: 12,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                marginLeft: 4,
+                              }}>
+                                Invite
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );
@@ -2749,14 +2880,17 @@ function Tab({ icon, label, count, active, onClick }: { icon: React.ReactNode; l
         border: 'none',
         borderBottom: active ? '2px solid #f59e0b' : '2px solid transparent',
         color: active ? '#f59e0b' : '#94a3b8',
-        padding: '12px 20px',
-        fontSize: 15,
+        padding: '12px 16px',
+        fontSize: 14,
         fontWeight: 600,
         cursor: 'pointer',
         transition: 'all 0.2s',
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+        minHeight: 44,
       }}
       onMouseEnter={(e) => {
         if (!active) {

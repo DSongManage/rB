@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
 import InviteModal from '../components/InviteModal';
 import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useMobile } from '../hooks/useMobile';
 
 export default function CollaboratorsPage() {
   const navigate = useNavigate();
+  const { isMobile, isPhone } = useMobile();
   const [q, setQ] = useState('');
   const [role, setRole] = useState('');
   const [genre, setGenre] = useState('');
@@ -47,12 +49,11 @@ export default function CollaboratorsPage() {
       setLoading(true);
       const params = new URLSearchParams(filterString);
       params.set('page', String(page));
-      params.set('page_size', '12');
+      params.set('page_size', '24');
       const url = `${API_URL}/api/users/search/?${params.toString()}`;
       fetch(url, { credentials: 'include' })
         .then(r=> r.ok ? r.json() : { results: [] })
         .then((data)=> {
-          console.log('[Collaborators] Search results:', data);
           setResults(Array.isArray(data.results) ? data.results : []);
           setTotalPages(data.total_pages || 1);
           setTotalCount(data.total_count || 0);
@@ -81,10 +82,10 @@ export default function CollaboratorsPage() {
   };
 
   return (
-    <div style={{width: '100%'}}>
-      <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius:12, padding:20, marginBottom:24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
-        <h2 style={{margin:0, marginBottom:16, color:'#f1f5f9', fontSize:24, fontWeight:700}}>Find Collaborators</h2>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:12}}>
+    <div style={{width: '100%', padding: isMobile ? '0 8px' : 0}}>
+      <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius: isMobile ? 8 : 12, padding: isMobile ? 12 : 20, marginBottom: isMobile ? 16 : 24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
+        <h2 style={{margin:0, marginBottom: isMobile ? 12 : 16, color:'#f1f5f9', fontSize: isMobile ? 20 : 24, fontWeight:700}}>Find Collaborators</h2>
+        <div style={{display:'grid', gridTemplateColumns: isPhone ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap:12}}>
           <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search by name or @handle" style={{padding:'10px 14px'}} />
           <input value={role} onChange={(e)=>setRole(e.target.value)} placeholder="Role (e.g., author, artist)" style={{padding:'10px 14px'}} />
           <input value={genre} onChange={(e)=>setGenre(e.target.value)} placeholder="Genre (e.g., fantasy)" style={{padding:'10px 14px'}} />
@@ -104,9 +105,9 @@ export default function CollaboratorsPage() {
 
       <div style={{
         display:'grid',
-        gridTemplateColumns:'repeat(auto-fill, minmax(320px, 1fr))',
-        gap:24,
-        marginBottom: 32
+        gridTemplateColumns: isPhone ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))',
+        gap: isMobile ? 16 : 24,
+        marginBottom: isMobile ? 20 : 32
       }}>
         {loading && <div style={{color:'#94a3b8', fontSize:14}}>Searching…</div>}
         {!loading && results.length === 0 && (

@@ -10,7 +10,9 @@ import {
   ComicIssueListItem,
   DividerLine,
   collaborationApi,
+  ArtworkLibraryItem,
 } from '../../services/collaborationApi';
+import { ArtworkLibraryPanel } from './ArtworkLibraryPanel';
 import { LineBasedEditor, LINE_TEMPLATES, ORIENTATION_PRESETS, LineTemplate, LineBasedEditorRef } from './lineEditor';
 import { DividerLineData } from './lineEditor/LineRenderer';
 import {
@@ -32,7 +34,10 @@ import {
   ChevronDown,
   Pencil,
   Check,
+  AlertTriangle,
+  Monitor,
 } from 'lucide-react';
+import { useMobile } from '../../hooks/useMobile';
 
 interface User {
   id: number;
@@ -255,6 +260,41 @@ export default function CollaborativeComicEditor({
   currentUser,
   onProjectUpdate,
 }: CollaborativeComicEditorProps) {
+  const { isMobile } = useMobile();
+
+  // Mobile warning - this editor requires desktop
+  if (isMobile) {
+    return (
+      <div style={{
+        padding: 24,
+        textAlign: 'center',
+        background: '#1e293b',
+        borderRadius: 12,
+        border: '1px solid #334155',
+      }}>
+        <AlertTriangle size={48} color="#f59e0b" style={{ marginBottom: 16 }} />
+        <h3 style={{ color: '#f8fafc', fontSize: 20, marginBottom: 8, margin: 0 }}>
+          Desktop Required
+        </h3>
+        <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 16, margin: '8px 0 16px' }}>
+          The comic editor requires a desktop browser for the best experience.
+          Panel layouts and precise positioning work best with a mouse or trackpad.
+        </p>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          color: '#64748b',
+          fontSize: 13,
+        }}>
+          <Monitor size={16} />
+          <span>Switch to a desktop device to edit</span>
+        </div>
+      </div>
+    );
+  }
+
   // State
   const [pages, setPages] = useState<ComicPage[]>([]);
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
@@ -311,6 +351,11 @@ export default function CollaborativeComicEditor({
   // Track which panel is being dragged
   const [draggingPanelId, setDraggingPanelId] = useState<number | null>(null);
 
+  // Artwork library state for drag-and-drop
+  const [artworkLibraryExpanded, setArtworkLibraryExpanded] = useState(true);
+  const [draggingArtworkItem, setDraggingArtworkItem] = useState<ArtworkLibraryItem | null>(null);
+  const [dropTargetPanelId, setDropTargetPanelId] = useState<string | null>(null);
+
   // Permissions - creator always has full access
   const collaborators = project.collaborators || [];
   const currentUserRole = collaborators.find((c) => c.user === currentUser.id);
@@ -318,10 +363,11 @@ export default function CollaborativeComicEditor({
     ? (project.created_by as any)?.id
     : project.created_by;
   const isCreator = creatorId === currentUser.id;
-  const canEditPanels = isCreator ||
+  // Base permissions from role
+  const hasImagePermission = isCreator ||
     currentUserRole?.can_edit?.includes('image') ||
     currentUserRole?.can_edit_images === true;
-  const canEditText = isCreator ||
+  const hasTextPermission = isCreator ||
     currentUserRole?.can_edit?.includes('text') ||
     currentUserRole?.can_edit_text === true;
 
@@ -504,6 +550,11 @@ export default function CollaborativeComicEditor({
 
   // Get current issue
   const currentIssue = issues.find((i) => i.id === selectedIssueId);
+
+  // Issue-level published check - published issues are read-only
+  const isCurrentIssuePublished = currentIssue?.is_published ?? false;
+  const canEditPanels = !isCurrentIssuePublished && hasImagePermission;
+  const canEditText = !isCurrentIssuePublished && hasTextPermission;
 
   // Track canvas dimensions with ResizeObserver for accurate pixel positioning
   // Use debouncing to prevent rapid updates that cause panel instability
@@ -1424,6 +1475,96 @@ export default function CollaborativeComicEditor({
     }
   };
 
+  // Artwork library drag-and-drop handlers
+  const handleArtworkDragStart = useCallback((item: ArtworkLibraryItem) => {
+    setDraggingArtworkItem(item);
+  }, []);
+
+  const handlePanelDragOver = useCallback((panelId: string, e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDropTargetPanelId(panelId);
+  }, []);
+
+  const handlePanelDragLeave = useCallback(() => {
+    setDropTargetPanelId(null);
+  }, []);
+
+  const handlePanelDrop = useCallback(
+    async (computedPanelId: string, computedPanel: import('../../utils/regionCalculator').ComputedPanel, e: React.DragEvent) => {
+      e.preventDefault();
+      setDropTargetPanelId(null);
+      setDraggingArtworkItem(null);
+
+      if (!canEditPanels || !currentPage) return;
+
+      // Parse drag data
+      try {
+        const data = JSON.parse(e.dataTransfer.getData('application/json'));
+        if (data.type !== 'artwork-library-item') return;
+
+        setSaving(true);
+        setError('');
+
+        // Find or create ComicPanel for this computed region
+        let targetPanel = currentPage.panels.find((p) => {
+          const panelBounds = {
+            x: p.x_percent,
+            y: p.y_percent,
+            width: p.width_percent,
+            height: p.height_percent,
+          };
+          const overlap = calculateBoundsOverlap(computedPanel.bounds, panelBounds);
+          return overlap > 0.3;
+        });
+
+        // Apply artwork via API
+        const result = await collaborationApi.applyArtworkToPanel(data.artworkId, {
+          panel_id: targetPanel?.id,
+          page_id: targetPanel ? undefined : currentPage.id,
+          bounds: targetPanel
+            ? undefined
+            : {
+                x: Math.round(computedPanel.bounds.x * 100) / 100,
+                y: Math.round(computedPanel.bounds.y * 100) / 100,
+                width: Math.round(computedPanel.bounds.width * 100) / 100,
+                height: Math.round(computedPanel.bounds.height * 100) / 100,
+              },
+        });
+
+        // Update local state
+        const updatedPages = [...pages];
+        if (targetPanel) {
+          const panelIndex = updatedPages[selectedPageIndex].panels.findIndex(
+            (p) => p.id === targetPanel!.id
+          );
+          if (panelIndex >= 0) {
+            updatedPages[selectedPageIndex].panels[panelIndex] = {
+              ...result,
+              speech_bubbles: updatedPages[selectedPageIndex].panels[panelIndex].speech_bubbles,
+            };
+          }
+        } else {
+          updatedPages[selectedPageIndex].panels.push({
+            ...result,
+            speech_bubbles: [],
+          });
+        }
+        setPages(updatedPages);
+
+        // Update artwork map
+        const newArtworkMap = new Map(panelArtworkMap);
+        newArtworkMap.set(computedPanelId, data.file_url);
+        setPanelArtworkMap(newArtworkMap);
+      } catch (err: any) {
+        setError(err.message || 'Failed to apply artwork');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [canEditPanels, currentPage, pages, selectedPageIndex, panelArtworkMap]
+  );
+
   // Sync computed panels with existing artwork when panels change
   // Helper: Calculate bounding box overlap (IoU - Intersection over Union)
   const calculateBoundsOverlap = (
@@ -1778,7 +1919,7 @@ export default function CollaborativeComicEditor({
   }
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 140px)', minHeight: 500, padding: '16px 24px' }}>
+    <div style={{ display: 'flex', gap: 16, height: 'calc(100vh - 140px)', minHeight: 500, padding: '16px 24px', alignItems: 'stretch' }}>
       {/* Left Sidebar - Page Navigator */}
       <div
         style={{
@@ -1974,29 +2115,50 @@ export default function CollaborativeComicEditor({
             Pages ({pages.length})
           </span>
           {canEditPanels && (
-            <button
-              onClick={handleAddPage}
-              disabled={saving}
-              style={{
-                background: '#f59e0b',
-                color: '#000',
-                border: 'none',
-                borderRadius: 4,
-                padding: '4px 8px',
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              <Plus size={12} /> Add
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {pages.length > 1 && (
+                <button
+                  onClick={handleDeletePage}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.2)',
+                    color: '#ef4444',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '4px 6px',
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Delete current page"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
+              <button
+                onClick={handleAddPage}
+                disabled={saving}
+                style={{
+                  background: '#f59e0b',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Plus size={12} /> Add
+              </button>
+            </div>
           )}
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6, minHeight: 0 }}>
           {(pages || []).map((page, index) => (
             <div
               key={page.id}
@@ -2164,6 +2326,26 @@ export default function CollaborativeComicEditor({
 
       {/* Main Canvas Area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Published Issue Banner */}
+        {isCurrentIssuePublished && currentIssue && (
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              color: '#fff',
+              padding: '10px 16px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span style={{ fontSize: 16 }}>✓</span>
+            {currentIssue.title || `Issue ${currentIssue.issue_number}`} is published and read-only. Content cannot be modified.
+          </div>
+        )}
+
         {/* Toolbar */}
         <div
           style={{
@@ -2207,40 +2389,44 @@ export default function CollaborativeComicEditor({
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Save button with status */}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                background: saving ? '#475569' : '#10b981',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: saving ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                minWidth: 80,
-                justifyContent: 'center',
-              }}
-            >
-              {saving ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" /> Saving...
-                </>
-              ) : (
-                <>
-                  <Save size={14} /> Save
-                </>
-              )}
-            </button>
-            {lastSaved && (
-              <span style={{ color: '#64748b', fontSize: 10 }}>
-                Saved {lastSaved.toLocaleTimeString()}
-              </span>
+            {/* Save button with status - hidden for published issues */}
+            {!isCurrentIssuePublished && (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    background: saving ? '#475569' : '#10b981',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '6px 12px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    minWidth: 80,
+                    justifyContent: 'center',
+                  }}
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} /> Save
+                    </>
+                  )}
+                </button>
+                {lastSaved && (
+                  <span style={{ color: '#64748b', fontSize: 10 }}>
+                    Saved {lastSaved.toLocaleTimeString()}
+                  </span>
+                )}
+              </>
             )}
 
             {/* Page navigation */}
@@ -2400,6 +2586,11 @@ export default function CollaborativeComicEditor({
               panelArtwork={panelArtworkMap}
               maxCanvasWidth={availableCanvasSpace.width}
               maxCanvasHeight={availableCanvasSpace.height}
+              computedPanels={computedPanels}
+              dropTargetPanelId={dropTargetPanelId}
+              onPanelDragOver={handlePanelDragOver}
+              onPanelDragLeave={handlePanelDragLeave}
+              onPanelDrop={handlePanelDrop}
             >
               {/* Speech bubble overlay - rendered inside canvas container */}
               {/* Bubbles use canvas-relative positioning (x_percent/y_percent are % of canvas) */}
@@ -2428,6 +2619,54 @@ export default function CollaborativeComicEditor({
                     canvasSize: { displayWidth, displayHeight },
                   });
 
+                  // Generate SVG path based on bubble type
+                  const getBubbleSvgPath = (w: number, h: number, type: string): string => {
+                    const cx = w / 2;
+                    const cy = h / 2;
+                    const rx = w / 2 - 2;
+                    const ry = h / 2 - 2;
+
+                    switch (type) {
+                      case 'thought':
+                        // Cloud-like bumpy path
+                        return `M ${cx} ${h * 0.12}
+                          Q ${w * 0.75} ${h * 0.05}, ${w * 0.88} ${h * 0.3}
+                          Q ${w * 0.98} ${h * 0.5}, ${w * 0.88} ${h * 0.7}
+                          Q ${w * 0.75} ${h * 0.95}, ${cx} ${h * 0.88}
+                          Q ${w * 0.25} ${h * 0.95}, ${w * 0.12} ${h * 0.7}
+                          Q ${w * 0.02} ${h * 0.5}, ${w * 0.12} ${h * 0.3}
+                          Q ${w * 0.25} ${h * 0.05}, ${cx} ${h * 0.12}
+                          Z`;
+                      case 'shout':
+                        // Jagged explosion/burst path
+                        const points = 12;
+                        let path = '';
+                        for (let i = 0; i < points; i++) {
+                          const angle = (i / points) * Math.PI * 2 - Math.PI / 2;
+                          const r = i % 2 === 0 ? Math.min(rx, ry) * 0.65 : Math.min(rx, ry) * 1.0;
+                          const x = cx + Math.cos(angle) * r;
+                          const y = cy + Math.sin(angle) * r;
+                          path += (i === 0 ? 'M' : 'L') + ` ${x} ${y} `;
+                        }
+                        return path + 'Z';
+                      case 'narrative':
+                      case 'caption':
+                        // Rectangle with small corner radius
+                        return `M 4 2 L ${w - 4} 2 Q ${w - 2} 2 ${w - 2} 4 L ${w - 2} ${h - 4} Q ${w - 2} ${h - 2} ${w - 4} ${h - 2} L 4 ${h - 2} Q 2 ${h - 2} 2 ${h - 4} L 2 4 Q 2 2 4 2 Z`;
+                      case 'whisper':
+                        // Oval with dashed stroke (handled in strokeDasharray)
+                        return `M ${cx} ${cy - ry}
+                          A ${rx} ${ry} 0 1 1 ${cx} ${cy + ry}
+                          A ${rx} ${ry} 0 1 1 ${cx} ${cy - ry}`;
+                      case 'oval':
+                      default:
+                        // Standard oval
+                        return `M ${cx} ${cy - ry}
+                          A ${rx} ${ry} 0 1 1 ${cx} ${cy + ry}
+                          A ${rx} ${ry} 0 1 1 ${cx} ${cy - ry}`;
+                    }
+                  };
+
                   return (
                     <Rnd
                       key={bubble.id}
@@ -2452,52 +2691,98 @@ export default function CollaborativeComicEditor({
                       enableResizing={mode === 'text' && canEditText && selectedBubbleId === bubble.id}
                       disableDragging={mode !== 'text' || !canEditText}
                       style={{
-                        background: bubble.background_color || '#fff',
-                        border: `${bubble.border_width || 2}px solid ${bubble.border_color || '#000'}`,
-                        borderRadius: bubble.bubble_type === 'narrative' || bubble.bubble_type === 'caption' ? 4 : '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 4,
                         cursor: mode === 'text' && canEditText ? 'move' : 'default',
                         boxShadow: mode === 'text' && selectedBubbleId === bubble.id ? '0 0 0 2px #3b82f6' : 'none',
                         zIndex: 100,
-                        overflow: 'hidden',
                         pointerEvents: mode === 'text' ? 'auto' : 'none',
                       }}
                       onClick={() => mode === 'text' && setSelectedBubbleId(bubble.id)}
                     >
-                      {mode === 'text' && canEditText && selectedBubbleId === bubble.id ? (
-                        <textarea
-                          value={bubble.text || ''}
-                          onChange={(e) => handleBubbleTextChange(bubble.id, e.target.value)}
+                      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                        {/* SVG bubble shape */}
+                        <svg
+                          width="100%"
+                          height="100%"
+                          viewBox={`0 0 ${bubbleW} ${bubbleH}`}
+                          preserveAspectRatio="none"
+                          style={{ position: 'absolute', top: 0, left: 0 }}
+                        >
+                          <path
+                            d={getBubbleSvgPath(bubbleW, bubbleH, bubble.bubble_type)}
+                            fill={bubble.background_color || '#fff'}
+                            stroke={bubble.border_color || '#000'}
+                            strokeWidth={bubble.border_width || 2}
+                            strokeDasharray={bubble.bubble_type === 'whisper' ? '4,3' : 'none'}
+                          />
+                          {/* Pointer tail for non-narrative bubbles */}
+                          {bubble.pointer_direction !== 'none' && bubble.bubble_type !== 'narrative' && bubble.bubble_type !== 'caption' && (
+                            <polygon
+                              points={
+                                bubble.pointer_direction === 'bottom'
+                                  ? `${bubbleW * 0.4},${bubbleH * 0.85} ${bubbleW * 0.5},${bubbleH * 1.15} ${bubbleW * 0.6},${bubbleH * 0.85}`
+                                  : bubble.pointer_direction === 'left'
+                                  ? `${bubbleW * 0.1},${bubbleH * 0.4} ${-bubbleW * 0.1},${bubbleH * 0.5} ${bubbleW * 0.1},${bubbleH * 0.6}`
+                                  : bubble.pointer_direction === 'right'
+                                  ? `${bubbleW * 0.9},${bubbleH * 0.4} ${bubbleW * 1.1},${bubbleH * 0.5} ${bubbleW * 0.9},${bubbleH * 0.6}`
+                                  : `${bubbleW * 0.4},${bubbleH * 0.15} ${bubbleW * 0.5},${-bubbleH * 0.15} ${bubbleW * 0.6},${bubbleH * 0.15}`
+                              }
+                              fill={bubble.background_color || '#fff'}
+                              stroke={bubble.border_color || '#000'}
+                              strokeWidth={bubble.border_width || 2}
+                            />
+                          )}
+                        </svg>
+                        {/* Text content */}
+                        <div
                           style={{
-                            width: '100%',
-                            height: '100%',
-                            border: 'none',
-                            background: 'transparent',
-                            resize: 'none',
-                            textAlign: bubble.text_align as any || 'center',
-                            fontSize: Math.max(10, Math.min(bubbleH * 0.25, 16)),
-                            fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
-                            color: '#000',
-                            outline: 'none',
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: Math.max(10, Math.min(bubbleH * 0.25, 16)),
-                            fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
-                            color: '#000',
-                            textAlign: bubble.text_align as any || 'center',
-                            wordBreak: 'break-word',
+                            position: 'absolute',
+                            top: '15%',
+                            left: '15%',
+                            right: '15%',
+                            bottom: '15%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
                           }}
                         >
-                          {bubble.text || 'Enter text...'}
-                        </span>
-                      )}
+                          {mode === 'text' && canEditText && selectedBubbleId === bubble.id ? (
+                            <textarea
+                              value={bubble.text || ''}
+                              onChange={(e) => handleBubbleTextChange(bubble.id, e.target.value)}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                border: 'none',
+                                background: 'transparent',
+                                resize: 'none',
+                                textAlign: bubble.text_align as any || 'center',
+                                fontSize: Math.max(10, Math.min(bubbleH * 0.2, 16)),
+                                fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
+                                fontWeight: bubble.bubble_type === 'shout' ? 'bold' : 'normal',
+                                fontStyle: bubble.bubble_type === 'whisper' || bubble.bubble_type === 'narrative' ? 'italic' : 'normal',
+                                color: bubble.font_color || '#000',
+                                outline: 'none',
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: Math.max(10, Math.min(bubbleH * 0.2, 16)),
+                                fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
+                                fontWeight: bubble.bubble_type === 'shout' ? 'bold' : 'normal',
+                                fontStyle: bubble.bubble_type === 'whisper' || bubble.bubble_type === 'narrative' ? 'italic' : 'normal',
+                                color: bubble.font_color || '#000',
+                                textAlign: bubble.text_align as any || 'center',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {bubble.text || 'Enter text...'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </Rnd>
                   );
                 });
@@ -2628,6 +2913,17 @@ export default function CollaborativeComicEditor({
         }}
       >
         <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: 12 }}>Properties</span>
+
+        {/* Artwork Library Panel - visible in artwork mode */}
+        {mode === 'artwork' && (
+          <ArtworkLibraryPanel
+            projectId={project.id}
+            canEdit={canEditPanels}
+            onDragStart={handleArtworkDragStart}
+            isExpanded={artworkLibraryExpanded}
+            onToggle={() => setArtworkLibraryExpanded(!artworkLibraryExpanded)}
+          />
+        )}
 
         {/* Computed panel selected (line-based editor) */}
         {useLineBasedLayout && selectedComputedPanelId ? (
@@ -3132,26 +3428,6 @@ export default function CollaborativeComicEditor({
           <div style={{ color: '#64748b', fontSize: 11 }}>
             Select a panel to view properties
           </div>
-        )}
-
-        {/* Delete page button */}
-        {canEditPanels && pages.length > 1 && (
-          <button
-            onClick={handleDeletePage}
-            style={{
-              marginTop: 'auto',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid #ef4444',
-              color: '#ef4444',
-              padding: '8px 12px',
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Delete Page
-          </button>
         )}
       </div>
 

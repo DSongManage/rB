@@ -21,7 +21,7 @@ from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
     ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet
 )
-from .views.comic import ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet, ComicSeriesViewSet, ComicIssueViewSet, DividerLineViewSet
+from .views.comic import ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet, ComicSeriesViewSet, ComicIssueViewSet, DividerLineViewSet, ArtworkLibraryViewSet
 from .views.notifications import NotificationViewSet
 from .views.social import (
     ContentLikeView, ContentCommentViewSet, ContentRatingViewSet, CreatorReviewViewSet,
@@ -199,6 +199,16 @@ urlpatterns = [
     path('api/users/<int:user_id>/ratings/',
          get_user_ratings,
          name='user-ratings'),
+    # Artwork Library for collaborative comics
+    path('api/collaborative-projects/<int:project_pk>/artwork-library/',
+         ArtworkLibraryViewSet.as_view({'get': 'list', 'post': 'create'}),
+         name='artwork-library-list'),
+    path('api/artwork-library/<int:pk>/',
+         ArtworkLibraryViewSet.as_view({'delete': 'destroy'}),
+         name='artwork-library-delete'),
+    path('api/artwork-library/<int:pk>/apply-to-panel/',
+         ArtworkLibraryViewSet.as_view({'post': 'apply_to_panel'}),
+         name='artwork-library-apply'),
     # Bridge.xyz Payout Integration
     path('api/webhooks/bridge/', bridge_webhook, name='bridge_webhook'),
     path('api/bridge/status/', BridgeOnboardingStatusView.as_view(), name='bridge_status'),

@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { libraryApi, type Library } from '../services/libraryApi';
 import { MobileLibraryCard } from './MobileLibraryCard';
-import { BookOpen, Image, Film, Music } from 'lucide-react';
+import { BookOpen, Image, BookMarked, Film, Music, ArrowUpDown, Search, X, ChevronDown, ChevronUp, Library as LibraryIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+
+type SortOption = 'recent' | 'progress' | 'az';
 
 const TAB_ICONS = {
   books: BookOpen,
   art: Image,
+  comics: BookMarked,
   film: Film,
   music: Music,
 };
@@ -15,8 +18,30 @@ export function MobileLibrary() {
   const [library, setLibrary] = useState<Library | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTab, setSelectedTab] = useState<keyof Library>('books');
+  const [selectedTab, setSelectedTab] = useState<'books' | 'art' | 'comics'>('books');
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    const saved = localStorage.getItem('library-sort');
+    return (saved as SortOption) || 'recent';
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('mobile-library-collapsed');
+    return saved === 'true';
+  });
   const { isAuthenticated } = useAuth();
+
+  // Save collapsed preference
+  const toggleCollapsed = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('mobile-library-collapsed', String(newState));
+  };
+
+  // Save sort preference to localStorage
+  const handleSortChange = (newSort: SortOption) => {
+    setSortBy(newSort);
+    localStorage.setItem('library-sort', newSort);
+  };
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -50,7 +75,49 @@ export function MobileLibrary() {
     ? Object.values(library).reduce((sum, items) => sum + items.length, 0)
     : 0;
 
-  const currentItems = library?.[selectedTab] || [];
+  // Apply sorting to current items
+  const sortItems = (items: Library['books']) => {
+    return [...items].sort((a, b) => {
+      switch (sortBy) {
+        case 'progress':
+          return b.progress - a.progress;
+        case 'az':
+          return a.title.localeCompare(b.title);
+        case 'recent':
+        default:
+          // Sort by last_read_at first, then purchased_at
+          if (a.last_read_at && b.last_read_at) {
+            return new Date(b.last_read_at).getTime() - new Date(a.last_read_at).getTime();
+          }
+          if (a.last_read_at) return -1;
+          if (b.last_read_at) return 1;
+          return new Date(b.purchased_at).getTime() - new Date(a.purchased_at).getTime();
+      }
+    });
+  };
+
+  const currentItems = library?.[selectedTab]
+    ? sortItems(library[selectedTab]).filter(item =>
+        searchQuery === '' || item.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : [];
+
+  // Get in-progress items (1-99% progress) for Continue Reading section
+  const continueReadingItems = library
+    ? Object.values(library)
+        .flat()
+        .filter(item => item.progress > 0 && item.progress < 100)
+        .sort((a, b) => {
+          // Sort by last_read_at (most recent first)
+          if (a.last_read_at && b.last_read_at) {
+            return new Date(b.last_read_at).getTime() - new Date(a.last_read_at).getTime();
+          }
+          if (a.last_read_at) return -1;
+          if (b.last_read_at) return 1;
+          return b.progress - a.progress; // Fallback: higher progress first
+        })
+        .slice(0, 3)
+    : [];
 
   // If library is empty, don't show the section
   if (!loading && !error && totalItems === 0) {
@@ -61,41 +128,142 @@ export function MobileLibrary() {
     <div
       style={{
         background: '#0a0f1a',
-        padding: '20px 16px',
+        padding: isCollapsed ? '12px 16px' : '20px 16px',
         marginBottom: 16,
+        transition: 'padding 0.2s ease',
       }}
     >
-      {/* Header */}
-      <div
+      {/* Collapsible Header */}
+      <button
+        onClick={toggleCollapsed}
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 16,
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+          marginBottom: isCollapsed ? 0 : 16,
         }}
       >
-        <div>
-          <h2
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <LibraryIcon size={20} style={{ color: '#f59e0b' }} />
+          <div style={{ textAlign: 'left' }}>
+            <h2
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: '#e5e7eb',
+                margin: 0,
+              }}
+            >
+              My Library
+            </h2>
+            {isCollapsed && (
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                {totalItems} {totalItems === 1 ? 'item' : 'items'} • Tap to expand
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          color: '#94a3b8',
+        }}>
+          {!isCollapsed && (
+            <span style={{ fontSize: 12 }}>
+              {totalItems} {totalItems === 1 ? 'item' : 'items'}
+            </span>
+          )}
+          {isCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+        </div>
+      </button>
+
+      {/* Collapsible Content */}
+      {!isCollapsed && (
+        <>
+
+      {/* Search */}
+      <div style={{ marginBottom: 16 }}>
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <Search size={16} style={{ position: 'absolute', left: 12, color: '#64748b' }} />
+          <input
+            type="text"
+            placeholder="Search library..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              fontSize: 18,
-              fontWeight: 700,
+              width: '100%',
+              background: '#111827',
+              border: '1px solid #2a3444',
+              borderRadius: 10,
+              padding: '10px 36px 10px 40px',
+              fontSize: 14,
               color: '#e5e7eb',
-              margin: 0,
+              outline: 'none',
             }}
-          >
-            My Library
-          </h2>
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute',
+                right: 10,
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Continue Reading Section */}
+      {continueReadingItems.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
           <div
             style={{
               fontSize: 13,
-              color: '#94a3b8',
-              marginTop: 2,
+              fontWeight: 600,
+              color: '#f59e0b',
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
             }}
           >
-            {totalItems} {totalItems === 1 ? 'item' : 'items'}
+            <BookOpen size={16} />
+            Continue Reading
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: 12,
+            }}
+          >
+            {continueReadingItems.map((item) => (
+              <MobileLibraryCard key={`continue-${item.id}`} item={item} />
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Horizontal scrollable tabs */}
       <div
@@ -110,7 +278,8 @@ export function MobileLibrary() {
           msOverflowStyle: 'none',
         }}
       >
-        {(['books', 'art', 'film', 'music'] as const).map((tab) => {
+        {/* Active content tabs */}
+        {(['books', 'art', 'comics'] as const).map((tab) => {
           const count = library?.[tab]?.length || 0;
           const isActive = selectedTab === tab;
           const Icon = TAB_ICONS[tab];
@@ -152,6 +321,74 @@ export function MobileLibrary() {
             </button>
           );
         })}
+        {/* Coming Soon tabs */}
+        {(['film', 'music'] as const).map((tab) => {
+          const Icon = TAB_ICONS[tab];
+          return (
+            <button
+              key={tab}
+              disabled
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: '#111827',
+                border: '1px solid #2a3444',
+                color: '#64748b',
+                padding: '10px 16px',
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'not-allowed',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                opacity: 0.6,
+              }}
+            >
+              <Icon size={16} />
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              <span
+                style={{
+                  background: '#2a3444',
+                  padding: '2px 6px',
+                  borderRadius: 10,
+                  fontSize: 10,
+                }}
+              >
+                Soon
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sort dropdown */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 16,
+        }}
+      >
+        <ArrowUpDown size={14} style={{ color: '#64748b' }} />
+        <select
+          value={sortBy}
+          onChange={(e) => handleSortChange(e.target.value as SortOption)}
+          style={{
+            background: '#111827',
+            border: '1px solid #2a3444',
+            borderRadius: 8,
+            padding: '6px 10px',
+            fontSize: 13,
+            color: '#cbd5e1',
+            cursor: 'pointer',
+          }}
+        >
+          <option value="recent">Recent</option>
+          <option value="progress">Progress</option>
+          <option value="az">A-Z</option>
+        </select>
       </div>
 
       {/* Content */}
@@ -209,7 +446,9 @@ export function MobileLibrary() {
             fontSize: 14,
           }}
         >
-          No {selectedTab} in your library yet.
+          {searchQuery
+              ? `No results for "${searchQuery}"`
+              : `No ${selectedTab} in your library yet.`}
         </div>
       )}
 
@@ -225,6 +464,8 @@ export function MobileLibrary() {
             <MobileLibraryCard key={item.id} item={item} />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );

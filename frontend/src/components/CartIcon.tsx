@@ -27,35 +27,36 @@ export default function CartIcon({ className = '' }: CartIconProps) {
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        padding: '8px',
         color: 'var(--text, #e2e8f0)',
         textDecoration: 'none',
       }}
     >
-      <ShoppingCart size={20} />
-
-      {!loading && itemCount > 0 && (
-        <span
-          style={{
-            position: 'absolute',
-            top: '0',
-            right: '0',
-            backgroundColor: 'var(--accent, #3b82f6)',
-            color: 'white',
-            fontSize: '11px',
-            fontWeight: 600,
-            minWidth: '18px',
-            height: '18px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 4px',
-          }}
-        >
-          {itemCount > 99 ? '99+' : itemCount}
-        </span>
-      )}
+      <span style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <ShoppingCart size={20} />
+        {!loading && itemCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '-6px',
+              right: '-8px',
+              backgroundColor: 'var(--accent, #3b82f6)',
+              color: 'white',
+              fontSize: '10px',
+              fontWeight: 600,
+              minWidth: '16px',
+              height: '16px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 3px',
+            }}
+          >
+            {itemCount > 99 ? '99+' : itemCount}
+          </span>
+        )}
+      </span>
+      <span>Cart</span>
     </Link>
   );
 }

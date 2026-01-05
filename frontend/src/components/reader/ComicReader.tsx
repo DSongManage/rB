@@ -173,26 +173,43 @@ export function ComicReader({ contentId, title, comicData, onBack }: ComicReader
     toggleFullscreen,
   ]);
 
-  // Progress tracking (debounced)
+  // Progress tracking (debounced with save on unmount)
+  const lastSavedProgress = useRef<number>(-1);
+
   useEffect(() => {
     if (progressUpdateTimer.current) {
       clearTimeout(progressUpdateTimer.current);
     }
 
+    const progress = ((currentPage + 1) / totalPages) * 100;
+
     progressUpdateTimer.current = setTimeout(() => {
-      const progress = ((currentPage + 1) / totalPages) * 100;
       libraryApi
         .updateProgress(
           parseInt(contentId),
           progress,
           JSON.stringify({ page: currentPage, totalPages })
         )
+        .then(() => {
+          lastSavedProgress.current = progress;
+        })
         .catch(console.error);
-    }, 2000);
+    }, 1000);
 
     return () => {
       if (progressUpdateTimer.current) {
         clearTimeout(progressUpdateTimer.current);
+      }
+      // Save immediately on unmount if progress changed
+      const finalProgress = ((currentPage + 1) / totalPages) * 100;
+      if (finalProgress !== lastSavedProgress.current) {
+        libraryApi
+          .updateProgress(
+            parseInt(contentId),
+            finalProgress,
+            JSON.stringify({ page: currentPage, totalPages })
+          )
+          .catch(console.error);
       }
     };
   }, [currentPage, totalPages, contentId]);

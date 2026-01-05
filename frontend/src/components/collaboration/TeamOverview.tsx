@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { CollaboratorRole, ProjectSection } from '../../services/collaborationApi';
+import { Users, XCircle, CheckCircle, AlertTriangle, Clock, FileText, DollarSign, Check } from 'lucide-react';
 
 interface TeamOverviewProps {
   collaborators: CollaboratorRole[];
@@ -53,14 +54,19 @@ export function TeamOverview({
   };
 
   // Get collaborator status badge
-  const getStatusBadge = (collaborator: CollaboratorRole) => {
+  const getStatusBadge = (collaborator: CollaboratorRole): {
+    icon: React.ReactNode;
+    text: string;
+    color: string;
+    bg: string;
+  } => {
     const progress = getCollaboratorProgress(collaborator);
     const deadline = getDeadlineStatus(collaborator);
 
     // Overdue
     if (deadline?.status === 'overdue') {
       return {
-        icon: '❌',
+        icon: <XCircle size={14} />,
         text: `${deadline.days}d overdue`,
         color: '#ef4444',
         bg: '#ef444420',
@@ -70,7 +76,7 @@ export function TeamOverview({
     // All sections complete
     if (progress.assigned > 0 && progress.completed === progress.assigned) {
       return {
-        icon: '✅',
+        icon: <CheckCircle size={14} />,
         text: `${progress.completed}/${progress.assigned} complete`,
         color: '#10b981',
         bg: '#10b98120',
@@ -82,14 +88,14 @@ export function TeamOverview({
       const remaining = progress.assigned - progress.completed;
       if (deadline?.status === 'soon') {
         return {
-          icon: '🔶',
+          icon: <AlertTriangle size={14} />,
           text: `${remaining} section${remaining > 1 ? 's' : ''} due in ${deadline.days}d`,
           color: '#f59e0b',
           bg: '#f59e0b20',
         };
       }
       return {
-        icon: '⏳',
+        icon: <Clock size={14} />,
         text: `${progress.completed}/${progress.assigned} sections`,
         color: '#3b82f6',
         bg: '#3b82f620',
@@ -98,7 +104,7 @@ export function TeamOverview({
 
     // No sections assigned
     return {
-      icon: '📝',
+      icon: <FileText size={14} />,
       text: 'No sections assigned',
       color: '#64748b',
       bg: '#64748b20',
@@ -122,7 +128,7 @@ export function TeamOverview({
           marginBottom: 20,
         }}
       >
-        <span style={{ fontSize: 20 }}>👥</span>
+        <Users size={20} style={{ color: '#8b5cf6' }} />
         <h3 style={{ margin: 0, color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>
           Team Overview
         </h3>
@@ -315,7 +321,7 @@ export function TeamOverview({
                       fontSize: 12,
                     }}
                   >
-                    {collaborator.approved_current_version ? '✓' : '○'}
+                    {collaborator.approved_current_version ? <Check size={12} /> : '○'}
                   </div>
                   <div
                     style={{
@@ -334,7 +340,7 @@ export function TeamOverview({
                       fontSize: 12,
                     }}
                   >
-                    {collaborator.approved_revenue_split ? '💰' : '○'}
+                    {collaborator.approved_revenue_split ? <DollarSign size={12} /> : '○'}
                   </div>
                 </div>
               </div>
@@ -425,13 +431,13 @@ export function TeamOverview({
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ fontSize: 12, color: '#64748b' }}>
-          <span style={{ color: '#10b981' }}>✓</span> Content Approved
+        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Check size={14} style={{ color: '#10b981' }} /> Content Approved
         </div>
-        <div style={{ fontSize: 12, color: '#64748b' }}>
-          <span style={{ color: '#10b981' }}>💰</span> Revenue Approved
+        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <DollarSign size={14} style={{ color: '#10b981' }} /> Revenue Approved
         </div>
-        <div style={{ fontSize: 12, color: '#64748b' }}>
+        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
           <span>○</span> Pending
         </div>
       </div>

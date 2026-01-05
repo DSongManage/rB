@@ -7,7 +7,7 @@ import LegalPageLayout from '../../components/legal/LegalPageLayout';
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPageLayout title="Privacy Policy" lastUpdated="December 2024">
+    <LegalPageLayout title="Privacy Policy" lastUpdated="January 2026">
       <p>
         renaissBlock ("we," "us," or "our") respects your privacy and is committed to protecting
         your personal information. This Privacy Policy explains how we collect, use, disclose,

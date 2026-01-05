@@ -327,7 +327,7 @@ export function ReaderPage() {
   const [comicData, setComicData] = useState<ComicReaderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const progressUpdateTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedProgress = useRef<number>(-1);
 
   // Load content
   useEffect(() => {
@@ -353,6 +353,16 @@ export function ReaderPage() {
             setError('Failed to load comic pages. Please try again.');
           }
         }
+
+        // Auto-save 100% progress for art content (single-view content)
+        if (data.content_type === 'art') {
+          libraryApi
+            .updateProgress(parseInt(contentId), 100, JSON.stringify({ viewed: true }))
+            .then(() => {
+              lastSavedProgress.current = 100;
+            })
+            .catch((err) => console.error('Failed to update art progress:', err));
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load content');
         console.error('Content load error:', err);
@@ -362,39 +372,7 @@ export function ReaderPage() {
     };
 
     loadContent();
-
-    // Cleanup on unmount
-    return () => {
-      if (progressUpdateTimer.current) {
-        clearTimeout(progressUpdateTimer.current);
-      }
-    };
   }, [contentId]);
-
-  // Handle page changes for progress tracking (for books)
-  const handlePageChange = useCallback(
-    (page: number, totalPages: number) => {
-      if (!contentId) return;
-
-      const progress = totalPages > 1 ? ((page + 1) / totalPages) * 100 : 100;
-
-      // Debounce API calls
-      if (progressUpdateTimer.current) {
-        clearTimeout(progressUpdateTimer.current);
-      }
-
-      progressUpdateTimer.current = setTimeout(() => {
-        libraryApi
-          .updateProgress(
-            parseInt(contentId),
-            progress,
-            JSON.stringify({ page, totalPages })
-          )
-          .catch((err) => console.error('Failed to update progress:', err));
-      }, 2000);
-    },
-    [contentId]
-  );
 
   // Handle back navigation
   const handleBack = useCallback(() => {

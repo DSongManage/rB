@@ -4,6 +4,7 @@ import { bookApi, BookProject, Chapter } from '../../services/bookApi';
 import ChapterList from './ChapterList';
 import ChapterEditor from './ChapterEditor';
 import PublishModal from './PublishModal';
+import { Menu, X, Settings } from 'lucide-react';
 
 interface BookEditorProps {
   onPublish: (contentId: number) => void;
@@ -22,6 +23,26 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(true);
+
+  // Mobile responsive state
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Close drawer when switching to desktop
+      if (!mobile) {
+        setDrawerOpen(false);
+        setSettingsOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Initialize: Create a new project or load existing
   useEffect(() => {
@@ -211,38 +232,156 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
     );
   }
 
+  // Helper function for handling chapter selection (closes drawer on mobile)
+  const handleChapterSelect = (chapterId: number) => {
+    setSelectedChapterId(chapterId);
+    if (isMobile) {
+      setDrawerOpen(false);
+    }
+  };
+
+  // Cover/Synopsis component (reused in drawer and settings modal)
+  const CoverSynopsisSection = () => (
+    <>
+      {/* Compact Cover Image */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)',
+        borderRadius: 12,
+        padding: 12,
+        flexShrink: 0,
+      }}>
+        <div style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'flex-start',
+        }}>
+          {/* Cover thumbnail */}
+          <div style={{
+            width: 60,
+            height: 80,
+            borderRadius: 6,
+            overflow: 'hidden',
+            background: '#1e1e1e',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid var(--panel-border)',
+            flexShrink: 0,
+          }}>
+            {project?.cover_image_url ? (
+              <img
+                src={project.cover_image_url}
+                alt="Cover"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              <span style={{ color: '#4b5563', fontSize: 9 }}>No cover</span>
+            )}
+          </div>
+          {/* Cover info + upload */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+              Book Cover
+            </div>
+            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, lineHeight: 1.4 }}>
+              Recommended: 1600×2400px
+            </div>
+            <label style={{
+              display: 'inline-block',
+              background: 'transparent',
+              border: '1px solid var(--panel-border)',
+              borderRadius: 5,
+              padding: '4px 10px',
+              color: '#94a3b8',
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontSize: 11,
+              transition: 'all 0.15s ease',
+            }}>
+              {project?.cover_image_url ? 'Change' : 'Upload'}
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleCoverImageUpload(file);
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Book Synopsis */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)',
+        borderRadius: 12,
+        padding: 12,
+        flexShrink: 0,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
+          Book Synopsis
+        </div>
+        <textarea
+          value={project?.description || ''}
+          onChange={(e) => {
+            if (project) {
+              setProject({ ...project, description: e.target.value });
+            }
+          }}
+          onBlur={async () => {
+            if (project) {
+              try {
+                await bookApi.updateProject(project.id, { description: project.description });
+              } catch (err) {
+                console.error('Failed to update synopsis:', err);
+              }
+            }
+          }}
+          placeholder="What is this book about? Write a compelling synopsis..."
+          style={{
+            width: '100%',
+            minHeight: 80,
+            background: 'var(--bg)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 8,
+            padding: 10,
+            color: 'var(--text)',
+            fontSize: 12,
+            resize: 'vertical',
+            outline: 'none',
+          }}
+        />
+        <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+          {(project?.description || '').split(/\s+/).filter(w => w).length}/200 words recommended
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div style={{
       width: '100%',
-      height: '100%', // Fill parent container
+      height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      overflow: 'hidden', // Prevent page scroll - scroll happens inside containers
+      overflow: 'hidden',
     }}>
-      {/* Header - Fixed at top */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px 0',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
+      {/* Mobile Header */}
+      {isMobile ? (
+        <div className="book-editor-mobile-header">
           <button
-            onClick={onBack}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--panel-border)',
-              borderRadius: 8,
-              padding: '8px 16px',
-              color: 'var(--text)',
-              cursor: 'pointer',
-              fontSize: 14,
-            }}
+            className="menu-btn"
+            onClick={() => setDrawerOpen(true)}
+            title="Open chapters"
           >
-            ← Back
+            <Menu size={20} />
           </button>
           <input
+            className="title-input"
             type="text"
             value={project?.title || ''}
             onChange={(e) => {
@@ -252,75 +391,125 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
             }}
             onBlur={(e) => handleUpdateProjectTitle(e.target.value)}
             placeholder="Book Title"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text)',
-              fontSize: 20,
-              fontWeight: 700,
-              outline: 'none',
-              flex: 1,
-            }}
           />
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          {/* Delete Project button - only for projects with no published chapters */}
-          {canDeleteProject && (
-            <button
-              onClick={handleDeleteProject}
-              style={{
-                background: 'transparent',
-                border: '1px solid #ef4444',
-                borderRadius: 8,
-                padding: '8px 16px',
-                color: '#ef4444',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: 14,
-              }}
-              title="Delete this book project"
-            >
-              {chapters.length === 0 ? 'Cancel Project' : 'Delete Project'}
-            </button>
-          )}
-          {selectedChapterId && selectedChapter && (
-            <button
-              onClick={() => handleDeleteChapter(selectedChapterId)}
-              disabled={selectedChapter.is_published}
-              style={{
-                background: 'transparent',
-                border: selectedChapter.is_published ? '1px solid #6b7280' : '1px solid #ef4444',
-                borderRadius: 8,
-                padding: '8px 16px',
-                color: selectedChapter.is_published ? '#6b7280' : '#ef4444',
-                fontWeight: 600,
-                cursor: selectedChapter.is_published ? 'not-allowed' : 'pointer',
-                fontSize: 14,
-                opacity: selectedChapter.is_published ? 0.5 : 1,
-              }}
-              title={selectedChapter.is_published ? 'Cannot delete a minted chapter' : 'Delete this chapter'}
-            >
-              Delete Chapter
-            </button>
-          )}
           <button
+            className="settings-btn"
+            onClick={() => setSettingsOpen(true)}
+            title="Book settings"
+          >
+            <Settings size={18} />
+          </button>
+          <button
+            className="publish-btn"
             onClick={() => setShowPublishModal(true)}
             disabled={chapters.length === 0}
-            style={{
-              background: chapters.length === 0 ? '#6b7280' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-              border: 'none',
-              borderRadius: 8,
-              padding: '8px 20px',
-              color: '#fff',
-              fontWeight: 700,
-              cursor: chapters.length === 0 ? 'not-allowed' : 'pointer',
-              fontSize: 14,
-            }}
           >
             Publish
           </button>
         </div>
-      </div>
+      ) : (
+        /* Desktop Header */
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 0',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
+            <button
+              onClick={onBack}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--panel-border)',
+                borderRadius: 8,
+                padding: '8px 16px',
+                color: 'var(--text)',
+                cursor: 'pointer',
+                fontSize: 14,
+              }}
+            >
+              ← Back
+            </button>
+            <input
+              type="text"
+              value={project?.title || ''}
+              onChange={(e) => {
+                if (project) {
+                  setProject({ ...project, title: e.target.value });
+                }
+              }}
+              onBlur={(e) => handleUpdateProjectTitle(e.target.value)}
+              placeholder="Book Title"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text)',
+                fontSize: 20,
+                fontWeight: 700,
+                outline: 'none',
+                flex: 1,
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            {canDeleteProject && (
+              <button
+                onClick={handleDeleteProject}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #ef4444',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  color: '#ef4444',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+                title="Delete this book project"
+              >
+                {chapters.length === 0 ? 'Cancel Project' : 'Delete Project'}
+              </button>
+            )}
+            {selectedChapterId && selectedChapter && (
+              <button
+                onClick={() => handleDeleteChapter(selectedChapterId)}
+                disabled={selectedChapter.is_published}
+                style={{
+                  background: 'transparent',
+                  border: selectedChapter.is_published ? '1px solid #6b7280' : '1px solid #ef4444',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  color: selectedChapter.is_published ? '#6b7280' : '#ef4444',
+                  fontWeight: 600,
+                  cursor: selectedChapter.is_published ? 'not-allowed' : 'pointer',
+                  fontSize: 14,
+                  opacity: selectedChapter.is_published ? 0.5 : 1,
+                }}
+                title={selectedChapter.is_published ? 'Cannot delete a minted chapter' : 'Delete this chapter'}
+              >
+                Delete Chapter
+              </button>
+            )}
+            <button
+              onClick={() => setShowPublishModal(true)}
+              disabled={chapters.length === 0}
+              style={{
+                background: chapters.length === 0 ? '#6b7280' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 20px',
+                color: '#fff',
+                fontWeight: 700,
+                cursor: chapters.length === 0 ? 'not-allowed' : 'pointer',
+                fontSize: 14,
+              }}
+            >
+              Publish
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -351,150 +540,146 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
         </div>
       )}
 
-      {/* Main Content: Fixed height container with independent scroll regions */}
+      {/* Mobile Drawer */}
+      {isMobile && drawerOpen && (
+        <>
+          <div
+            className="book-editor-drawer-overlay"
+            onClick={() => setDrawerOpen(false)}
+          />
+          <div className="book-editor-drawer">
+            <div className="book-editor-drawer-header">
+              <h3>{project?.title || 'Untitled Book'}</h3>
+              <button
+                className="book-editor-drawer-close"
+                onClick={() => setDrawerOpen(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <CoverSynopsisSection />
+            <ChapterList
+              chapters={chapters}
+              selectedChapterId={selectedChapterId}
+              onSelectChapter={handleChapterSelect}
+              onAddChapter={handleAddChapter}
+            />
+            {/* Back button in drawer */}
+            <button
+              onClick={onBack}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--panel-border)',
+                borderRadius: 8,
+                padding: '10px 16px',
+                color: 'var(--text)',
+                cursor: 'pointer',
+                fontSize: 14,
+                marginTop: 'auto',
+              }}
+            >
+              ← Back to Studio
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Mobile Settings Modal */}
+      {isMobile && settingsOpen && (
+        <div
+          className="book-settings-modal-overlay"
+          onClick={() => setSettingsOpen(false)}
+        >
+          <div
+            className="book-settings-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="book-settings-modal-header">
+              <h3>Book Settings</h3>
+              <button
+                className="book-settings-modal-close"
+                onClick={() => setSettingsOpen(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <CoverSynopsisSection />
+              {/* Delete buttons */}
+              {canDeleteProject && (
+                <button
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    handleDeleteProject();
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #ef4444',
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                    color: '#ef4444',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                  }}
+                >
+                  {chapters.length === 0 ? 'Cancel Project' : 'Delete Project'}
+                </button>
+              )}
+              {selectedChapterId && selectedChapter && !selectedChapter.is_published && (
+                <button
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    handleDeleteChapter(selectedChapterId);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #ef4444',
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                    color: '#ef4444',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                  }}
+                >
+                  Delete Current Chapter
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content: Conditional layout for mobile vs desktop */}
       <div style={{
         display: 'flex',
-        gap: 16,
+        gap: isMobile ? 0 : 16,
         flex: 1,
         minHeight: 0,
         overflow: 'hidden',
       }}>
-        {/* Left Sidebar: Cover + Chapters */}
-        <div style={{
-          width: 260,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          height: '100%',
-          overflow: 'hidden',
-        }}>
-          {/* Compact Cover Image */}
+        {/* Desktop Sidebar: Cover + Chapters */}
+        {!isMobile && (
           <div style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--panel-border)',
-            borderRadius: 12,
-            padding: 12,
-            flexShrink: 0,
+            width: 260,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+            height: '100%',
+            overflow: 'hidden',
           }}>
-            <div style={{
-              display: 'flex',
-              gap: 12,
-              alignItems: 'flex-start',
-            }}>
-              {/* Cover thumbnail */}
-              <div style={{
-                width: 60,
-                height: 80,
-                borderRadius: 6,
-                overflow: 'hidden',
-                background: '#1e1e1e',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: '1px solid var(--panel-border)',
-                flexShrink: 0,
-              }}>
-                {project?.cover_image_url ? (
-                  <img
-                    src={project.cover_image_url}
-                    alt="Cover"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <span style={{ color: '#4b5563', fontSize: 9 }}>No cover</span>
-                )}
-              </div>
-              {/* Cover info + upload */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-                  Book Cover
-                </div>
-                <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, lineHeight: 1.4 }}>
-                  Recommended: 1600×2400px
-                </div>
-                <label style={{
-                  display: 'inline-block',
-                  background: 'transparent',
-                  border: '1px solid var(--panel-border)',
-                  borderRadius: 5,
-                  padding: '4px 10px',
-                  color: '#94a3b8',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  transition: 'all 0.15s ease',
-                }}>
-                  {project?.cover_image_url ? 'Change' : 'Upload'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleCoverImageUpload(file);
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Book Synopsis */}
-          <div style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--panel-border)',
-            borderRadius: 12,
-            padding: 12,
-            flexShrink: 0,
-          }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
-              Book Synopsis
-            </div>
-            <textarea
-              value={project?.description || ''}
-              onChange={(e) => {
-                if (project) {
-                  setProject({ ...project, description: e.target.value });
-                }
-              }}
-              onBlur={async () => {
-                if (project) {
-                  try {
-                    await bookApi.updateProject(project.id, { description: project.description });
-                  } catch (err) {
-                    console.error('Failed to update synopsis:', err);
-                  }
-                }
-              }}
-              placeholder="What is this book about? Write a compelling synopsis..."
-              style={{
-                width: '100%',
-                minHeight: 80,
-                background: 'var(--bg)',
-                border: '1px solid var(--panel-border)',
-                borderRadius: 8,
-                padding: 10,
-                color: 'var(--text)',
-                fontSize: 12,
-                resize: 'vertical',
-                outline: 'none',
-              }}
+            <CoverSynopsisSection />
+            <ChapterList
+              chapters={chapters}
+              selectedChapterId={selectedChapterId}
+              onSelectChapter={setSelectedChapterId}
+              onAddChapter={handleAddChapter}
             />
-            <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
-              {(project?.description || '').split(/\s+/).filter(w => w).length}/200 words recommended
-            </div>
           </div>
+        )}
 
-          {/* Chapter List */}
-          <ChapterList
-            chapters={chapters}
-            selectedChapterId={selectedChapterId}
-            onSelectChapter={setSelectedChapterId}
-            onAddChapter={handleAddChapter}
-          />
-        </div>
-
-        {/* Right: Editor */}
+        {/* Editor (full width on mobile) */}
         <div style={{
           flex: 1,
           display: 'flex',
@@ -508,7 +693,6 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
             onUpdateChapter={handleUpdateChapter}
             saving={saving}
             lastSaved={lastSaved}
-            // Pass chapter management props for published chapters
             showManagement={selectedChapter?.is_published}
             onManagementChange={async () => {
               if (project?.id) {

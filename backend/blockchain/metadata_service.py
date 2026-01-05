@@ -38,6 +38,7 @@ def create_chapter_nft_metadata(
     total_editions: Optional[int] = None,
     purchase_price_usd: Optional[Decimal] = None,
     attributes: Optional[List[Dict[str, Any]]] = None,
+    platform_wallet: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create NFT metadata following Metaplex standard.
@@ -55,25 +56,53 @@ def create_chapter_nft_metadata(
         total_editions: Total editions available
         purchase_price_usd: Purchase price for provenance
         attributes: Additional attributes for the NFT
+        platform_wallet: Platform wallet for secondary sale royalties
 
     Returns:
         Dict: Metaplex-compatible metadata JSON
     """
+    # Secondary sale royalty split: 7% total (5% creators + 2% platform)
+    # Platform gets 2/7 (~28.57%) of royalties, creators get 5/7 (~71.43%)
+    PLATFORM_ROYALTY_SHARE = 29  # ~2/7 rounded
+    CREATOR_ROYALTY_SHARE = 71   # ~5/7 rounded
+
     # Build creators array (Metaplex format)
     creators = []
+
+    # Add platform wallet first for secondary sale royalties
+    if platform_wallet:
+        creators.append({
+            "address": platform_wallet,
+            "share": PLATFORM_ROYALTY_SHARE,
+            "verified": False
+        })
+
+    # Calculate remaining share for creators
+    remaining_share = 100 - PLATFORM_ROYALTY_SHARE if platform_wallet else 100
+
     if collaborators:
+        total_pct = sum(c.get('percentage', 0) for c in collaborators)
         for collab in collaborators:
+            if total_pct > 0:
+                share = int((collab.get('percentage', 0) / total_pct) * remaining_share)
+            else:
+                share = remaining_share // len(collaborators)
             creators.append({
                 "address": collab.get('wallet') or collab.get('wallet_address'),
-                "share": int(collab.get('percentage', 0)),
-                "verified": False  # Would need on-chain verification
+                "share": share,
+                "verified": False
             })
     else:
         creators.append({
             "address": creator_wallet,
-            "share": 100,
+            "share": remaining_share,
             "verified": False
         })
+
+    # Ensure shares sum to 100 (adjust last creator for rounding)
+    total_shares = sum(c['share'] for c in creators)
+    if total_shares != 100 and creators:
+        creators[-1]['share'] += (100 - total_shares)
 
     # Build attributes array
     nft_attributes = [
@@ -118,7 +147,7 @@ def create_chapter_nft_metadata(
             "category": "image",
             "creators": creators
         },
-        "seller_fee_basis_points": 500,  # 5% royalty on secondary sales
+        "seller_fee_basis_points": 700,  # 7% royalty on secondary sales (5% creator + 2% platform)
         "collection": {
             "name": content_title,
             "family": "RenaissBlock"
@@ -306,6 +335,9 @@ def create_and_upload_chapter_metadata(
     if creator and hasattr(creator, 'profile') and creator.profile:
         creator_wallet = creator.profile.wallet_address or ""
 
+    # Get platform wallet for secondary sale royalties
+    platform_royalty_wallet = getattr(settings, 'PLATFORM_ROYALTY_WALLET_ADDRESS', None)
+
     # Create metadata
     metadata = create_chapter_nft_metadata(
         chapter_title=chapter.title,
@@ -319,6 +351,7 @@ def create_and_upload_chapter_metadata(
         edition_number=getattr(purchase, 'edition_number', None),
         total_editions=getattr(chapter.content, 'editions', None) if hasattr(chapter, 'content') else None,
         purchase_price_usd=getattr(purchase, 'chapter_price', None),
+        platform_wallet=platform_royalty_wallet,
     )
 
     # Upload to IPFS
@@ -353,6 +386,9 @@ def create_and_upload_content_metadata(
     if creator and hasattr(creator, 'profile') and creator.profile:
         creator_wallet = creator.profile.wallet_address or ""
 
+    # Get platform wallet for secondary sale royalties
+    platform_royalty_wallet = getattr(settings, 'PLATFORM_ROYALTY_WALLET_ADDRESS', None)
+
     # Create metadata (using chapter format but for full content)
     metadata = create_chapter_nft_metadata(
         chapter_title="Complete Edition",
@@ -369,7 +405,8 @@ def create_and_upload_content_metadata(
         attributes=[
             {"trait_type": "Type", "value": "Complete Edition"},
             {"trait_type": "Content Type", "value": getattr(content, 'content_type', 'Unknown')}
-        ]
+        ],
+        platform_wallet=platform_royalty_wallet,
     )
 
     # Upload to IPFS

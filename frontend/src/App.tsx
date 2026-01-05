@@ -74,6 +74,11 @@ function Header() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   const checkAuth = React.useCallback(() => {
     fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' })
       .then(r=>r.json())
@@ -179,6 +184,7 @@ function Header() {
             <NotificationBell />
             <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
               <Users size={20} />
+              <span>Creators</span>
             </Link>
             <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile">
               {avatarUrl ? (
@@ -223,6 +229,8 @@ export default function App() {
   const location = useLocation();
   const { isAuthenticated, loading } = useAuth();
   const { isMobile } = useMobile();
+  // Library sidebar expansion state - lifted from LibrarySidebar for layout coordination
+  const [libraryExpanded, setLibraryExpanded] = useState(true);
 
   // Legacy CreatorSidebar removed - functionality now in navbar and page tabs
   const showCreatorSidebar = false;
@@ -296,7 +304,7 @@ export default function App() {
     <CartProvider>
     <div className="rb-app">
       <Header />
-      {showLibrarySidebar && <LibrarySidebar />}
+      {showLibrarySidebar && <LibrarySidebar isExpanded={libraryExpanded} onExpandedChange={setLibraryExpanded} />}
       <main
         className="rb-main"
         style={{
@@ -304,9 +312,9 @@ export default function App() {
           gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr',
           gap: 16,
           ...(showLibrarySidebar ? {
-            marginLeft: 320,
+            marginLeft: libraryExpanded ? 320 : 48,
             marginRight: 0,
-            width: 'calc(100% - 320px)',
+            width: libraryExpanded ? 'calc(100% - 320px)' : 'calc(100% - 48px)',
           } : {}),
           transition: 'margin-left 0.3s ease, width 0.3s ease',
         }}

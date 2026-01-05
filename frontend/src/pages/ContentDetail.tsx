@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Play, ChevronDown, ChevronUp, User } from 'lucide-react';
 import PreviewModal from '../components/PreviewModal';
 import AddToCartButton from '../components/AddToCartButton';
 import { API_URL } from '../config';
 import { RatingSection } from '../components/social/RatingSection';
+import { useMobile } from '../hooks/useMobile';
 
 // Format genre for display
 function formatGenre(genre: string): string {
@@ -32,10 +33,17 @@ function formatDate(dateString: string): string {
 export default function ContentDetail(){
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isMobile, isPhone } = useMobile();
   const [data, setData] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false); // Start closed so user sees page first
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [collaboratorsExpanded, setCollaboratorsExpanded] = useState(false);
+  const ratingSectionRef = useRef<HTMLDivElement>(null);
+
+  // Check if user just completed reading this content
+  const searchParams = new URLSearchParams(location.search);
+  const justCompleted = searchParams.get('completed') === 'true';
 
   useEffect(()=>{
     if (!id) return;
@@ -70,6 +78,16 @@ export default function ContentDetail(){
 
     return () => abortController.abort();
   }, [id]);
+
+  // Auto-scroll to rating section when user just completed reading
+  useEffect(() => {
+    if (justCompleted && data) {
+      // Small delay to let the page render
+      setTimeout(() => {
+        ratingSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 500);
+    }
+  }, [justCompleted, data]);
 
   const handleCloseModal = () => {
     setModalOpen(false);
@@ -118,7 +136,7 @@ export default function ContentDetail(){
     : 'Sold out';
 
   return (
-    <div style={{maxWidth:900, margin:'0 auto', padding:'24px 16px'}}>
+    <div style={{maxWidth:900, margin:'0 auto', padding: isMobile ? '16px 12px' : '24px 16px'}}>
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}
@@ -130,7 +148,7 @@ export default function ContentDetail(){
           border: 'none',
           color: '#94a3b8',
           cursor: 'pointer',
-          marginBottom: 20,
+          marginBottom: isMobile ? 16 : 20,
           padding: 0,
           fontSize: 14,
         }}
@@ -142,9 +160,9 @@ export default function ContentDetail(){
       {/* Content Hero Section */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '300px 1fr',
-        gap: 24,
-        marginBottom: 32,
+        gridTemplateColumns: isPhone ? '1fr' : '300px 1fr',
+        gap: isMobile ? 16 : 24,
+        marginBottom: isMobile ? 24 : 32,
       }}>
         {/* Thumbnail with Preview Button */}
         <div style={{ position: 'relative' }}>
@@ -544,11 +562,14 @@ export default function ContentDetail(){
       />
 
       {/* Ratings Section */}
-      <RatingSection
-        contentId={parseInt(id)}
-        isAuthenticated={isAuthenticated}
-        onAuthRequired={handleAuthRequired}
-      />
+      <div ref={ratingSectionRef}>
+        <RatingSection
+          contentId={parseInt(id)}
+          isAuthenticated={isAuthenticated}
+          onAuthRequired={handleAuthRequired}
+          autoOpen={justCompleted}
+        />
+      </div>
     </div>
   );
 }

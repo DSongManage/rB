@@ -13,6 +13,8 @@ import {
   ProjectSection,
   ProjectComment,
 } from '../services/collaborationApi';
+import { AlertTriangle, Pencil } from 'lucide-react';
+import { useMobile } from '../hooks/useMobile';
 
 // Simple User interface - in real app, get from auth context
 interface User {
@@ -25,6 +27,7 @@ export default function CollaborativeProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isMobile, isPhone } = useMobile();
 
   const [project, setProject] = useState<CollaborativeProject | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -82,18 +85,15 @@ export default function CollaborativeProjectPage() {
     }
   };
 
-  const handleSectionUpdate = (section: ProjectSection) => {
-    console.log('Section updated:', section);
+  const handleSectionUpdate = (_section: ProjectSection) => {
     // Optionally refresh project data
   };
 
-  const handleCommentAdd = (comment: ProjectComment) => {
-    console.log('Comment added:', comment);
+  const handleCommentAdd = (_comment: ProjectComment) => {
     // Optionally refresh project data
   };
 
   const handleProjectUpdate = (updatedProject: CollaborativeProject) => {
-    console.log('Project updated:', updatedProject);
     setProject(updatedProject);
   };
 
@@ -177,7 +177,9 @@ export default function CollaborativeProjectPage() {
           color: '#ef4444',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>&#9888;&#65039;</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+            <AlertTriangle size={48} />
+          </div>
           <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
             Error Loading Project
           </div>
@@ -185,7 +187,7 @@ export default function CollaborativeProjectPage() {
             {error}
           </div>
           <button
-            onClick={() => navigate('/collaborations')}
+            onClick={() => navigate('/profile')}
             style={{
               background: '#ef4444',
               border: 'none',
@@ -219,34 +221,38 @@ export default function CollaborativeProjectPage() {
       maxWidth: activeTab === 'content' ? 'none' : 1400,
       width: '100%',
       margin: '0 auto',
-      padding: activeTab === 'content' ? '24px 16px' : 24
+      padding: isMobile
+        ? (activeTab === 'content' ? '12px 8px' : '12px 8px')
+        : (activeTab === 'content' ? '24px 16px' : 24)
     }}>
       {/* Header */}
       <div style={{
         display: 'flex',
+        flexDirection: isPhone ? 'column' : 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 20,
+        alignItems: isPhone ? 'stretch' : 'flex-start',
+        marginBottom: isMobile ? 16 : 20,
+        gap: isPhone ? 12 : 0,
       }}>
         <div>
           <button
-            onClick={() => navigate('/collaborations')}
+            onClick={() => navigate('/profile')}
             style={{
               background: 'transparent',
               border: '1px solid var(--panel-border)',
               borderRadius: 8,
-              padding: '8px 16px',
+              padding: isMobile ? '6px 12px' : '8px 16px',
               color: 'var(--text)',
               cursor: 'pointer',
-              fontSize: 14,
-              marginBottom: 12,
+              fontSize: isMobile ? 13 : 14,
+              marginBottom: isMobile ? 8 : 12,
             }}
           >
-            &larr; Back to Dashboard
+            &larr; {isPhone ? 'Back' : 'Back to Dashboard'}
           </button>
           {/* Editable Title */}
           {isEditingTitle ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div style={{ display: 'flex', flexDirection: isPhone ? 'column' : 'row', alignItems: isPhone ? 'stretch' : 'center', gap: isPhone ? 8 : 12, marginBottom: 8 }}>
               <input
                 type="text"
                 value={editedTitle}
@@ -258,14 +264,15 @@ export default function CollaborativeProjectPage() {
                   if (e.key === 'Escape') cancelEditingTitle();
                 }}
                 style={{
-                  fontSize: 28,
+                  fontSize: isMobile ? 20 : 28,
                   fontWeight: 700,
                   background: 'var(--panel)',
                   border: '2px solid #f59e0b',
                   borderRadius: 8,
-                  padding: '8px 16px',
+                  padding: isMobile ? '6px 12px' : '8px 16px',
                   color: 'var(--text)',
-                  minWidth: 400,
+                  minWidth: isPhone ? 'auto' : 400,
+                  width: isPhone ? '100%' : 'auto',
                 }}
               />
               <button
@@ -321,7 +328,7 @@ export default function CollaborativeProjectPage() {
                     color: '#94a3b8',
                   }}
                 >
-                  ✏️
+                  <Pencil size={16} />
                 </button>
               )}
             </div>
@@ -341,7 +348,7 @@ export default function CollaborativeProjectPage() {
               fontSize: 13,
               color: '#f59e0b',
             }}>
-              <span>⚠️</span>
+              <AlertTriangle size={16} />
               <span>
                 {project.created_by === currentUser.id
                   ? 'This project has a placeholder title. Click the edit button to set a proper title before publishing.'

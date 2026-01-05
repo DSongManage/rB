@@ -4,7 +4,7 @@
  * Modern ratings display with dark theme styling.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StarRating from './StarRating';
@@ -18,6 +18,7 @@ interface RatingSectionProps {
   initialRatingCount?: number;
   isAuthenticated?: boolean;
   onAuthRequired?: () => void;
+  autoOpen?: boolean; // Auto-open rating form (e.g., after completing a book)
 }
 
 function RatingItem({ rating }: { rating: ContentRating }) {
@@ -114,6 +115,7 @@ export function RatingSection({
   initialRatingCount = 0,
   isAuthenticated = true,
   onAuthRequired,
+  autoOpen = false,
 }: RatingSectionProps) {
   const [showForm, setShowForm] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -131,6 +133,13 @@ export function RatingSection({
     initialAverageRating,
     initialRatingCount,
   });
+
+  // Auto-open the rating form when autoOpen is true and user hasn't rated yet
+  useEffect(() => {
+    if (autoOpen && !myRating && isAuthenticated && !isLoading) {
+      setShowForm(true);
+    }
+  }, [autoOpen, myRating, isAuthenticated, isLoading]);
 
   const displayedRatings = showAll ? ratings : ratings.slice(0, 3);
 

@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Clock } from 'lucide-react';
 import {
   collaborationApi,
   CollaborativeProject,
@@ -147,6 +148,12 @@ export function InviteResponseModal({
 
   // Calculate others' share
   const othersPercentage = myRole ? 100 - myRole.revenue_percentage : 0;
+
+  // Check if there's a pending counter-proposal (user already submitted one)
+  const hasCounterProposal = myRole &&
+    myRole.proposed_percentage !== null &&
+    myRole.proposed_percentage !== undefined &&
+    Math.abs(Number(myRole.proposed_percentage) - Number(myRole.revenue_percentage)) > 0.001;
 
   const contentTypeLabels: Record<string, string> = {
     book: 'Book',
@@ -545,66 +552,118 @@ export function InviteResponseModal({
                 )}
 
                 {/* Action Buttons */}
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <button
-                    onClick={handleDecline}
-                    disabled={submitting}
-                    style={{
-                      flex: 1,
-                      padding: '14px 20px',
-                      borderRadius: 10,
-                      border: '1px solid #ef4444',
-                      background: 'transparent',
-                      color: '#ef4444',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: submitting ? 'not-allowed' : 'pointer',
-                      opacity: submitting ? 0.6 : 1,
-                    }}
-                  >
-                    Decline
-                  </button>
-                  <button
-                    onClick={() => setMode('counter-propose')}
-                    disabled={submitting}
-                    style={{
-                      flex: 1,
-                      padding: '14px 20px',
-                      borderRadius: 10,
-                      border: '1px solid #3b82f6',
-                      background: 'transparent',
-                      color: '#3b82f6',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: submitting ? 'not-allowed' : 'pointer',
-                      opacity: submitting ? 0.6 : 1,
-                    }}
-                  >
-                    Counter-Propose
-                  </button>
-                  <button
-                    onClick={handleAccept}
-                    disabled={submitting}
-                    style={{
-                      flex: 1.5,
-                      padding: '14px 20px',
-                      borderRadius: 10,
-                      border: 'none',
-                      background: '#10b981',
-                      color: '#fff',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      cursor: submitting ? 'not-allowed' : 'pointer',
-                      opacity: submitting ? 0.6 : 1,
+                {hasCounterProposal ? (
+                  /* Pending Counter-Proposal State */
+                  <div style={{
+                    background: 'linear-gradient(135deg, #f59e0b10 0%, #fbbf2410 100%)',
+                    border: '1px solid #f59e0b40',
+                    borderRadius: 12,
+                    padding: 20,
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    {submitting ? 'Processing...' : '✓ Accept Invite'}
-                  </button>
-                </div>
+                      gap: 10,
+                      marginBottom: 12,
+                    }}>
+                      <Clock size={22} style={{ color: '#f59e0b' }} />
+                      <span style={{ color: '#f59e0b', fontSize: 16, fontWeight: 600 }}>
+                        Counter-Proposal Pending
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, color: '#fbbf24', fontSize: 14, lineHeight: 1.6 }}>
+                      You proposed <strong>{myRole?.proposed_percentage}%</strong> revenue split
+                      (original offer: {myRole?.revenue_percentage}%).
+                    </p>
+                    <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                      Waiting for @{creator?.username} to respond to your counter-proposal.
+                    </p>
+
+                    {/* Still allow declining while waiting */}
+                    <button
+                      onClick={handleDecline}
+                      disabled={submitting}
+                      style={{
+                        marginTop: 16,
+                        padding: '10px 24px',
+                        borderRadius: 8,
+                        border: '1px solid #ef4444',
+                        background: 'transparent',
+                        color: '#ef4444',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        opacity: submitting ? 0.6 : 1,
+                      }}
+                    >
+                      Withdraw & Decline
+                    </button>
+                  </div>
+                ) : (
+                  /* Normal Action Buttons */
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                      onClick={handleDecline}
+                      disabled={submitting}
+                      style={{
+                        flex: 1,
+                        padding: '14px 20px',
+                        borderRadius: 10,
+                        border: '1px solid #ef4444',
+                        background: 'transparent',
+                        color: '#ef4444',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        opacity: submitting ? 0.6 : 1,
+                      }}
+                    >
+                      Decline
+                    </button>
+                    <button
+                      onClick={() => setMode('counter-propose')}
+                      disabled={submitting}
+                      style={{
+                        flex: 1,
+                        padding: '14px 20px',
+                        borderRadius: 10,
+                        border: '1px solid #3b82f6',
+                        background: 'transparent',
+                        color: '#3b82f6',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        opacity: submitting ? 0.6 : 1,
+                      }}
+                    >
+                      Counter-Propose
+                    </button>
+                    <button
+                      onClick={handleAccept}
+                      disabled={submitting}
+                      style={{
+                        flex: 1.5,
+                        padding: '14px 20px',
+                        borderRadius: 10,
+                        border: 'none',
+                        background: '#10b981',
+                        color: '#fff',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        cursor: submitting ? 'not-allowed' : 'pointer',
+                        opacity: submitting ? 0.6 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      {submitting ? 'Processing...' : '✓ Accept Invite'}
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               /* Counter-Propose Mode */

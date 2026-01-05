@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+/**
+ * ActivityTab Component
+ * Shows a unified timeline of task deadlines and project activities
+ */
+
+import React, { useMemo } from 'react';
+import { Activity as ActivityIcon } from 'lucide-react';
 import { CollaborativeProject } from '../../../services/collaborationApi';
 import { useActivity } from '../../../hooks/useActivity';
-import { useComments } from '../../../hooks/useComments';
-import { ActivityFeed } from '../ActivityFeed';
-import { CommentThread } from '../CommentThread';
-import CommentComposer from '../CommentComposer';
+import { UnifiedTimeline } from '../timeline';
+import { mergeTasksAndActivities } from '../../../utils/timelineUtils';
 
 interface User {
   id: number;
@@ -21,9 +25,6 @@ export default function ActivityTab({
   project,
   currentUser,
 }: ActivityTabProps) {
-  const [activeView, setActiveView] = useState<'activity' | 'comments'>('activity');
-  const [showResolvedComments, setShowResolvedComments] = useState(false);
-
   // Activity tracking
   const {
     activities,
@@ -34,245 +35,102 @@ export default function ActivityTab({
     autoStart: true,
   });
 
-  // Comments
-  const {
-    comments,
-    unresolvedCount,
-    totalCount,
-    isLoading: commentsLoading,
-    addComment,
-    updateComment,
-    deleteComment,
-    resolveComment,
-    unresolveComment,
-    addReaction,
-    removeReaction,
-    refresh: refreshComments,
-  } = useComments({
-    projectId: project.id,
-    includeResolved: showResolvedComments,
-    pollingInterval: 30000,
-  });
-
-  const handleAddComment = async (content: string, mentions: number[]) => {
-    try {
-      await addComment(content, mentions);
-    } catch (err) {
-      console.error('Failed to add comment:', err);
-    }
-  };
+  // Merge tasks and activities into unified timeline
+  const timelineItems = useMemo(() => {
+    const collaborators = project.collaborators || [];
+    return mergeTasksAndActivities(collaborators, activities);
+  }, [project.collaborators, activities]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* View Toggle */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <div style={{
+      {/* Header */}
+      <div
+        style={{
           display: 'flex',
-          gap: 4,
-          background: 'var(--panel)',
-          padding: 4,
-          borderRadius: 8,
-          border: '1px solid var(--panel-border)',
-        }}>
-          <button
-            onClick={() => setActiveView('activity')}
-            style={{
-              padding: '8px 16px',
-              background: activeView === 'activity' ? 'var(--bg)' : 'transparent',
-              border: activeView === 'activity' ? '1px solid var(--panel-border)' : '1px solid transparent',
-              borderRadius: 6,
-              color: activeView === 'activity' ? 'var(--text)' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: activeView === 'activity' ? 600 : 500,
-            }}
-          >
-            Activity Feed
-          </button>
-          <button
-            onClick={() => setActiveView('comments')}
-            style={{
-              padding: '8px 16px',
-              background: activeView === 'comments' ? 'var(--bg)' : 'transparent',
-              border: activeView === 'comments' ? '1px solid var(--panel-border)' : '1px solid transparent',
-              borderRadius: 6,
-              color: activeView === 'comments' ? 'var(--text)' : '#94a3b8',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: activeView === 'comments' ? 600 : 500,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            Comments
-            {unresolvedCount > 0 && (
-              <span style={{
-                background: '#ef4444',
-                color: '#fff',
-                fontSize: 10,
-                fontWeight: 700,
-                padding: '2px 6px',
-                borderRadius: 10,
-              }}>
-                {unresolvedCount}
-              </span>
-            )}
-          </button>
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <ActivityIcon size={20} style={{ color: '#8b5cf6' }} />
+          <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 20, fontWeight: 600 }}>
+            Project Timeline
+          </h2>
         </div>
 
         {/* Online Status */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-          <div style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: isPolling ? '#10b981' : '#64748b',
-          }} />
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>
-            {onlineUsers.length} online
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 14px',
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 8,
+          }}
+        >
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: isPolling ? '#10b981' : '#64748b',
+              boxShadow: isPolling ? '0 0 6px rgba(16, 185, 129, 0.5)' : 'none',
+            }}
+          />
+          <span style={{ fontSize: 13, color: '#94a3b8' }}>
+            {onlineUsers.length} collaborator{onlineUsers.length !== 1 ? 's' : ''} online
           </span>
         </div>
       </div>
 
-      {/* Activity View */}
-      {activeView === 'activity' && (
-        <div style={{
-          background: 'var(--panel)',
-          border: '1px solid var(--panel-border)',
-          borderRadius: 12,
-          padding: 24,
-        }}>
-          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 16 }}>
-            Recent Activity
-          </h3>
-          {activities.length > 0 ? (
-            <ActivityFeed activities={activities} maxItems={50} />
-          ) : (
-            <div style={{
-              textAlign: 'center',
-              padding: 40,
-              color: '#64748b',
-              fontSize: 14,
-            }}>
-              No activity yet. Activity will appear here as collaborators work on the project.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Comments View */}
-      {activeView === 'comments' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Add Comment */}
-          <div style={{
+      {/* Online users list (if any) */}
+      {onlineUsers.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '12px 16px',
             background: 'var(--panel)',
             border: '1px solid var(--panel-border)',
-            borderRadius: 12,
-            padding: 20,
-          }}>
-            <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 16 }}>
-              Add Comment
-            </h3>
-            <CommentComposer
-              projectId={project.id}
-              onSubmit={handleAddComment}
-              collaborators={project.collaborators || []}
-              placeholder="Share your thoughts with the team..."
-            />
-          </div>
-
-          {/* Comments List */}
-          <div style={{
-            background: 'var(--panel)',
-            border: '1px solid var(--panel-border)',
-            borderRadius: 12,
-            padding: 20,
-          }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 16,
-            }}>
-              <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16 }}>
-                Comments ({totalCount})
-              </h3>
-              <label style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: 12,
-                color: '#94a3b8',
-                cursor: 'pointer',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={showResolvedComments}
-                  onChange={(e) => setShowResolvedComments(e.target.checked)}
+            borderRadius: 10,
+          }}
+        >
+          <span style={{ fontSize: 12, color: '#64748b', marginRight: 8 }}>Online now:</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {onlineUsers.map((user) => (
+              <div
+                key={user.user_id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  borderRadius: 20,
+                }}
+              >
+                <div
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: '#10b981',
+                  }}
                 />
-                Show resolved
-              </label>
-            </div>
-
-            {commentsLoading ? (
-              <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>
-                Loading comments...
+                <span style={{ fontSize: 12, color: '#10b981', fontWeight: 500 }}>
+                  @{user.username}
+                </span>
               </div>
-            ) : comments.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {comments.map((comment) => (
-                  <CommentThread
-                    key={comment.id}
-                    comment={comment}
-                    projectId={project.id}
-                    currentUserId={currentUser.id}
-                    collaborators={project.collaborators || []}
-                    onReply={async (parentId, content, mentions) => {
-                      await addComment(content, mentions, undefined, parentId);
-                    }}
-                    onEdit={async (commentId, content) => {
-                      await updateComment(commentId, content);
-                    }}
-                    onDelete={async (commentId) => {
-                      await deleteComment(commentId);
-                    }}
-                    onResolve={async (commentId) => {
-                      await resolveComment(commentId);
-                    }}
-                    onUnresolve={async (commentId) => {
-                      await unresolveComment(commentId);
-                    }}
-                    onReaction={async (commentId, emoji) => {
-                      await addReaction(commentId, emoji);
-                    }}
-                    onRemoveReaction={async (commentId, reactionId) => {
-                      await removeReaction(commentId, reactionId);
-                    }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: 40,
-                color: '#64748b',
-                fontSize: 14,
-              }}>
-                No comments yet. Start the conversation!
-              </div>
-            )}
+            ))}
           </div>
         </div>
       )}
+
+      {/* Unified Timeline */}
+      <UnifiedTimeline items={timelineItems} />
     </div>
   );
 }

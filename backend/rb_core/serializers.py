@@ -1136,15 +1136,14 @@ class PublicProfileSerializer(serializers.Serializer):
     def get_stats(self, obj):
         """Get profile stats summary."""
         profile = obj.get('profile')
-        ratings = obj.get('testimonials', [])
         platform_works = obj.get('platform_works', [])
         book_projects = obj.get('book_projects', [])
 
-        # Calculate average rating
+        # Use profile's average_review_rating (from CreatorReview model)
+        # This is consistent with the collaborators page display
         avg_rating = None
-        if ratings:
-            total = sum(r.average_score for r in ratings)
-            avg_rating = round(total / len(ratings), 1)
+        if profile and profile.average_review_rating:
+            avg_rating = round(float(profile.average_review_rating), 1)
 
         # Calculate works count and total views dynamically
         works_count = len(platform_works)
@@ -1530,6 +1529,46 @@ class ComicPanelSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'artist_username', 'speech_bubbles']
+
+
+class ArtworkLibraryItemSerializer(serializers.ModelSerializer):
+    """Serializer for artwork library items."""
+    uploader_username = serializers.CharField(source='uploader.username', read_only=True, allow_null=True)
+    file_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
+
+    class Meta:
+        from .models import ArtworkLibraryItem
+        model = ArtworkLibraryItem
+        fields = [
+            'id', 'project', 'file', 'file_url', 'thumbnail', 'thumbnail_url',
+            'title', 'filename', 'width', 'height', 'file_size',
+            'uploader', 'uploader_username', 'usage_count',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'project', 'filename', 'width', 'height', 'file_size',
+            'uploader', 'uploader_username', 'usage_count', 'created_at', 'updated_at'
+        ]
+
+    def get_file_url(self, obj):
+        """Return absolute URL for the file."""
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+
+    def get_thumbnail_url(self, obj):
+        """Return absolute URL for thumbnail, fallback to file URL."""
+        if obj.thumbnail:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.thumbnail.url)
+            return obj.thumbnail.url
+        # Fallback to main file if no thumbnail
+        return self.get_file_url(obj)
 
 
 class ComicPageSerializer(serializers.ModelSerializer):

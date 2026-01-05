@@ -162,19 +162,23 @@ export function ComicPageRenderer({ page, zoom, fitToContainer = false }: ComicP
   let renderedHeight = page.canvas_height;
 
   if (fitToContainer && containerSize.width > 0 && containerSize.height > 0) {
-    const containerAspect = containerSize.width / containerSize.height;
+    // Leave some breathing room (use 92% of container to avoid edge-to-edge)
+    const availableWidth = containerSize.width * 0.92;
+    const availableHeight = containerSize.height * 0.92;
+    const containerAspect = availableWidth / availableHeight;
 
     if (aspectRatio > containerAspect) {
       // Page is wider than container - constrain by width
-      renderedWidth = containerSize.width;
-      renderedHeight = containerSize.width / aspectRatio;
+      renderedWidth = availableWidth;
+      renderedHeight = availableWidth / aspectRatio;
     } else {
       // Page is taller than container - constrain by height
-      renderedHeight = containerSize.height;
-      renderedWidth = containerSize.height * aspectRatio;
+      renderedHeight = availableHeight;
+      renderedWidth = availableHeight * aspectRatio;
     }
-    pageWidth = renderedWidth;
-    pageHeight = renderedHeight;
+    // Apply zoom to the fitted dimensions
+    pageWidth = renderedWidth * zoom;
+    pageHeight = renderedHeight * zoom;
     useAspectRatio = false;
   }
 
@@ -197,7 +201,7 @@ export function ComicPageRenderer({ page, zoom, fitToContainer = false }: ComicP
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        overflow: fitToContainer ? 'hidden' : (zoom > 1 ? 'auto' : 'hidden'),
+        overflow: zoom > 1 ? 'auto' : 'hidden',
       }}
     >
       <div
@@ -211,6 +215,7 @@ export function ComicPageRenderer({ page, zoom, fitToContainer = false }: ComicP
           backgroundColor: page.background_color || '#ffffff',
           boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
           transition: fitToContainer ? 'none' : 'width 0.2s ease, max-width 0.2s ease',
+          flexShrink: 0,
         }}
       >
         {/* SVG for polygon-clipped panel rendering */}

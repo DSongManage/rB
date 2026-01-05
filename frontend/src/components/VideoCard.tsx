@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { ThumbsUp, Star, Eye } from 'lucide-react';
+import { ThumbsUp, Eye } from 'lucide-react';
 import { OwnedBadge } from './OwnedBadge';
+import { StarRatingDisplay } from './StarRatingDisplay';
 
 type Props = {
   id: number;
@@ -201,7 +202,7 @@ function VideoCardComponent({ id, title, author = 'Creator', likeCount = 0, view
           )}
         </div>
         <div className="yt-meta">
-          {renderAuthorDisplay()} • <Star size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{ratingText} • <ThumbsUp size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{likesText} • {timeText}
+          {renderAuthorDisplay()} • <StarRatingDisplay rating={averageRating} count={ratingCount} size={11} /> • <ThumbsUp size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />{likesText} • {timeText}
         </div>
         {editionsNum !== undefined && !isNaN(editionsNum) && (
           <div style={{

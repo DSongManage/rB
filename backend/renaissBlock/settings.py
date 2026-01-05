@@ -414,6 +414,10 @@ BRIDGE_MIN_PAYOUT_THRESHOLD = Decimal(os.getenv('BRIDGE_MIN_PAYOUT_THRESHOLD', '
 # This is the Solana wallet that holds USDC treasury and fronts payments
 PLATFORM_USDC_WALLET_ADDRESS = os.getenv('PLATFORM_USDC_WALLET_ADDRESS', '')
 
+# Platform wallet for receiving secondary sale royalties (2% of resales)
+# Defaults to PLATFORM_USDC_WALLET_ADDRESS if not set separately
+PLATFORM_ROYALTY_WALLET_ADDRESS = os.getenv('PLATFORM_ROYALTY_WALLET_ADDRESS', PLATFORM_USDC_WALLET_ADDRESS)
+
 # USDC Token Mint Address
 # Devnet: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
 # Mainnet: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v

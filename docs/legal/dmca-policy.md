@@ -1,6 +1,6 @@
 # renaissBlock DMCA & Copyright Policy
 
-**Last Updated: [DATE]**
+**Last Updated: January 5, 2026**
 
 renaissBlock respects the intellectual property rights of others and expects our users to do the same. This policy explains how we handle copyright infringement claims in accordance with the Digital Millennium Copyright Act (DMCA).
 

@@ -151,7 +151,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
         top: '100%',
         right: 0,
         marginTop: 8,
-        width: 420,
+        width: 'min(420px, calc(100vw - 32px))',
         maxHeight: 600,
         background: '#0f172a',
         border: '1px solid #1f2937',
@@ -275,7 +275,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
         )}
       </div>
 
-      {/* Footer */}
+      {/* Footer - Always show View All link */}
       {recentNotifications.length > 0 && (
         <div
           style={{
@@ -285,32 +285,30 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
             gap: 8,
           }}
         >
-          {notifications.length > 10 && (
-            <button
-              onClick={handleViewAll}
-              aria-label="View all notifications"
-              style={{
-                background: 'transparent',
-                color: '#3b82f6',
-                border: 'none',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                padding: '6px 12px',
-                borderRadius: 6,
-                flex: 1,
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#1e293b';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              View All
-            </button>
-          )}
+          <button
+            onClick={handleViewAll}
+            aria-label="View all notifications"
+            style={{
+              background: 'transparent',
+              color: '#3b82f6',
+              border: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: '6px 12px',
+              borderRadius: 6,
+              flex: 1,
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#1e293b';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            View All ({notifications.length})
+          </button>
         </div>
       )}
 

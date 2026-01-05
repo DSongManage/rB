@@ -27,6 +27,15 @@ export default function ChapterEditor({
   const [showManagementPanel, setShowManagementPanel] = useState(false);
   const [showSynopsis, setShowSynopsis] = useState(false);
 
+  // Mobile detection for responsive padding
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Track whether we're syncing from props to avoid triggering save
   const isSyncingFromProps = useRef(false);
   // Track the last loaded chapter ID to only sync when chapter actually changes
@@ -79,13 +88,15 @@ export default function ChapterEditor({
         alignItems: 'center',
         justifyContent: 'center',
         color: '#94a3b8',
-        fontSize: 16,
+        fontSize: isMobile ? 14 : 16,
         background: 'var(--panel)',
-        border: '1px solid var(--panel-border)',
-        borderRadius: 12,
+        border: isMobile ? 'none' : '1px solid var(--panel-border)',
+        borderRadius: isMobile ? 0 : 12,
         minHeight: 0,
+        padding: isMobile ? 20 : 0,
+        textAlign: 'center',
       }}>
-        Select a chapter to start editing
+        {isMobile ? 'Tap the menu to select a chapter' : 'Select a chapter to start editing'}
       </div>
     );
   }
@@ -96,13 +107,13 @@ export default function ChapterEditor({
     <div style={{
       flex: 1,
       background: 'var(--panel)',
-      border: '1px solid var(--panel-border)',
-      borderRadius: 12,
-      padding: 24,
+      border: isMobile ? 'none' : '1px solid var(--panel-border)',
+      borderRadius: isMobile ? 0 : 12,
+      padding: isMobile ? 16 : 24,
       display: 'flex',
       flexDirection: 'column',
-      gap: 16,
-      minHeight: 0, // Critical: allows flex to work properly
+      gap: isMobile ? 12 : 16,
+      minHeight: 0,
       overflow: 'hidden',
     }}>
       {/* Header with title and status - Fixed height */}

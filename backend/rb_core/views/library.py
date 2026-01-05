@@ -60,8 +60,10 @@ class LibraryView(APIView):
 
             # Get reading progress from prefetched data (no extra query!)
             progress_percentage = 0
+            last_read_at = None
             if hasattr(content, 'user_progress') and content.user_progress:
                 progress_percentage = float(content.user_progress[0].progress_percentage)
+                last_read_at = content.user_progress[0].last_read_at.isoformat() if content.user_progress[0].last_read_at else None
 
             item = {
                 'id': content.id,
@@ -70,7 +72,8 @@ class LibraryView(APIView):
                 'thumbnail': content.teaser_link or '',
                 'content_type': content.content_type,
                 'purchased_at': purchase.purchased_at.isoformat(),
-                'progress': progress_percentage
+                'progress': progress_percentage,
+                'last_read_at': last_read_at
             }
 
             # Add to appropriate category

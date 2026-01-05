@@ -400,6 +400,140 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'invitation': serializer.data
         })
 
+    @action(detail=True, methods=['post'], url_path='respond-to-counter-proposal')
+    def respond_to_counter_proposal(self, request, pk=None):
+        """Respond to a counter-proposal from a collaborator.
+
+        POST data:
+        - collaborator_id: int - the collaborator role ID
+        - action: str - 'accept' or 'decline'
+        - message: str (optional) - message to the collaborator
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only project creator can respond to counter-proposals
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only project creator can respond to counter-proposals'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        collaborator_id = request.data.get('collaborator_id')
+        action = request.data.get('action')
+        message = request.data.get('message', '')
+
+        if not collaborator_id:
+            return Response(
+                {'error': 'collaborator_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if action not in ['accept', 'decline']:
+            return Response(
+                {'error': 'action must be "accept" or "decline"'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Find the collaborator with the counter-proposal
+        try:
+            collaborator = project.collaborators.get(id=collaborator_id, status='invited')
+        except CollaboratorRole.DoesNotExist:
+            return Response(
+                {'error': 'Collaborator invitation not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verify there's actually a counter-proposal
+        if collaborator.proposed_percentage is None:
+            return Response(
+                {'error': 'No counter-proposal found for this collaborator'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if action == 'accept':
+            # Accept the counter-proposal: update revenue_percentage to proposed_percentage
+            old_percentage = collaborator.revenue_percentage
+            new_percentage = collaborator.proposed_percentage
+
+            # Calculate the difference and adjust the project lead's share
+            difference = new_percentage - old_percentage
+            lead_collab = project.collaborators.get(user=project.created_by)
+
+            # Make sure lead has enough share to give
+            if lead_collab.revenue_percentage - difference < Decimal('0'):
+                return Response(
+                    {'error': 'Accepting this counter-proposal would make your share negative'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            with transaction.atomic():
+                # Update the collaborator's percentage to their proposed amount
+                collaborator.revenue_percentage = new_percentage
+                # Clear the counter-proposal fields
+                collaborator.proposed_percentage = None
+                collaborator.counter_message = ''
+                collaborator.save()
+
+                # Adjust the project lead's share
+                lead_collab.revenue_percentage = lead_collab.revenue_percentage - difference
+                lead_collab.save()
+
+            # Notify the collaborator that their counter-proposal was accepted
+            # Link to profile page where they can accept the updated invitation (not the collab workspace yet)
+            from ..notifications_utils import create_notification
+            create_notification(
+                recipient=collaborator.user,
+                from_user=core_user,
+                notification_type='collaboration_update',
+                title=f'Counter-Proposal Accepted: {project.title}',
+                message=f'{core_user.username} accepted your counter-proposal of {new_percentage}% revenue split. Accept the invitation to join!' + (f' "{message}"' if message else ''),
+                project=project,
+                action_url='/profile'
+            )
+
+            # Re-fetch project to get fresh collaborator data
+            project = self.get_object()
+            serializer = CollaborativeProjectSerializer(project, context={'request': request})
+            return Response({
+                'message': 'Counter-proposal accepted',
+                'project': serializer.data
+            })
+
+        else:  # action == 'decline'
+            # Decline: clear the counter-proposal fields but keep original terms
+            collaborator.proposed_percentage = None
+            collaborator.counter_message = ''
+            collaborator.save()
+
+            # Notify the collaborator that their counter-proposal was declined
+            # Link to profile page where they can see the invite and respond (not the collab workspace)
+            from ..notifications_utils import create_notification
+            create_notification(
+                recipient=collaborator.user,
+                from_user=core_user,
+                notification_type='collaboration_update',
+                title=f'Counter-Proposal Declined: {project.title}',
+                message=f'{core_user.username} declined your counter-proposal. The original offer of {collaborator.revenue_percentage}% still stands.' + (f' "{message}"' if message else ''),
+                project=project,
+                action_url='/profile'
+            )
+
+            # Re-fetch project to get fresh collaborator data
+            project = self.get_object()
+            serializer = CollaborativeProjectSerializer(project, context={'request': request})
+            return Response({
+                'message': 'Counter-proposal declined',
+                'project': serializer.data
+            })
+
     @action(detail=True, methods=['post'])
     def approve_version(self, request, pk=None):
         """Approve current version for minting."""

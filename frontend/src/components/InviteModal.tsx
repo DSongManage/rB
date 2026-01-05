@@ -96,7 +96,10 @@ type InviteModalProps = {
   projectType?: ProjectType;
 };
 
-const DEFAULT_PITCH = `Hi! I'd love to collaborate with you on an upcoming project.
+// Dynamic pitch template that includes project title when available
+const getDefaultPitch = (projectTitle?: string) => {
+  if (projectTitle) {
+    return `Hi! I'd love to collaborate with you on "${projectTitle}".
 
 **Project Vision:**
 [Describe your project idea here]
@@ -105,6 +108,17 @@ const DEFAULT_PITCH = `Hi! I'd love to collaborate with you on an upcoming proje
 [What you'd like them to contribute]
 
 Looking forward to creating something amazing together!`;
+  }
+  return `Hi! I'd love to collaborate with you on an upcoming project.
+
+**Project Vision:**
+[Describe your project idea here]
+
+**Your Role:**
+[What you'd like them to contribute]
+
+Looking forward to creating something amazing together!`;
+};
 
 // Generate unique ID for tasks
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -117,7 +131,13 @@ const getDefaultDeadline = (daysFromNow: number = 14) => {
 };
 
 export default function InviteModal({ open, onClose, recipient, projectId, projectTitle, projectType: initialProjectType }: InviteModalProps) {
-  const [message, setMessage] = useState(DEFAULT_PITCH);
+  // Custom project title for new collaborations (when no projectId/projectTitle is passed)
+  const [customProjectTitle, setCustomProjectTitle] = useState('');
+
+  // Effective title: use passed projectTitle or custom one
+  const effectiveTitle = projectTitle || customProjectTitle || '';
+
+  const [message, setMessage] = useState(getDefaultPitch(projectTitle));
   const [equityPercent, setEquityPercent] = useState(50);
   const [role, setRole] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -167,6 +187,15 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
     fetchRoleDefinitions();
   }, [projectType, open]);
+
+  // Update pitch message when custom project title changes (for new collaborations)
+  useEffect(() => {
+    if (!projectId && customProjectTitle) {
+      setMessage(getDefaultPitch(customProjectTitle));
+    } else if (!projectId && !customProjectTitle) {
+      setMessage(getDefaultPitch());
+    }
+  }, [customProjectTitle, projectId]);
 
   // Handle role selection - auto-populate permissions from role definition
   const handleRoleSelect = (roleId: number | null) => {
@@ -378,7 +407,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   };
 
   const resetForm = () => {
-    setMessage(DEFAULT_PITCH);
+    setCustomProjectTitle('');
+    setMessage(getDefaultPitch(projectTitle));
     setEquityPercent(50);
     setRole('');
     setSelectedRoleId(null);
@@ -406,16 +436,19 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
       zIndex: 1000,
       padding: 20,
     }}>
-      <div style={{
-        background: '#0f172a',
-        border: '1px solid #334155',
-        borderRadius: 16,
-        width: '100%',
-        maxWidth: 1000,
-        maxHeight: '90vh',
-        overflow: 'auto',
-        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
-      }}>
+      <div
+        className="invite-modal-scroll"
+        style={{
+          background: '#0f172a',
+          border: '1px solid #334155',
+          borderRadius: 16,
+          width: '100%',
+          maxWidth: 1000,
+          maxHeight: '90vh',
+          overflow: 'auto',
+          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)',
+        }}
+      >
         {/* Header */}
         <div style={{
           padding: 24,
@@ -512,8 +545,68 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           </button>
         </div>
 
+        {/* Project Context Banner */}
+        {effectiveTitle && (
+          <div style={{
+            padding: '16px 24px',
+            background: 'linear-gradient(90deg, rgba(245,158,11,0.1) 0%, rgba(245,158,11,0.05) 100%)',
+            borderBottom: '1px solid rgba(245,158,11,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 8,
+              background: 'rgba(245,158,11,0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#f59e0b',
+            }}>
+              <BookOpen size={20} />
+            </div>
+            <div>
+              <div style={{ color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Project
+              </div>
+              <div style={{ color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>
+                {effectiveTitle}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Form */}
         <div style={{ padding: 24, display: 'grid', gap: 20 }}>
+          {/* Project Title Input - for new collaborations (first field) */}
+          {!projectId && (
+            <div>
+              <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                Project Title <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={customProjectTitle}
+                onChange={(e) => setCustomProjectTitle(e.target.value)}
+                placeholder="Enter a title for your project..."
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: 12,
+                  color: '#f8fafc',
+                  fontSize: 14,
+                }}
+              />
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                Give your project a name that describes what you're creating together
+              </div>
+            </div>
+          )}
+
           {/* Project Type Selector - REQUIRED for new collaborations */}
           {!projectId && (
             <div>
@@ -1053,6 +1146,23 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               Preview
             </div>
+
+            {/* Project Title in Preview */}
+            {effectiveTitle && (
+              <div style={{
+                marginBottom: 12,
+                paddingBottom: 12,
+                borderBottom: '1px solid #334155',
+              }}>
+                <div style={{ color: '#f59e0b', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Project
+                </div>
+                <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 600 }}>
+                  {effectiveTitle}
+                </div>
+              </div>
+            )}
+
             <div style={{ color: '#cbd5e1', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
               {message || '(Your pitch will appear here)'}
             </div>

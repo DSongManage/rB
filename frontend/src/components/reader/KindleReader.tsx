@@ -19,6 +19,8 @@ import { ReaderNavigation } from './ReaderNavigation';
 import { ReaderSettingsPanel } from './ReaderSettings';
 import { MobileReaderSettings } from './MobileReaderSettings';
 import { TableOfContents } from './TableOfContents';
+import { libraryApi } from '../../services/libraryApi';
+import { getMyRating } from '../../services/socialApi';
 
 interface KindleReaderProps {
   contentId: string;
@@ -53,6 +55,12 @@ export function KindleReader({
   const [totalPages, setTotalPages] = useState(1);
   const [pageWidth, setPageWidth] = useState(0);
   const [columnWidth, setColumnWidth] = useState(0);
+  const [showCompletionToast, setShowCompletionToast] = useState(false);
+
+  // Progress tracking refs
+  const progressUpdateTimer = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedProgress = useRef<number>(-1);
+  const hasTriggeredCompletion = useRef(false);
 
   // Hooks
   const { settings, updateSetting, resetSettings, cssVars, themeClass } =
@@ -160,6 +168,104 @@ export function KindleReader({
     settings.columns,
     settings.margins,
   ]);
+
+  // Progress tracking (debounced) - mirrors ComicReader pattern
+  useEffect(() => {
+    if (settings.continuousScroll || totalPages <= 1) return;
+
+    // Clear any pending update
+    if (progressUpdateTimer.current) {
+      clearTimeout(progressUpdateTimer.current);
+    }
+
+    const progress = Math.round(((currentPage + 1) / totalPages) * 100);
+
+    // Debounce API calls - save after 1 second of no page changes
+    progressUpdateTimer.current = setTimeout(() => {
+      libraryApi
+        .updateProgress(
+          parseInt(contentId),
+          progress,
+          JSON.stringify({ page: currentPage, totalPages })
+        )
+        .then(() => {
+          lastSavedProgress.current = progress;
+        })
+        .catch(console.error);
+    }, 1000);
+
+    // Cleanup: save immediately on unmount if progress changed
+    return () => {
+      if (progressUpdateTimer.current) {
+        clearTimeout(progressUpdateTimer.current);
+      }
+    };
+  }, [currentPage, totalPages, contentId, settings.continuousScroll]);
+
+  // Save progress on unmount
+  useEffect(() => {
+    return () => {
+      if (totalPages <= 1) return;
+      const finalProgress = Math.round(((currentPage + 1) / totalPages) * 100);
+      if (finalProgress !== lastSavedProgress.current && lastSavedProgress.current !== -1) {
+        libraryApi
+          .updateProgress(
+            parseInt(contentId),
+            finalProgress,
+            JSON.stringify({ page: currentPage, totalPages })
+          )
+          .catch(console.error);
+      }
+    };
+  }, [currentPage, totalPages, contentId]);
+
+  // Completion detection - trigger when reaching last page
+  useEffect(() => {
+    // Only trigger once per session, and only if we have multiple pages
+    if (hasTriggeredCompletion.current || totalPages <= 1) return;
+
+    // Check if user is on the last page
+    const isComplete = currentPage >= totalPages - 1;
+
+    if (isComplete) {
+      hasTriggeredCompletion.current = true;
+
+      // Save 100% progress immediately
+      libraryApi
+        .updateProgress(
+          parseInt(contentId),
+          100,
+          JSON.stringify({ page: currentPage, totalPages, completed: true })
+        )
+        .then(() => {
+          lastSavedProgress.current = 100;
+        })
+        .catch(console.error);
+
+      // Check if user already rated this content
+      getMyRating(parseInt(contentId))
+        .then((existingRating) => {
+          if (existingRating) {
+            // User already rated - just show completion toast, no redirect
+            setShowCompletionToast(true);
+            setTimeout(() => setShowCompletionToast(false), 3000);
+          } else {
+            // User hasn't rated - show toast then redirect to rating page
+            setShowCompletionToast(true);
+            setTimeout(() => {
+              navigate(`/content/${contentId}?completed=true`);
+            }, 2000);
+          }
+        })
+        .catch(() => {
+          // If check fails, default to redirect
+          setShowCompletionToast(true);
+          setTimeout(() => {
+            navigate(`/content/${contentId}?completed=true`);
+          }, 2000);
+        });
+    }
+  }, [currentPage, totalPages, contentId, navigate]);
 
   // Navigation functions
   const goToPage = useCallback((page: number) => {
@@ -650,6 +756,28 @@ export function KindleReader({
           color: white;
         }
       `}</style>
+
+      {/* Completion Toast */}
+      {showCompletionToast && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'rgba(16, 185, 129, 0.95)',
+          color: '#fff',
+          padding: '24px 48px',
+          borderRadius: 16,
+          textAlign: 'center',
+          zIndex: 1000,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+          animation: 'fadeIn 0.3s ease',
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>✨</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Finished!</div>
+          <div style={{ fontSize: 14, opacity: 0.9 }}>Taking you to rate this book...</div>
+        </div>
+      )}
     </div>
   );
 }

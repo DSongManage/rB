@@ -7,7 +7,7 @@ import LegalPageLayout from '../../components/legal/LegalPageLayout';
 
 export default function DMCAPolicyPage() {
   return (
-    <LegalPageLayout title="DMCA & Copyright Policy" lastUpdated="December 2024">
+    <LegalPageLayout title="DMCA & Copyright Policy" lastUpdated="January 2026">
       <p>
         renaissBlock respects the intellectual property rights of others and expects our users
         to do the same. This policy explains how we handle copyright infringement claims in

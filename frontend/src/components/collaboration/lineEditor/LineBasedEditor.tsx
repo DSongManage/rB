@@ -124,6 +124,13 @@ interface LineBasedEditorProps {
   maxCanvasHeight?: number;
   // Overlay content (e.g., speech bubbles) rendered inside the canvas container
   children?: React.ReactNode;
+  // Drag-and-drop handlers for artwork library
+  dropTargetPanelId?: string | null;
+  onPanelDragOver?: (panelId: string, e: React.DragEvent) => void;
+  onPanelDragLeave?: () => void;
+  onPanelDrop?: (panelId: string, panel: import('../../../utils/regionCalculator').ComputedPanel, e: React.DragEvent) => void;
+  // Computed panels for drop zone calculation (passed from parent)
+  computedPanels?: import('../../../utils/regionCalculator').ComputedPanel[];
 }
 
 // Ref handle for accessing canvas dimensions
@@ -167,6 +174,11 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
   maxCanvasWidth,
   maxCanvasHeight,
   children,
+  dropTargetPanelId,
+  onPanelDragOver,
+  onPanelDragLeave,
+  onPanelDrop,
+  computedPanels: externalComputedPanels,
 }, ref) => {
   const [mode, setMode] = useState<DrawingMode>('select');
   const [selectedLineId, setSelectedLineId] = useState<number | null>(null);
@@ -576,6 +588,53 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
           />
           {/* Overlay content (speech bubbles, etc.) positioned relative to canvas */}
           {children}
+
+          {/* Drop zone overlay for artwork library drag-and-drop */}
+          {externalComputedPanels && externalComputedPanels.length > 0 && onPanelDrop && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                pointerEvents: 'none',
+              }}
+            >
+              {externalComputedPanels.map((panel) => {
+                const isDropTarget = dropTargetPanelId === panel.id;
+                return (
+                  <div
+                    key={`drop-${panel.id}`}
+                    style={{
+                      position: 'absolute',
+                      left: `${panel.bounds.x}%`,
+                      top: `${panel.bounds.y}%`,
+                      width: `${panel.bounds.width}%`,
+                      height: `${panel.bounds.height}%`,
+                      pointerEvents: 'auto',
+                      background: isDropTarget ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
+                      outline: isDropTarget ? '3px dashed #22c55e' : 'none',
+                      outlineOffset: '-3px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onPanelDragOver?.(panel.id, e);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onPanelDragLeave?.();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onPanelDrop(panel.id, panel, e);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

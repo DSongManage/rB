@@ -8,7 +8,7 @@ import LegalPageLayout from '../../components/legal/LegalPageLayout';
 
 export default function CreatorAgreementPage() {
   return (
-    <LegalPageLayout title="Creator Agreement" lastUpdated="December 2024">
+    <LegalPageLayout title="Creator Agreement" lastUpdated="January 2026">
       <p>
         This Creator Agreement ("Agreement") supplements the renaissBlock Terms of Service and
         applies when you publish content on renaissBlock. By publishing, you agree to these
@@ -88,29 +88,15 @@ export default function CreatorAgreementPage() {
       </ul>
 
       <h3>4.2 Platform Fees</h3>
-      <p>Current fee structure:</p>
-      <table>
-        <thead>
-          <tr>
-            <th>Sale Amount</th>
-            <th>Platform Fee</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Under $10</td>
-            <td>15%</td>
-          </tr>
-          <tr>
-            <td>$10 - $50</td>
-            <td>12%</td>
-          </tr>
-          <tr>
-            <td>Over $50</td>
-            <td>10%</td>
-          </tr>
-        </tbody>
-      </table>
+      <p>
+        RenaissBlock charges a flat <strong>10% platform fee</strong> on all primary sales.
+        This fee covers payment processing, NFT minting, content hosting, and platform operations.
+      </p>
+      <p>
+        <strong>Secondary Sale Royalties:</strong> When your NFT is resold on compatible marketplaces,
+        a 7% royalty is distributed: 5% to the original creator(s) and 2% to the platform.
+        These royalties are advisory and depend on marketplace enforcement.
+      </p>
       <p>Fees are subject to change with 30 days' notice.</p>
 
       <h3>4.3 Taxes</h3>

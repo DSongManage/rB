@@ -10,35 +10,21 @@ interface BetaBadgeProps {
 export function BetaBadge({ variant = 'header', showTestMode = true }: BetaBadgeProps) {
   if (variant === 'header') {
     return (
-      <div
+      <span
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '8px',
           background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-          padding: '4px 12px',
-          borderRadius: '6px',
-          fontSize: '12px',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          fontSize: '10px',
           fontWeight: 700,
           color: '#000',
-          letterSpacing: '0.5px',
-          boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+          letterSpacing: '0.3px',
         }}
       >
-        <span>BETA</span>
-        {showTestMode && (
-          <span
-            style={{
-              background: 'rgba(0, 0, 0, 0.2)',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '10px',
-            }}
-          >
-            TEST MODE
-          </span>
-        )}
-      </div>
+        Beta
+      </span>
     );
   }
 

@@ -1,6 +1,6 @@
 # renaissBlock Privacy Policy
 
-**Last Updated: [DATE]**
+**Last Updated: January 5, 2026**
 
 renaissBlock ("we," "us," or "our") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our platform.
 

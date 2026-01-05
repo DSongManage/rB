@@ -43,12 +43,13 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
           style={{
             background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             border: 'none',
-            borderRadius: 6,
-            padding: '6px 12px',
+            borderRadius: 8,
+            padding: '8px 14px',
+            minHeight: 36,
             color: '#fff',
             fontWeight: 600,
             cursor: 'pointer',
-            fontSize: 12,
+            fontSize: 13,
           }}
         >
           + Add
@@ -93,7 +94,8 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
                 ? '3px solid #f59e0b'
                 : '3px solid transparent',
               borderRadius: 0,
-              padding: '10px 12px',
+              padding: '12px 12px',
+              minHeight: 52,
               textAlign: 'left',
               cursor: 'pointer',
               transition: 'all 0.15s ease',
@@ -103,7 +105,7 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
             <div style={{
               fontWeight: selectedChapterId === chapter.id ? 600 : 400,
               color: selectedChapterId === chapter.id ? '#f59e0b' : 'var(--text)',
-              fontSize: 13,
+              fontSize: 14,
               display: 'flex',
               alignItems: 'center',
               gap: 8,
@@ -111,9 +113,9 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
               <span style={{
                 color: '#64748b',
                 fontSize: 12,
-                minWidth: 18,
+                minWidth: 20,
               }}>{chapter.order + 1}.</span>
-              <span style={{ flex: 1 }}>{chapter.title || 'Untitled'}</span>
+              <span style={{ flex: 1, lineHeight: 1.3 }}>{chapter.title || 'Untitled'}</span>
               {chapter.is_published && (
                 <span style={{
                   fontSize: 9,
@@ -132,8 +134,8 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
             <div style={{
               fontSize: 11,
               color: '#64748b',
-              marginTop: 3,
-              marginLeft: 26,
+              marginTop: 4,
+              marginLeft: 28,
             }}>
               {chapter.content_html.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length} words
             </div>

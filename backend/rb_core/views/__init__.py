@@ -196,6 +196,34 @@ class ContentListView(generics.ListCreateAPIView):
                 )
             except CoreUser.DoesNotExist:
                 qs = qs.none()
+
+        # Apply genre filter if specified
+        genre_param = self.request.query_params.get('genre')
+        if genre_param and genre_param != 'all':
+            qs = qs.filter(genre=genre_param)
+
+        # Apply sorting based on sort parameter
+        sort_param = self.request.query_params.get('sort', 'newest')
+
+        if sort_param == 'popular':
+            # Sort by view count (most popular)
+            qs = qs.order_by('-view_count', '-created_at')
+        elif sort_param == 'rated':
+            # Sort by average rating (highest rated, with ratings first)
+            qs = qs.order_by(
+                models.F('average_rating').desc(nulls_last=True),
+                '-rating_count',
+                '-created_at'
+            )
+        elif sort_param == 'bestsellers':
+            # Sort by purchase count
+            from django.db.models import Count
+            qs = qs.annotate(
+                purchase_count=Count('purchases', filter=Q(purchases__status='completed'))
+            ).order_by('-purchase_count', '-created_at')
+        else:  # 'newest' is default
+            qs = qs.order_by('-created_at')
+
         return qs
 
     def get_permissions(self):
@@ -615,6 +643,14 @@ class MintView(APIView):
                         collab_project.save()
                         logger.info(f'[MINT] Updated CollaborativeProject {collab_project.id} status to minted')
 
+                # If this content is linked to a comic issue, mark as published
+                from ..models import ComicIssue
+                comic_issue = ComicIssue.objects.filter(published_content=c).first()
+                if comic_issue:
+                    comic_issue.is_published = True
+                    comic_issue.save()
+                    logger.info(f'[MINT] Updated ComicIssue {comic_issue.id} is_published to True')
+
                 # Log platform fee amount to TestFeeLog for MVP tracking
                 try:
                     fee_bps = int(getattr(settings, 'PLATFORM_FEE_BPS', 1000))
@@ -802,17 +838,16 @@ class AdminStatsUpdateView(APIView):
                 profile.content_count = int(content_count)
             except Exception:
                 return Response({'error': 'invalid content_count'}, status=400)
-        # Recalculate tier/fee
+        # Flat 10% platform fee for all creators
+        profile.fee_bps = 1000  # Always 10%
+        # Keep tier for gamification/display (no fee impact)
         s = float(profile.total_sales_usd or 0)
         if s < 500:
             profile.tier = 'Basic'
-            profile.fee_bps = 1000
         elif s < 5000:
             profile.tier = 'Pro'
-            profile.fee_bps = 800
         else:
             profile.tier = 'Elite'
-            profile.fee_bps = 500
         profile.save()
         return Response(UserProfileSerializer(profile, context={'request': request}).data)
 
@@ -1139,17 +1174,16 @@ class DashboardView(APIView):
         # Bridge to core user to avoid FK mismatches
         core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
         profile, _ = UserProfile.objects.get_or_create(user=core_user, defaults={'username': core_user.username})
-        # Derive tier/fee from profile stats; recalc simple rule if totals changed
+        # Flat 10% platform fee for all creators
         sales = float(profile.total_sales_usd or 0)
+        profile.fee_bps = 1000  # Always 10%
+        # Keep tier for gamification/display (no fee impact)
         if sales < 500:
             profile.tier = 'Basic'
-            profile.fee_bps = 1000
         elif sales < 5000:
             profile.tier = 'Pro'
-            profile.fee_bps = 800
         else:
             profile.tier = 'Elite'
-            profile.fee_bps = 500
         profile.save()
         return Response({
             'content_count': profile.content_count,
@@ -2243,10 +2277,18 @@ class MyPublishedBooksView(APIView):
                     total_views += content.view_count
                     total_price += float(content.price_usd or 0)
 
-            # Build cover image URL
+            # Build cover image URL with fallbacks
             cover_url = None
             if project.cover_image:
                 cover_url = request.build_absolute_uri(project.cover_image.url)
+            else:
+                # Fallback to first published chapter's teaser_link
+                first_published = project.chapters.filter(
+                    is_published=True,
+                    published_content__isnull=False
+                ).order_by('order').first()
+                if first_published and first_published.published_content:
+                    cover_url = first_published.published_content.teaser_link
 
             result.append({
                 'id': project.id,
@@ -2286,6 +2328,13 @@ class PublicBookProjectsView(APIView):
             'chapters__published_content',
             'creator__profile'
         ).select_related('creator').order_by('-updated_at')
+
+        # Apply genre filter if specified (filter by chapter content genre)
+        genre_param = request.query_params.get('genre')
+        if genre_param and genre_param != 'all':
+            projects = projects.filter(
+                chapters__published_content__genre=genre_param
+            ).distinct()
 
         result = []
         for project in projects:
@@ -2329,10 +2378,18 @@ class PublicBookProjectsView(APIView):
             if published_count == 0:
                 continue
 
-            # Build cover image URL
+            # Build cover image URL with fallbacks
             cover_url = None
             if project.cover_image:
                 cover_url = request.build_absolute_uri(project.cover_image.url)
+            elif chapters_data:
+                # Fallback to first published chapter's teaser_link (for seed data)
+                first_content = project.chapters.filter(
+                    is_published=True,
+                    published_content__isnull=False
+                ).order_by('order').first()
+                if first_content and first_content.published_content:
+                    cover_url = first_content.published_content.teaser_link
 
             # Calculate average rating across all chapters
             avg_rating = None
@@ -2358,6 +2415,23 @@ class PublicBookProjectsView(APIView):
                 'created_at': latest_published_at.isoformat() if latest_published_at else project.created_at.isoformat(),
                 'content_type': 'book',  # For frontend filtering
             })
+
+        # Apply sorting based on sort parameter
+        sort_param = request.query_params.get('sort', 'newest')
+
+        if sort_param == 'popular':
+            result.sort(key=lambda x: x['total_views'], reverse=True)
+        elif sort_param == 'rated':
+            result.sort(key=lambda x: (x['average_rating'] or 0, x['rating_count']), reverse=True)
+        elif sort_param == 'bestsellers':
+            # Count purchases per book project (across all chapters)
+            for item in result:
+                item['purchase_count'] = Purchase.objects.filter(
+                    content__source_chapter__book_project_id=item['id'],
+                    status='completed'
+                ).count()
+            result.sort(key=lambda x: x.get('purchase_count', 0), reverse=True)
+        # else: 'newest' - already sorted by created_at (latest_published_at)
 
         return Response(result)
 

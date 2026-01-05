@@ -1,54 +1,36 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BookOpen, Layers, Image, Video } from 'lucide-react';
 
 export default function TypeSelect({ onSelect }:{ onSelect:(t:'text'|'image'|'video'|'comic')=>void }){
-  const [hovered, setHovered] = useState<'text'|'image'|'video'|'comic'|'none'>('none');
-  const card = (t:'text'|'image'|'video'|'comic', title:string, desc:string, disabled?: boolean, comingSoon?: boolean) => (
+  const card = (
+    t:'text'|'image'|'video'|'comic',
+    icon: React.ReactNode,
+    title:string,
+    desc:string,
+    disabled?: boolean,
+    comingSoon?: boolean
+  ) => (
     <button
-      onMouseEnter={()=> !disabled && setHovered(t)}
-      onMouseLeave={()=> setHovered('none')}
+      className="type-select-card"
       onClick={()=> !disabled && onSelect(t)}
       disabled={disabled}
-      style={{
-        background: disabled ? 'var(--panel)' : 'var(--panel)',
-        border:'1px solid var(--panel-border)',
-        borderRadius:12,
-        padding:16,
-        textAlign:'left',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        boxShadow: !disabled && hovered===t? '0 0 12px rgba(245,158,11,0.5)':'none',
-        outline: !disabled && hovered===t? '2px solid rgba(245,158,11,0.6)':'none',
-        opacity: disabled ? 0.5 : 1,
-        position: 'relative' as const,
-      }}
     >
       {comingSoon && (
-        <span style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          background: '#f59e0b',
-          color: '#000',
-          fontSize: 10,
-          fontWeight: 700,
-          padding: '2px 6px',
-          borderRadius: 4,
-          textTransform: 'uppercase',
-        }}>
-          Coming Soon
-        </span>
+        <span className="coming-soon-badge">Coming Soon</span>
       )}
-      <div style={{fontWeight:700, color: disabled ? '#64748b' : 'var(--text)'}}>{title}</div>
-      <div style={{fontSize:12, color:'#94a3b8'}}>{desc}</div>
+      <div className="type-select-icon" style={{ color: disabled ? '#64748b' : undefined }}>
+        {icon}
+      </div>
+      <h4 style={{ color: disabled ? '#64748b' : undefined }}>{title}</h4>
+      <p>{desc}</p>
     </button>
   );
   return (
-    <div style={{display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:12}}>
-      {card('text', 'Write a Book', 'Create a book with chapters, organize, and publish as a series or complete work')}
-      {card('comic', 'Create a Comic Book', 'Design pages with panels, artwork, and speech bubbles')}
-      {card('image', 'Upload Image / Art', 'PNG/JPG/WebP up to 50MB; watermark optional')}
-      {card('video', 'Upload Video / Song', 'MP4/MOV/MP3 up to 50MB; auto-compress', true, true)}
+    <div className="type-select-grid">
+      {card('text', <BookOpen size={28} />, 'Write a Book', 'Create a book with chapters, organize, and publish as a series or complete work')}
+      {card('comic', <Layers size={28} />, 'Create a Comic Book', 'Design pages with panels, artwork, and speech bubbles')}
+      {card('image', <Image size={28} />, 'Upload Image / Art', 'PNG/JPG/WebP up to 50MB; watermark optional')}
+      {card('video', <Video size={28} />, 'Upload Video / Song', 'MP4/MOV/MP3 up to 50MB; auto-compress', true, true)}
     </div>
   );
 }
-
-

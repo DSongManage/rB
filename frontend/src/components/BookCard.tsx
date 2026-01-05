@@ -1,6 +1,7 @@
 import React, { memo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, ChevronUp, ChevronDown, Star, ThumbsUp, BookOpen } from 'lucide-react';
+import { Eye, ChevronUp, ChevronDown, ThumbsUp, BookOpen } from 'lucide-react';
+import { StarRatingDisplay } from './StarRatingDisplay';
 
 type BookChapter = {
   id: number;
@@ -221,9 +222,7 @@ function BookCardComponent({
             {author}
           </Link>
           <span>•</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-            <Star size={12} /> {ratingText}
-          </span>
+          <StarRatingDisplay rating={averageRating} count={ratingCount} size={11} />
           <span>•</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
             <ThumbsUp size={12} /> {formatCount(totalLikes)}

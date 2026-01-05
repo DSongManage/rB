@@ -2,16 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { libraryApi, type Library } from '../services/libraryApi';
 import { LibraryItemCard } from './LibraryItemCard';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronRight, ChevronLeft, BookOpen, Image, BookMarked, Film, Music, ArrowUpDown, Search, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
-export function LibrarySidebar() {
+interface LibrarySidebarProps {
+  isExpanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+}
+
+type SortOption = 'recent' | 'progress' | 'az';
+
+export function LibrarySidebar({ isExpanded, onExpandedChange }: LibrarySidebarProps) {
   const [library, setLibrary] = useState<Library | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(true);
   const [selectedTab, setSelectedTab] = useState<keyof Library>('books');
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    const saved = localStorage.getItem('library-sort');
+    return (saved as SortOption) || 'recent';
+  });
+  const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated } = useAuth();
+
+  // Save sort preference to localStorage
+  const handleSortChange = (newSort: SortOption) => {
+    setSortBy(newSort);
+    localStorage.setItem('library-sort', newSort);
+  };
 
   useEffect(() => {
     // Only load library if user is authenticated
@@ -63,7 +80,7 @@ export function LibrarySidebar() {
         }}
       >
         <button
-          onClick={() => setIsExpanded(true)}
+          onClick={() => onExpandedChange(true)}
           style={{
             background: 'transparent',
             border: 'none',
@@ -104,7 +121,49 @@ export function LibrarySidebar() {
     ? Object.values(library).reduce((sum, items) => sum + items.length, 0)
     : 0;
 
-  const currentItems = library?.[selectedTab] || [];
+  // Apply sorting to current items
+  const sortItems = (items: Library['books']) => {
+    return [...items].sort((a, b) => {
+      switch (sortBy) {
+        case 'progress':
+          return b.progress - a.progress;
+        case 'az':
+          return a.title.localeCompare(b.title);
+        case 'recent':
+        default:
+          // Sort by last_read_at first, then purchased_at
+          if (a.last_read_at && b.last_read_at) {
+            return new Date(b.last_read_at).getTime() - new Date(a.last_read_at).getTime();
+          }
+          if (a.last_read_at) return -1;
+          if (b.last_read_at) return 1;
+          return new Date(b.purchased_at).getTime() - new Date(a.purchased_at).getTime();
+      }
+    });
+  };
+
+  const currentItems = library?.[selectedTab]
+    ? sortItems(library[selectedTab]).filter(item =>
+        searchQuery === '' || item.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : [];
+
+  // Get in-progress items (1-99% progress) for Continue Reading section
+  const continueReadingItems = library
+    ? Object.values(library)
+        .flat()
+        .filter(item => item.progress > 0 && item.progress < 100)
+        .sort((a, b) => {
+          // Sort by last_read_at (most recent first)
+          if (a.last_read_at && b.last_read_at) {
+            return new Date(b.last_read_at).getTime() - new Date(a.last_read_at).getTime();
+          }
+          if (a.last_read_at) return -1;
+          if (b.last_read_at) return 1;
+          return b.progress - a.progress; // Fallback: higher progress first
+        })
+        .slice(0, 3)
+    : [];
 
   return (
     <div
@@ -153,7 +212,7 @@ export function LibrarySidebar() {
           </div>
         </div>
         <button
-          onClick={() => setIsExpanded(false)}
+          onClick={() => onExpandedChange(false)}
           style={{
             background: 'transparent',
             border: 'none',
@@ -177,8 +236,91 @@ export function LibrarySidebar() {
         </button>
       </div>
 
+      {/* Search */}
+      <div
+        style={{
+          padding: '8px 16px',
+          borderBottom: '1px solid #2a3444',
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <Search size={14} style={{ position: 'absolute', left: 10, color: '#64748b' }} />
+          <input
+            type="text"
+            placeholder="Search library..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              background: '#111827',
+              border: '1px solid #2a3444',
+              borderRadius: 8,
+              padding: '8px 32px 8px 32px',
+              fontSize: 13,
+              color: '#e5e7eb',
+              outline: 'none',
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute',
+                right: 8,
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                cursor: 'pointer',
+                padding: 2,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Continue Reading Section */}
+      {continueReadingItems.length > 0 && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderBottom: '1px solid #2a3444',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#f59e0b',
+              marginBottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <BookOpen size={14} />
+            Continue Reading
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {continueReadingItems.map((item) => (
+              <LibraryItemCard key={`continue-${item.id}`} item={item} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div
+        className="library-tabs-scroll"
         style={{
           display: 'flex',
           gap: 4,
@@ -187,14 +329,18 @@ export function LibrarySidebar() {
           overflowX: 'auto',
         }}
       >
-        {(['books', 'art'] as const).map((tab) => {
+        {(['books', 'art', 'comics'] as const).map((tab) => {
           const count = library?.[tab]?.length || 0;
           const isActive = selectedTab === tab;
+          const Icon = tab === 'books' ? BookOpen : tab === 'art' ? Image : BookMarked;
           return (
             <button
               key={tab}
               onClick={() => setSelectedTab(tab)}
               style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
                 background: isActive ? '#f59e0b' : '#111827',
                 border: '1px solid',
                 borderColor: isActive ? '#f59e0b' : '#2a3444',
@@ -220,6 +366,7 @@ export function LibrarySidebar() {
                 }
               }}
             >
+              <Icon size={14} />
               {tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
             </button>
           );
@@ -260,8 +407,40 @@ export function LibrarySidebar() {
         ))}
       </div>
 
+      {/* Sort dropdown */}
+      <div
+        style={{
+          padding: '8px 16px',
+          borderBottom: '1px solid #2a3444',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <ArrowUpDown size={14} style={{ color: '#64748b' }} />
+        <select
+          value={sortBy}
+          onChange={(e) => handleSortChange(e.target.value as SortOption)}
+          style={{
+            background: '#111827',
+            border: '1px solid #2a3444',
+            borderRadius: 6,
+            padding: '4px 8px',
+            fontSize: 12,
+            color: '#cbd5e1',
+            cursor: 'pointer',
+            flex: 1,
+          }}
+        >
+          <option value="recent">Recent</option>
+          <option value="progress">Progress</option>
+          <option value="az">A-Z</option>
+        </select>
+      </div>
+
       {/* Content */}
       <div
+        className="library-sidebar-content"
         style={{
           flex: 1,
           overflowY: 'auto',
@@ -317,7 +496,9 @@ export function LibrarySidebar() {
               fontSize: 14,
             }}
           >
-            No {selectedTab} in your library yet.
+            {searchQuery
+                  ? `No results for "${searchQuery}"`
+                  : `No ${selectedTab} in your library yet.`}
           </div>
         )}
 

@@ -9,6 +9,7 @@ import {
 import { PendingInviteCard } from '../components/collaboration/PendingInviteCard';
 import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
 import { useAuth } from '../hooks/useAuth';
+import { useMobile } from '../hooks/useMobile';
 
 type FilterType = 'all' | 'book' | 'art';
 // Note: music and video are coming soon - not included in MVP
@@ -22,6 +23,7 @@ interface PendingInvite {
 export default function CollaborationDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isMobile, isPhone } = useMobile();
   const [projects, setProjects] = useState<CollaborativeProjectListItem[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,30 +109,32 @@ export default function CollaborationDashboard() {
   );
 
   return (
-    <div className="page" style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 32px' }}>
+    <div className="page" style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '16px 12px' : '24px 32px' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
+        flexDirection: isPhone ? 'column' : 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 32,
+        alignItems: isPhone ? 'flex-start' : 'center',
+        marginBottom: isMobile ? 20 : 32,
+        gap: isPhone ? 8 : 0,
       }}>
         <div>
           <h1 style={{
             margin: 0,
-            fontSize: 32,
+            fontSize: isMobile ? 24 : 32,
             fontWeight: 800,
             color: 'var(--text)',
             marginBottom: 8,
           }}>
-            My Collaborative Projects
+            {isPhone ? 'Collaborations' : 'My Collaborative Projects'}
           </h1>
           <p style={{
             margin: 0,
-            fontSize: 14,
+            fontSize: isMobile ? 13 : 14,
             color: '#94a3b8',
           }}>
-            Manage your collaborative creations with other artists
+            {isPhone ? 'Manage your creative team projects' : 'Manage your collaborative creations with other artists'}
           </p>
         </div>
       </div>
@@ -349,8 +353,8 @@ export default function CollaborationDashboard() {
               </h2>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-                gap: 16,
+                gridTemplateColumns: isPhone ? '1fr' : 'repeat(auto-fill, minmax(340px, 1fr))',
+                gap: isMobile ? 12 : 16,
               }}>
                 {pendingInvites.map(({ project, invite }) => (
                   <PendingInviteCard

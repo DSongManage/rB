@@ -2754,6 +2754,86 @@ class ComicPanel(models.Model):
         return f"Panel {self.order} on Page {self.page.page_number}"
 
 
+class ArtworkLibraryItem(models.Model):
+    """Reusable artwork assets for comic collaboration projects.
+
+    - Project-wide artwork library (shared across all issues)
+    - Supports drag-and-drop to panels
+    - Tracks original uploader for attribution
+    """
+
+    project = models.ForeignKey(
+        'CollaborativeProject',
+        on_delete=models.CASCADE,
+        related_name='artwork_library',
+        help_text="Parent comic project"
+    )
+
+    file = models.FileField(
+        upload_to='artwork_library/',
+        max_length=500,
+        help_text="Original artwork file"
+    )
+
+    # Optional thumbnail (can use same file for small images)
+    thumbnail = models.FileField(
+        upload_to='artwork_library/thumbnails/',
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Thumbnail for sidebar display"
+    )
+
+    # Metadata
+    title = models.CharField(max_length=200, blank=True, help_text="Display name")
+    filename = models.CharField(max_length=255, help_text="Original filename")
+
+    # Dimensions for UI display hints
+    width = models.PositiveIntegerField(default=0, help_text="Image width in pixels")
+    height = models.PositiveIntegerField(default=0, help_text="Image height in pixels")
+    file_size = models.PositiveIntegerField(default=0, help_text="File size in bytes")
+
+    # Attribution
+    uploader = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_artwork',
+        help_text="User who uploaded this artwork"
+    )
+
+    # Usage tracking
+    usage_count = models.PositiveIntegerField(default=0, help_text="Times used in panels")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Artwork Library Item"
+        verbose_name_plural = "Artwork Library Items"
+
+    def __str__(self):
+        return f"{self.title or self.filename} ({self.project.title})"
+
+    def save(self, *args, **kwargs):
+        # Auto-populate filename from file if not set
+        if self.file and not self.filename:
+            self.filename = self.file.name.split('/')[-1]
+
+        # Extract image dimensions on first save
+        if self.file and (not self.width or not self.height):
+            try:
+                from PIL import Image
+                img = Image.open(self.file)
+                self.width, self.height = img.size
+                self.file_size = self.file.size
+            except Exception:
+                pass
+
+        super().save(*args, **kwargs)
+
+
 class SpeechBubble(models.Model):
     """Speech bubble/text overlay on a comic panel.
 

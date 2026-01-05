@@ -7,7 +7,7 @@ import LegalPageLayout from '../../components/legal/LegalPageLayout';
 
 export default function ContentPolicyPage() {
   return (
-    <LegalPageLayout title="Content Policy" lastUpdated="December 2024">
+    <LegalPageLayout title="Content Policy" lastUpdated="January 2026">
       <p>
         renaissBlock is a platform for serious creators to publish and share original work.
         This Content Policy explains what is and isn't allowed on our platform.

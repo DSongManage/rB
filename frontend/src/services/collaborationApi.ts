@@ -492,6 +492,31 @@ export const collaborationApi = {
   },
 
   /**
+   * Respond to a counter-proposal (accept or decline)
+   * Only project creator can call this
+   */
+  async respondToCounterProposal(
+    projectId: number,
+    data: { collaborator_id: number; action: 'accept' | 'decline'; message?: string }
+  ): Promise<{ message: string; project: CollaborativeProject }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/respond-to-counter-proposal/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    return handleResponse<{ message: string; project: CollaborativeProject }>(response);
+  },
+
+  /**
    * Propose new revenue split percentages
    */
   async proposeRevenueSplit(
@@ -1891,6 +1916,93 @@ export const collaborationApi = {
     });
     return handleResponse<ComicPage[]>(response);
   },
+
+  // ===== Artwork Library =====
+
+  /**
+   * Get all artwork in a project's library
+   */
+  async getArtworkLibrary(projectId: number): Promise<ArtworkLibraryItem[]> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/artwork-library/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+      }
+    );
+    return handleResponse<ArtworkLibraryItem[]>(response);
+  },
+
+  /**
+   * Upload artwork to project library
+   */
+  async uploadArtworkToLibrary(
+    projectId: number,
+    file: File,
+    title?: string
+  ): Promise<ArtworkLibraryItem> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
+
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/artwork-library/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: formData,
+      }
+    );
+    return handleResponse<ArtworkLibraryItem>(response);
+  },
+
+  /**
+   * Delete artwork from project library
+   */
+  async deleteArtworkFromLibrary(artworkId: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/artwork-library/${artworkId}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete artwork: ${response.statusText}`);
+    }
+  },
+
+  /**
+   * Apply artwork from library to a panel
+   */
+  async applyArtworkToPanel(
+    artworkId: number,
+    data: {
+      panel_id?: number;
+      page_id?: number;
+      bounds?: { x: number; y: number; width: number; height: number };
+    }
+  ): Promise<ComicPanel> {
+    const response = await fetch(
+      `${API_BASE}/api/artwork-library/${artworkId}/apply-to-panel/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse<ComicPanel>(response);
+  },
 };
 
 // ===== Additional TypeScript Interfaces =====
@@ -2222,4 +2334,25 @@ export interface CreateComicIssueData {
   issue_number?: number;
   synopsis?: string;
   price?: number;
+}
+
+// ===== Artwork Library Interfaces =====
+
+export interface ArtworkLibraryItem {
+  id: number;
+  project: number;
+  file: string;
+  file_url: string;
+  thumbnail?: string;
+  thumbnail_url: string;
+  title: string;
+  filename: string;
+  width: number;
+  height: number;
+  file_size: number;
+  uploader: number;
+  uploader_username: string;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
 }

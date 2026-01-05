@@ -1,6 +1,6 @@
 # renaissBlock Content Policy
 
-**Last Updated: [DATE]**
+**Last Updated: January 5, 2026**
 
 renaissBlock is a platform for serious creators to publish and share original work. This Content Policy explains what is and isn't allowed on our platform.
 

@@ -12,6 +12,7 @@ import CollaborativeMusicEditor from '../CollaborativeMusicEditor';
 import CollaborativeVideoEditor from '../CollaborativeVideoEditor';
 import CollaborativeComicEditor from '../CollaborativeComicEditor';
 import ReviewerInterface from '../ReviewerInterface';
+import { CommentsPanel } from '../CommentsPanel';
 import { Eye, Palette, Music, Video, FileText, AlertCircle } from 'lucide-react';
 
 interface User {
@@ -105,7 +106,12 @@ export default function ContentTab({
 
   // Owner sees everything - route by project type
   if (isOwner) {
-    return renderByProjectType(project, currentUser, onSectionUpdate, onCommentAdd, onProjectUpdate);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {renderByProjectType(project, currentUser, onSectionUpdate, onCommentAdd, onProjectUpdate)}
+        <CommentsPanel project={project} currentUser={currentUser} />
+      </div>
+    );
   }
 
   // Non-owner: check permissions and render appropriate interface
@@ -134,12 +140,15 @@ export default function ContentTab({
   // Reviewer interface - read-only with commenting
   if (interfaceType === 'reviewer') {
     return (
-      <ReviewerInterface
-        project={project}
-        currentUser={currentUser}
-        reviewableTypes={permissions.review}
-        onCommentAdd={onCommentAdd}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <ReviewerInterface
+          project={project}
+          currentUser={currentUser}
+          reviewableTypes={permissions.review}
+          onCommentAdd={onCommentAdd}
+        />
+        <CommentsPanel project={project} currentUser={currentUser} />
+      </div>
     );
   }
 
@@ -152,61 +161,73 @@ export default function ContentTab({
   const hasAudioUploader = uiComponents.includes('audio_uploader') || permissions.create.includes('audio') || permissions.edit.types?.includes('audio');
   const hasVideoUploader = uiComponents.includes('video_uploader') || permissions.create.includes('video') || permissions.edit.types?.includes('video');
 
-  // For roles like Illustrator on a book project: show art editor even though project is 'book'
-  // Route based on what the user can actually work with
+  // Route by project type first - all collaborators see the same editor for their project
+  // The individual editors handle permission-based restrictions internally
+  const renderEditorByProjectType = () => {
+    switch (project.content_type) {
+      case 'comic':
+        return (
+          <CollaborativeComicEditor
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={onProjectUpdate}
+          />
+        );
 
-  // If they can edit text and project is book, show book editor
-  if (project.content_type === 'book' && hasChapterEditor) {
-    return (
-      <CollaborativeBookEditor
-        project={project}
-        currentUser={currentUser}
-        onProjectUpdate={onProjectUpdate}
-      />
-    );
-  }
+      case 'art':
+        return (
+          <CollaborativeArtEditor
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={onProjectUpdate}
+          />
+        );
 
-  // If they can only edit images (e.g., Illustrator on book project), show art editor
-  if (hasImageUploader && !hasChapterEditor && !hasAudioUploader && !hasVideoUploader) {
-    return (
-      <CollaborativeArtEditor
-        project={project}
-        currentUser={currentUser}
-        onProjectUpdate={onProjectUpdate}
-      />
-    );
-  }
+      case 'music':
+        return (
+          <CollaborativeMusicEditor
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={onProjectUpdate}
+          />
+        );
 
-  // If they can edit audio (e.g., Narrator on book project), show audio interface
-  if (hasAudioUploader && !hasChapterEditor && !hasImageUploader && !hasVideoUploader) {
-    return (
-      <CollaborativeMusicEditor
-        project={project}
-        currentUser={currentUser}
-        onProjectUpdate={onProjectUpdate}
-      />
-    );
-  }
+      case 'video':
+        return (
+          <CollaborativeVideoEditor
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={onProjectUpdate}
+          />
+        );
 
-  // If they can edit video, show video editor
-  if (hasVideoUploader && !hasChapterEditor && !hasImageUploader && !hasAudioUploader) {
-    return (
-      <CollaborativeVideoEditor
-        project={project}
-        currentUser={currentUser}
-        onProjectUpdate={onProjectUpdate}
-      />
-    );
-  }
+      case 'book':
+        return (
+          <CollaborativeBookEditor
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={onProjectUpdate}
+          />
+        );
 
-  // Mixed permissions or default: show hybrid interface with all allowed components
+      default:
+        // For unknown or mixed project types, use permission-based hybrid interface
+        return (
+          <HybridCreatorInterface
+            project={project}
+            currentUser={currentUser}
+            permissions={permissions}
+            onProjectUpdate={onProjectUpdate}
+          />
+        );
+    }
+  };
+
   return (
-    <HybridCreatorInterface
-      project={project}
-      currentUser={currentUser}
-      permissions={permissions}
-      onProjectUpdate={onProjectUpdate}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {renderEditorByProjectType()}
+      <CommentsPanel project={project} currentUser={currentUser} />
+    </div>
   );
 }
 

@@ -1,11 +1,34 @@
 /**
  * Payout preferences form component.
+ * Updated with dark theme styling.
  */
 
 import React, { useState, useEffect } from 'react';
-import { Wallet, Building2, GitBranch, Check } from 'lucide-react';
+import { Wallet, Building2, GitBranch, Check, type LucideIcon } from 'lucide-react';
 import { updatePayoutPreferences } from '../../services/bridgeApi';
 import type { PayoutDestination, PayoutPreferences } from '../../types/bridge';
+
+// Dark theme colors
+const colors = {
+  bg: '#0f172a',
+  bgCard: '#1e293b',
+  bgHover: '#334155',
+  border: '#334155',
+  borderLight: '#475569',
+  text: '#f8fafc',
+  textSecondary: '#cbd5e1',
+  textMuted: '#94a3b8',
+  accent: '#f59e0b',
+  accentHover: '#fbbf24',
+  success: '#10b981',
+  successBg: 'rgba(16,185,129,0.15)',
+  error: '#ef4444',
+  errorBg: 'rgba(239,68,68,0.15)',
+  warning: '#f59e0b',
+  warningBg: 'rgba(245,158,11,0.15)',
+  info: '#3b82f6',
+  infoBg: 'rgba(59,130,246,0.15)',
+};
 
 interface BridgePayoutPreferencesProps {
   currentPreferences: PayoutPreferences;
@@ -28,7 +51,6 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset saved state when preferences change
   useEffect(() => {
     setSaved(false);
   }, [destination, percentage]);
@@ -40,7 +62,6 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
       await updatePayoutPreferences(destination, percentage);
       setSaved(true);
       onUpdate?.();
-      // Clear saved indicator after 2 seconds
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save preferences');
@@ -57,7 +78,7 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
     value: PayoutDestination;
     label: string;
     description: string;
-    icon: React.ComponentType<{ className?: string }>;
+    icon: LucideIcon;
     disabled?: boolean;
   }> = [
     {
@@ -83,13 +104,8 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
   ];
 
   return (
-    <div className="bg-white rounded-lg border p-6">
-      <h3 className="text-lg font-semibold mb-4">Payout Destination</h3>
-      <p className="text-gray-600 text-sm mb-6">
-        Choose where your earnings should be sent when you make sales.
-      </p>
-
-      <div className="space-y-3">
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {options.map((option) => {
           const Icon = option.icon;
           const isSelected = destination === option.value;
@@ -100,48 +116,70 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
               key={option.value}
               onClick={() => !isDisabled && setDestination(option.value)}
               disabled={isDisabled}
-              className={`w-full text-left p-4 rounded-lg border-2 transition-colors ${
-                isSelected
-                  ? 'border-blue-500 bg-blue-50'
-                  : isDisabled
-                  ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
-                  : 'border-gray-200 hover:border-gray-300'
-              }`}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                padding: 16,
+                borderRadius: 12,
+                border: `2px solid ${isSelected ? colors.accent : colors.border}`,
+                background: isSelected ? `${colors.accent}15` : colors.bg,
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                opacity: isDisabled ? 0.5 : 1,
+                transition: 'all 0.2s',
+              }}
             >
-              <div className="flex items-start gap-3">
-                <div
-                  className={`p-2 rounded-lg ${
-                    isSelected ? 'bg-blue-100' : 'bg-gray-100'
-                  }`}
-                >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{
+                  padding: 10,
+                  borderRadius: 10,
+                  background: isSelected ? `${colors.accent}20` : colors.bgHover,
+                }}>
                   <Icon
-                    className={`h-5 w-5 ${
-                      isSelected ? 'text-blue-600' : 'text-gray-500'
-                    }`}
+                    size={20}
+                    style={{ color: isSelected ? colors.accent : colors.textMuted }}
                   />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`font-medium ${
-                        isSelected ? 'text-blue-900' : 'text-gray-900'
-                      }`}
-                    >
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}>
+                    <span style={{
+                      fontWeight: 600,
+                      fontSize: 15,
+                      color: isSelected ? colors.accent : colors.text,
+                    }}>
                       {option.label}
                     </span>
                     {isSelected && (
-                      <Check className="h-5 w-5 text-blue-600" />
+                      <div style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: colors.accent,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Check size={12} style={{ color: '#000' }} />
+                      </div>
                     )}
                   </div>
-                  <p
-                    className={`text-sm mt-0.5 ${
-                      isSelected ? 'text-blue-700' : 'text-gray-500'
-                    }`}
-                  >
+                  <p style={{
+                    fontSize: 13,
+                    marginTop: 4,
+                    color: isSelected ? colors.textSecondary : colors.textMuted,
+                    lineHeight: 1.4,
+                  }}>
                     {option.description}
                   </p>
                   {isDisabled && (
-                    <p className="text-xs text-orange-600 mt-1">
+                    <p style={{
+                      fontSize: 12,
+                      marginTop: 6,
+                      color: colors.warning,
+                    }}>
                       Complete Bridge setup to enable this option
                     </p>
                   )}
@@ -154,10 +192,22 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
 
       {/* Split percentage slider */}
       {destination === 'split' && (
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-700">Split Ratio</span>
-            <span className="text-sm text-gray-600">
+        <div style={{
+          marginTop: 20,
+          padding: 16,
+          background: colors.bgHover,
+          borderRadius: 12,
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: colors.textSecondary }}>
+              Split Ratio
+            </span>
+            <span style={{ fontSize: 13, color: colors.textMuted }}>
               {percentage}% to Bank / {100 - percentage}% to Wallet
             </span>
           </div>
@@ -168,9 +218,22 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
             step="10"
             value={percentage}
             onChange={(e) => setPercentage(Number(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+            style={{
+              width: '100%',
+              height: 6,
+              borderRadius: 3,
+              background: colors.bg,
+              cursor: 'pointer',
+              accentColor: colors.accent,
+            }}
           />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 11,
+            color: colors.textMuted,
+            marginTop: 6,
+          }}>
             <span>10% Bank</span>
             <span>100% Bank</span>
           </div>
@@ -179,33 +242,56 @@ export const BridgePayoutPreferences: React.FC<BridgePayoutPreferencesProps> = (
 
       {/* Pending amount notice */}
       {Number(currentPreferences.pending_bridge_amount) > 0 && (
-        <div className="mt-4 p-3 bg-yellow-50 rounded-lg text-sm">
-          <span className="font-medium text-yellow-800">
+        <div style={{
+          marginTop: 20,
+          padding: 16,
+          background: colors.warningBg,
+          border: `1px solid ${colors.warning}40`,
+          borderRadius: 12,
+        }}>
+          <span style={{ fontWeight: 600, color: colors.warning, fontSize: 14 }}>
             ${Number(currentPreferences.pending_bridge_amount).toFixed(2)} USDC pending
           </span>
-          <p className="text-yellow-700 mt-1">
+          <p style={{ color: colors.textSecondary, marginTop: 6, fontSize: 13 }}>
             This amount is accumulating until it reaches the $10 minimum for bank deposit.
           </p>
         </div>
       )}
 
       {error && (
-        <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+        <div style={{
+          marginTop: 20,
+          padding: 12,
+          background: colors.errorBg,
+          border: `1px solid ${colors.error}40`,
+          borderRadius: 8,
+          color: colors.error,
+          fontSize: 13,
+        }}>
           {error}
         </div>
       )}
 
-      <div className="mt-6">
+      <div style={{ marginTop: 20 }}>
         <button
           onClick={handleSave}
           disabled={saving || !hasChanges}
-          className={`px-4 py-2 rounded-md font-medium transition-colors ${
-            saved
-              ? 'bg-green-600 text-white'
+          style={{
+            padding: '10px 20px',
+            borderRadius: 8,
+            border: 'none',
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: saving || !hasChanges ? 'not-allowed' : 'pointer',
+            background: saved
+              ? colors.success
               : hasChanges
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-          }`}
+              ? colors.accent
+              : colors.bgHover,
+            color: saved || hasChanges ? '#000' : colors.textMuted,
+            opacity: saving ? 0.6 : 1,
+            transition: 'all 0.2s',
+          }}
         >
           {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
         </button>

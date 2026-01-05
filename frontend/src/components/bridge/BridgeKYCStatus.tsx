@@ -1,11 +1,32 @@
 /**
  * KYC status display and action component.
+ * Updated with dark theme styling.
  */
 
 import React, { useState } from 'react';
-import { CheckCircle, Clock, XCircle, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertCircle, ExternalLink, RefreshCw, type LucideIcon } from 'lucide-react';
 import { openKYCFlow, getKYCStatus, createBridgeCustomer } from '../../services/bridgeApi';
 import type { KYCStatus } from '../../types/bridge';
+
+// Dark theme colors
+const colors = {
+  bg: '#0f172a',
+  bgCard: '#1e293b',
+  bgHover: '#334155',
+  border: '#334155',
+  text: '#f8fafc',
+  textSecondary: '#cbd5e1',
+  textMuted: '#94a3b8',
+  accent: '#f59e0b',
+  success: '#10b981',
+  successBg: 'rgba(16,185,129,0.15)',
+  error: '#ef4444',
+  errorBg: 'rgba(239,68,68,0.15)',
+  warning: '#f59e0b',
+  warningBg: 'rgba(245,158,11,0.15)',
+  info: '#3b82f6',
+  infoBg: 'rgba(59,130,246,0.15)',
+};
 
 interface BridgeKYCStatusProps {
   status: KYCStatus | null;
@@ -25,11 +46,9 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
     setLoading(true);
     setError(null);
     try {
-      // Create customer if not exists
       if (!hasCustomer) {
         await createBridgeCustomer();
       }
-      // Open KYC flow
       await openKYCFlow();
       onStatusChange?.();
     } catch (err) {
@@ -52,7 +71,7 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
   };
 
   const statusConfig: Record<KYCStatus, {
-    icon: React.ComponentType<{ className?: string }>;
+    icon: LucideIcon;
     label: string;
     description: string;
     color: string;
@@ -62,36 +81,36 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
       icon: AlertCircle,
       label: 'Not Started',
       description: 'Complete identity verification to enable bank payouts.',
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-100',
+      color: colors.textMuted,
+      bgColor: colors.bgHover,
     },
     pending: {
       icon: Clock,
       label: 'Pending Review',
       description: 'Your verification is being reviewed. This usually takes a few minutes.',
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100',
+      color: colors.warning,
+      bgColor: colors.warningBg,
     },
     approved: {
       icon: CheckCircle,
       label: 'Verified',
       description: 'Your identity has been verified. You can now link bank accounts.',
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
+      color: colors.success,
+      bgColor: colors.successBg,
     },
     rejected: {
       icon: XCircle,
       label: 'Verification Failed',
       description: 'Your verification was not approved. Please try again with valid documents.',
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
+      color: colors.error,
+      bgColor: colors.errorBg,
     },
     incomplete: {
       icon: AlertCircle,
       label: 'Incomplete',
       description: 'Your verification is incomplete. Please complete all required steps.',
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100',
+      color: colors.warning,
+      bgColor: colors.warningBg,
     },
   };
 
@@ -100,33 +119,61 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
   const Icon = config.icon;
 
   return (
-    <div className="bg-white rounded-lg border p-6">
-      <h3 className="text-lg font-semibold mb-4">Identity Verification</h3>
-
-      <div className={`rounded-lg p-4 ${config.bgColor}`}>
-        <div className="flex items-start gap-3">
-          <Icon className={`h-6 w-6 ${config.color}`} />
-          <div className="flex-1">
-            <p className={`font-medium ${config.color}`}>{config.label}</p>
-            <p className="text-sm text-gray-600 mt-1">{config.description}</p>
+    <div>
+      <div style={{
+        background: config.bgColor,
+        borderRadius: 12,
+        padding: 16,
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+      }}>
+        <Icon size={24} style={{ color: config.color, flexShrink: 0, marginTop: 2 }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ color: config.color, fontWeight: 600, fontSize: 15 }}>
+            {config.label}
           </div>
+          <p style={{ color: colors.textSecondary, fontSize: 13, margin: '4px 0 0', lineHeight: 1.5 }}>
+            {config.description}
+          </p>
         </div>
       </div>
 
       {error && (
-        <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm">
+        <div style={{
+          marginTop: 16,
+          padding: 12,
+          background: colors.errorBg,
+          border: `1px solid ${colors.error}40`,
+          borderRadius: 8,
+          color: colors.error,
+          fontSize: 13,
+        }}>
           {error}
         </div>
       )}
 
-      <div className="mt-4 flex gap-3">
+      <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
         {(currentStatus === 'not_started' || currentStatus === 'rejected' || currentStatus === 'incomplete') && (
           <button
             onClick={handleStartKYC}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              background: colors.accent,
+              color: '#000',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1,
+            }}
           >
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink size={16} />
             {hasCustomer ? 'Continue Verification' : 'Start Verification'}
           </button>
         )}
@@ -135,26 +182,53 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
           <button
             onClick={handleRefreshStatus}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 20px',
+              background: colors.bgHover,
+              color: colors.textSecondary,
+              border: `1px solid ${colors.border}`,
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1,
+            }}
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw size={16} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
             Refresh Status
           </button>
         )}
       </div>
 
-      <p className="mt-4 text-xs text-gray-500">
+      <p style={{
+        marginTop: 16,
+        fontSize: 12,
+        color: colors.textMuted,
+        lineHeight: 1.5,
+      }}>
         Verification is powered by Bridge.xyz. Your data is securely handled according to their{' '}
         <a
           href="https://www.bridge.xyz/privacy"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
+          style={{ color: colors.info, textDecoration: 'none' }}
+          onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+          onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
         >
           privacy policy
         </a>
         .
       </p>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

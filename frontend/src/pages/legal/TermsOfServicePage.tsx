@@ -8,7 +8,7 @@ import LegalPageLayout from '../../components/legal/LegalPageLayout';
 
 export default function TermsOfServicePage() {
   return (
-    <LegalPageLayout title="Terms of Service" lastUpdated="December 2024">
+    <LegalPageLayout title="Terms of Service" lastUpdated="January 2026">
       <p>
         Welcome to renaissBlock. These Terms of Service ("Terms") govern your access to and use of
         renaissBlock's website, platform, and services (collectively, the "Service"). By accessing

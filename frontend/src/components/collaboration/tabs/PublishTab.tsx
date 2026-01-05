@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CollaborativeProject, collaborationApi } from '../../../services/collaborationApi';
 import CopyrightPreview from '../../BookEditor/CopyrightPreview';
+import { Check, Clock, PartyPopper, AlertCircle } from 'lucide-react';
 
 interface User {
   id: number;
@@ -639,7 +640,7 @@ function ApproveStep({
           justifyContent: 'center',
           fontSize: 24,
         }}>
-          {project.is_fully_approved ? '✓' : '...'}
+          {project.is_fully_approved ? <Check size={24} /> : <Clock size={24} />}
         </div>
         <div>
           <div style={{
@@ -676,7 +677,9 @@ function ApproveStep({
               background: 'rgba(16, 185, 129, 0.1)',
               borderRadius: 8,
             }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>✓</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                <Check size={48} style={{ color: '#10b981' }} />
+              </div>
               <div style={{ fontSize: 16, fontWeight: 600, color: '#10b981' }}>
                 You've approved this project
               </div>
@@ -1048,7 +1051,9 @@ function ShareStep({ project }: { project: CollaborativeProject }) {
       padding: 24,
       textAlign: 'center',
     }}>
-      <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+        <PartyPopper size={64} style={{ color: '#f59e0b' }} />
+      </div>
       <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 24 }}>
         Successfully Minted!
       </h3>

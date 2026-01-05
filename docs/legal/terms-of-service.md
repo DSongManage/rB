@@ -1,6 +1,6 @@
 # renaissBlock Terms of Service
 
-**Last Updated: [DATE]**
+**Last Updated: January 5, 2026**
 
 Welcome to renaissBlock. These Terms of Service ("Terms") govern your access to and use of renaissBlock's website, platform, and services (collectively, the "Service"). By accessing or using the Service, you agree to be bound by these Terms.
 

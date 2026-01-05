@@ -1,6 +1,6 @@
 # renaissBlock Creator Agreement
 
-**Last Updated: [DATE]**
+**Last Updated: January 5, 2026**
 
 This Creator Agreement ("Agreement") supplements the renaissBlock Terms of Service and applies when you publish content on renaissBlock. By publishing, you agree to these additional terms.
 
@@ -82,13 +82,16 @@ By publishing content, you represent and warrant that:
 - Prices must be displayed in supported currencies
 
 ### 4.2 Platform Fees
-Current fee structure:
 
-| Sale Amount | Platform Fee |
-|-------------|--------------|
-| Under $10 | 15% |
-| $10 - $50 | 12% |
-| Over $50 | 10% |
+**Primary Sales:** RenaissBlock charges a flat **10% platform fee** on all primary sales.
+This fee covers payment processing, NFT minting, content hosting, and platform operations.
+
+**Secondary Sale Royalties:** When your NFT is resold on compatible marketplaces,
+a 7% royalty is automatically distributed:
+- **5%** to the original creator(s)
+- **2%** to the platform
+
+These royalties are advisory and depend on marketplace enforcement.
 
 Fees are subject to change with 30 days' notice.
 

@@ -16,13 +16,14 @@ from django.db import models, transaction
 from ..models import (
     ComicPage, ComicPanel, SpeechBubble, DividerLine,
     CollaborativeProject, CollaboratorRole,
-    ComicSeries, ComicIssue, Content
+    ComicSeries, ComicIssue, Content, ArtworkLibraryItem
 )
 from ..serializers import (
     ComicPageSerializer,
     ComicPanelSerializer, SpeechBubbleSerializer, DividerLineSerializer,
     ComicSeriesSerializer, ComicSeriesListSerializer,
-    ComicIssueSerializer, ComicIssueListSerializer
+    ComicIssueSerializer, ComicIssueListSerializer,
+    ArtworkLibraryItemSerializer
 )
 
 
@@ -1003,3 +1004,194 @@ class DividerLineViewSet(viewsets.ModelViewSet):
                 updated_lines.append(line.id)
 
         return Response({'updated': updated_lines})
+
+
+class ArtworkLibraryViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing project artwork library.
+
+    Allows collaborators to upload reusable artwork assets that can be
+    dragged and dropped into comic panels.
+
+    Endpoints:
+    - GET /api/collaborative-projects/{id}/artwork-library/ - List project artwork
+    - POST /api/collaborative-projects/{id}/artwork-library/ - Upload new artwork
+    - DELETE /api/artwork-library/{id}/ - Remove artwork item
+    - POST /api/artwork-library/{id}/apply-to-panel/ - Apply artwork to a panel
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    serializer_class = ArtworkLibraryItemSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        """Filter artwork by project."""
+        project_pk = self.kwargs.get('project_pk')
+        if project_pk:
+            return ArtworkLibraryItem.objects.filter(project_id=project_pk)
+        # For detail views (delete, apply), allow lookup by ID
+        return ArtworkLibraryItem.objects.all()
+
+    def get_serializer_context(self):
+        """Add request to serializer context for URL building."""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def create(self, request, *args, **kwargs):
+        """Upload artwork to project library."""
+        project_pk = self.kwargs.get('project_pk')
+        if not project_pk:
+            return Response(
+                {'error': 'Project ID required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        project = get_object_or_404(
+            CollaborativeProject, id=project_pk, content_type='comic'
+        )
+
+        # Verify user has permission
+        can_upload = self._check_upload_permission(project)
+        if not can_upload:
+            return Response(
+                {'error': "You don't have permission to upload artwork"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Validate file
+        artwork_file = request.FILES.get('file')
+        if not artwork_file:
+            return Response(
+                {'error': 'No file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate file type
+        valid_types = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+        if artwork_file.content_type not in valid_types:
+            return Response(
+                {'error': 'File must be PNG, JPEG, WebP, or GIF'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate file size (50MB max)
+        if artwork_file.size > 50 * 1024 * 1024:
+            return Response(
+                {'error': 'File size must be under 50MB'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create artwork item
+        title = request.data.get('title', '')
+        artwork_item = ArtworkLibraryItem.objects.create(
+            project=project,
+            file=artwork_file,
+            title=title,
+            filename=artwork_file.name,
+            uploader=request.user
+        )
+
+        serializer = self.get_serializer(artwork_item)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete artwork from library."""
+        instance = self.get_object()
+
+        # Verify user has permission (uploader or project creator)
+        can_delete = (
+            instance.uploader == request.user or
+            instance.project.created_by == request.user
+        )
+        if not can_delete:
+            return Response(
+                {'error': "You don't have permission to delete this artwork"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'])
+    def apply_to_panel(self, request, pk=None, project_pk=None):
+        """Apply library artwork to a comic panel.
+
+        POST data:
+        - panel_id: int (existing ComicPanel ID)
+        OR for computed panels:
+        - page_id: int
+        - bounds: object {x, y, width, height} in percentages
+        """
+        artwork_item = self.get_object()
+
+        # Verify user has permission
+        can_apply = self._check_upload_permission(artwork_item.project)
+        if not can_apply:
+            return Response(
+                {'error': "You don't have permission to apply artwork"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        panel_id = request.data.get('panel_id')
+        page_id = request.data.get('page_id')
+        bounds = request.data.get('bounds')
+
+        if panel_id:
+            # Update existing panel
+            panel = get_object_or_404(ComicPanel, id=panel_id)
+            panel.artwork = artwork_item.file
+            panel.artist = artwork_item.uploader
+            panel.save()
+        elif page_id and bounds:
+            # Create new panel for computed region
+            page = get_object_or_404(ComicPage, id=page_id)
+
+            # Verify page belongs to same project
+            if page.project != artwork_item.project and (
+                page.issue and page.issue.project != artwork_item.project
+            ):
+                return Response(
+                    {'error': 'Page does not belong to this project'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Create panel with artwork
+            panel = ComicPanel.objects.create(
+                page=page,
+                x_percent=bounds.get('x', 0),
+                y_percent=bounds.get('y', 0),
+                width_percent=bounds.get('width', 100),
+                height_percent=bounds.get('height', 100),
+                artwork=artwork_item.file,
+                artist=artwork_item.uploader,
+                border_style='none',
+                border_width=0
+            )
+        else:
+            return Response(
+                {'error': 'panel_id or (page_id + bounds) required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Increment usage count
+        artwork_item.usage_count += 1
+        artwork_item.save()
+
+        return Response(ComicPanelSerializer(panel).data)
+
+    def _check_upload_permission(self, project):
+        """Check if current user can upload artwork to project."""
+        # Project creator always has permission
+        if project.created_by == self.request.user:
+            return True
+
+        # Check collaborator role
+        user_role = project.collaborators.filter(
+            user=self.request.user,
+            status='accepted'
+        ).first()
+
+        if user_role and user_role.can_edit_images:
+            return True
+
+        return False

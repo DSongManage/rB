@@ -4,9 +4,11 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { useUnreadCount } from '../../hooks/useNotifications';
 import { events } from '../../services/notificationService';
+import { useMobile } from '../../hooks/useMobile';
 import NotificationDropdown from './NotificationDropdown';
 
 export function NotificationBell() {
@@ -14,6 +16,8 @@ export function NotificationBell() {
   const [isAnimating, setIsAnimating] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
   const { unreadCount } = useUnreadCount();
+  const { isMobile } = useMobile();
+  const navigate = useNavigate();
 
   // Animate bell when new notifications arrive
   useEffect(() => {
@@ -25,52 +29,58 @@ export function NotificationBell() {
     return () => unsubscribe();
   }, []);
 
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
+  const handleClick = () => {
+    // On mobile, navigate directly to the notifications page
+    if (isMobile) {
+      navigate('/notifications');
+    } else {
+      // On desktop, toggle the dropdown
+      setIsOpen(!isOpen);
+    }
   };
 
   return (
     <div style={{ position: 'relative' }}>
       <button
         ref={bellRef}
-        onClick={toggleDropdown}
+        onClick={handleClick}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={isOpen}
         aria-haspopup="true"
         className="rb-nav-link"
-        style={{
-          position: 'relative',
-        }}
         title="Notifications"
       >
-        <Bell
-          size={20}
-          style={{
-            animation: isAnimating ? 'ring 1s ease-in-out' : 'none',
-            transformOrigin: 'top center',
-          }}
-        />
-        {unreadCount > 0 && (
-          <span
+        <span style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <Bell
+            size={20}
             style={{
-              position: 'absolute',
-              top: 4,
-              right: 4,
-              background: '#ef4444',
-              color: '#fff',
-              fontSize: 10,
-              fontWeight: 700,
-              padding: '2px 6px',
-              borderRadius: 10,
-              minWidth: 18,
-              textAlign: 'center',
-              boxShadow: '0 0 8px rgba(239, 68, 68, 0.5)',
+              animation: isAnimating ? 'ring 1s ease-in-out' : 'none',
+              transformOrigin: 'top center',
             }}
-            aria-label={`${unreadCount} unread notifications`}
-          >
-            {unreadCount}
-          </span>
-        )}
+          />
+          {unreadCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -6,
+                right: -8,
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 5px',
+                borderRadius: 10,
+                minWidth: 16,
+                textAlign: 'center',
+                boxShadow: '0 0 8px rgba(239, 68, 68, 0.5)',
+              }}
+              aria-label={`${unreadCount} unread notifications`}
+            >
+              {unreadCount}
+            </span>
+          )}
+        </span>
+        <span>Alerts</span>
       </button>
 
       <NotificationDropdown

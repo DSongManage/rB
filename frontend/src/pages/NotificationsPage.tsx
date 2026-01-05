@@ -1,23 +1,73 @@
 /**
  * NotificationsPage
- * Full page view for all notifications
+ * Full page view for all notifications with search, filters, and bulk actions
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, Trash2, ArrowLeft } from 'lucide-react';
+import {
+  Bell,
+  CheckCheck,
+  Trash2,
+  ArrowLeft,
+  Search,
+  Filter,
+  Calendar,
+  CheckSquare,
+  Square,
+  X,
+} from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 import { Notification } from '../services/notificationService';
+import { useMobile } from '../hooks/useMobile';
 import NotificationItem from '../components/notifications/NotificationItem';
 import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
 
 type FilterType = 'all' | 'unread' | 'read';
+type DateRangeType = 'all' | 'today' | 'week' | 'month';
+
+// Notification type labels for the filter dropdown
+const NOTIFICATION_TYPES = [
+  { value: 'all', label: 'All Types' },
+  { value: 'invitation', label: 'Invitations' },
+  { value: 'invitation_response', label: 'Invite Responses' },
+  { value: 'counter_proposal', label: 'Counter Proposals' },
+  { value: 'comment', label: 'Comments' },
+  { value: 'approval', label: 'Approvals' },
+  { value: 'section_update', label: 'Updates' },
+  { value: 'revenue_proposal', label: 'Revenue Proposals' },
+  { value: 'mint_ready', label: 'Mint Ready' },
+  { value: 'content_like', label: 'Likes' },
+  { value: 'content_comment', label: 'Content Comments' },
+  { value: 'content_rating', label: 'Ratings' },
+  { value: 'creator_review', label: 'Reviews' },
+];
+
+const DATE_RANGE_OPTIONS = [
+  { value: 'all', label: 'All Time' },
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'This Week' },
+  { value: 'month', label: 'This Month' },
+];
 
 export default function NotificationsPage() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<FilterType>('unread');
+  const { isMobile, isPhone } = useMobile();
+
+  // Filter states
+  const [readFilter, setReadFilter] = useState<FilterType>('unread');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRangeType>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Bulk selection states
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // Modal states
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [selectedInvite, setSelectedInvite] = useState<Notification | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const {
     notifications,
@@ -34,15 +84,102 @@ export default function NotificationsPage() {
     refresh();
   }, [refresh]);
 
-  // Filter notifications
-  const filteredNotifications = notifications.filter((notification) => {
-    if (filter === 'unread') return !notification.read;
-    if (filter === 'read') return notification.read;
-    return true;
-  });
+  // Clear selection when exiting select mode
+  useEffect(() => {
+    if (!selectMode) {
+      setSelectedIds(new Set());
+    }
+  }, [selectMode]);
 
-  // Handle notification click
+  // Date range filter logic
+  const isWithinDateRange = (dateStr: string): boolean => {
+    if (dateRange === 'all') return true;
+
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+    switch (dateRange) {
+      case 'today':
+        return diffDays === 0;
+      case 'week':
+        return diffDays <= 7;
+      case 'month':
+        return diffDays <= 30;
+      default:
+        return true;
+    }
+  };
+
+  // Combined filtering
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((notification) => {
+      // Read/unread filter
+      if (readFilter === 'unread' && notification.read) return false;
+      if (readFilter === 'read' && !notification.read) return false;
+
+      // Type filter
+      if (typeFilter !== 'all' && notification.type !== typeFilter) return false;
+
+      // Date range filter
+      if (!isWithinDateRange(notification.created_at)) return false;
+
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesTitle = notification.title?.toLowerCase().includes(query);
+        const matchesMessage = notification.message?.toLowerCase().includes(query);
+        if (!matchesTitle && !matchesMessage) return false;
+      }
+
+      return true;
+    });
+  }, [notifications, readFilter, typeFilter, dateRange, searchQuery]);
+
+  // Selection handlers
+  const toggleSelect = (id: number) => {
+    const newSet = new Set(selectedIds);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedIds(newSet);
+  };
+
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(filteredNotifications.map((n) => n.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  // Bulk actions
+  const handleBulkMarkRead = async () => {
+    for (const id of selectedIds) {
+      await markAsRead(id);
+    }
+    clearSelection();
+    setSelectMode(false);
+  };
+
+  const handleBulkDelete = async () => {
+    for (const id of selectedIds) {
+      await deleteNotification(id);
+    }
+    clearSelection();
+    setSelectMode(false);
+    setDeleteConfirmOpen(false);
+  };
+
+  // Individual notification handlers
   const handleNotificationClick = async (notification: Notification) => {
+    if (selectMode) {
+      toggleSelect(notification.id);
+      return;
+    }
+
     if (!notification.read) {
       await markAsRead(notification.id);
     }
@@ -54,7 +191,6 @@ export default function NotificationsPage() {
     }
   };
 
-  // Handle view invite
   const handleViewInvite = async (notification: Notification) => {
     if (!notification.read) {
       await markAsRead(notification.id);
@@ -63,28 +199,25 @@ export default function NotificationsPage() {
     setInviteModalOpen(true);
   };
 
-  // Close invite modal
   const handleCloseInviteModal = () => {
     setInviteModalOpen(false);
     setSelectedInvite(null);
     refresh();
   };
 
-  // Handle delete
   const handleDelete = async (e: React.MouseEvent, notificationId: number) => {
     e.stopPropagation();
     await deleteNotification(notificationId);
   };
 
-  // Handle mark all as read
   const handleMarkAllRead = async () => {
     await markAllAsRead();
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: isPhone ? '16px 12px' : '24px 16px' }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: isPhone ? 16 : 24 }}>
         <button
           onClick={() => navigate(-1)}
           style={{
@@ -97,17 +230,33 @@ export default function NotificationsPage() {
             fontSize: 14,
             cursor: 'pointer',
             padding: '8px 0',
-            marginBottom: 16,
+            marginBottom: isPhone ? 12 : 16,
+            minHeight: 44,
           }}
         >
           <ArrowLeft size={18} />
           Back
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isPhone ? 'column' : 'row',
+            alignItems: isPhone ? 'flex-start' : 'center',
+            justifyContent: 'space-between',
+            gap: isPhone ? 12 : 0,
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Bell size={28} color="#f59e0b" />
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#e5e7eb', margin: 0 }}>
+            <Bell size={isPhone ? 24 : 28} color="#f59e0b" />
+            <h1
+              style={{
+                fontSize: isPhone ? 20 : 24,
+                fontWeight: 700,
+                color: '#e5e7eb',
+                margin: 0,
+              }}
+            >
               Notifications
             </h1>
             {unreadCount > 0 && (
@@ -115,13 +264,13 @@ export default function NotificationsPage() {
                 style={{
                   background: '#ef4444',
                   color: '#fff',
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: 700,
-                  padding: '4px 10px',
+                  padding: '3px 8px',
                   borderRadius: 12,
                 }}
               >
-                {unreadCount} unread
+                {unreadCount}
               </span>
             )}
           </div>
@@ -138,21 +287,13 @@ export default function NotificationsPage() {
               color: unreadCount > 0 ? '#000' : '#64748b',
               fontSize: 13,
               fontWeight: 600,
-              padding: '8px 16px',
+              padding: '10px 16px',
               borderRadius: 8,
               cursor: unreadCount > 0 ? 'pointer' : 'not-allowed',
-              transition: 'all 0.2s',
               opacity: unreadCount > 0 ? 1 : 0.6,
-            }}
-            onMouseEnter={(e) => {
-              if (unreadCount > 0) {
-                e.currentTarget.style.background = '#fbbf24';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (unreadCount > 0) {
-                e.currentTarget.style.background = '#f59e0b';
-              }
+              minHeight: 44,
+              width: isPhone ? '100%' : 'auto',
+              justifyContent: 'center',
             }}
           >
             <CheckCheck size={16} />
@@ -161,40 +302,307 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* Filter Tabs */}
+      {/* Search and Filters */}
       <div
         style={{
           display: 'flex',
-          gap: 8,
-          marginBottom: 20,
-          borderBottom: '1px solid #1f2937',
-          paddingBottom: 12,
+          flexDirection: 'column',
+          gap: 12,
+          marginBottom: 16,
         }}
       >
-        {(['unread', 'read', 'all'] as FilterType[]).map((filterType) => (
-          <button
-            key={filterType}
-            onClick={() => setFilter(filterType)}
+        {/* Search Bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: '#0f172a',
+            border: '1px solid #1f2937',
+            borderRadius: 8,
+            padding: '0 12px',
+          }}
+        >
+          <Search size={18} color="#64748b" />
+          <input
+            type="text"
+            placeholder="Search notifications..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              background: filter === filterType ? '#1f2937' : 'transparent',
+              flex: 1,
+              background: 'transparent',
               border: 'none',
-              color: filter === filterType ? '#f59e0b' : '#94a3b8',
-              fontSize: 13,
-              fontWeight: 600,
-              padding: '8px 16px',
-              borderRadius: 6,
-              cursor: 'pointer',
-              textTransform: 'capitalize',
-              transition: 'all 0.2s',
+              color: '#e5e7eb',
+              fontSize: 14,
+              padding: '12px',
+              outline: 'none',
+              minHeight: 44,
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* Filter Row */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isPhone ? 'column' : 'row',
+            gap: 8,
+          }}
+        >
+          {/* Type Filter */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Filter size={16} color="#64748b" />
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              style={{
+                flex: 1,
+                background: '#0f172a',
+                border: '1px solid #1f2937',
+                borderRadius: 6,
+                color: '#e5e7eb',
+                fontSize: 13,
+                padding: '10px 12px',
+                cursor: 'pointer',
+                outline: 'none',
+                minHeight: 44,
+              }}
+            >
+              {NOTIFICATION_TYPES.map((type) => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Range Filter */}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={16} color="#64748b" />
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as DateRangeType)}
+              style={{
+                flex: 1,
+                background: '#0f172a',
+                border: '1px solid #1f2937',
+                borderRadius: 6,
+                color: '#e5e7eb',
+                fontSize: 13,
+                padding: '10px 12px',
+                cursor: 'pointer',
+                outline: 'none',
+                minHeight: 44,
+              }}
+            >
+              {DATE_RANGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab Bar with Select Mode Toggle */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+          borderBottom: '1px solid #1f2937',
+          paddingBottom: 12,
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        {/* Read/Unread/All Tabs */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 4,
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {(['unread', 'read', 'all'] as FilterType[]).map((filterType) => (
+            <button
+              key={filterType}
+              onClick={() => setReadFilter(filterType)}
+              style={{
+                background: readFilter === filterType ? '#1f2937' : 'transparent',
+                border: 'none',
+                color: readFilter === filterType ? '#f59e0b' : '#94a3b8',
+                fontSize: 13,
+                fontWeight: 600,
+                padding: '8px 14px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+                whiteSpace: 'nowrap',
+                minHeight: 40,
+              }}
+            >
+              {filterType}
+              {filterType === 'unread' && unreadCount > 0 && (
+                <span style={{ marginLeft: 4, opacity: 0.8 }}>({unreadCount})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Select Mode Toggle */}
+        <button
+          onClick={() => setSelectMode(!selectMode)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            background: selectMode ? '#1e3a5f' : 'transparent',
+            border: `1px solid ${selectMode ? '#3b82f6' : '#374151'}`,
+            color: selectMode ? '#3b82f6' : '#94a3b8',
+            fontSize: 12,
+            fontWeight: 600,
+            padding: '6px 12px',
+            borderRadius: 6,
+            cursor: 'pointer',
+            minHeight: 36,
+          }}
+        >
+          <CheckSquare size={14} />
+          {selectMode ? 'Cancel' : 'Select'}
+        </button>
+      </div>
+
+      {/* Bulk Action Bar */}
+      {selectMode && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: isPhone ? 'column' : 'row',
+            alignItems: isPhone ? 'stretch' : 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '12px 16px',
+            background: '#1e293b',
+            borderRadius: 8,
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
             }}
           >
-            {filterType}
-            {filterType === 'unread' && unreadCount > 0 && (
-              <span style={{ marginLeft: 6 }}>({unreadCount})</span>
-            )}
-          </button>
-        ))}
-      </div>
+            <button
+              onClick={selectAllVisible}
+              style={{
+                background: 'transparent',
+                border: '1px solid #374151',
+                color: '#94a3b8',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '6px 12px',
+                borderRadius: 4,
+                cursor: 'pointer',
+                minHeight: 36,
+              }}
+            >
+              Select All
+            </button>
+            <button
+              onClick={clearSelection}
+              disabled={selectedIds.size === 0}
+              style={{
+                background: 'transparent',
+                border: '1px solid #374151',
+                color: selectedIds.size > 0 ? '#94a3b8' : '#475569',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '6px 12px',
+                borderRadius: 4,
+                cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed',
+                minHeight: 36,
+              }}
+            >
+              Clear
+            </button>
+            <span style={{ fontSize: 13, color: '#64748b' }}>
+              {selectedIds.size} selected
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleBulkMarkRead}
+              disabled={selectedIds.size === 0}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: selectedIds.size > 0 ? '#3b82f6' : '#1f2937',
+                border: 'none',
+                color: selectedIds.size > 0 ? '#fff' : '#475569',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '8px 14px',
+                borderRadius: 6,
+                cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed',
+                flex: isPhone ? 1 : 'none',
+                justifyContent: 'center',
+                minHeight: 40,
+              }}
+            >
+              <CheckCheck size={14} />
+              Mark Read
+            </button>
+            <button
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={selectedIds.size === 0}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: selectedIds.size > 0 ? '#dc2626' : '#1f2937',
+                border: 'none',
+                color: selectedIds.size > 0 ? '#fff' : '#475569',
+                fontSize: 12,
+                fontWeight: 600,
+                padding: '8px 14px',
+                borderRadius: 6,
+                cursor: selectedIds.size > 0 ? 'pointer' : 'not-allowed',
+                flex: isPhone ? 1 : 'none',
+                justifyContent: 'center',
+                minHeight: 40,
+              }}
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Notifications List */}
       <div
@@ -206,47 +614,77 @@ export default function NotificationsPage() {
         }}
       >
         {isLoading && notifications.length === 0 ? (
-          <div
-            style={{
-              padding: 60,
-              textAlign: 'center',
-              color: '#94a3b8',
-            }}
-          >
+          <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>
             Loading notifications...
           </div>
         ) : filteredNotifications.length === 0 ? (
-          <div
-            style={{
-              padding: 60,
-              textAlign: 'center',
-              color: '#94a3b8',
-            }}
-          >
+          <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>
             <Bell size={40} style={{ marginBottom: 16, opacity: 0.5 }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-              {filter === 'all'
+              {searchQuery
+                ? 'No notifications match your search'
+                : readFilter === 'all'
                 ? 'No notifications yet'
-                : filter === 'unread'
+                : readFilter === 'unread'
                 ? 'No unread notifications'
                 : 'No read notifications'}
             </div>
             <div style={{ fontSize: 13, color: '#64748b' }}>
-              {filter === 'all'
-                ? "We'll notify you when there's activity on your collaborations"
+              {searchQuery
+                ? 'Try adjusting your search or filters'
+                : readFilter === 'all'
+                ? "We'll notify you when there's activity"
                 : 'Check back later for updates'}
             </div>
           </div>
         ) : (
           <div>
             {filteredNotifications.map((notification) => (
-              <NotificationItem
+              <div
                 key={notification.id}
-                notification={notification}
-                onClick={() => handleNotificationClick(notification)}
-                onDelete={(e) => handleDelete(e, notification.id)}
-                onViewInvite={handleViewInvite}
-              />
+                style={{
+                  display: 'flex',
+                  alignItems: 'stretch',
+                }}
+              >
+                {/* Checkbox for select mode */}
+                {selectMode && (
+                  <button
+                    onClick={() => toggleSelect(notification.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 48,
+                      background: selectedIds.has(notification.id)
+                        ? 'rgba(59, 130, 246, 0.1)'
+                        : 'transparent',
+                      border: 'none',
+                      borderRight: '1px solid #1f2937',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {selectedIds.has(notification.id) ? (
+                      <CheckSquare size={20} color="#3b82f6" />
+                    ) : (
+                      <Square size={20} color="#475569" />
+                    )}
+                  </button>
+                )}
+
+                {/* Notification Item */}
+                <div style={{ flex: 1 }}>
+                  <NotificationItem
+                    notification={notification}
+                    onClick={() => handleNotificationClick(notification)}
+                    onDelete={(e) => {
+                      if (!selectMode) handleDelete(e, notification.id);
+                    }}
+                    onViewInvite={selectMode ? undefined : handleViewInvite}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -264,6 +702,88 @@ export default function NotificationsPage() {
           }}
         >
           Showing {filteredNotifications.length} of {notifications.length} notifications
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 20,
+          }}
+          onClick={() => setDeleteConfirmOpen(false)}
+        >
+          <div
+            style={{
+              background: '#1a1f2e',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 400,
+              width: '100%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: '#e5e7eb',
+                margin: '0 0 12px 0',
+              }}
+            >
+              Delete Notifications?
+            </h3>
+            <p style={{ fontSize: 14, color: '#94a3b8', margin: '0 0 20px 0' }}>
+              Are you sure you want to delete {selectedIds.size} notification
+              {selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => setDeleteConfirmOpen(false)}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: '1px solid #374151',
+                  color: '#94a3b8',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  padding: '12px 20px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  minHeight: 48,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                style={{
+                  flex: 1,
+                  background: '#dc2626',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  padding: '12px 20px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  minHeight: 48,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
