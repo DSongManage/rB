@@ -15,6 +15,7 @@ interface PanelRegionOverlayProps {
   onPanelClick?: (panelId: string) => void;
   showLabels?: boolean;
   panelArtwork?: Map<string, string>; // Maps panel ID to artwork URL
+  interactive?: boolean; // Whether panels should capture mouse events (false during drawing)
 }
 
 /**
@@ -43,9 +44,10 @@ export const PanelRegionOverlay: React.FC<PanelRegionOverlayProps> = ({
   onPanelClick,
   showLabels = true,
   panelArtwork,
+  interactive = true,
 }) => {
   return (
-    <g className="panel-regions">
+    <g className="panel-regions" style={{ pointerEvents: interactive ? 'auto' : 'none' }}>
       {/* Define clip paths for each panel */}
       <defs>
         {panels.map((panel) => (

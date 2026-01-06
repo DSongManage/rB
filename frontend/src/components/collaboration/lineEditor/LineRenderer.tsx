@@ -126,12 +126,12 @@ export const LineRenderer: React.FC<LineRendererProps> = ({
                 strokeLinecap="round"
                 className="cursor-pointer hover:opacity-80 transition-opacity"
               />
-              {/* Invisible wider hit area */}
+              {/* Invisible wider hit area for easier selection */}
               <path
                 d={pathD}
                 fill="none"
                 stroke="transparent"
-                strokeWidth={Math.max(strokeWidth, 10)}
+                strokeWidth={Math.max(strokeWidth + 30, 40)}
                 strokeLinecap="round"
                 className="cursor-pointer"
               />
@@ -166,14 +166,14 @@ export const LineRenderer: React.FC<LineRendererProps> = ({
               strokeLinecap="round"
               className="cursor-pointer hover:opacity-80 transition-opacity"
             />
-            {/* Invisible wider hit area */}
+            {/* Invisible wider hit area for easier selection */}
             <line
               x1={startX}
               y1={startY}
               x2={endX}
               y2={endY}
               stroke="transparent"
-              strokeWidth={Math.max(strokeWidth, 10)}
+              strokeWidth={Math.max(strokeWidth + 30, 40)}
               strokeLinecap="round"
               className="cursor-pointer"
             />

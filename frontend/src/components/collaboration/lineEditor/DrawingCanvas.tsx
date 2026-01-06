@@ -6,6 +6,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Point, getPageBoundaryEdges, findSnapPoint, Line, generateDefaultControlPoints } from '../../../utils/geometry';
 import { DividerLineData, LineRenderer } from './LineRenderer';
 import { BezierHandles } from './BezierHandles';
+import { LineEndpointHandles } from './LineEndpointHandles';
 import { PanelRegionOverlay } from './PanelRegionOverlay';
 import { ComputedPanel, computePanelRegions, DividerLine } from '../../../utils/regionCalculator';
 
@@ -46,6 +47,7 @@ const MIN_LINE_LENGTH = 1; // minimum 1% length for a valid line
  * Convert pixel coordinates to percentage.
  */
 function toPercent(pixels: number, dimension: number): number {
+  if (dimension <= 0) return 0;
   return (pixels / dimension) * 100;
 }
 
@@ -53,6 +55,7 @@ function toPercent(pixels: number, dimension: number): number {
  * Convert percentage to pixels.
  */
 function toPixels(percent: number, dimension: number): number {
+  if (dimension <= 0) return 0;
   return (percent / 100) * dimension;
 }
 
@@ -111,20 +114,44 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   }, [lines, onPanelsComputed]);
 
   /**
-   * Get mouse position relative to SVG canvas.
+   * Get pointer position relative to SVG canvas (works with mouse and touch).
    */
-  const getMousePosition = useCallback(
-    (e: React.MouseEvent): Point => {
+  const getPointerPosition = useCallback(
+    (e: React.MouseEvent | React.TouchEvent): Point | null => {
       const svg = svgRef.current;
-      if (!svg) return { x: 0, y: 0 };
+      if (!svg) return null;
 
       const rect = svg.getBoundingClientRect();
+      // Guard against zero dimensions
+      if (rect.width === 0 || rect.height === 0) return null;
+
+      let clientX: number, clientY: number;
+      if ('touches' in e) {
+        if (e.touches.length === 0) return null;
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
+
       return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
+        x: clientX - rect.left,
+        y: clientY - rect.top,
       };
     },
     []
+  );
+
+  /**
+   * Get mouse position relative to SVG canvas (legacy, for backwards compat).
+   */
+  const getMousePosition = useCallback(
+    (e: React.MouseEvent): Point => {
+      const result = getPointerPosition(e);
+      return result ?? { x: 0, y: 0 };
+    },
+    [getPointerPosition]
   );
 
   /**
@@ -132,6 +159,12 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
    */
   const getSnappedPoint = useCallback(
     (point: Point): Point => {
+      // Guard against invalid dimensions
+      if (canvasWidth <= 0 || canvasHeight <= 0) {
+        console.warn('Invalid canvas dimensions:', { canvasWidth, canvasHeight });
+        return point;
+      }
+
       // Convert to percentage for snapping
       const pointPercent: Point = {
         x: toPercent(point.x, canvasWidth),
@@ -348,6 +381,165 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
   );
 
   /**
+   * Handle line endpoint change (for dragging start/end points).
+   * Also moves bezier control points proportionally.
+   */
+  const handleEndpointChange = useCallback(
+    (
+      lineId: number,
+      endpoint: 'start' | 'end',
+      x: number,
+      y: number,
+      controlPointDelta?: { dx: number; dy: number }
+    ) => {
+      const line = lines.find((l) => l.id === lineId);
+      if (!line) return;
+
+      const updates: Partial<DividerLineData> = {};
+
+      if (endpoint === 'start') {
+        updates.start_x = x;
+        updates.start_y = y;
+        // Auto-adjust control1 for bezier curves
+        if (line.line_type === 'bezier' && controlPointDelta && line.control1_x !== undefined && line.control1_y !== undefined) {
+          updates.control1_x = Math.max(0, Math.min(100, line.control1_x + controlPointDelta.dx));
+          updates.control1_y = Math.max(0, Math.min(100, line.control1_y + controlPointDelta.dy));
+        }
+      } else {
+        updates.end_x = x;
+        updates.end_y = y;
+        // Auto-adjust control2 for bezier curves
+        if (line.line_type === 'bezier' && controlPointDelta && line.control2_x !== undefined && line.control2_y !== undefined) {
+          updates.control2_x = Math.max(0, Math.min(100, line.control2_x + controlPointDelta.dx));
+          updates.control2_y = Math.max(0, Math.min(100, line.control2_y + controlPointDelta.dy));
+        }
+      }
+
+      onLineUpdate(lineId, updates);
+    },
+    [lines, onLineUpdate]
+  );
+
+  /**
+   * Handle touch start - start drawing on touch devices.
+   */
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (mode !== 'draw-line' && mode !== 'draw-bezier') return;
+      e.preventDefault(); // Prevent scrolling while drawing
+
+      const point = getPointerPosition(e);
+      if (!point) return;
+      const snappedPoint = getSnappedPoint(point);
+
+      setDrawingState({
+        isDrawing: true,
+        startPoint: snappedPoint,
+        currentPoint: snappedPoint,
+        previewLine: null,
+      });
+    },
+    [mode, getPointerPosition, getSnappedPoint]
+  );
+
+  /**
+   * Handle touch move - update preview line on touch devices.
+   */
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      const point = getPointerPosition(e);
+      if (!point) return;
+      const snappedPoint = getSnappedPoint(point);
+
+      // Always update hover point in drawing modes
+      if (mode === 'draw-line' || mode === 'draw-bezier') {
+        setHoverPoint(snappedPoint);
+      } else {
+        setHoverPoint(null);
+      }
+
+      // If not actively drawing, just update hover
+      if (!drawingState.isDrawing || !drawingState.startPoint) return;
+
+      // Create preview line
+      const startPercent = {
+        x: toPercent(drawingState.startPoint.x, canvasWidth),
+        y: toPercent(drawingState.startPoint.y, canvasHeight),
+      };
+      const endPercent = {
+        x: toPercent(snappedPoint.x, canvasWidth),
+        y: toPercent(snappedPoint.y, canvasHeight),
+      };
+
+      let previewLine: Partial<DividerLineData>;
+
+      if (mode === 'draw-bezier') {
+        const controls = generateDefaultControlPoints(startPercent, endPercent);
+        previewLine = {
+          line_type: 'bezier',
+          start_x: startPercent.x,
+          start_y: startPercent.y,
+          end_x: endPercent.x,
+          end_y: endPercent.y,
+          control1_x: controls.control1.x,
+          control1_y: controls.control1.y,
+          control2_x: controls.control2.x,
+          control2_y: controls.control2.y,
+        };
+      } else {
+        previewLine = {
+          line_type: 'straight',
+          start_x: startPercent.x,
+          start_y: startPercent.y,
+          end_x: endPercent.x,
+          end_y: endPercent.y,
+        };
+      }
+
+      setDrawingState((prev) => ({
+        ...prev,
+        currentPoint: snappedPoint,
+        previewLine,
+      }));
+    },
+    [
+      drawingState.isDrawing,
+      drawingState.startPoint,
+      mode,
+      canvasWidth,
+      canvasHeight,
+      getPointerPosition,
+      getSnappedPoint,
+    ]
+  );
+
+  /**
+   * Handle touch end - finish drawing on touch devices.
+   */
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      handleMouseUp(); // Reuse the same logic as mouse up
+      setHoverPoint(null);
+    },
+    [handleMouseUp]
+  );
+
+  /**
+   * Handle document-level mouse up to commit line even when cursor is outside canvas.
+   */
+  useEffect(() => {
+    if (!drawingState.isDrawing) return;
+
+    const handleDocumentMouseUp = () => {
+      handleMouseUp();
+    };
+
+    document.addEventListener('mouseup', handleDocumentMouseUp);
+    return () => document.removeEventListener('mouseup', handleDocumentMouseUp);
+  }, [drawingState.isDrawing, handleMouseUp]);
+
+  /**
    * Handle keyboard events.
    */
   useEffect(() => {
@@ -394,15 +586,19 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
       width={canvasWidth}
       height={canvasHeight}
       className="border border-gray-300 bg-white"
-      style={{ cursor: getCursor() }}
+      style={{ cursor: getCursor(), touchAction: 'none' }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={() => {
-        handleMouseUp();
+        // Don't commit the line on mouse leave - only clear hover indicator
+        // The line will be committed when mouse up fires (via document listener)
         setHoverPoint(null);
       }}
       onClick={handleCanvasClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Background */}
       <rect
@@ -424,6 +620,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
           onPanelClick={handlePanelClick}
           showLabels={showPanelLabels}
           panelArtwork={panelArtwork}
+          interactive={mode === 'select'}
         />
       )}
 
@@ -452,7 +649,25 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
         />
       )}
 
-      {/* Bezier handles for selected line */}
+      {/* Endpoint handles for selected line (for moving start/end points) */}
+      {selectedLineId !== null && mode === 'select' && (
+        <>
+          {lines
+            .filter((l) => l.id === selectedLineId)
+            .map((line) => (
+              <LineEndpointHandles
+                key={`endpoints-${line.id}`}
+                line={line}
+                allLines={lines}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+                onEndpointChange={handleEndpointChange}
+              />
+            ))}
+        </>
+      )}
+
+      {/* Bezier handles for selected bezier line (for adjusting curve control points) */}
       {selectedLineId !== null && mode === 'select' && (
         <>
           {lines
@@ -469,28 +684,7 @@ export const DrawingCanvas: React.FC<DrawingCanvasProps> = ({
         </>
       )}
 
-      {/* Panel click layer - rendered on TOP of lines so panels are clickable */}
-      {showPanelOverlay && computedPanels.length > 0 && mode === 'select' && (
-        <g className="panel-click-layer">
-          {computedPanels.map((panel) => {
-            const points = panel.vertices
-              .map((v) => `${(v.x / 100) * canvasWidth},${(v.y / 100) * canvasHeight}`)
-              .join(' ');
-            return (
-              <polygon
-                key={`click-${panel.id}`}
-                points={points}
-                fill="transparent"
-                style={{ cursor: 'pointer' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePanelClick(panel.id);
-                }}
-              />
-            );
-          })}
-        </g>
-      )}
+      {/* Panel clicks are handled by PanelRegionOverlay - no separate click layer needed */}
 
       {/* Hover indicator - shows where line will start */}
       {hoverPoint && !drawingState.isDrawing && (mode === 'draw-line' || mode === 'draw-bezier') && (

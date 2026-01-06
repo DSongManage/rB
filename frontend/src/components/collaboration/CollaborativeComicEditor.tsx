@@ -34,10 +34,7 @@ import {
   ChevronDown,
   Pencil,
   Check,
-  AlertTriangle,
-  Monitor,
 } from 'lucide-react';
-import { useMobile } from '../../hooks/useMobile';
 
 interface User {
   id: number;
@@ -260,41 +257,6 @@ export default function CollaborativeComicEditor({
   currentUser,
   onProjectUpdate,
 }: CollaborativeComicEditorProps) {
-  const { isMobile } = useMobile();
-
-  // Mobile warning - this editor requires desktop
-  if (isMobile) {
-    return (
-      <div style={{
-        padding: 24,
-        textAlign: 'center',
-        background: '#1e293b',
-        borderRadius: 12,
-        border: '1px solid #334155',
-      }}>
-        <AlertTriangle size={48} color="#f59e0b" style={{ marginBottom: 16 }} />
-        <h3 style={{ color: '#f8fafc', fontSize: 20, marginBottom: 8, margin: 0 }}>
-          Desktop Required
-        </h3>
-        <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 16, margin: '8px 0 16px' }}>
-          The comic editor requires a desktop browser for the best experience.
-          Panel layouts and precise positioning work best with a mouse or trackpad.
-        </p>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          color: '#64748b',
-          fontSize: 13,
-        }}>
-          <Monitor size={16} />
-          <span>Switch to a desktop device to edit</span>
-        </div>
-      </div>
-    );
-  }
-
   // State
   const [pages, setPages] = useState<ComicPage[]>([]);
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
@@ -2568,8 +2530,8 @@ export default function CollaborativeComicEditor({
               lines={currentDividerLines}
               orientation={currentPage?.orientation || 'portrait'}
               gutterMode={currentPage?.gutter_mode ?? true}
-              defaultGutterWidth={Number(currentPage?.default_gutter_width) || 2}
-              defaultLineColor={currentPage?.default_line_color || '#6b7280'}
+              defaultGutterWidth={Number(currentPage?.default_gutter_width) || 0.5}
+              defaultLineColor={currentPage?.default_line_color || '#9ca3af'}
               onLineCreate={handleLineCreate}
               onLineUpdate={handleLineUpdate}
               onLineDelete={handleLineDelete}

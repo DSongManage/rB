@@ -1596,7 +1596,8 @@ class UserSearchView(APIView):
         status_param = (request.query_params.get('status') or '').strip().lower()
         if q.startswith('@'):
             q = q[1:]
-        qs = UserProfile.objects.all().select_related('user')
+        # Only show public profiles (is_private=False) in collaborator search
+        qs = UserProfile.objects.filter(is_private=False).select_related('user')
         if q:
             qs = qs.filter(username__icontains=q)
         if role:

@@ -61,6 +61,8 @@ export function KindleReader({
   const progressUpdateTimer = useRef<NodeJS.Timeout | null>(null);
   const lastSavedProgress = useRef<number>(-1);
   const hasTriggeredCompletion = useRef(false);
+  const hasRestoredPosition = useRef(false);
+  const savedPageRef = useRef<number | null>(null);
 
   // Hooks
   const { settings, updateSetting, resetSettings, cssVars, themeClass } =
@@ -79,6 +81,35 @@ export function KindleReader({
     const detectedChapters = detectChapters(htmlContent);
     setChapters(detectedChapters);
   }, [htmlContent]);
+
+  // Load saved reading position from server on mount
+  useEffect(() => {
+    if (hasRestoredPosition.current) return;
+
+    libraryApi.getProgress(parseInt(contentId))
+      .then((progress) => {
+        if (progress.last_position) {
+          try {
+            const position = JSON.parse(progress.last_position);
+            if (typeof position.page === 'number' && position.page > 0) {
+              savedPageRef.current = position.page;
+              // If we already have totalPages calculated, restore now
+              if (totalPages > 1 && !hasRestoredPosition.current) {
+                const validPage = Math.min(position.page, totalPages - 1);
+                setCurrentPage(validPage);
+                hasRestoredPosition.current = true;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse saved position:', e);
+          }
+        }
+      })
+      .catch((err) => {
+        // No saved progress is fine - user just hasn't read this yet
+        console.debug('No saved progress found:', err);
+      });
+  }, [contentId]); // Only run on mount
 
   // Calculate the page dimensions
   // Industry-standard approach (Kindle, epub.js, iBooks):
@@ -117,8 +148,15 @@ export function KindleReader({
         const pages = Math.max(1, Math.round(scrollWidth / viewportWidth));
         setTotalPages(pages);
 
-        // Ensure current page is valid
-        setCurrentPage((prev) => Math.min(prev, Math.max(0, pages - 1)));
+        // Restore saved position if we haven't already
+        if (savedPageRef.current !== null && !hasRestoredPosition.current && pages > 1) {
+          const validPage = Math.min(savedPageRef.current, pages - 1);
+          setCurrentPage(validPage);
+          hasRestoredPosition.current = true;
+        } else {
+          // Ensure current page is valid
+          setCurrentPage((prev) => Math.min(prev, Math.max(0, pages - 1)));
+        }
       });
     });
   }, [settings.continuousScroll, settings.columns, isPhone]);

@@ -34,11 +34,45 @@ export function ComicReader({ contentId, title, comicData, onBack }: ComicReader
   const [showUI, setShowUI] = useState(true);
   const [showThumbnails, setShowThumbnails] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLoadingPosition, setIsLoadingPosition] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressUpdateTimer = useRef<NodeJS.Timeout | null>(null);
+  const hasRestoredPosition = useRef(false);
 
   const totalPages = comicData.total_pages;
   const currentPageData = comicData.pages[currentPage];
+
+  // Load saved reading position from server on mount
+  useEffect(() => {
+    if (hasRestoredPosition.current) {
+      setIsLoadingPosition(false);
+      return;
+    }
+
+    libraryApi.getProgress(parseInt(contentId))
+      .then((progress) => {
+        if (progress.last_position) {
+          try {
+            const position = JSON.parse(progress.last_position);
+            if (typeof position.page === 'number' && position.page > 0) {
+              const validPage = Math.min(position.page, totalPages - 1);
+              setCurrentPage(validPage);
+              hasRestoredPosition.current = true;
+            }
+          } catch (e) {
+            console.error('Failed to parse saved position:', e);
+          }
+        }
+      })
+      .catch((err) => {
+        // No saved progress is fine - user just hasn't read this yet
+        console.debug('No saved progress found:', err);
+      })
+      .finally(() => {
+        setIsLoadingPosition(false);
+        hasRestoredPosition.current = true;
+      });
+  }, [contentId, totalPages]);
 
   // Navigation functions
   const goToPage = useCallback(

@@ -45,6 +45,7 @@ type UserProfile = {
   genres?: string[];
   status?: string;
   bio?: string;
+  is_private?: boolean;
 };
 type Dashboard = { content_count: number; sales: number; tier?: string; fee?: number };
 
@@ -152,6 +153,7 @@ export default function ProfilePageRedesigned() {
   const [editStatus, setEditStatus] = useState('');
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [editGenres, setEditGenres] = useState<string[]>([]);
+  const [editIsPrivate, setEditIsPrivate] = useState(true); // Default to private
   const [savingAbout, setSavingAbout] = useState(false);
 
   // Predefined options for roles and genres
@@ -565,6 +567,7 @@ export default function ProfilePageRedesigned() {
     setEditStatus(profile?.status || 'Available');
     setEditRoles(profile?.roles || []);
     setEditGenres(profile?.genres || []);
+    setEditIsPrivate(profile?.is_private ?? true); // Default to private for new profiles
     setEditingAbout(true);
   };
 
@@ -590,6 +593,7 @@ export default function ProfilePageRedesigned() {
           status: editStatus,
           roles: editRoles,
           genres: editGenres,
+          is_private: editIsPrivate,
         }),
       });
 
@@ -851,6 +855,8 @@ export default function ProfilePageRedesigned() {
         borderRadius: 16,
         padding: 24,
         marginBottom: 24,
+        overflow: 'hidden',
+        boxSizing: 'border-box',
       }}>
         <div style={{
           display: 'flex',
@@ -931,7 +937,7 @@ export default function ProfilePageRedesigned() {
 
         {editingAbout ? (
           /* Edit Mode */
-          <div style={{ display: 'grid', gap: 20 }}>
+          <div style={{ display: 'grid', gap: 20, maxWidth: '100%', overflow: 'hidden' }}>
             {/* Display Name */}
             <div>
               <label style={{
@@ -956,6 +962,7 @@ export default function ProfilePageRedesigned() {
                   padding: '10px 14px',
                   color: '#f8fafc',
                   fontSize: 14,
+                  boxSizing: 'border-box',
                 }}
               />
             </div>
@@ -984,6 +991,7 @@ export default function ProfilePageRedesigned() {
                   padding: '10px 14px',
                   color: '#f8fafc',
                   fontSize: 14,
+                  boxSizing: 'border-box',
                 }}
               />
             </div>
@@ -1010,12 +1018,46 @@ export default function ProfilePageRedesigned() {
                   padding: '10px 14px',
                   color: '#f8fafc',
                   fontSize: 14,
+                  boxSizing: 'border-box',
                 }}
               >
                 {statusOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Profile Visibility */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#cbd5e1',
+                marginBottom: 8,
+              }}>
+                Profile Visibility
+              </label>
+              <select
+                value={editIsPrivate ? 'private' : 'public'}
+                onChange={(e) => setEditIsPrivate(e.target.value === 'private')}
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  color: '#f8fafc',
+                  fontSize: 14,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <option value="private">Private - Hidden from Collaborators page</option>
+                <option value="public">Public - Visible on Collaborators page</option>
+              </select>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+                Private profiles won't appear in search results on the Collaborators page.
+              </div>
             </div>
 
             {/* Roles */}
@@ -1029,7 +1071,7 @@ export default function ProfilePageRedesigned() {
               }}>
                 Your Roles <span style={{ color: '#64748b', fontWeight: 400 }}>(what you do)</span>
               </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', overflow: 'hidden' }}>
                 {ROLE_OPTIONS.map((role) => {
                   const isSelected = editRoles.includes(role);
                   return (
@@ -1076,7 +1118,7 @@ export default function ProfilePageRedesigned() {
               }}>
                 Your Genres <span style={{ color: '#64748b', fontWeight: 400 }}>(what you create)</span>
               </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', overflow: 'hidden' }}>
                 {GENRE_OPTIONS.map((genre) => {
                   const isSelected = editGenres.includes(genre);
                   return (
@@ -1139,6 +1181,7 @@ export default function ProfilePageRedesigned() {
                   resize: 'vertical',
                   minHeight: 100,
                   lineHeight: 1.6,
+                  boxSizing: 'border-box',
                 }}
               />
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>

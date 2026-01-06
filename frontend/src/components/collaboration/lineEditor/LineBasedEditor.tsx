@@ -8,10 +8,13 @@
  * - Templates
  */
 
-import React, { useState, useCallback, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useImperativeHandle, forwardRef, useEffect } from 'react';
 import { Pencil, MousePointer, Spline, Trash2, Grid3X3, Settings, X } from 'lucide-react';
 import { DrawingCanvas, DrawingMode } from './DrawingCanvas';
 import { DividerLineData } from './LineRenderer';
+import { Ruler } from './Ruler';
+
+const RULER_THICKNESS = 20; // pixels
 
 // Page orientation presets
 export const ORIENTATION_PRESETS: Record<string, { width: number; height: number; label: string }> = {
@@ -184,16 +187,46 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
   const [selectedLineId, setSelectedLineId] = useState<number | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showRulers, setShowRulers] = useState(true);
+  const [cursorPosition, setCursorPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false); // Track if dragging artwork over canvas
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
 
   // Use external panel selection if provided, otherwise manage internally
   const selectedPanelId = externalSelectedPanelId;
 
+  // Measure container size dynamically
+  useEffect(() => {
+    const measureContainer = () => {
+      if (canvasAreaRef.current) {
+        const rect = canvasAreaRef.current.getBoundingClientRect();
+        // Account for padding (16px on each side) and rulers (20px each) if visible
+        const rulerSpace = showRulers ? RULER_THICKNESS : 0;
+        const availableWidth = rect.width - 32 - rulerSpace;
+        const availableHeight = rect.height - 32 - rulerSpace;
+        if (availableWidth > 0 && availableHeight > 0) {
+          setContainerSize({ width: availableWidth, height: availableHeight });
+        }
+      }
+    };
+
+    measureContainer();
+
+    const resizeObserver = new ResizeObserver(measureContainer);
+    if (canvasAreaRef.current) {
+      resizeObserver.observe(canvasAreaRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [showRulers]);
+
   // Calculate canvas dimensions based on orientation (scaled for display)
-  // Use props if provided, otherwise fall back to defaults
+  // Use props if provided, then measured container, then fall back to defaults
   const orientationConfig = ORIENTATION_PRESETS[orientation] || ORIENTATION_PRESETS.portrait;
-  const maxDisplayWidth = maxCanvasWidth || 550;
-  const maxDisplayHeight = maxCanvasHeight || 712;
+  const maxDisplayWidth = maxCanvasWidth || containerSize?.width || 550;
+  const maxDisplayHeight = maxCanvasHeight || containerSize?.height || 712;
 
   const canvasSize = useMemo(() => {
     const aspectRatio = orientationConfig.width / orientationConfig.height;
@@ -459,6 +492,19 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
                 }}
               />
             </div>
+
+            {/* Show Rulers Toggle */}
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#f8fafc' }}>
+                <input
+                  type="checkbox"
+                  checked={showRulers}
+                  onChange={(e) => setShowRulers(e.target.checked)}
+                  style={{ accentColor: '#f59e0b' }}
+                />
+                Show Rulers
+              </label>
+            </div>
           </div>
         </div>
       )}
@@ -538,12 +584,13 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
         </div>
       )}
 
-      {/* Canvas */}
+      {/* Canvas with Rulers */}
       <div
+        ref={canvasAreaRef}
         style={{
           flex: 1,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start', // Align to top
           justifyContent: 'center',
           padding: 16,
           background: '#0f172a',
@@ -552,89 +599,164 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
           minHeight: 0,
         }}
       >
-        <div
-          ref={canvasContainerRef}
-          style={{
-            position: 'relative',
-            borderRadius: 4,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2)',
-            overflow: 'hidden',
-            width: canvasSize.width,
-            height: canvasSize.height,
-            maxWidth: '100%',
-            maxHeight: '100%',
-            flexShrink: 0,
-          }}
-        >
-          <DrawingCanvas
-            lines={lines}
-            canvasWidth={canvasSize.width}
-            canvasHeight={canvasSize.height}
-            mode={canEdit ? mode : 'select'}
-            defaultThickness={defaultGutterWidth}
-            defaultColor={defaultLineColor}
-            gutterMode={gutterMode}
-            selectedLineId={selectedLineId}
-            onLineCreate={onLineCreate}
-            onLineUpdate={onLineUpdate}
-            onLineDelete={onLineDelete}
-            onLineSelect={handleLineSelect}
-            showPanelOverlay={true}
-            selectedPanelId={selectedPanelId}
-            onPanelSelect={onPanelSelect}
-            onPanelsComputed={onPanelsComputed}
-            showPanelLabels={showPanelNumbers}
-            panelArtwork={panelArtwork}
-          />
-          {/* Overlay content (speech bubbles, etc.) positioned relative to canvas */}
-          {children}
-
-          {/* Drop zone overlay for artwork library drag-and-drop */}
-          {externalComputedPanels && externalComputedPanels.length > 0 && onPanelDrop && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-              }}
-            >
-              {externalComputedPanels.map((panel) => {
-                const isDropTarget = dropTargetPanelId === panel.id;
-                return (
-                  <div
-                    key={`drop-${panel.id}`}
-                    style={{
-                      position: 'absolute',
-                      left: `${panel.bounds.x}%`,
-                      top: `${panel.bounds.y}%`,
-                      width: `${panel.bounds.width}%`,
-                      height: `${panel.bounds.height}%`,
-                      pointerEvents: 'auto',
-                      background: isDropTarget ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
-                      outline: isDropTarget ? '3px dashed #22c55e' : 'none',
-                      outlineOffset: '-3px',
-                      transition: 'all 0.15s ease',
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onPanelDragOver?.(panel.id, e);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onPanelDragLeave?.();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onPanelDrop(panel.id, panel, e);
-                    }}
-                  />
-                );
-              })}
+        {/* Ruler + Canvas Layout */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Top row: corner + horizontal ruler */}
+          {showRulers && (
+            <div style={{ display: 'flex' }}>
+              {/* Corner square */}
+              <div
+                style={{
+                  width: RULER_THICKNESS,
+                  height: RULER_THICKNESS,
+                  background: '#1e293b',
+                  flexShrink: 0,
+                }}
+              />
+              {/* Horizontal ruler */}
+              <Ruler
+                orientation="horizontal"
+                length={canvasSize.width}
+                thickness={RULER_THICKNESS}
+                pageSize={orientationConfig.width}
+                cursorPosition={cursorPosition?.x}
+              />
             </div>
           )}
+
+          {/* Bottom row: vertical ruler + canvas */}
+          <div style={{ display: 'flex' }}>
+            {/* Vertical ruler */}
+            {showRulers && (
+              <Ruler
+                orientation="vertical"
+                length={canvasSize.height}
+                thickness={RULER_THICKNESS}
+                pageSize={orientationConfig.height}
+                cursorPosition={cursorPosition?.y}
+              />
+            )}
+
+            {/* Canvas container */}
+            <div
+              ref={canvasContainerRef}
+              style={{
+                position: 'relative',
+                borderRadius: 4,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2)',
+                overflow: 'hidden',
+                width: canvasSize.width,
+                height: canvasSize.height,
+                maxWidth: '100%',
+                maxHeight: '100%',
+                flexShrink: 0,
+              }}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setCursorPosition({
+                  x: e.clientX - rect.left,
+                  y: e.clientY - rect.top,
+                });
+              }}
+              onMouseLeave={() => setCursorPosition(null)}
+              onTouchMove={(e) => {
+                if (e.touches.length === 0) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                setCursorPosition({
+                  x: e.touches[0].clientX - rect.left,
+                  y: e.touches[0].clientY - rect.top,
+                });
+              }}
+              onTouchEnd={() => setCursorPosition(null)}
+              // Drag detection for enabling drop zones only during drag operations
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setIsDraggingOver(true);
+              }}
+              onDragLeave={(e) => {
+                // Only reset if leaving the container entirely
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX;
+                const y = e.clientY;
+                if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                  setIsDraggingOver(false);
+                }
+              }}
+              onDrop={() => setIsDraggingOver(false)}
+              onDragEnd={() => setIsDraggingOver(false)}
+            >
+              <DrawingCanvas
+                lines={lines}
+                canvasWidth={canvasSize.width}
+                canvasHeight={canvasSize.height}
+                mode={canEdit ? mode : 'select'}
+                defaultThickness={defaultGutterWidth}
+                defaultColor={defaultLineColor}
+                gutterMode={gutterMode}
+                selectedLineId={selectedLineId}
+                onLineCreate={onLineCreate}
+                onLineUpdate={onLineUpdate}
+                onLineDelete={onLineDelete}
+                onLineSelect={handleLineSelect}
+                showPanelOverlay={true}
+                selectedPanelId={selectedPanelId}
+                onPanelSelect={onPanelSelect}
+                onPanelsComputed={onPanelsComputed}
+                showPanelLabels={showPanelNumbers}
+                panelArtwork={panelArtwork}
+              />
+              {/* Overlay content (speech bubbles, etc.) positioned relative to canvas */}
+              {children}
+
+              {/* Drop zone overlay for artwork library drag-and-drop */}
+              {externalComputedPanels && externalComputedPanels.length > 0 && onPanelDrop && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {externalComputedPanels.map((panel) => {
+                    const isDropTarget = dropTargetPanelId === panel.id;
+                    return (
+                      <div
+                        key={`drop-${panel.id}`}
+                        style={{
+                          position: 'absolute',
+                          left: `${panel.bounds.x}%`,
+                          top: `${panel.bounds.y}%`,
+                          width: `${panel.bounds.width}%`,
+                          height: `${panel.bounds.height}%`,
+                          // Only enable pointer events when actively dragging - otherwise clicks pass through to lines
+                          pointerEvents: isDraggingOver ? 'auto' : 'none',
+                          background: isDropTarget ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
+                          outline: isDropTarget ? '3px dashed #22c55e' : 'none',
+                          outlineOffset: '-3px',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onPanelDragOver?.(panel.id, e);
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onPanelDragLeave?.();
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onPanelDrop(panel.id, panel, e);
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
