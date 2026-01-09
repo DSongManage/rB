@@ -5,18 +5,23 @@ import { KindleReader } from '../components/reader';
 import { ComicReader } from '../components/reader/ComicReader';
 import { ArrowLeft, ZoomIn, ZoomOut, Maximize2, Download } from 'lucide-react';
 import DOMPurify from 'dompurify';
+import CopyrightNotice from '../components/CopyrightNotice';
 
 // Art Viewer Component for displaying images
 function ArtViewer({
   title,
   imageUrl,
   creator,
-  onBack
+  onBack,
+  copyrightYear,
+  copyrightHolder,
 }: {
   title: string;
   imageUrl: string;
   creator: string;
   onBack: () => void;
+  copyrightYear?: number | null;
+  copyrightHolder?: string | null;
 }) {
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -223,21 +228,33 @@ function ArtViewer({
         />
       </div>
 
-      {/* Footer hint */}
+      {/* Footer with copyright and keyboard hints */}
       <div
         style={{
-          padding: '8px 20px',
           background: '#111827',
           borderTop: '1px solid #1f2937',
-          textAlign: 'center',
-          color: '#64748b',
-          fontSize: 12,
         }}
       >
-        Press <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>+</kbd> /
-        <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>-</kbd> to zoom,
-        <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>0</kbd> to reset,
-        <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>Esc</kbd> to go back
+        {/* Copyright Notice */}
+        <CopyrightNotice
+          authorName={copyrightHolder || creator}
+          year={copyrightYear || new Date().getFullYear()}
+          compact
+        />
+        {/* Keyboard hints */}
+        <div
+          style={{
+            padding: '8px 20px',
+            textAlign: 'center',
+            color: '#64748b',
+            fontSize: 12,
+          }}
+        >
+          Press <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>+</kbd> /
+          <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>-</kbd> to zoom,
+          <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>0</kbd> to reset,
+          <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>Esc</kbd> to go back
+        </div>
       </div>
     </div>
   );
@@ -482,6 +499,8 @@ export function ReaderPage() {
           title={content.title}
           comicData={comicData}
           onBack={handleBack}
+          copyrightYear={content.copyright_year}
+          copyrightHolder={content.copyright_holder}
         />
       );
     } else {
@@ -536,6 +555,8 @@ export function ReaderPage() {
           imageUrl={content.teaser_link}
           creator={content.creator}
           onBack={handleBack}
+          copyrightYear={content.copyright_year}
+          copyrightHolder={content.copyright_holder}
         />
       );
     } else {
@@ -640,6 +661,8 @@ export function ReaderPage() {
       title={content.title}
       htmlContent={sanitizedContent}
       onBack={handleBack}
+      copyrightYear={content.copyright_year}
+      copyrightHolder={content.copyright_holder}
     />
   );
 }

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Bell } from 'lucide-react';
 import { useNotifications } from '../../hooks/useNotifications';
 import { Notification } from '../../services/notificationService';
 import NotificationItem from './NotificationItem';
@@ -250,8 +251,8 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
               color: '#94a3b8',
             }}
           >
-            <div style={{ fontSize: 48, marginBottom: 12 }} aria-hidden="true">
-              🔔
+            <div style={{ marginBottom: 12 }} aria-hidden="true">
+              <Bell size={48} color="#64748b" strokeWidth={1.5} />
             </div>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
               No notifications yet

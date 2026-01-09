@@ -7,7 +7,7 @@
 
 import { Web3Auth } from '@web3auth/modal';
 import { CHAIN_NAMESPACES, IProvider, WEB3AUTH_NETWORK } from '@web3auth/base';
-import { SolanaPrivateKeyProvider } from '@web3auth/solana-provider';
+import { SolanaPrivateKeyProvider, SolanaWallet } from '@web3auth/solana-provider';
 import {
   Connection,
   PublicKey,
@@ -124,7 +124,8 @@ export async function getConnectedPublicKey(): Promise<PublicKey> {
 }
 
 /**
- * Sign and send a transaction using Web3Auth
+ * Sign and send a transaction using Web3Auth's SolanaWallet
+ * Uses the SolanaWallet wrapper which properly handles transaction signing
  */
 export async function signAndSendTransaction(
   transaction: Transaction | VersionedTransaction
@@ -132,8 +133,11 @@ export async function signAndSendTransaction(
   const provider = await connectWeb3Auth();
   const connection = getSolanaConnection();
 
+  // Create SolanaWallet instance - this handles signing properly
+  const solanaWallet = new SolanaWallet(provider);
+
   // Get the public key
-  const accounts = await provider.request({ method: 'getAccounts' }) as string[] | null;
+  const accounts = await solanaWallet.requestAccounts();
   if (!accounts || accounts.length === 0) {
     throw new Error('No accounts found');
   }
@@ -146,28 +150,9 @@ export async function signAndSendTransaction(
     transaction.feePayer = publicKey;
   }
 
-  // Serialize the transaction
-  const serializedTx = transaction instanceof Transaction
-    ? transaction.serialize({ requireAllSignatures: false })
-    : transaction.serialize();
-
-  // Sign the transaction via Web3Auth provider
-  const signedTxResponse = await provider.request({
-    method: 'signTransaction',
-    params: {
-      message: Buffer.from(serializedTx).toString('base64'),
-    },
-  }) as Uint8Array | null;
-
-  if (!signedTxResponse) {
-    throw new Error('Failed to sign transaction');
-  }
-
-  // Send the signed transaction
-  const signature = await connection.sendRawTransaction(
-    new Uint8Array(signedTxResponse),
-    { skipPreflight: false, preflightCommitment: 'confirmed' }
-  );
+  // Use SolanaWallet's signAndSendTransaction which handles everything properly
+  const result = await solanaWallet.signAndSendTransaction(transaction);
+  const signature = typeof result === 'string' ? result : result.signature;
 
   // Confirm the transaction
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
@@ -178,6 +163,63 @@ export async function signAndSendTransaction(
   });
 
   return signature;
+}
+
+/**
+ * Sign a sponsored transaction where user is token authority.
+ * Uses signTransaction() for proper transaction signing (no message prefix).
+ *
+ * @param serializedTxBase64 - Base64 encoded VersionedTransaction with placeholder signatures
+ * @returns Object with signed transaction and user signature index
+ */
+export async function signMessageForSponsoredTx(
+  serializedTxBase64: string
+): Promise<{ signedTransaction: string; userSignatureIndex: number }> {
+  const provider = await connectWeb3Auth();
+
+  // Create SolanaWallet instance
+  const solanaWallet = new SolanaWallet(provider);
+
+  // Verify we have accounts
+  const accounts = await solanaWallet.requestAccounts();
+  if (!accounts || accounts.length === 0) {
+    throw new Error('No accounts found');
+  }
+  const userPubkey = new PublicKey(accounts[0]);
+
+  // Decode the transaction from base64
+  const txBytes = Uint8Array.from(atob(serializedTxBase64), c => c.charCodeAt(0));
+
+  // Create VersionedTransaction from bytes
+  const transaction = VersionedTransaction.deserialize(txBytes);
+
+  // Sign the transaction - this fills in the user's signature
+  const signedTx = await solanaWallet.signTransaction(transaction);
+
+  // Find which signature index belongs to the user
+  // The account keys in the message tell us the order
+  const message = signedTx.message;
+  const staticAccountKeys = message.staticAccountKeys;
+  let userSignatureIndex = -1;
+  for (let i = 0; i < staticAccountKeys.length; i++) {
+    if (staticAccountKeys[i].equals(userPubkey)) {
+      userSignatureIndex = i;
+      break;
+    }
+  }
+
+  if (userSignatureIndex === -1) {
+    throw new Error('User public key not found in transaction signers');
+  }
+
+  // Serialize the signed transaction
+  const signedTxBytes = signedTx.serialize();
+  const signedTxBase64 = btoa(String.fromCharCode(...signedTxBytes));
+
+  return {
+    signedTransaction: signedTxBase64,
+    userSignatureIndex,
+  };
 }
 
 /**

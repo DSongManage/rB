@@ -26,9 +26,11 @@ interface ComicReaderProps {
   title: string;
   comicData: ComicReaderData;
   onBack: () => void;
+  copyrightYear?: number | null;
+  copyrightHolder?: string | null;
 }
 
-export function ComicReader({ contentId, title, comicData, onBack }: ComicReaderProps) {
+export function ComicReader({ contentId, title, comicData, onBack, copyrightYear, copyrightHolder }: ComicReaderProps) {
   const [currentPage, setCurrentPage] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [showUI, setShowUI] = useState(true);
@@ -628,6 +630,21 @@ export function ComicReader({ contentId, title, comicData, onBack }: ComicReader
           <kbd style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4 }}>Esc</kbd> to go
           back
         </div>
+
+        {/* Copyright notice */}
+        {(copyrightHolder || copyrightYear) && (
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 9,
+              color: '#64748b',
+              textAlign: 'center',
+              opacity: 0.7,
+            }}
+          >
+            (C) {copyrightYear || new Date().getFullYear()} {copyrightHolder}. All Rights Reserved.
+          </div>
+        )}
       </div>
 
       {/* Thumbnail sidebar */}

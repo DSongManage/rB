@@ -130,6 +130,8 @@ export interface FullContent {
   content_type: string;
   owned: boolean;
   teaser_link?: string | null;
+  copyright_year?: number | null;
+  copyright_holder?: string | null;
 }
 
 export interface ReadingProgress {

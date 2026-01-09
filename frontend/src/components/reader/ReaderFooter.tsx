@@ -6,6 +6,8 @@ interface ReaderFooterProps {
   percentComplete: number;
   visible: boolean;
   continuousScroll?: boolean;
+  copyrightYear?: number | null;
+  copyrightHolder?: string | null;
 }
 
 export function ReaderFooter({
@@ -14,7 +16,12 @@ export function ReaderFooter({
   percentComplete,
   visible,
   continuousScroll = false,
+  copyrightYear,
+  copyrightHolder,
 }: ReaderFooterProps) {
+  const showCopyright = copyrightHolder || copyrightYear;
+  const footerHeight = showCopyright ? '70px' : '50px';
+
   return (
     <footer
       className={`reader-footer ${visible ? 'visible' : 'hidden'}`}
@@ -23,7 +30,7 @@ export function ReaderFooter({
         bottom: 0,
         left: 0,
         right: 0,
-        height: '50px',
+        height: footerHeight,
         background: 'var(--reader-bg)',
         borderTop: '1px solid var(--reader-border)',
         display: 'flex',
@@ -73,6 +80,20 @@ export function ReaderFooter({
           : `Page ${currentPage + 1} of ${totalPages} (${percentComplete}%)`
         }
       </p>
+
+      {/* Copyright notice - compact display */}
+      {showCopyright && (
+        <p
+          style={{
+            fontSize: '9px',
+            color: 'var(--reader-secondary)',
+            margin: '4px 0 0 0',
+            opacity: 0.7,
+          }}
+        >
+          (C) {copyrightYear || new Date().getFullYear()} {copyrightHolder}. All Rights Reserved.
+        </p>
+      )}
     </footer>
   );
 }

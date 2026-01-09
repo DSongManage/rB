@@ -21,12 +21,15 @@ import { MobileReaderSettings } from './MobileReaderSettings';
 import { TableOfContents } from './TableOfContents';
 import { libraryApi } from '../../services/libraryApi';
 import { getMyRating } from '../../services/socialApi';
+import CopyrightNotice from '../CopyrightNotice';
 
 interface KindleReaderProps {
   contentId: string;
   title: string;
   htmlContent: string;
   onBack?: () => void;
+  copyrightYear?: number | null;
+  copyrightHolder?: string | null;
 }
 
 // Fixed reading widths for comfortable reading
@@ -40,6 +43,8 @@ export function KindleReader({
   title,
   htmlContent,
   onBack,
+  copyrightYear,
+  copyrightHolder,
 }: KindleReaderProps) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -434,7 +439,8 @@ export function KindleReader({
 
   // Mobile-specific dimensions
   const headerHeight = isMobile ? 48 : 60;
-  const footerHeight = isMobile ? 40 : 50;
+  const hasCopyright = copyrightHolder || copyrightYear;
+  const footerHeight = hasCopyright ? (isMobile ? 60 : 70) : (isMobile ? 40 : 50);
 
   return (
     <div
@@ -554,6 +560,8 @@ export function KindleReader({
         percentComplete={percentComplete}
         visible={showUI}
         continuousScroll={settings.continuousScroll}
+        copyrightYear={copyrightYear}
+        copyrightHolder={copyrightHolder}
       />
 
       {/* Settings Panel - Mobile uses bottom drawer, desktop uses side panel */}
