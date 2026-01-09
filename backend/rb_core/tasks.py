@@ -1580,3 +1580,400 @@ def _initiate_stripe_refund(purchase_id, batch_purchase_id, reason):
         logger.error(f"[Stripe Refund] Failed to create refund: {e}")
     except Exception as e:
         logger.error(f"[Stripe Refund] Unexpected error: {e}")
+
+
+# =============================================================================
+# DUAL PAYMENT SYSTEM TASKS (Coinbase Onramp + Direct Crypto)
+# =============================================================================
+
+@shared_task
+def sync_user_balance_task(user_id):
+    """
+    Sync a user's USDC balance from blockchain to database cache.
+
+    Called:
+    - After login
+    - Before showing purchase options
+    - After any payment completion
+    - When user requests refresh
+    """
+    from .models import User
+    from .services import get_solana_service
+
+    try:
+        user = User.objects.get(id=user_id)
+        solana_service = get_solana_service()
+        balance = solana_service.sync_user_balance(user)
+        logger.info(f"[Balance Sync] User {user_id}: ${balance}")
+        return {'user_id': user_id, 'balance': str(balance)}
+    except User.DoesNotExist:
+        logger.error(f"[Balance Sync] User {user_id} not found")
+        return {'error': 'User not found'}
+    except Exception as e:
+        logger.error(f"[Balance Sync] Failed for user {user_id}: {e}")
+        return {'error': str(e)}
+
+
+@shared_task(bind=True, max_retries=3)
+def process_balance_purchase_task(self, intent_id, transaction_signature):
+    """
+    Process a purchase paid with existing USDC balance.
+
+    Called after user signs the USDC transfer transaction client-side.
+
+    Steps:
+    1. Verify transaction on blockchain
+    2. Create Purchase record
+    3. Clear user's cart
+    4. Trigger NFT minting
+    5. Update user balance cache
+    """
+    from .models import PurchaseIntent, Purchase, UserBalance, Cart
+    from .services import get_solana_service
+
+    try:
+        intent = PurchaseIntent.objects.select_related('user', 'chapter', 'content').get(id=intent_id)
+    except PurchaseIntent.DoesNotExist:
+        logger.error(f"[Balance Purchase] Intent {intent_id} not found")
+        return {'error': 'Intent not found'}
+
+    try:
+        # Verify transaction is confirmed
+        solana_service = get_solana_service()
+        if not solana_service.confirm_transaction(transaction_signature):
+            raise self.retry(countdown=10, exc=Exception("Transaction not confirmed"))
+
+        # Create Purchase record
+        purchase = Purchase.objects.create(
+            user=intent.user,
+            chapter=intent.chapter,
+            content=intent.content,
+            payment_provider='balance',
+            purchase_price_usd=intent.total_amount,
+            gross_amount=intent.total_amount,
+            buyer_total=intent.total_amount,
+            chapter_price=intent.item_price,
+            credit_card_fee=Decimal('0'),  # No fees for balance payment
+            stripe_fee=Decimal('0'),
+            status='payment_completed',
+            transaction_signature=transaction_signature,
+        )
+
+        # Link purchase to intent
+        intent.purchase = purchase
+        intent.status = 'processing'
+        intent.save()
+
+        # Clear user's cart if this was a cart purchase
+        if intent.is_cart_purchase:
+            try:
+                cart = Cart.objects.get(user=intent.user)
+                cart.items.all().delete()
+                cart.subtotal = None
+                cart.credit_card_fee = None
+                cart.total = None
+                cart.status = 'completed'
+                cart.save()
+                logger.info(f"[Balance Purchase] Cleared cart for user {intent.user.id}")
+            except Cart.DoesNotExist:
+                logger.warning(f"[Balance Purchase] No cart found for user {intent.user.id}")
+
+        # Sync user balance (runs async to update cached balance)
+        sync_user_balance_task.delay(intent.user.id)
+
+        # Trigger NFT minting (using existing atomic purchase logic)
+        process_atomic_purchase.delay(purchase.id)
+
+        logger.info(f"[Balance Purchase] Created purchase {purchase.id} for intent {intent_id}")
+        return {'purchase_id': purchase.id, 'status': 'processing'}
+
+    except Exception as e:
+        logger.error(f"[Balance Purchase] Failed for intent {intent_id}: {e}")
+        intent.status = 'failed'
+        intent.failure_reason = str(e)
+        intent.save()
+        raise
+
+
+@shared_task
+def process_coinbase_completion_task(transaction_id):
+    """
+    Process completed Coinbase onramp transaction.
+
+    Called when Coinbase webhook confirms USDC delivery.
+
+    Steps:
+    1. Sync user balance
+    2. If linked to purchase intent, trigger balance purchase
+    """
+    from .models import CoinbaseTransaction, PurchaseIntent
+    from .services import get_solana_service
+
+    try:
+        cb_transaction = CoinbaseTransaction.objects.select_related(
+            'user', 'purchase_intent'
+        ).get(id=transaction_id)
+    except CoinbaseTransaction.DoesNotExist:
+        logger.error(f"[Coinbase Complete] Transaction {transaction_id} not found")
+        return {'error': 'Transaction not found'}
+
+    try:
+        # Sync user balance
+        solana_service = get_solana_service()
+        new_balance = solana_service.sync_user_balance(cb_transaction.user)
+        logger.info(f"[Coinbase Complete] User {cb_transaction.user.id} balance: ${new_balance}")
+
+        # If linked to purchase intent, process the purchase
+        intent = cb_transaction.purchase_intent
+        if intent and intent.status in ['awaiting_payment', 'payment_method_selected']:
+            # Check if balance is now sufficient
+            if new_balance >= intent.total_amount:
+                logger.info(f"[Coinbase Complete] Triggering balance purchase for intent {intent.id}")
+                # Note: For balance purchases after Coinbase, we'd need to trigger a new transaction
+                # or use a different approach. For now, update intent to let user complete.
+                intent.status = 'payment_received'
+                intent.balance_sufficient = True
+                intent.user_balance_at_creation = new_balance
+                intent.save()
+
+        return {
+            'transaction_id': transaction_id,
+            'balance': str(new_balance),
+            'intent_id': intent.id if intent else None,
+        }
+
+    except Exception as e:
+        logger.error(f"[Coinbase Complete] Failed for transaction {transaction_id}: {e}")
+        return {'error': str(e)}
+
+
+@shared_task
+def check_coinbase_and_complete_purchase_task(transaction_id):
+    """
+    Check if Coinbase funds arrived and complete purchase.
+
+    Called by frontend after Coinbase widget closes.
+    Polls blockchain for balance update and auto-completes purchase if funds arrived.
+    """
+    from .models import CoinbaseTransaction
+    from .services import get_solana_service
+
+    try:
+        cb_transaction = CoinbaseTransaction.objects.select_related(
+            'user', 'purchase_intent'
+        ).get(id=transaction_id)
+    except CoinbaseTransaction.DoesNotExist:
+        return {'error': 'Transaction not found'}
+
+    # Sync balance
+    solana_service = get_solana_service()
+    try:
+        new_balance = solana_service.sync_user_balance(cb_transaction.user)
+    except Exception as e:
+        logger.warning(f"[Coinbase Check] Balance sync failed: {e}")
+        return {'error': str(e)}
+
+    intent = cb_transaction.purchase_intent
+    if not intent:
+        return {'balance': str(new_balance), 'status': 'no_intent'}
+
+    # Check if funds arrived (balance increased enough)
+    if new_balance >= intent.total_amount:
+        cb_transaction.status = 'completed'
+        cb_transaction.save()
+
+        # Ready for user to complete purchase
+        intent.status = 'payment_received'
+        intent.balance_sufficient = True
+        intent.save()
+
+        return {
+            'balance': str(new_balance),
+            'status': 'ready',
+            'intent_id': intent.id,
+        }
+
+    return {
+        'balance': str(new_balance),
+        'status': 'waiting',
+        'needed': str(intent.total_amount),
+    }
+
+
+@shared_task
+def poll_direct_crypto_payments():
+    """
+    Periodic task: Poll for incoming direct crypto payments.
+
+    Runs every 10 seconds via Celery beat.
+    Checks for USDC transfers matching pending DirectCryptoTransaction records.
+    """
+    from django.utils import timezone
+    from .models import DirectCryptoTransaction
+    from .services import get_solana_service
+
+    # Find all awaiting payments that haven't expired
+    pending = DirectCryptoTransaction.objects.filter(
+        status='awaiting_payment',
+        expires_at__gt=timezone.now()
+    ).select_related('purchase_intent', 'user')
+
+    if not pending.exists():
+        return {'checked': 0, 'detected': 0}
+
+    solana_service = get_solana_service()
+    results = {'checked': 0, 'detected': 0, 'errors': 0}
+
+    for dc_tx in pending:
+        results['checked'] += 1
+        try:
+            # Search for matching transaction
+            payment = solana_service.find_incoming_usdc_transfer(
+                to_address=dc_tx.to_wallet,
+                expected_amount=dc_tx.expected_amount,
+                memo=dc_tx.payment_memo,
+            )
+
+            if payment:
+                # Payment detected!
+                dc_tx.status = 'detected'
+                dc_tx.detected_at = timezone.now()
+                dc_tx.from_wallet = payment.get('from_wallet', '')
+                dc_tx.received_amount = payment.get('amount')
+                dc_tx.solana_tx_signature = payment.get('signature', '')
+                dc_tx.save()
+
+                results['detected'] += 1
+                logger.info(f"[Direct Crypto] Detected payment for {dc_tx.payment_memo}")
+
+                # Queue confirmation and processing
+                confirm_direct_crypto_payment_task.delay(dc_tx.id)
+
+        except Exception as e:
+            logger.error(f"[Direct Crypto Poll] Error checking {dc_tx.id}: {e}")
+            results['errors'] += 1
+
+    logger.info(f"[Direct Crypto Poll] Results: {results}")
+    return results
+
+
+@shared_task(bind=True, max_retries=5)
+def confirm_direct_crypto_payment_task(self, transaction_id):
+    """
+    Confirm a detected direct crypto payment and process purchase.
+
+    Called after poll_direct_crypto_payments detects an incoming payment.
+    Waits for transaction confirmation, then creates Purchase and mints NFT.
+    """
+    from django.utils import timezone
+    from .models import DirectCryptoTransaction, Purchase
+    from .services import get_solana_service
+
+    try:
+        dc_tx = DirectCryptoTransaction.objects.select_related(
+            'purchase_intent', 'user', 'purchase_intent__chapter', 'purchase_intent__content'
+        ).get(id=transaction_id)
+    except DirectCryptoTransaction.DoesNotExist:
+        logger.error(f"[Direct Crypto Confirm] Transaction {transaction_id} not found")
+        return {'error': 'Transaction not found'}
+
+    if dc_tx.status not in ['detected', 'confirming']:
+        return {'status': dc_tx.status, 'message': 'Not in confirmable state'}
+
+    try:
+        solana_service = get_solana_service()
+
+        # Check confirmation status
+        if dc_tx.solana_tx_signature:
+            confirmed = solana_service.confirm_transaction(dc_tx.solana_tx_signature)
+            if not confirmed:
+                dc_tx.status = 'confirming'
+                dc_tx.save()
+                raise self.retry(countdown=10, exc=Exception("Awaiting confirmation"))
+
+        # Transaction confirmed!
+        dc_tx.status = 'confirmed'
+        dc_tx.confirmed_at = timezone.now()
+        dc_tx.save()
+
+        intent = dc_tx.purchase_intent
+
+        # Create Purchase record
+        purchase = Purchase.objects.create(
+            user=intent.user,
+            chapter=intent.chapter,
+            content=intent.content,
+            payment_provider='direct_crypto',
+            purchase_price_usd=intent.total_amount,
+            gross_amount=dc_tx.received_amount,
+            buyer_total=dc_tx.received_amount,
+            chapter_price=intent.item_price,
+            credit_card_fee=Decimal('0'),
+            stripe_fee=Decimal('0'),
+            status='payment_completed',
+            transaction_signature=dc_tx.solana_tx_signature,
+        )
+
+        # Update intent and transaction
+        intent.purchase = purchase
+        intent.status = 'processing'
+        intent.save()
+
+        dc_tx.status = 'processing'
+        dc_tx.save()
+
+        # Trigger NFT minting
+        process_atomic_purchase.delay(purchase.id)
+
+        logger.info(f"[Direct Crypto Confirm] Created purchase {purchase.id} for transaction {transaction_id}")
+        return {'purchase_id': purchase.id, 'status': 'processing'}
+
+    except Exception as e:
+        if 'Awaiting confirmation' in str(e):
+            raise
+        logger.error(f"[Direct Crypto Confirm] Failed for {transaction_id}: {e}")
+        dc_tx.status = 'failed'
+        dc_tx.failure_reason = str(e)
+        dc_tx.save()
+
+        intent = dc_tx.purchase_intent
+        intent.status = 'failed'
+        intent.failure_reason = f"Direct crypto confirmation failed: {e}"
+        intent.save()
+
+        return {'error': str(e)}
+
+
+@shared_task
+def expire_stale_purchase_intents():
+    """
+    Periodic task: Expire old purchase intents and direct crypto payments.
+
+    Runs every minute via Celery beat.
+    """
+    from django.utils import timezone
+    from .models import PurchaseIntent, DirectCryptoTransaction
+
+    now = timezone.now()
+    results = {'intents_expired': 0, 'crypto_expired': 0}
+
+    # Expire stale intents
+    expired_intents = PurchaseIntent.objects.filter(
+        status__in=['created', 'payment_method_selected', 'awaiting_payment'],
+        expires_at__lt=now
+    )
+    count = expired_intents.update(status='expired')
+    results['intents_expired'] = count
+
+    # Expire stale direct crypto payments
+    expired_crypto = DirectCryptoTransaction.objects.filter(
+        status='awaiting_payment',
+        expires_at__lt=now
+    )
+    count = expired_crypto.update(status='expired')
+    results['crypto_expired'] = count
+
+    if results['intents_expired'] > 0 or results['crypto_expired'] > 0:
+        logger.info(f"[Expire Task] Expired: {results}")
+
+    return results

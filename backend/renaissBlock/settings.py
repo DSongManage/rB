@@ -410,9 +410,24 @@ BRIDGE_SANDBOX_MODE = os.getenv('BRIDGE_SANDBOX_MODE', 'true').lower() in ('1', 
 # Minimum USDC amount to trigger a Bridge payout (prevents dust transactions)
 BRIDGE_MIN_PAYOUT_THRESHOLD = Decimal(os.getenv('BRIDGE_MIN_PAYOUT_THRESHOLD', '10.00'))
 
+# Coinbase Onramp Configuration (fiat -> crypto for users)
+# App ID (Client API Key) - used in frontend widget and for verification
+COINBASE_ONRAMP_APP_ID = os.getenv('COINBASE_ONRAMP_APP_ID', '')
+# Webhook secret for verifying Coinbase webhook signatures
+COINBASE_WEBHOOK_SECRET = os.getenv('COINBASE_WEBHOOK_SECRET', '')
+# Minimum amount for Coinbase Onramp ($5 is Coinbase's minimum)
+COINBASE_MINIMUM_ONRAMP = Decimal(os.getenv('COINBASE_MINIMUM_ONRAMP', '5.00'))
+
 # Platform USDC wallet address for treasury operations
 # This is the Solana wallet that holds USDC treasury and fronts payments
 PLATFORM_USDC_WALLET_ADDRESS = os.getenv('PLATFORM_USDC_WALLET_ADDRESS', '')
+# Alias for payment views
+PLATFORM_USDC_ADDRESS = PLATFORM_USDC_WALLET_ADDRESS
+
+# Platform wallet private key for sponsored transactions (fee sponsorship)
+# This key is used to sign transactions where the platform pays SOL fees
+# SECURITY: Must be base58 encoded private key, never commit to git
+PLATFORM_WALLET_PRIVATE_KEY = os.getenv('PLATFORM_WALLET_PRIVATE_KEY', '')
 
 # Platform wallet for receiving secondary sale royalties (2% of resales)
 # Defaults to PLATFORM_USDC_WALLET_ADDRESS if not set separately

@@ -122,6 +122,10 @@ class Content(models.Model):
     # Author's note - optional short description from the creator (max ~100 words / 600 chars)
     authors_note = models.TextField(blank=True, default='', max_length=600)
 
+    # Copyright notice - stored at time of publishing
+    copyright_year = models.IntegerField(null=True, blank=True)
+    copyright_holder = models.CharField(max_length=255, blank=True)  # Author name at time of publish
+
     # Tags for content discovery and search
     tags = models.ManyToManyField('Tag', blank=True, related_name='contents')
 
@@ -1203,12 +1207,16 @@ class Purchase(models.Model):
     )
 
     # Payment provider tracking
+    PAYMENT_PROVIDER_CHOICES = [
+        ('stripe', 'Stripe'),
+        ('circle', 'Circle'),
+        ('balance', 'Balance (USDC)'),
+        ('coinbase', 'Coinbase Onramp'),
+        ('direct_crypto', 'Direct Crypto'),
+    ]
     payment_provider = models.CharField(
         max_length=20,
-        choices=[
-            ('stripe', 'Stripe'),
-            ('circle', 'Circle'),
-        ],
+        choices=PAYMENT_PROVIDER_CHOICES,
         default='stripe',
         help_text='Payment provider used for this purchase'
     )
@@ -4377,3 +4385,471 @@ class BridgeOnRampTransfer(models.Model):
     def __str__(self):
         usdc_str = f"{self.usdc_amount}" if self.usdc_amount else "pending"
         return f"OnRamp {self.bridge_transfer_id}: ${self.usd_amount} → {usdc_str} USDC ({self.status})"
+
+
+# =============================================================================
+# DUAL PAYMENT SYSTEM MODELS (Coinbase Onramp + Direct Crypto)
+# =============================================================================
+
+class UserBalance(models.Model):
+    """
+    Cached USDC balance for user's Web3Auth wallet.
+
+    Synced from Solana blockchain periodically and after transactions.
+    Used to avoid real-time RPC calls for every page load.
+    Displayed to users as "renaissBlock Balance" (not "USDC balance").
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='usdc_balance'
+    )
+
+    # Cached USDC balance (6 decimal places like USDC)
+    usdc_balance = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        default=Decimal('0'),
+        help_text='Cached USDC balance from blockchain'
+    )
+
+    # Last sync timestamp
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+
+    # Sync status
+    SYNC_STATUS_CHOICES = [
+        ('synced', 'Synced'),
+        ('syncing', 'Syncing'),
+        ('stale', 'Stale'),
+        ('error', 'Error'),
+    ]
+    sync_status = models.CharField(
+        max_length=20,
+        choices=SYNC_STATUS_CHOICES,
+        default='stale'
+    )
+
+    # Last known Solana slot for change detection
+    last_slot = models.BigIntegerField(null=True, blank=True)
+
+    # Error tracking
+    last_error = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'User Balance'
+        verbose_name_plural = 'User Balances'
+
+    def __str__(self):
+        return f"{self.user.username}: ${self.usdc_balance:.2f}"
+
+    @property
+    def display_balance(self):
+        """Format balance for display (2 decimal places, USD style)."""
+        return f"${self.usdc_balance:.2f}"
+
+    def is_sufficient_for(self, amount):
+        """Check if balance covers a purchase amount."""
+        from decimal import Decimal
+        if isinstance(amount, str):
+            amount = Decimal(amount)
+        return self.usdc_balance >= amount
+
+    @property
+    def is_stale(self):
+        """Check if balance needs to be refreshed (older than 5 minutes)."""
+        from datetime import timedelta
+        if not self.last_synced_at:
+            return True
+        return timezone.now() - self.last_synced_at > timedelta(minutes=5)
+
+
+class PurchaseIntent(models.Model):
+    """
+    Represents a user's intent to purchase content.
+
+    Created when user clicks purchase, tracks the payment method selection
+    and coordinates between balance check, Coinbase onramp, or direct crypto.
+
+    This is created BEFORE payment - a Purchase record is only created
+    after payment is confirmed.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='purchase_intents'
+    )
+
+    # What they want to buy (one must be set, or is_cart_purchase=True)
+    chapter = models.ForeignKey(
+        'Chapter',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='purchase_intents'
+    )
+    content = models.ForeignKey(
+        Content,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='purchase_intents'
+    )
+
+    # Cart purchase (for batch)
+    is_cart_purchase = models.BooleanField(default=False)
+    cart_snapshot = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Snapshot of cart items at time of intent'
+    )
+
+    # Pricing at time of intent (locked in)
+    item_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text='Price of item(s) at time of intent'
+    )
+    total_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text='Total amount including any fees'
+    )
+
+    # Payment method selection
+    PAYMENT_METHOD_CHOICES = [
+        ('balance', 'Pay with Balance'),
+        ('coinbase', 'Coinbase Onramp'),
+        ('direct_crypto', 'Direct Crypto'),
+        ('stripe', 'Stripe (Legacy)'),
+    ]
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        blank=True
+    )
+
+    # Status tracking
+    STATUS_CHOICES = [
+        ('created', 'Created'),
+        ('payment_method_selected', 'Payment Method Selected'),
+        ('awaiting_payment', 'Awaiting Payment'),
+        ('payment_received', 'Payment Received'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('expired', 'Expired'),
+        ('canceled', 'Canceled'),
+    ]
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        default='created'
+    )
+
+    # Balance check result at creation time
+    user_balance_at_creation = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        null=True,
+        blank=True
+    )
+    balance_sufficient = models.BooleanField(default=False)
+
+    # For Coinbase: minimum amount to add (enforcing $5 min)
+    coinbase_minimum_add = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Minimum amount user must add via Coinbase ($5 min)'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField()
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Result - links to actual Purchase after completion
+    purchase = models.OneToOneField(
+        'Purchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_intent'
+    )
+    batch_purchase = models.OneToOneField(
+        'BatchPurchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_intent'
+    )
+
+    # Error tracking
+    failure_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status', '-created_at']),
+            models.Index(fields=['status', 'expires_at']),
+        ]
+
+    def __str__(self):
+        item = self.chapter or self.content or "Cart"
+        return f"Intent {self.id}: {item} for {self.user.username} ({self.status})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at and self.status in ['created', 'payment_method_selected', 'awaiting_payment']
+
+    def calculate_coinbase_minimum(self):
+        """
+        Calculate minimum Coinbase add amount.
+        Enforces $5 minimum, accounts for existing balance.
+        """
+        COINBASE_MINIMUM = Decimal('5.00')
+
+        balance = self.user_balance_at_creation or Decimal('0')
+        needed = self.total_amount - balance
+
+        if needed <= 0:
+            return Decimal('0')  # Balance sufficient
+
+        # Must add at least $5, even if they only need $2
+        return max(needed, COINBASE_MINIMUM)
+
+    def get_item_display(self):
+        """Get display name for the item being purchased."""
+        if self.is_cart_purchase:
+            count = len(self.cart_snapshot.get('items', [])) if self.cart_snapshot else 0
+            return f"{count} items"
+        elif self.chapter:
+            return f"Chapter: {self.chapter.title}"
+        elif self.content:
+            return self.content.title
+        return "Unknown"
+
+
+class CoinbaseTransaction(models.Model):
+    """
+    Tracks Coinbase Onramp transactions (fiat -> USDC).
+
+    Flow:
+    1. User initiates onramp via Coinbase widget
+    2. Coinbase processes payment (Apple Pay, debit card)
+    3. Coinbase sends USDC to user's Web3Auth wallet
+    4. Webhook confirms arrival, triggers purchase if linked
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='coinbase_transactions'
+    )
+
+    # Coinbase identifiers
+    coinbase_charge_id = models.CharField(
+        max_length=128,
+        unique=True,
+        help_text='Coinbase Commerce charge ID or Onramp session ID'
+    )
+    coinbase_checkout_id = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text='Coinbase checkout session ID'
+    )
+
+    # Transaction amounts
+    fiat_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text='Amount in USD charged to user'
+    )
+    usdc_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='USDC received (after fees)'
+    )
+    coinbase_fee = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Coinbase processing fee'
+    )
+
+    # Destination
+    destination_wallet = models.CharField(
+        max_length=44,
+        help_text="User's Web3Auth Solana wallet address"
+    )
+
+    # Status tracking
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('expired', 'Expired'),
+        ('canceled', 'Canceled'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
+
+    # Solana transaction when USDC arrives
+    solana_tx_signature = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text='Solana transaction signature for USDC deposit'
+    )
+
+    # Optional: Link to a purchase intent (if loading balance for specific purchase)
+    purchase_intent = models.ForeignKey(
+        PurchaseIntent,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='coinbase_transactions'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Error tracking
+    failure_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Coinbase Transaction'
+        verbose_name_plural = 'Coinbase Transactions'
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['coinbase_charge_id']),
+        ]
+
+    def __str__(self):
+        return f"Coinbase {self.coinbase_charge_id}: ${self.fiat_amount} -> {self.status}"
+
+
+class DirectCryptoTransaction(models.Model):
+    """
+    Tracks direct USDC payments from external wallets (Phantom, etc).
+
+    Flow:
+    1. User sees platform USDC address + unique memo
+    2. User sends USDC from external wallet with memo
+    3. Solana polling detects incoming transaction matching memo + amount
+    4. Purchase is fulfilled
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='direct_crypto_transactions'
+    )
+
+    # Payment details
+    expected_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        help_text='Expected USDC amount'
+    )
+    received_amount = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='Actual USDC received'
+    )
+
+    # Payment identification via memo
+    payment_memo = models.CharField(
+        max_length=64,
+        unique=True,
+        help_text='Unique memo to identify this payment (e.g., RB-ABC123)'
+    )
+
+    # Wallet addresses
+    from_wallet = models.CharField(
+        max_length=44,
+        blank=True,
+        help_text='Source wallet address (detected from transaction)'
+    )
+    to_wallet = models.CharField(
+        max_length=44,
+        help_text='Platform USDC receiving address'
+    )
+
+    # Solana transaction
+    solana_tx_signature = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text='Solana transaction signature'
+    )
+
+    # Status tracking
+    STATUS_CHOICES = [
+        ('awaiting_payment', 'Awaiting Payment'),
+        ('detected', 'Payment Detected'),
+        ('confirming', 'Confirming'),
+        ('confirmed', 'Confirmed'),
+        ('processing', 'Processing Purchase'),
+        ('completed', 'Completed'),
+        ('expired', 'Expired'),
+        ('failed', 'Failed'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='awaiting_payment'
+    )
+
+    # Link to purchase intent
+    purchase_intent = models.OneToOneField(
+        PurchaseIntent,
+        on_delete=models.CASCADE,
+        related_name='direct_crypto_transaction'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField(
+        help_text='Payment must arrive before this time'
+    )
+    detected_at = models.DateTimeField(null=True, blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    # Error tracking
+    failure_reason = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Direct Crypto Transaction'
+        verbose_name_plural = 'Direct Crypto Transactions'
+        indexes = [
+            models.Index(fields=['status', 'expires_at']),
+            models.Index(fields=['payment_memo']),
+            models.Index(fields=['to_wallet', 'status']),
+        ]
+
+    def __str__(self):
+        return f"DirectCrypto {self.payment_memo}: {self.expected_amount} USDC -> {self.status}"
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at and self.status == 'awaiting_payment'

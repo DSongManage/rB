@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.db.models import Q
 from decimal import Decimal, InvalidOperation
+from datetime import datetime
 
 from ..models import (
     CollaborativeProject, CollaboratorRole, ProjectSection,
@@ -30,6 +31,7 @@ from ..notifications_utils import (
     notify_section_update, notify_comment_added, notify_approval_status_change,
     notify_revenue_proposal, notify_counter_proposal
 )
+from ..utils.copyright import get_author_display_name
 
 
 class CollaborativeProjectViewSet(viewsets.ModelViewSet):
@@ -1508,6 +1510,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
             # Create Content record for marketplace listing
             # This allows the minted NFT to be listed and sold on the home page
+            author_name = get_author_display_name(core_user)
             content = Content.objects.create(
                 creator=core_user,
                 title=project.title,
@@ -1519,6 +1522,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 watermark_preview=project.watermark_preview,
                 inventory_status='minted',
                 nft_contract=result.get('mint_address', ''),
+                copyright_year=datetime.now().year,
+                copyright_holder=author_name,
             )
             # Set teaser link to the content's teaser endpoint
             content.teaser_link = f'/api/content/{content.id}/teaser/'

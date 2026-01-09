@@ -39,6 +39,20 @@ from .views.legal import (
     LegalDocumentView, LegalAcceptView, LegalCheckAcceptanceView,
     LegalPendingAcceptancesView, CreatorAgreementStatusView
 )
+# Dual Payment System views
+from .views.balance import UserBalanceView, SyncBalanceView, CheckBalanceSufficiencyView
+from .views.payment import (
+    CreatePurchaseIntentView, SelectPaymentMethodView, PayWithBalanceView,
+    SubmitSponsoredPaymentView, ConfirmBalancePaymentView, PurchaseIntentStatusView
+)
+from .views.coinbase import (
+    InitiateCoinbaseOnrampView, CoinbaseTransactionStatusView,
+    CoinbaseWebhookView, CoinbaseOnrampCompleteView
+)
+from .views.direct_crypto import (
+    InitiateDirectCryptoPaymentView, DirectCryptoPaymentStatusView,
+    CancelDirectCryptoPaymentView
+)
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -226,6 +240,34 @@ urlpatterns = [
     path('api/bridge/payouts/', ListPayoutsView.as_view(), name='bridge_payouts'),
     path('api/bridge/preferences/', GetPayoutPreferencesView.as_view(), name='bridge_preferences_get'),
     path('api/bridge/preferences/update/', UpdatePayoutPreferencesView.as_view(), name='bridge_preferences_update'),
+
+    # ==========================================================================
+    # Dual Payment System (Coinbase Onramp + Direct Crypto)
+    # ==========================================================================
+
+    # Balance Management
+    path('api/balance/', UserBalanceView.as_view(), name='user_balance'),
+    path('api/balance/sync/', SyncBalanceView.as_view(), name='sync_balance'),
+    path('api/balance/check/', CheckBalanceSufficiencyView.as_view(), name='check_balance'),
+
+    # Purchase Intent
+    path('api/payment/intent/', CreatePurchaseIntentView.as_view(), name='create_purchase_intent'),
+    path('api/payment/intent/<int:intent_id>/select/', SelectPaymentMethodView.as_view(), name='select_payment_method'),
+    path('api/payment/intent/<int:intent_id>/pay-with-balance/', PayWithBalanceView.as_view(), name='pay_with_balance'),
+    path('api/payment/intent/<int:intent_id>/submit/', SubmitSponsoredPaymentView.as_view(), name='submit_sponsored_payment'),
+    path('api/payment/intent/<int:intent_id>/confirm/', ConfirmBalancePaymentView.as_view(), name='confirm_balance_payment'),
+    path('api/payment/intent/<int:intent_id>/status/', PurchaseIntentStatusView.as_view(), name='purchase_intent_status'),
+
+    # Coinbase Onramp
+    path('api/coinbase/onramp/<int:intent_id>/', InitiateCoinbaseOnrampView.as_view(), name='coinbase_onramp_initiate'),
+    path('api/coinbase/status/<int:transaction_id>/', CoinbaseTransactionStatusView.as_view(), name='coinbase_status'),
+    path('api/coinbase/complete/<int:transaction_id>/', CoinbaseOnrampCompleteView.as_view(), name='coinbase_complete'),
+    path('api/webhooks/coinbase/', CoinbaseWebhookView.as_view(), name='coinbase_webhook'),
+
+    # Direct Crypto Payment
+    path('api/direct-crypto/initiate/<int:intent_id>/', InitiateDirectCryptoPaymentView.as_view(), name='direct_crypto_initiate'),
+    path('api/direct-crypto/status/<int:payment_id>/', DirectCryptoPaymentStatusView.as_view(), name='direct_crypto_status'),
+    path('api/direct-crypto/cancel/<int:payment_id>/', CancelDirectCryptoPaymentView.as_view(), name='direct_crypto_cancel'),
 ]
 
 # Development-only endpoints (not exposed in production)

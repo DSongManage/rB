@@ -56,9 +56,11 @@ class ContentSerializer(serializers.ModelSerializer):
             # Social engagement fields
             'like_count', 'average_rating', 'rating_count', 'user_has_liked',
             # Tags
-            'tags', 'tag_ids'
+            'tags', 'tag_ids',
+            # Copyright
+            'copyright_year', 'copyright_holder'
         ]
-        read_only_fields = ['creator', 'creator_username', 'creator_avatar', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators', 'source_project_id', 'view_count', 'like_count', 'average_rating', 'rating_count', 'user_has_liked', 'tags']
+        read_only_fields = ['creator', 'creator_username', 'creator_avatar', 'teaser_link', 'teaser_html', 'created_at', 'owned', 'is_collaborative', 'collaborators', 'source_project_id', 'view_count', 'like_count', 'average_rating', 'rating_count', 'user_has_liked', 'tags', 'copyright_year', 'copyright_holder']
 
     def get_user_has_liked(self, obj):
         """Check if the requesting user has liked this content."""
