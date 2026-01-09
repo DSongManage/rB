@@ -2,19 +2,39 @@
  * Cart Page Component
  *
  * Full shopping cart view with items, totals, savings, and checkout.
+ * Uses dual payment system: Balance, Coinbase Onramp, or Direct Crypto.
  */
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, CreditCard, ArrowLeft, Sparkles, Heart, AlertCircle, BookOpen } from 'lucide-react';
+import { ShoppingCart, Trash2, Wallet, ArrowLeft, Sparkles, Heart, AlertCircle, BookOpen, Loader2, X } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
+import { useBalance } from '../contexts/BalanceContext';
 import { API_URL } from '../config';
+import { paymentApi, PurchaseIntentResponse } from '../services/paymentApi';
+import { signMessageForSponsoredTx } from '../services/web3authService';
+import {
+  BalanceDisplay,
+  PaymentOptionsSelector,
+  CoinbaseOnrampWidget,
+  DirectCryptoPaymentModal,
+} from '../components/payment';
+
+// Payment flow states
+type PaymentStep = 'idle' | 'creating_intent' | 'selecting_method' | 'processing_balance' | 'coinbase' | 'direct_crypto' | 'success' | 'error';
 
 export default function CartPage() {
-  const { cart, loading, error, removeFromCart, clearCart, checkout, refreshCart } = useCart();
-  const [checkingOut, setCheckingOut] = useState(false);
+  const { cart, loading, error, removeFromCart, clearCart, refreshCart } = useCart();
+  const { forceSync: refreshBalance } = useBalance();  // Use forceSync after purchases to get updated balance
   const [removingId, setRemovingId] = useState<number | null>(null);
   const navigate = useNavigate();
+
+  // Payment flow state
+  const [paymentStep, setPaymentStep] = useState<PaymentStep>('idle');
+  const [purchaseIntent, setPurchaseIntent] = useState<PurchaseIntentResponse | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<'balance' | 'coinbase' | 'direct_crypto' | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [processingMessage, setProcessingMessage] = useState<string>('');
 
   async function handleRemove(itemId: number) {
     setRemovingId(itemId);
@@ -22,13 +42,117 @@ export default function CartPage() {
     setRemovingId(null);
   }
 
+  // Start the checkout flow - create purchase intent
   async function handleCheckout() {
-    setCheckingOut(true);
-    const checkoutUrl = await checkout();
-    if (checkoutUrl) {
-      window.location.href = checkoutUrl;
+    setPaymentStep('creating_intent');
+    setPaymentError(null);
+
+    try {
+      const intent = await paymentApi.createIntent({ cart: true });
+      setPurchaseIntent(intent);
+      setPaymentStep('selecting_method');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to start checkout';
+      setPaymentError(message);
+      setPaymentStep('error');
     }
-    setCheckingOut(false);
+  }
+
+  // Handle payment method selection
+  async function handleSelectPaymentMethod(method: 'balance' | 'coinbase' | 'direct_crypto') {
+    if (!purchaseIntent) return;
+
+    setSelectedMethod(method);
+    setPaymentError(null);
+
+    try {
+      // Notify backend of selection
+      await paymentApi.selectPaymentMethod(purchaseIntent.intent_id, method);
+
+      if (method === 'balance') {
+        await processBalancePayment();
+      } else if (method === 'coinbase') {
+        setPaymentStep('coinbase');
+      } else if (method === 'direct_crypto') {
+        setPaymentStep('direct_crypto');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to select payment method';
+      setPaymentError(message);
+      setPaymentStep('error');
+    }
+  }
+
+  // Process balance payment with platform-sponsored fees
+  // User signs only as token authority, platform pays SOL fees
+  async function processBalancePayment() {
+    if (!purchaseIntent) return;
+
+    setPaymentStep('processing_balance');
+    setProcessingMessage('Preparing transaction...');
+
+    try {
+      // Step 1: Get sponsored transaction from backend (platform = fee payer)
+      const paymentData = await paymentApi.payWithBalance(purchaseIntent.intent_id);
+      setProcessingMessage('Please approve the transaction in your wallet...');
+
+      // Step 2: User signs the transaction (only as token authority)
+      // Platform pays the SOL transaction fees
+      const { signedTransaction, userSignatureIndex } = await signMessageForSponsoredTx(
+        paymentData.serialized_transaction
+      );
+
+      setProcessingMessage('Submitting payment...');
+
+      // Step 3: Submit to backend - platform adds its signature and submits
+      await paymentApi.submitSponsoredPayment(
+        purchaseIntent.intent_id,
+        signedTransaction,
+        userSignatureIndex
+      );
+
+      setProcessingMessage('Purchase complete!');
+
+      // Clear cart immediately and refresh balance
+      // Backend will also clear cart async, but we do it now for instant UI feedback
+      await clearCart();
+      await refreshBalance();
+
+      setPaymentStep('success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Payment failed';
+      setPaymentError(message);
+      setPaymentStep('error');
+    }
+  }
+
+  // Handle successful payment (from any method)
+  async function handlePaymentSuccess() {
+    // Clear cart immediately and refresh balance
+    await clearCart();
+    await refreshBalance();
+    setPaymentStep('success');
+  }
+
+  // Handle payment cancellation
+  function handlePaymentCancel() {
+    setPaymentStep('idle');
+    setPurchaseIntent(null);
+    setSelectedMethod(null);
+  }
+
+  // Handle payment error
+  function handlePaymentError(errorMessage: string) {
+    setPaymentError(errorMessage);
+    setPaymentStep('error');
+  }
+
+  // Reset payment flow
+  function resetPaymentFlow() {
+    setPaymentStep('idle');
+    setPurchaseIntent(null);
+    setSelectedMethod(null);
+    setPaymentError(null);
   }
 
   async function handleClear() {
@@ -63,7 +187,7 @@ export default function CartPage() {
           Your Cart is Empty
         </h1>
         <p style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '32px' }}>
-          Browse chapters and add them to your cart to purchase multiple items at once and save on fees.
+          Browse chapters and add them to your cart to purchase multiple items at once.
         </p>
         <button
           onClick={() => navigate('/')}
@@ -257,16 +381,9 @@ export default function CartPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-muted, #94a3b8)' }}>
-                Subtotal ({cart.item_count} items)
+                {cart.item_count} {cart.item_count === 1 ? 'item' : 'items'}
               </span>
               <span>${cart.subtotal}</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>
-                Credit Card Fee
-              </span>
-              <span>${cart.credit_card_fee}</span>
             </div>
 
             {hasSavings && (
@@ -297,7 +414,7 @@ export default function CartPage() {
               fontWeight: 700,
             }}>
               <span>Total</span>
-              <span style={{ color: 'var(--accent, #3b82f6)' }}>${cart.total}</span>
+              <span style={{ color: 'var(--accent, #3b82f6)' }}>${cart.subtotal}</span>
             </div>
           </div>
 
@@ -321,7 +438,7 @@ export default function CartPage() {
 
           <button
             onClick={handleCheckout}
-            disabled={checkingOut}
+            disabled={paymentStep !== 'idle'}
             style={{
               width: '100%',
               display: 'flex',
@@ -329,18 +446,27 @@ export default function CartPage() {
               justifyContent: 'center',
               gap: '10px',
               padding: '16px 24px',
-              backgroundColor: checkingOut ? 'var(--bg-disabled, #475569)' : '#f59e0b',
-              color: checkingOut ? '#94a3b8' : '#000',
+              backgroundColor: paymentStep !== 'idle' ? 'var(--bg-disabled, #475569)' : 'var(--accent, #3b82f6)',
+              color: 'white',
               border: 'none',
               borderRadius: '10px',
               fontSize: '16px',
               fontWeight: 600,
-              cursor: checkingOut ? 'not-allowed' : 'pointer',
+              cursor: paymentStep !== 'idle' ? 'not-allowed' : 'pointer',
               transition: 'background-color 0.2s ease',
             }}
           >
-            <CreditCard size={20} />
-            {checkingOut ? 'Processing...' : `Checkout - $${cart.total}`}
+            {paymentStep === 'creating_intent' ? (
+              <>
+                <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                Loading...
+              </>
+            ) : (
+              <>
+                <Wallet size={20} />
+                Checkout - ${cart.subtotal}
+              </>
+            )}
           </button>
 
           {/* Creator Support Message */}
@@ -358,23 +484,320 @@ export default function CartPage() {
               </span>
             </div>
             <p style={{ color: 'var(--text-muted, #94a3b8)', lineHeight: '1.5' }}>
-              Creators receive 90% of each item's price. By using cart checkout, you save on credit card fees while supporting the creators you love.
+              Creators receive 90% of each item's price. Your purchase directly supports the creators you love.
             </p>
           </div>
 
-          {/* Test Mode Notice */}
-          <div style={{
-            marginTop: '12px',
-            padding: '10px 12px',
-            backgroundColor: 'var(--bg-warning, #422006)',
-            borderRadius: '8px',
-            fontSize: '12px',
-            color: 'var(--text-warning, #fcd34d)',
-          }}>
-            <strong>Test Mode:</strong> Use card 4242 4242 4242 4242
+          {/* Balance Display */}
+          <div style={{ marginTop: '12px' }}>
+            <BalanceDisplay size="small" showLabel={true} compact={false} />
           </div>
         </div>
       </div>
+
+      {/* Payment Method Selector Modal */}
+      {paymentStep === 'selecting_method' && purchaseIntent && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-primary, #0f172a)',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '480px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              border: '1px solid var(--border, #334155)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '24px',
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: '20px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary, #f1f5f9)',
+                }}
+              >
+                Choose Payment Method
+              </h2>
+              <button
+                onClick={handlePaymentCancel}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted, #94a3b8)',
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <PaymentOptionsSelector
+              intent={purchaseIntent}
+              onSelect={handleSelectPaymentMethod}
+              loading={false}
+              selectedMethod={selectedMethod}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Balance Processing Modal */}
+      {paymentStep === 'processing_balance' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-primary, #0f172a)',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '400px',
+              width: '100%',
+              textAlign: 'center',
+              border: '1px solid var(--border, #334155)',
+            }}
+          >
+            <Loader2
+              size={48}
+              style={{
+                color: 'var(--accent, #3b82f6)',
+                animation: 'spin 1s linear infinite',
+                marginBottom: '16px',
+              }}
+            />
+            <h3
+              style={{
+                color: 'var(--text-primary, #f1f5f9)',
+                fontSize: '18px',
+                margin: '0 0 8px',
+              }}
+            >
+              Processing Payment
+            </h3>
+            <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: 0 }}>
+              {processingMessage}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Coinbase Onramp Widget */}
+      {paymentStep === 'coinbase' && purchaseIntent && (
+        <CoinbaseOnrampWidget
+          intentId={purchaseIntent.intent_id}
+          onSuccess={handlePaymentSuccess}
+          onCancel={handlePaymentCancel}
+          onError={handlePaymentError}
+        />
+      )}
+
+      {/* Direct Crypto Payment Modal */}
+      {paymentStep === 'direct_crypto' && purchaseIntent && (
+        <DirectCryptoPaymentModal
+          intentId={purchaseIntent.intent_id}
+          onSuccess={handlePaymentSuccess}
+          onCancel={handlePaymentCancel}
+          onError={handlePaymentError}
+        />
+      )}
+
+      {/* Success Modal */}
+      {paymentStep === 'success' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-primary, #0f172a)',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '400px',
+              width: '100%',
+              textAlign: 'center',
+              border: '1px solid var(--border, #334155)',
+            }}
+          >
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}
+            >
+              <Heart size={32} style={{ color: '#22c55e' }} />
+            </div>
+            <h3
+              style={{
+                color: 'var(--text-primary, #f1f5f9)',
+                fontSize: '20px',
+                margin: '0 0 8px',
+              }}
+            >
+              Purchase Complete!
+            </h3>
+            <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 24px' }}>
+              Your items have been added to your library.
+            </p>
+            <button
+              onClick={() => {
+                resetPaymentFlow();
+                navigate('/dashboard');
+              }}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: 'var(--accent, #3b82f6)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Go to Library
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      {paymentStep === 'error' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-primary, #0f172a)',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '400px',
+              width: '100%',
+              textAlign: 'center',
+              border: '1px solid var(--border, #334155)',
+            }}
+          >
+            <AlertCircle
+              size={48}
+              style={{
+                color: 'var(--error, #ef4444)',
+                marginBottom: '16px',
+              }}
+            />
+            <h3
+              style={{
+                color: 'var(--text-primary, #f1f5f9)',
+                fontSize: '18px',
+                margin: '0 0 8px',
+              }}
+            >
+              Payment Failed
+            </h3>
+            <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 24px' }}>
+              {paymentError || 'Something went wrong with your payment.'}
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => {
+                  setPaymentError(null);
+                  setPaymentStep('selecting_method');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: 'var(--accent, #3b82f6)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Try Again
+              </button>
+              <button
+                onClick={resetPaymentFlow}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: 'var(--bg-secondary, #1e293b)',
+                  color: 'var(--text-primary, #f1f5f9)',
+                  border: '1px solid var(--border, #334155)',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

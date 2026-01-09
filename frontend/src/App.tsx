@@ -17,6 +17,7 @@ import { Footer } from './components/legal/Footer';
 import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
 import { CartProvider } from './contexts/CartContext';
+import { BalanceProvider } from './contexts/BalanceContext';
 import CartIcon from './components/CartIcon';
 import {
   User, LogOut, Menu, X, Users
@@ -302,6 +303,7 @@ export default function App() {
 
   return (
     <CartProvider>
+    <BalanceProvider>
     <div className="rb-app">
       <Header />
       {showLibrarySidebar && <LibrarySidebar isExpanded={libraryExpanded} onExpandedChange={setLibraryExpanded} />}
@@ -364,6 +366,7 @@ export default function App() {
       <TestModeBanner />
       <BetaOnboarding />
     </div>
+    </BalanceProvider>
     </CartProvider>
   );
 }

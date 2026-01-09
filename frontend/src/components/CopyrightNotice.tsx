@@ -1,21 +1,48 @@
 import React from 'react';
 
-interface CopyrightPreviewProps {
+interface CopyrightNoticeProps {
   authorName: string;
-  year?: number;
+  year: number;
+  compact?: boolean; // For reader footer (smaller styling)
 }
 
 /**
- * CopyrightPreview - Displays the copyright notice that will be associated with published content.
+ * CopyrightNotice - Displays copyright notice on published content.
  *
- * Shows the copyright line and blockchain timestamp message that will be part of
- * the published work's metadata.
+ * Used on ContentDetail page and reader footers to show the official
+ * copyright associated with published works.
  */
-export default function CopyrightPreview({ authorName, year }: CopyrightPreviewProps) {
-  const currentYear = year || new Date().getFullYear();
-
-  const copyrightLine = `(C) ${currentYear} ${authorName}. All Rights Reserved.`;
+export default function CopyrightNotice({ authorName, year, compact = false }: CopyrightNoticeProps) {
+  const copyrightLine = `(C) ${year} ${authorName}. All Rights Reserved.`;
   const blockchainMessage = `This work is officially timestamped and protected on the blockchain.`;
+
+  if (compact) {
+    return (
+      <div style={{
+        textAlign: 'center',
+        padding: '12px 16px',
+        borderTop: '1px solid var(--panel-border)',
+        background: 'rgba(139, 92, 246, 0.05)',
+      }}>
+        <p style={{
+          color: 'var(--text)',
+          fontSize: 11,
+          fontWeight: 500,
+          margin: '0 0 4px 0',
+        }}>
+          {copyrightLine}
+        </p>
+        <p style={{
+          color: '#94a3b8',
+          fontSize: 10,
+          margin: 0,
+          fontStyle: 'italic',
+        }}>
+          {blockchainMessage}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -61,15 +88,6 @@ export default function CopyrightPreview({ authorName, year }: CopyrightPreviewP
         }}>
           {blockchainMessage}
         </p>
-      </div>
-
-      <div style={{
-        fontSize: 11,
-        color: '#64748b',
-        marginTop: 8,
-        textAlign: 'center',
-      }}>
-        This notice will be associated with your published work
       </div>
     </div>
   );

@@ -29,8 +29,7 @@ def generate_copyright_text(
     copyright_line = f"(C) {year} {author_name}. All Rights Reserved."
 
     blockchain_message = (
-        "Every work published on renaissBlock is timestamped on the blockchain "
-        "- creating an immutable record of your authorship. No registration required."
+        "This work is officially timestamped and protected on the blockchain."
     )
 
     if include_blockchain_message:

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Play, ChevronDown, ChevronUp, User } from 'lucide-react';
 import PreviewModal from '../components/PreviewModal';
 import AddToCartButton from '../components/AddToCartButton';
+import CopyrightNotice from '../components/CopyrightNotice';
 import { API_URL } from '../config';
 import { RatingSection } from '../components/social/RatingSection';
 import { useMobile } from '../hooks/useMobile';
@@ -539,6 +540,12 @@ export default function ContentDetail(){
               </p>
             </div>
           )}
+
+          {/* Copyright Notice */}
+          <CopyrightNotice
+            authorName={data?.copyright_holder || data?.creator_username || 'Unknown'}
+            year={data?.copyright_year || new Date().getFullYear()}
+          />
         </div>
       </div>
 
