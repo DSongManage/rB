@@ -124,14 +124,25 @@ export function BalanceProvider({ children }: BalanceProviderProps) {
     fetchBalance();
   }, [fetchBalance]);
 
-  // Refresh balance periodically if stale (every 5 minutes)
+  // Auto-refresh when balance is syncing or stale
+  // Poll more aggressively to show updated balance quickly
   useEffect(() => {
     if (syncStatus === 'stale') {
+      // Stale balance - fetch after 2 seconds to get freshly synced value
       const timer = setTimeout(() => {
         fetchBalance();
-      }, 5000); // Wait 5 seconds before refreshing stale balance
+      }, 2000);
 
       return () => clearTimeout(timer);
+    }
+
+    if (syncStatus === 'syncing') {
+      // Actively syncing - poll every 1.5 seconds until synced
+      const timer = setInterval(() => {
+        fetchBalance();
+      }, 1500);
+
+      return () => clearInterval(timer);
     }
   }, [syncStatus, fetchBalance]);
 

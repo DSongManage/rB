@@ -1866,10 +1866,22 @@ class LoginView(APIView):
         logger.info(f'Session key after login: {request.session.session_key}')
         logger.info(f'Session data: {dict(request.session)}')
 
+        # Trigger balance sync on login if user has a wallet
+        balance_syncing = False
+        if user.wallet_address:
+            try:
+                from rb_core.tasks import sync_user_balance_task
+                sync_user_balance_task.delay(user.id)
+                balance_syncing = True
+                logger.info(f'Queued balance sync for user {user.id} on login')
+            except Exception as e:
+                logger.warning(f'Failed to queue balance sync on login: {e}')
+
         return Response({
             'message': 'Login successful',
             'username': user.username,
-            'user_id': user.id
+            'user_id': user.id,
+            'balance_syncing': balance_syncing
         }, status=200)
 
 

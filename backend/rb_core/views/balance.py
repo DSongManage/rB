@@ -80,19 +80,26 @@ class UserBalanceView(APIView):
                 })
 
         # If balance is stale, trigger async sync (but return cached value)
+        sync_triggered = False
         if user_balance.is_stale:
             # Import here to avoid circular imports
             from rb_core.tasks import sync_user_balance_task
             try:
                 sync_user_balance_task.delay(user.id)
+                sync_triggered = True
+                logger.info(f"Triggered async balance sync for user {user.id}")
             except Exception as e:
                 logger.warning(f"Failed to queue balance sync for user {user.id}: {e}")
+
+        # Return 'syncing' status if we just triggered an async sync
+        # This tells the frontend to poll for updates
+        current_status = 'syncing' if sync_triggered else user_balance.sync_status
 
         return Response({
             'balance': str(user_balance.usdc_balance),
             'display_balance': user_balance.display_balance,
             'last_synced': user_balance.last_synced_at.isoformat() if user_balance.last_synced_at else None,
-            'sync_status': user_balance.sync_status,
+            'sync_status': current_status,
             'is_stale': user_balance.is_stale,
         })
 

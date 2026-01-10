@@ -149,9 +149,34 @@ export function BalanceDisplay({
             renaissBlock Balance
           </span>
         )}
-        <span style={{ ...styles.balance, color: 'var(--text-primary, #f1f5f9)' }}>
-          {displayBalance || '$0.00'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ ...styles.balance, color: 'var(--text-primary, #f1f5f9)' }}>
+            {displayBalance || '$0.00'}
+          </span>
+          {syncStatus === 'syncing' && (
+            <span
+              style={{
+                fontSize: '11px',
+                color: 'var(--accent, #3b82f6)',
+                fontWeight: 500,
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}
+            >
+              Syncing...
+            </span>
+          )}
+          {syncStatus === 'stale' && (
+            <span
+              style={{
+                fontSize: '11px',
+                color: 'var(--text-muted, #64748b)',
+                fontWeight: 500,
+              }}
+            >
+              (updating)
+            </span>
+          )}
+        </div>
       </div>
 
       {showRefresh && (
@@ -194,6 +219,10 @@ export function BalanceDisplay({
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
       `}</style>
     </div>
