@@ -7,12 +7,12 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Wallet, ArrowLeft, Sparkles, Heart, AlertCircle, BookOpen, Loader2, X } from 'lucide-react';
+import { ShoppingCart, Trash2, Wallet, ArrowLeft, Sparkles, Heart, AlertCircle, BookOpen, Loader2, X, ExternalLink, CheckCircle2, Shield } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { useBalance } from '../contexts/BalanceContext';
 import { API_URL } from '../config';
 import { paymentApi, PurchaseIntentResponse } from '../services/paymentApi';
-import { signMessageForSponsoredTx } from '../services/web3authService';
+import { signMessageForSponsoredTx, getTransactionExplorerLink, getConnectedPublicKey } from '../services/web3authService';
 import {
   BalanceDisplay,
   PaymentOptionsSelector,
@@ -21,7 +21,7 @@ import {
 } from '../components/payment';
 
 // Payment flow states
-type PaymentStep = 'idle' | 'creating_intent' | 'selecting_method' | 'processing_balance' | 'coinbase' | 'direct_crypto' | 'success' | 'error';
+type PaymentStep = 'idle' | 'creating_intent' | 'selecting_method' | 'confirm_balance' | 'signing' | 'submitting' | 'coinbase' | 'direct_crypto' | 'success' | 'error';
 
 export default function CartPage() {
   const { cart, loading, error, removeFromCart, clearCart, refreshCart } = useCart();
@@ -35,6 +35,8 @@ export default function CartPage() {
   const [selectedMethod, setSelectedMethod] = useState<'balance' | 'coinbase' | 'direct_crypto' | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [processingMessage, setProcessingMessage] = useState<string>('');
+  const [transactionSignature, setTransactionSignature] = useState<string | null>(null);
+  const [balancePaymentData, setBalancePaymentData] = useState<any>(null);
 
   async function handleRemove(itemId: number) {
     setRemovingId(itemId);
@@ -70,7 +72,10 @@ export default function CartPage() {
       await paymentApi.selectPaymentMethod(purchaseIntent.intent_id, method);
 
       if (method === 'balance') {
-        await processBalancePayment();
+        // Show confirmation modal immediately (don't get transaction yet - blockhash will expire)
+        setPaymentStep('confirm_balance');
+        // Set placeholder data for display - actual transaction fetched on confirm
+        setBalancePaymentData({ amount: purchaseIntent.total_amount });
       } else if (method === 'coinbase') {
         setPaymentStep('coinbase');
       } else if (method === 'direct_crypto') {
@@ -83,38 +88,49 @@ export default function CartPage() {
     }
   }
 
-  // Process balance payment with platform-sponsored fees
-  // User signs only as token authority, platform pays SOL fees
-  async function processBalancePayment() {
+  // User confirmed - NOW get fresh transaction, sign, and submit immediately
+  async function handleConfirmBalancePayment() {
     if (!purchaseIntent) return;
 
-    setPaymentStep('processing_balance');
+    setPaymentStep('signing');
     setProcessingMessage('Preparing transaction...');
 
     try {
-      // Step 1: Get sponsored transaction from backend (platform = fee payer)
+      // Get fresh transaction with current blockhash RIGHT before signing
       const paymentData = await paymentApi.payWithBalance(purchaseIntent.intent_id);
-      setProcessingMessage('Please approve the transaction in your wallet...');
 
-      // Step 2: User signs the transaction (only as token authority)
-      // Platform pays the SOL transaction fees
+      // SECURITY: Validate Web3Auth session matches expected user wallet
+      // This prevents signing with a stale session from a different user
+      const connectedPubkey = await getConnectedPublicKey();
+      const expectedPubkey = paymentData.user_pubkey;
+
+      if (connectedPubkey.toBase58() !== expectedPubkey) {
+        throw new Error(
+          'Wallet session mismatch detected. Please logout and login again to refresh your wallet session.'
+        );
+      }
+
+      setProcessingMessage('Please approve in your wallet...');
+
+      // Sign the transaction immediately while blockhash is fresh
       const { signedTransaction, userSignatureIndex } = await signMessageForSponsoredTx(
         paymentData.serialized_transaction
       );
 
-      setProcessingMessage('Submitting payment...');
+      setPaymentStep('submitting');
+      setProcessingMessage('Submitting to blockchain...');
 
-      // Step 3: Submit to backend - platform adds its signature and submits
-      await paymentApi.submitSponsoredPayment(
+      // Submit to backend immediately
+      const result = await paymentApi.submitSponsoredPayment(
         purchaseIntent.intent_id,
         signedTransaction,
         userSignatureIndex
       );
 
-      setProcessingMessage('Purchase complete!');
+      // Store the signature for success screen
+      setTransactionSignature(result.signature);
 
-      // Clear cart immediately and refresh balance
-      // Backend will also clear cart async, but we do it now for instant UI feedback
+      // Clear cart and refresh balance
       await clearCart();
       await refreshBalance();
 
@@ -153,6 +169,9 @@ export default function CartPage() {
     setPurchaseIntent(null);
     setSelectedMethod(null);
     setPaymentError(null);
+    setTransactionSignature(null);
+    setBalancePaymentData(null);
+    setProcessingMessage('');
   }
 
   async function handleClear() {
@@ -567,13 +586,183 @@ export default function CartPage() {
         </div>
       )}
 
-      {/* Balance Processing Modal */}
-      {paymentStep === 'processing_balance' && (
+      {/* Balance Confirmation Modal - Shows transaction details before signing */}
+      {paymentStep === 'confirm_balance' && purchaseIntent && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--bg-primary, #0f172a)',
+              borderRadius: '16px',
+              padding: '32px',
+              maxWidth: '440px',
+              width: '100%',
+              border: '1px solid var(--border, #334155)',
+            }}
+          >
+            {!balancePaymentData ? (
+              // Loading state while fetching transaction
+              <div style={{ textAlign: 'center' }}>
+                <Loader2
+                  size={48}
+                  style={{
+                    color: 'var(--accent, #3b82f6)',
+                    animation: 'spin 1s linear infinite',
+                    marginBottom: '16px',
+                  }}
+                />
+                <h3 style={{ color: 'var(--text-primary, #f1f5f9)', fontSize: '18px', margin: '0 0 8px' }}>
+                  Preparing Transaction
+                </h3>
+                <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: 0 }}>
+                  Setting up your payment...
+                </p>
+              </div>
+            ) : (
+              // Confirmation UI
+              <>
+                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                  <div
+                    style={{
+                      width: '56px',
+                      height: '56px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px',
+                    }}
+                  >
+                    <Shield size={28} style={{ color: '#3b82f6' }} />
+                  </div>
+                  <h3 style={{ color: 'var(--text-primary, #f1f5f9)', fontSize: '20px', margin: '0 0 8px' }}>
+                    Confirm Payment
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary, #94a3b8)', margin: 0, fontSize: '14px' }}>
+                    Review your purchase details before signing
+                  </p>
+                </div>
+
+                {/* Transaction Details */}
+                <div
+                  style={{
+                    backgroundColor: 'var(--bg-secondary, #1e293b)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    marginBottom: '20px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '14px' }}>Items</span>
+                    <span style={{ color: 'var(--text-primary, #f1f5f9)', fontSize: '14px' }}>
+                      {cart?.item_count || 1} {(cart?.item_count || 1) === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '14px' }}>Amount</span>
+                    <span style={{ color: 'var(--accent, #3b82f6)', fontSize: '18px', fontWeight: 700 }}>
+                      ${balancePaymentData.amount} USDC
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      borderTop: '1px solid var(--border, #334155)',
+                      paddingTop: '12px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '13px' }}>Network Fee</span>
+                      <span style={{ color: 'var(--text-success, #22c55e)', fontSize: '13px', fontWeight: 500 }}>
+                        FREE (paid by platform)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Creator Support Note */}
+                <div
+                  style={{
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.2)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                  }}
+                >
+                  <Heart size={18} style={{ color: '#22c55e', flexShrink: 0 }} />
+                  <span style={{ color: 'var(--text-secondary, #cbd5e1)', fontSize: '13px' }}>
+                    90% goes directly to the creators
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    onClick={handlePaymentCancel}
+                    style={{
+                      flex: 1,
+                      padding: '14px 20px',
+                      backgroundColor: 'var(--bg-secondary, #1e293b)',
+                      color: 'var(--text-primary, #f1f5f9)',
+                      border: '1px solid var(--border, #334155)',
+                      borderRadius: '10px',
+                      fontSize: '15px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmBalancePayment}
+                    style={{
+                      flex: 2,
+                      padding: '14px 20px',
+                      backgroundColor: 'var(--accent, #3b82f6)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '10px',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <Wallet size={18} />
+                    Sign & Pay
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Signing/Submitting Modal */}
+      {(paymentStep === 'signing' || paymentStep === 'submitting') && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -607,11 +796,16 @@ export default function CartPage() {
                 margin: '0 0 8px',
               }}
             >
-              Processing Payment
+              {paymentStep === 'signing' ? 'Awaiting Signature' : 'Processing Payment'}
             </h3>
             <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: 0 }}>
               {processingMessage}
             </p>
+            {paymentStep === 'signing' && (
+              <p style={{ color: 'var(--text-muted, #64748b)', margin: '16px 0 0', fontSize: '13px' }}>
+                Check for a Web3Auth popup window
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -642,7 +836,7 @@ export default function CartPage() {
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -655,7 +849,7 @@ export default function CartPage() {
               backgroundColor: 'var(--bg-primary, #0f172a)',
               borderRadius: '16px',
               padding: '32px',
-              maxWidth: '400px',
+              maxWidth: '440px',
               width: '100%',
               textAlign: 'center',
               border: '1px solid var(--border, #334155)',
@@ -666,43 +860,95 @@ export default function CartPage() {
                 width: '64px',
                 height: '64px',
                 borderRadius: '50%',
-                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                backgroundColor: 'rgba(34, 197, 94, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '0 auto 16px',
               }}
             >
-              <Heart size={32} style={{ color: '#22c55e' }} />
+              <CheckCircle2 size={36} style={{ color: '#22c55e' }} />
             </div>
             <h3
               style={{
                 color: 'var(--text-primary, #f1f5f9)',
-                fontSize: '20px',
+                fontSize: '22px',
                 margin: '0 0 8px',
               }}
             >
               Purchase Complete!
             </h3>
-            <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 24px' }}>
+            <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 20px' }}>
               Your items have been added to your library.
             </p>
+
+            {/* Transaction Link */}
+            {transactionSignature && (
+              <a
+                href={getTransactionExplorerLink(transactionSignature)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 16px',
+                  backgroundColor: 'var(--bg-secondary, #1e293b)',
+                  border: '1px solid var(--border, #334155)',
+                  borderRadius: '8px',
+                  color: 'var(--text-muted, #94a3b8)',
+                  fontSize: '13px',
+                  textDecoration: 'none',
+                  marginBottom: '20px',
+                }}
+              >
+                <span>View on Solana Explorer</span>
+                <ExternalLink size={14} />
+              </a>
+            )}
+
+            {/* Creator Support Confirmation */}
+            <div
+              style={{
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                border: '1px solid rgba(34, 197, 94, 0.2)',
+                borderRadius: '8px',
+                padding: '12px 16px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+              }}
+            >
+              <Heart size={16} style={{ color: '#22c55e' }} />
+              <span style={{ color: '#22c55e', fontSize: '14px', fontWeight: 500 }}>
+                You supported the creators!
+              </span>
+            </div>
+
             <button
               onClick={() => {
                 resetPaymentFlow();
                 navigate('/dashboard');
               }}
               style={{
-                padding: '12px 24px',
+                width: '100%',
+                padding: '14px 24px',
                 backgroundColor: 'var(--accent, #3b82f6)',
                 color: 'white',
                 border: 'none',
-                borderRadius: '8px',
-                fontSize: '15px',
+                borderRadius: '10px',
+                fontSize: '16px',
                 fontWeight: 600,
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
               }}
             >
+              <BookOpen size={18} />
               Go to Library
             </button>
           </div>

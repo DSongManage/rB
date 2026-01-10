@@ -5,8 +5,8 @@ import { useAuth } from '../hooks/useAuth';
 /**
  * BetaOnboarding Component
  *
- * Shows welcome modal to new beta users on first login
- * Stores completion in localStorage to avoid showing again
+ * Shows welcome modal to new beta users on their FIRST login only.
+ * Uses per-user tracking in localStorage - once a user has seen it, they never see it again.
  */
 export function BetaOnboarding() {
   const { isAuthenticated, user } = useAuth();
@@ -17,14 +17,14 @@ export function BetaOnboarding() {
       return;
     }
 
-    // Check if user has seen the welcome modal
-    const hasSeenWelcome = localStorage.getItem('beta_welcome_seen');
-    const lastSeenUserId = localStorage.getItem('beta_welcome_user_id');
+    // Get the set of user IDs who have seen the welcome modal
+    const seenUsersRaw = localStorage.getItem('beta_welcome_seen_users');
+    const seenUsers: Set<string> = seenUsersRaw
+      ? new Set(JSON.parse(seenUsersRaw))
+      : new Set();
 
-    // Show welcome if:
-    // 1. Never seen before, OR
-    // 2. Different user than last time (account switching)
-    if (!hasSeenWelcome || lastSeenUserId !== String(user.id)) {
+    // Only show welcome if this specific user has NEVER seen it
+    if (!seenUsers.has(String(user.id))) {
       // Small delay to let the app load first
       setTimeout(() => {
         setShowWelcome(true);
@@ -34,8 +34,13 @@ export function BetaOnboarding() {
 
   const handleClose = () => {
     if (user) {
-      localStorage.setItem('beta_welcome_seen', 'true');
-      localStorage.setItem('beta_welcome_user_id', String(user.id));
+      // Add this user to the set of users who have seen the modal
+      const seenUsersRaw = localStorage.getItem('beta_welcome_seen_users');
+      const seenUsers: Set<string> = seenUsersRaw
+        ? new Set(JSON.parse(seenUsersRaw))
+        : new Set();
+      seenUsers.add(String(user.id));
+      localStorage.setItem('beta_welcome_seen_users', JSON.stringify([...seenUsers]));
     }
     setShowWelcome(false);
   };

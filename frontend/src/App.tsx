@@ -13,6 +13,7 @@ import notificationService from './services/notificationService';
 import { BetaBadge, TestModeBanner } from './components/BetaBadge';
 import { useAuth } from './hooks/useAuth';
 import BetaOnboarding from './components/BetaOnboarding';
+import { disconnectWeb3Auth } from './services/web3authService';
 import { Footer } from './components/legal/Footer';
 import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
@@ -142,6 +143,14 @@ function Header() {
       const t = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
       await fetch(`${API_URL}/api/auth/logout/`, { method:'POST', credentials:'include', headers:{ 'X-CSRFToken': t, 'X-Requested-With': 'XMLHttpRequest' } });
     } catch {}
+
+    // CRITICAL: Disconnect Web3Auth to prevent session key mismatch on next login
+    // This ensures the next user gets their own Web3Auth session, not a cached one
+    try {
+      await disconnectWeb3Auth();
+    } catch (e) {
+      console.warn('[Logout] Web3Auth disconnect failed:', e);
+    }
 
     // Stop notification polling and reset
     notificationService.stopPolling();

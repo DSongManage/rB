@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_URL } from '../config';
+import { disconnectWeb3Auth } from '../services/web3authService';
 
 /**
  * Authentication hook
@@ -78,7 +79,7 @@ export const useAuth = () => {
       const csrfData = await csrfResponse.json();
       const csrfToken = csrfData?.csrfToken || '';
 
-      // Logout
+      // Logout from Django
       await fetch(`${API_URL}/api/auth/logout/`, {
         method: 'POST',
         credentials: 'include',
@@ -87,6 +88,13 @@ export const useAuth = () => {
           'X-Requested-With': 'XMLHttpRequest',
         },
       });
+
+      // CRITICAL: Disconnect Web3Auth to prevent session key mismatch on next login
+      try {
+        await disconnectWeb3Auth();
+      } catch (e) {
+        console.warn('[useAuth] Web3Auth disconnect failed:', e);
+      }
 
       // Update state
       setAuthState({
