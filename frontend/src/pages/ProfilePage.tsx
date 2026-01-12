@@ -13,6 +13,7 @@ import { collaborationApi, CollaborativeProject, CollaboratorRole } from '../ser
 import { API_URL } from '../config';
 import { Eye, Plus, Trash2, ExternalLink, GripVertical, Edit2, Settings } from 'lucide-react';
 import { useMobile } from '../hooks/useMobile';
+import { useBalance } from '../contexts/BalanceContext';
 
 interface ExternalPortfolioItem {
   id: number;
@@ -69,6 +70,14 @@ export default function ProfilePage() {
   const [editingPortfolioItem, setEditingPortfolioItem] = useState<ExternalPortfolioItem | null>(null);
   const [activeTab, setActiveTab] = useState<'content' | 'collaborations' | 'portfolio' | 'analytics'>('content');
   const { isMobile, isPhone } = useMobile();
+  const { displayBalance, loading: balanceLoading, syncStatus } = useBalance();
+
+  // Helper to get balance value for StatCard
+  const getBalanceValue = () => {
+    if (syncStatus === 'no_wallet') return '—';
+    if (balanceLoading) return '...';
+    return displayBalance || '$0.00';
+  };
 
   async function refreshStatus() {
     const d = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' }).then(r=>r.json());
@@ -449,7 +458,8 @@ export default function ProfilePage() {
         onWalletUpdate={refreshStatus}
       />
 
-      <div style={{display:'grid', gridTemplateColumns: isPhone ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isPhone ? 12 : 20, marginBottom:24}}>
+      <div style={{display:'grid', gridTemplateColumns: isPhone ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: isPhone ? 12 : 20, marginBottom:24}}>
+        <StatCard label="Balance" value={getBalanceValue()} />
         <StatCard label="Content" value={String(dash.content_count)} />
         <StatCard label="Sales (USDC)" value={`$${dash.sales}`} />
         <StatCard label="Tier" value={dash.tier || '—'} />

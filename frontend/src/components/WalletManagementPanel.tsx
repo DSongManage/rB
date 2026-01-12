@@ -4,6 +4,7 @@ import {
   Wallet, Globe, Link, Loader, Info, CheckCircle, Copy, ExternalLink,
   Settings, AlertTriangle, AlertCircle, DollarSign, ChevronDown, ChevronUp
 } from 'lucide-react';
+import { BalanceDisplay } from './payment/BalanceDisplay';
 
 interface WalletManagementPanelProps {
   walletAddress: string | null;
@@ -397,6 +398,16 @@ export function WalletManagementPanel({
       marginBottom: 16,
       position: 'relative',
     }}>
+      {/* Balance Display - Prominent */}
+      <div style={{ marginBottom: 16 }}>
+        <BalanceDisplay
+          size="large"
+          showRefresh={true}
+          showLabel={true}
+          compact={false}
+        />
+      </div>
+
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',

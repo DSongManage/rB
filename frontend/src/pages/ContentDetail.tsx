@@ -7,6 +7,7 @@ import CopyrightNotice from '../components/CopyrightNotice';
 import { API_URL } from '../config';
 import { RatingSection } from '../components/social/RatingSection';
 import { useMobile } from '../hooks/useMobile';
+import { useBalance } from '../contexts/BalanceContext';
 
 // Format genre for display
 function formatGenre(genre: string): string {
@@ -36,6 +37,7 @@ export default function ContentDetail(){
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile, isPhone } = useMobile();
+  const { displayBalance, syncStatus, isBalanceSufficient } = useBalance();
   const [data, setData] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false); // Start closed so user sees page first
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -263,7 +265,7 @@ export default function ContentDetail(){
               <AddToCartButton
                 contentId={parseInt(id!)}
                 price={priceNum.toFixed(2)}
-                alreadyOwned={data?.user_owns}
+                alreadyOwned={data?.preview?.owned}
               />
             </div>
           )}
@@ -410,6 +412,47 @@ export default function ContentDetail(){
               <div style={{ color: editionsNum > 0 ? '#60a5fa' : '#ef4444', fontSize: 14, fontWeight: 600 }}>{editionsText}</div>
             </div>
           </div>
+
+          {/* User Balance - Show for authenticated users with wallet on paid content */}
+          {isAuthenticated && priceNum > 0 && syncStatus !== 'no_wallet' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 16,
+              padding: '10px 16px',
+              background: isBalanceSufficient(priceNum)
+                ? 'rgba(16, 185, 129, 0.1)'
+                : 'rgba(239, 68, 68, 0.1)',
+              border: `1px solid ${isBalanceSufficient(priceNum) ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+              borderRadius: 8,
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 2 }}>
+                  Your Balance
+                </div>
+                <div style={{
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: isBalanceSufficient(priceNum) ? '#10b981' : '#ef4444'
+                }}>
+                  {displayBalance || '$0.00'}
+                </div>
+              </div>
+              <div style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: isBalanceSufficient(priceNum) ? '#10b981' : '#f87171',
+                padding: '4px 8px',
+                background: isBalanceSufficient(priceNum)
+                  ? 'rgba(16, 185, 129, 0.2)'
+                  : 'rgba(239, 68, 68, 0.2)',
+                borderRadius: 4,
+              }}>
+                {isBalanceSufficient(priceNum) ? 'Sufficient' : 'Insufficient'}
+              </div>
+            </div>
+          )}
 
           {/* Content Type & Genre Badges */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>

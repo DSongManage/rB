@@ -10,9 +10,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { ChevronDown, ChevronRight, FlaskConical } from 'lucide-react';
 import { useBetaMode } from '../hooks/useBetaMode';
 import { API_URL } from '../config';
 import AddToCartButton from './AddToCartButton';
+import { useBalance } from '../contexts/BalanceContext';
 
 interface PaymentBreakdown {
   chapter_price: string;
@@ -43,6 +45,14 @@ export default function ChapterPurchase({
   const [breakdown, setBreakdown] = useState<PaymentBreakdown | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const { isTestMode } = useBetaMode();
+  const { displayBalance, getBalanceNumber, syncStatus, isBalanceSufficient } = useBalance();
+
+  // Calculate balance after purchase
+  const buyerTotal = breakdown?.buyer_total
+    ? parseFloat(breakdown.buyer_total.replace('$', ''))
+    : chapterPrice;
+  const balanceAfterPurchase = getBalanceNumber() - buyerTotal;
+  const canAfford = isBalanceSufficient(buyerTotal);
 
   useEffect(() => {
     // Calculate fee breakdown when component mounts
@@ -185,7 +195,7 @@ export default function ChapterPurchase({
               e.currentTarget.style.backgroundColor = '#334155';
             }}
           >
-            {showBreakdown ? '▼ Hide breakdown' : '▶ See price breakdown'}
+            {showBreakdown ? <><ChevronDown size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> Hide breakdown</> : <><ChevronRight size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> See price breakdown</>}
           </button>
 
           {/* Expanded Breakdown */}
@@ -216,6 +226,43 @@ export default function ChapterPurchase({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Balance Preview - Only show if wallet connected */}
+      {syncStatus !== 'no_wallet' && (
+        <div style={{
+          padding: '12px 16px',
+          backgroundColor: canAfford ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+          border: `1px solid ${canAfford ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+          borderRadius: '8px',
+          fontSize: '14px',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginBottom: '8px'
+          }}>
+            <span style={{ color: '#94a3b8' }}>Current balance:</span>
+            <span style={{ fontWeight: 500 }}>{displayBalance || '$0.00'}</span>
+          </div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            paddingTop: '8px',
+            borderTop: `1px solid ${canAfford ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+          }}>
+            <span style={{ color: canAfford ? '#10b981' : '#f87171', fontWeight: 500 }}>
+              Balance after purchase:
+            </span>
+            <span style={{
+              fontWeight: 600,
+              color: canAfford ? '#10b981' : '#ef4444'
+            }}>
+              ${balanceAfterPurchase >= 0 ? balanceAfterPurchase.toFixed(2) : '0.00'}
+              {!canAfford && ' (insufficient)'}
+            </span>
+          </div>
         </div>
       )}
 
@@ -319,7 +366,7 @@ export default function ChapterPurchase({
           color: '#fbbf24',
           textAlign: 'center',
         }}>
-          <strong>🧪 Test Mode:</strong> Use card 4242 4242 4242 4242 - No real charges
+          <strong><FlaskConical size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> Test Mode:</strong> Use card 4242 4242 4242 4242 - No real charges
         </div>
       )}
 

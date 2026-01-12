@@ -4,6 +4,7 @@ import { libraryApi, type Library } from '../services/libraryApi';
 import { LibraryItemCard } from './LibraryItemCard';
 import { ChevronRight, ChevronLeft, BookOpen, Image, BookMarked, Film, Music, ArrowUpDown, Search, X } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useBalance } from '../contexts/BalanceContext';
 
 interface LibrarySidebarProps {
   isExpanded: boolean;
@@ -23,6 +24,7 @@ export function LibrarySidebar({ isExpanded, onExpandedChange }: LibrarySidebarP
   });
   const [searchQuery, setSearchQuery] = useState('');
   const { isAuthenticated } = useAuth();
+  const { displayBalance, syncStatus } = useBalance();
 
   // Save sort preference to localStorage
   const handleSortChange = (newSort: SortOption) => {
@@ -210,6 +212,23 @@ export function LibrarySidebar({ isExpanded, onExpandedChange }: LibrarySidebarP
           >
             {totalItems} {totalItems === 1 ? 'item' : 'items'}
           </div>
+          {/* Compact Balance Display */}
+          {syncStatus !== 'no_wallet' && (
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#10b981',
+                marginTop: 6,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <span style={{ color: '#64748b', fontWeight: 400 }}>Balance:</span>
+              {displayBalance || '$0.00'}
+            </div>
+          )}
         </div>
         <button
           onClick={() => onExpandedChange(false)}
