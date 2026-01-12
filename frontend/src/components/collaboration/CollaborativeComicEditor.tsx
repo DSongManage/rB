@@ -325,13 +325,12 @@ export default function CollaborativeComicEditor({
     ? (project.created_by as any)?.id
     : project.created_by;
   const isCreator = creatorId === currentUser.id;
-  // Base permissions from role
+  // Base permissions from role - use can_edit array which is derived from
+  // RoleDefinition permissions (with fallback to legacy booleans on backend)
   const hasImagePermission = isCreator ||
-    currentUserRole?.can_edit?.includes('image') ||
-    currentUserRole?.can_edit_images === true;
+    (currentUserRole?.can_edit?.includes('image') ?? false);
   const hasTextPermission = isCreator ||
-    currentUserRole?.can_edit?.includes('text') ||
-    currentUserRole?.can_edit_text === true;
+    (currentUserRole?.can_edit?.includes('text') ?? false);
 
   // Current page data
   const currentPage = pages[selectedPageIndex];

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Book, Image, Layers, Music, Video, FileText, RefreshCw } from 'lucide-react';
 import {
   collaborationApi,
   CollaborativeProjectListItem,
@@ -11,7 +12,7 @@ import { InviteResponseModal } from '../components/collaboration/InviteResponseM
 import { useAuth } from '../hooks/useAuth';
 import { useMobile } from '../hooks/useMobile';
 
-type FilterType = 'all' | 'book' | 'art';
+type FilterType = 'all' | 'book' | 'art' | 'comic';
 // Note: music and video are coming soon - not included in MVP
 type SortType = 'recent' | 'oldest' | 'title';
 
@@ -182,8 +183,9 @@ export default function CollaborationDashboard() {
           }}
         >
           <option value="all">All Types</option>
-          <option value="book">📖 Books</option>
-          <option value="art">🎨 Art</option>
+          <option value="book">Books</option>
+          <option value="comic">Comics</option>
+          <option value="art">Art</option>
           {/* Music & Video coming soon */}
         </select>
 
@@ -218,9 +220,12 @@ export default function CollaborationDashboard() {
             cursor: 'pointer',
             fontSize: 14,
             marginLeft: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
-          🔄 Refresh
+          <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
@@ -571,12 +576,14 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
   const isOwner = currentUserId && project.created_by === currentUserId;
 
   const getContentTypeIcon = (type: string) => {
+    const iconProps = { size: 20, strokeWidth: 2 };
     switch (type) {
-      case 'book': return '📖';
-      case 'music': return '🎵';
-      case 'video': return '🎬';
-      case 'art': return '🎨';
-      default: return '📄';
+      case 'book': return <Book {...iconProps} />;
+      case 'comic': return <Layers {...iconProps} />;
+      case 'music': return <Music {...iconProps} />;
+      case 'video': return <Video {...iconProps} />;
+      case 'art': return <Image {...iconProps} />;
+      default: return <FileText {...iconProps} />;
     }
   };
 
@@ -604,7 +611,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
   };
 
   const handleViewDetails = () => {
-    navigate(`/collaborations/${project.id}/details`);
+    navigate(`/collaborations/${project.id}?tab=overview`);
   };
 
   const handleMint = () => {
@@ -661,7 +668,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
             gap: 8,
             marginBottom: 8,
           }}>
-            <span style={{ fontSize: 24 }}>{getContentTypeIcon(project.content_type)}</span>
+            <span style={{ display: 'flex', alignItems: 'center', color: '#f59e0b' }}>{getContentTypeIcon(project.content_type)}</span>
             <h3 style={{
               margin: 0,
               fontSize: 18,
@@ -887,7 +894,7 @@ interface NewProjectModalProps {
 
 function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
   const [title, setTitle] = useState('');
-  const [contentType, setContentType] = useState<'book' | 'art'>('book');
+  const [contentType, setContentType] = useState<'book' | 'art' | 'comic'>('book');
   // Note: music and video are coming soon
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
@@ -1011,7 +1018,7 @@ function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {/* Available content types */}
-            {(['book', 'art'] as const).map(type => (
+            {(['book', 'comic', 'art'] as const).map(type => (
               <button
                 key={type}
                 onClick={() => setContentType(type)}
@@ -1029,10 +1036,6 @@ function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                   gap: 8,
                 }}
               >
-                <span style={{ fontSize: 20 }}>
-                  {type === 'book' && '📖'}
-                  {type === 'art' && '🎨'}
-                </span>
                 {type.charAt(0).toUpperCase() + type.slice(1)}
               </button>
             ))}
@@ -1057,10 +1060,6 @@ function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                   position: 'relative',
                 }}
               >
-                <span style={{ fontSize: 20 }}>
-                  {type === 'music' && '🎵'}
-                  {type === 'video' && '🎬'}
-                </span>
                 {type.charAt(0).toUpperCase() + type.slice(1)}
                 <span style={{
                   fontSize: 9,

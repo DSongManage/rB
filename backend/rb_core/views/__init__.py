@@ -1594,10 +1594,19 @@ class UserSearchView(APIView):
         genre = (request.query_params.get('genre') or '').strip()
         loc = (request.query_params.get('location') or '').strip()
         status_param = (request.query_params.get('status') or '').strip().lower()
+        exact_username = (request.query_params.get('exact_username') or '').strip()
         if q.startswith('@'):
             q = q[1:]
-        # Only show public profiles (is_private=False) in collaborator search
-        qs = UserProfile.objects.filter(is_private=False).select_related('user')
+        if exact_username.startswith('@'):
+            exact_username = exact_username[1:]
+
+        # If exact_username is provided, look up that specific user (for invitations)
+        # This bypasses the private filter but only returns exact matches
+        if exact_username:
+            qs = UserProfile.objects.filter(username__iexact=exact_username).select_related('user')
+        else:
+            # Only show public profiles (is_private=False) in collaborator search
+            qs = UserProfile.objects.filter(is_private=False).select_related('user')
         if q:
             qs = qs.filter(username__icontains=q)
         if role:

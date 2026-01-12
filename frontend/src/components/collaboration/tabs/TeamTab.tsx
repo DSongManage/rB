@@ -51,8 +51,54 @@ export default function TeamTab({
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SearchResult | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [exactLookupLoading, setExactLookupLoading] = useState(false);
+  const [exactLookupError, setExactLookupError] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Function to look up user by exact username (bypasses public profile filter)
+  const handleExactUsernameLookup = async () => {
+    if (!searchQuery.trim()) return;
+
+    setExactLookupLoading(true);
+    setExactLookupError('');
+
+    try {
+      const params = new URLSearchParams({ exact_username: searchQuery.trim() });
+      const res = await fetch(`${API_URL}/api/users/search/?${params.toString()}`, {
+        credentials: 'include'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const results = data.results || [];
+        // Filter out current user and existing collaborators
+        const existingUserIds = new Set([
+          currentUser.id,
+          ...collaborators.map(c => c.user)
+        ]);
+        const filtered = results.filter((u: SearchResult) => !existingUserIds.has(u.id));
+
+        if (filtered.length > 0) {
+          // Found the user - select them
+          setSelectedUser(filtered[0]);
+          setSearchQuery('');
+          setShowDropdown(false);
+          setExactLookupError('');
+        } else if (results.length > 0) {
+          // User found but already a collaborator
+          setExactLookupError('This user is already a collaborator on this project.');
+        } else {
+          setExactLookupError(`No user found with username "${searchQuery}". Please check the spelling.`);
+        }
+      } else {
+        setExactLookupError('Failed to look up user. Please try again.');
+      }
+    } catch (err) {
+      setExactLookupError('Failed to look up user. Please try again.');
+    } finally {
+      setExactLookupLoading(false);
+    }
+  };
 
   const isProjectLead = project.created_by === currentUser.id;
   const sections = project.sections || [];
@@ -216,23 +262,21 @@ export default function TeamTab({
         <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 20 }}>
           Team Members
         </h2>
-        {isProjectLead && (
+        {isProjectLead && !showInviteForm && (
           <button
-            onClick={() => setShowInviteForm(!showInviteForm)}
+            onClick={() => setShowInviteForm(true)}
             style={{
-              background: showInviteForm
-                ? 'transparent'
-                : 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-              border: showInviteForm ? '1px solid var(--panel-border)' : 'none',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+              border: 'none',
               borderRadius: 8,
               padding: '10px 20px',
-              color: showInviteForm ? '#94a3b8' : '#fff',
+              color: '#fff',
               fontWeight: 600,
               cursor: 'pointer',
               fontSize: 14,
             }}
           >
-            {showInviteForm ? 'Cancel' : '+ Invite Collaborator'}
+            + Invite Collaborator
           </button>
         )}
       </div>
@@ -410,6 +454,80 @@ export default function TeamTab({
                       ))}
                     </div>
                   )}
+                  {/* No Results Message */}
+                  {!searchLoading && searchQuery.length >= 2 && searchResults.length === 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: 4,
+                      background: 'var(--panel)',
+                      border: '1px solid var(--panel-border)',
+                      borderRadius: 8,
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+                      zIndex: 100,
+                      padding: 16,
+                    }}>
+                      <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+                        No collaborators found for "{searchQuery}"
+                      </div>
+                      <div style={{ color: '#64748b', fontSize: 11, textAlign: 'center', marginBottom: 12 }}>
+                        Only users with <strong style={{ color: '#f59e0b' }}>public profiles</strong> appear in search.
+                      </div>
+                      {/* Exact username lookup button */}
+                      <button
+                        onClick={handleExactUsernameLookup}
+                        disabled={exactLookupLoading}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                          border: 'none',
+                          borderRadius: 6,
+                          color: '#fff',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: exactLookupLoading ? 'not-allowed' : 'pointer',
+                          opacity: exactLookupLoading ? 0.7 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        {exactLookupLoading ? (
+                          <>
+                            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                            Looking up...
+                          </>
+                        ) : (
+                          <>
+                            <UserIcon size={14} />
+                            Invite @{searchQuery} by exact username
+                          </>
+                        )}
+                      </button>
+                      {exactLookupError && (
+                        <div style={{
+                          marginTop: 10,
+                          padding: 10,
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                          borderRadius: 6,
+                          color: '#f87171',
+                          fontSize: 12,
+                          textAlign: 'center',
+                        }}>
+                          {exactLookupError}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Helper text below input */}
+                  <div style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>
+                    Only users with public profiles can be found
+                  </div>
                 </>
               )}
             </div>

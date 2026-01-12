@@ -140,6 +140,7 @@ export default function ProfilePageRedesigned() {
   const [status, setStatus] = useState('');
   const [dash, setDash] = useState<Dashboard>({ content_count: 0, sales: 0 });
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [csrf, setCsrf] = useState('');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
@@ -441,6 +442,7 @@ export default function ProfilePageRedesigned() {
         setCsrf(csrfResp?.csrfToken || '');
         setProfile(profileResp);
         setDash(dashResp);
+        setProfileLoading(false);
 
         // Load pending collaboration invites, active collaborations, external portfolio, analytics, and following
         loadPendingInvites();
@@ -452,7 +454,7 @@ export default function ProfilePageRedesigned() {
           loadFollowingList(profileResp.username);
         }
       })
-      .catch(() => { });
+      .catch(() => { setProfileLoading(false); });
 
     return () => abortController.abort();
   }, []);
@@ -622,6 +624,74 @@ export default function ProfilePageRedesigned() {
     { value: 'Unavailable', label: 'Unavailable', description: 'Not accepting collaborations' },
     { value: 'On Hiatus', label: 'On Hiatus', description: 'Taking a break' },
   ];
+
+  // Show loading skeleton while profile is loading
+  if (profileLoading) {
+    return (
+      <div style={{
+        maxWidth: 1200,
+        margin: '0 auto',
+        padding: isMobile ? '16px 12px' : '40px 24px',
+      }}>
+        {/* Loading skeleton for hero section */}
+        <div style={{
+          background: '#0f172a',
+          border: '1px solid #1e293b',
+          borderRadius: isMobile ? 12 : 16,
+          padding: isMobile ? 16 : 32,
+          marginBottom: isMobile ? 16 : 24,
+        }}>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+            {/* Avatar skeleton */}
+            <div style={{
+              width: isPhone ? 80 : 100,
+              height: isPhone ? 80 : 100,
+              borderRadius: '50%',
+              background: 'linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%)',
+              backgroundSize: '200% 100%',
+              animation: 'shimmer 1.5s infinite',
+            }} />
+            <div style={{ flex: 1 }}>
+              {/* Name skeleton */}
+              <div style={{
+                width: 180,
+                height: 32,
+                borderRadius: 6,
+                marginBottom: 12,
+                background: 'linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.5s infinite',
+              }} />
+              {/* Username skeleton */}
+              <div style={{
+                width: 120,
+                height: 20,
+                borderRadius: 4,
+                background: 'linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 1.5s infinite',
+              }} />
+            </div>
+          </div>
+        </div>
+        {/* Wallet section skeleton */}
+        <div style={{
+          background: '#1e293b',
+          border: '1px solid #334155',
+          borderRadius: 12,
+          padding: '16px 20px',
+          marginBottom: 24,
+          height: 60,
+        }} />
+        <style>{`
+          @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{
