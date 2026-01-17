@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useBlocker } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { bookApi, BookProject, Chapter } from '../../services/bookApi';
 import ChapterList from './ChapterList';
 import ChapterEditor from './ChapterEditor';
@@ -75,17 +75,8 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedContent]);
 
-  // Block in-app navigation if there's unsaved content without valid title
-  // Pass boolean directly - useBlocker expects boolean | BlockerFunction
-  const blocker = useBlocker(hasUnsavedContent);
-
-  // Show warning modal when navigation is blocked
-  useEffect(() => {
-    if (blocker && blocker.state === 'blocked') {
-      setShowLeaveWarning(true);
-      setPendingNavigation(() => blocker.proceed);
-    }
-  }, [blocker]);
+  // Note: useBlocker removed - requires data router (createBrowserRouter) which we don't use
+  // The beforeunload event handler above still warns on browser close/refresh
 
   // Initialize: Create a new project or load existing
   useEffect(() => {
