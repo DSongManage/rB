@@ -714,6 +714,11 @@ class SubmitSponsoredPaymentView(APIView):
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        # Store the signature immediately for recovery purposes
+        # This allows frontend to recover if the response doesn't reach them
+        intent.solana_tx_signature = tx_signature
+        intent.save()
+
         # Confirm transaction
         try:
             confirmed = sponsored_service.confirm_transaction(tx_signature)
@@ -804,6 +809,10 @@ class PurchaseIntentStatusView(APIView):
             'expires_at': intent.expires_at.isoformat(),
             'is_expired': intent.is_expired,
         }
+
+        # Include transaction signature if available (for recovery after network errors)
+        if intent.solana_tx_signature:
+            response_data['solana_tx_signature'] = intent.solana_tx_signature
 
         # Include purchase info if completed
         if intent.status == 'completed':

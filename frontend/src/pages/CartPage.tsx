@@ -137,6 +137,80 @@ export default function CartPage() {
       setPaymentStep('success');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Payment failed';
+
+      // Check if this is a network error that might have occurred AFTER the transaction was submitted
+      // The blockchain transaction may have succeeded even though we lost connection
+      const isNetworkError = message.includes('Failed to fetch') ||
+                            message.includes('network') ||
+                            message.includes('timeout') ||
+                            message.includes('NetworkError');
+
+      if (isNetworkError && purchaseIntent) {
+        try {
+          setProcessingMessage('Connection lost. Checking transaction status...');
+
+          // Wait a moment for the backend to finish processing
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Check if the transaction actually succeeded despite the network error
+          const status = await paymentApi.getIntentStatus(purchaseIntent.intent_id);
+
+          if (status.status === 'completed' || status.status === 'payment_received') {
+            // Transaction succeeded! Recover gracefully
+            console.log('Payment recovered after network error:', status);
+
+            // Set the signature for the success screen
+            if (status.solana_tx_signature) {
+              setTransactionSignature(status.solana_tx_signature);
+            }
+
+            // Clear cart and refresh balance
+            await clearCart();
+            await refreshBalance();
+
+            setPaymentStep('success');
+            return;
+          }
+
+          // If still processing, give it more time
+          if (status.status === 'processing') {
+            setProcessingMessage('Transaction submitted. Waiting for confirmation...');
+
+            // Poll a few more times
+            for (let i = 0; i < 5; i++) {
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              const retryStatus = await paymentApi.getIntentStatus(purchaseIntent.intent_id);
+
+              if (retryStatus.status === 'completed' || retryStatus.status === 'payment_received') {
+                if (retryStatus.solana_tx_signature) {
+                  setTransactionSignature(retryStatus.solana_tx_signature);
+                }
+                await clearCart();
+                await refreshBalance();
+                setPaymentStep('success');
+                return;
+              }
+
+              if (retryStatus.status === 'failed') {
+                setPaymentError(retryStatus.failure_reason || 'Payment failed after submission');
+                setPaymentStep('error');
+                return;
+              }
+            }
+
+            // Still processing after polling - show success with note
+            // The transaction was submitted, backend is processing
+            await clearCart();
+            await refreshBalance();
+            setPaymentStep('success');
+            return;
+          }
+        } catch (statusErr) {
+          console.error('Could not check payment status after network error:', statusErr);
+          // Fall through to show original error
+        }
+      }
+
       setPaymentError(message);
       setPaymentStep('error');
     }

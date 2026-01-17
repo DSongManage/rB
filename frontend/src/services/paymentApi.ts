@@ -169,6 +169,7 @@ export interface PaymentStatusResponse {
   purchase_id?: number;
   nft_mint_address?: string;
   failure_reason?: string;
+  solana_tx_signature?: string;
 }
 
 // API Functions

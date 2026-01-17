@@ -5208,6 +5208,14 @@ class PurchaseIntent(models.Model):
     # Error tracking
     failure_reason = models.TextField(blank=True)
 
+    # Transaction tracking (for recovery after network errors)
+    solana_tx_signature = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text='Solana transaction signature when payment is submitted'
+    )
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
