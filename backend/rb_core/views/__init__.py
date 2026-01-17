@@ -2331,8 +2331,8 @@ class MyPublishedBooksView(APIView):
 class PublicBookProjectsView(APIView):
     """Get all published book projects for public discovery on home page.
 
-    Returns aggregated book projects (only those with at least one published chapter)
-    with their chapters grouped by book rather than individual chapters.
+    Returns aggregated book projects (only those with at least one published chapter
+    OR projects published as a whole book) with their chapters grouped by book.
     This allows the home page to display books as single cards instead of
     showing each chapter separately.
     """
@@ -2341,21 +2341,25 @@ class PublicBookProjectsView(APIView):
     def get(self, request):
         from django.db.models import Sum, Count, F, Q
 
-        # Get all book projects that have at least one published chapter
+        # Get all book projects that either:
+        # 1. Have at least one published chapter (chapter-by-chapter flow)
+        # 2. Are published as a whole book (whole-book flow)
         projects = BookProject.objects.filter(
-            chapters__is_published=True,
-            chapters__published_content__isnull=False
+            Q(chapters__is_published=True, chapters__published_content__isnull=False) |
+            Q(is_published=True, published_content__isnull=False)
         ).distinct().prefetch_related(
             'chapters',
             'chapters__published_content',
-            'creator__profile'
+            'creator__profile',
+            'published_content'  # For whole-book publishing
         ).select_related('creator').order_by('-updated_at')
 
-        # Apply genre filter if specified (filter by chapter content genre)
+        # Apply genre filter if specified (filter by chapter content genre or book content genre)
         genre_param = request.query_params.get('genre')
         if genre_param and genre_param != 'all':
             projects = projects.filter(
-                chapters__published_content__genre=genre_param
+                Q(chapters__published_content__genre=genre_param) |
+                Q(published_content__genre=genre_param)
             ).distinct()
 
         result = []
@@ -2396,14 +2400,38 @@ class PublicBookProjectsView(APIView):
                 if latest_published_at is None or content.created_at > latest_published_at:
                     latest_published_at = content.created_at
 
-            # Skip if no published chapters
-            if published_count == 0:
+            # Handle whole-book publishing (project.published_content without individual chapter publishing)
+            if published_count == 0 and project.is_published and project.published_content:
+                # Whole book was published as one Content item
+                content = project.published_content
+                # Create a single chapter entry for the entire book
+                chapters_data = [{
+                    'id': 0,  # Virtual chapter
+                    'title': project.title,
+                    'order': 0,
+                    'content_id': content.id,
+                    'price_usd': float(content.price_usd) if content.price_usd else 0,
+                    'view_count': content.view_count or 0,
+                }]
+                published_count = 1
+                total_views = content.view_count or 0
+                total_price = float(content.price_usd or 0)
+                total_likes = content.like_count or 0
+                if content.average_rating and content.rating_count:
+                    total_rating_sum = float(content.average_rating) * content.rating_count
+                    total_rating_count = content.rating_count
+                latest_published_at = content.created_at
+            elif published_count == 0:
+                # No published chapters and not a whole-book publish - skip
                 continue
 
             # Build cover image URL with fallbacks
             cover_url = None
             if project.cover_image:
                 cover_url = request.build_absolute_uri(project.cover_image.url)
+            elif project.published_content and project.published_content.teaser_link:
+                # For whole-book publishing, use the book content's teaser_link
+                cover_url = project.published_content.teaser_link
             elif chapters_data:
                 # Fallback to first published chapter's teaser_link (for seed data)
                 first_content = project.chapters.filter(
