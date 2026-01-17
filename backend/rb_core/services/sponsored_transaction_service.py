@@ -57,16 +57,35 @@ class SponsoredTransactionService:
     def platform_keypair(self) -> Keypair:
         """Load platform keypair from settings (lazy loaded).
 
-        Supports two methods (in priority order):
-        1. PLATFORM_WALLET_KEYPAIR_PATH - Path to Solana CLI keypair JSON file
-        2. PLATFORM_WALLET_PRIVATE_KEY - Base58 encoded private key
+        Supports three methods (in priority order):
+        1. PLATFORM_WALLET_KEYPAIR - JSON byte array (e.g., "[137,37,199,...]")
+        2. PLATFORM_WALLET_KEYPAIR_PATH - Path to Solana CLI keypair JSON file
+        3. PLATFORM_WALLET_PRIVATE_KEY - Base58 encoded private key
         """
         if self._platform_keypair is None:
-            # Method 1: Load from keypair file (preferred)
+            import json
+
+            # Method 1: Load from JSON byte array in environment variable (Railway format)
+            keypair_json = getattr(settings, 'PLATFORM_WALLET_KEYPAIR', None)
+            if keypair_json:
+                try:
+                    # Parse JSON array of bytes
+                    if isinstance(keypair_json, str):
+                        key_data = json.loads(keypair_json)
+                    else:
+                        key_data = keypair_json
+                    key_bytes = bytes(key_data)
+                    self._platform_keypair = Keypair.from_bytes(key_bytes)
+                    logger.info("Loaded platform keypair from PLATFORM_WALLET_KEYPAIR env var")
+                    return self._platform_keypair
+                except Exception as e:
+                    logger.error(f"Failed to load keypair from PLATFORM_WALLET_KEYPAIR: {e}")
+                    raise ValueError(f"Invalid PLATFORM_WALLET_KEYPAIR format: {e}")
+
+            # Method 2: Load from keypair file
             keypair_path = getattr(settings, 'PLATFORM_WALLET_KEYPAIR_PATH', None)
             if keypair_path:
                 try:
-                    import json
                     with open(keypair_path, 'r') as f:
                         key_data = json.load(f)
                     # Solana CLI keypair is a JSON array of bytes
@@ -80,7 +99,7 @@ class SponsoredTransactionService:
                     logger.error(f"Failed to load keypair from file: {e}")
                     raise ValueError(f"Invalid keypair file at {keypair_path}: {e}")
 
-            # Method 2: Load from base58 encoded private key
+            # Method 3: Load from base58 encoded private key
             private_key = getattr(settings, 'PLATFORM_WALLET_PRIVATE_KEY', None)
             if private_key:
                 try:
@@ -93,8 +112,8 @@ class SponsoredTransactionService:
                     raise ValueError(f"Invalid PLATFORM_WALLET_PRIVATE_KEY format: {e}")
 
             raise ValueError(
-                "Platform wallet not configured. Set either "
-                "PLATFORM_WALLET_KEYPAIR_PATH or PLATFORM_WALLET_PRIVATE_KEY"
+                "Platform wallet not configured. Set PLATFORM_WALLET_KEYPAIR, "
+                "PLATFORM_WALLET_KEYPAIR_PATH, or PLATFORM_WALLET_PRIVATE_KEY"
             )
 
         return self._platform_keypair

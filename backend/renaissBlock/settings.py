@@ -392,6 +392,9 @@ SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL', 'https://api.devnet.solana.com')
 PLATFORM_WALLET_PUBKEY = os.getenv('PLATFORM_WALLET_PUBKEY', '')
 # Optional: dev-only keypair path for platform wallet signer on devnet
 PLATFORM_WALLET_KEYPAIR_PATH = os.getenv('PLATFORM_WALLET_KEYPAIR_PATH', '')
+# Optional: JSON byte array format for platform wallet keypair (e.g., "[137,37,199,...]")
+# This is the format used by Railway and other cloud providers
+PLATFORM_WALLET_KEYPAIR = os.getenv('PLATFORM_WALLET_KEYPAIR', '')
 
 # Collaborative NFT Minting Configuration
 SOLANA_PLATFORM_WALLET = os.getenv('SOLANA_PLATFORM_WALLET', PLATFORM_WALLET_PUBKEY or 'DawrJxixCJ2zbTCn83YRB5kZJC6zM6N36FYqGZUzNHDA')
