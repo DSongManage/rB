@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Wallet, ArrowLeft, Sparkles, Heart, AlertCircle, BookOpen, Loader2, X, ExternalLink, CheckCircle2, Shield } from 'lucide-react';
+import { ShoppingCart, Trash2, Wallet, ArrowLeft, Heart, AlertCircle, BookOpen, Loader2, X, ExternalLink, CheckCircle2, Shield } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { useBalance } from '../contexts/BalanceContext';
 import { API_URL } from '../config';
@@ -231,9 +231,6 @@ export default function CartPage() {
     );
   }
 
-  const savings = parseFloat(cart.savings_vs_individual || '0');
-  const hasSavings = savings > 0;
-
   return (
     <div className="rb-cart-page" style={{
       maxWidth: '900px',
@@ -404,25 +401,6 @@ export default function CartPage() {
               </span>
               <span>${cart.subtotal}</span>
             </div>
-
-            {hasSavings && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                padding: '10px 12px',
-                backgroundColor: 'var(--bg-success, #052e16)',
-                borderRadius: '8px',
-                border: '1px solid var(--border-success, #16a34a)',
-              }}>
-                <span style={{ color: 'var(--text-success, #4ade80)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Sparkles size={14} />
-                  Cart Savings
-                </span>
-                <span style={{ color: 'var(--text-success, #4ade80)', fontWeight: 600 }}>
-                  -${cart.savings_vs_individual}
-                </span>
-              </div>
-            )}
 
             <div style={{
               display: 'flex',
