@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('rb_core', '0076_speech_bubble_style_system'),
+        ('rb_core', '0079_dispute_system'),
     ]
 
     operations = [
