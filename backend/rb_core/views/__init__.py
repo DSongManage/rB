@@ -2861,6 +2861,44 @@ class PublishBookView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
+class UnpublishBookView(APIView):
+    """Unpublish a book project, removing its Content and resetting publish state."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            project = BookProject.objects.get(pk=pk, creator=core_user)
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not project.is_published:
+            return Response({'error': 'Book is not published'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Store old content ID for response
+        old_content_id = project.published_content.id if project.published_content else None
+
+        # Delete the associated Content object if it exists
+        if project.published_content:
+            project.published_content.delete()
+
+        # Reset the book project
+        project.is_published = False
+        project.published_content = None
+        project.save()
+
+        # Also reset any chapters that were marked as published for this book
+        project.chapters.filter(is_published=True).update(
+            is_published=False,
+            published_content=None
+        )
+
+        return Response({
+            'message': 'Book unpublished successfully',
+            'deleted_content_id': old_content_id
+        })
+
+
 class BookProjectByContentView(APIView):
     """Get book project by its published content ID."""
     permission_classes = [IsAuthenticated]
