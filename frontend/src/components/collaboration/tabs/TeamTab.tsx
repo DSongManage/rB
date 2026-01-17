@@ -384,6 +384,11 @@ export default function TeamTab({
   };
 
   const handleInvite = async () => {
+    if (!selectedUser) {
+      setInviteError('Please select a user to invite');
+      return;
+    }
+
     setShowVotingPowerWarning(false);
     setInviting(true);
     setInviteError('');
