@@ -6,12 +6,22 @@ import {
   ComicPanel,
   SpeechBubble,
   BubbleType,
+  BubbleStyle,
+  TailType,
   ComicIssue,
   ComicIssueListItem,
   DividerLine,
   collaborationApi,
   ArtworkLibraryItem,
 } from '../../services/collaborationApi';
+import {
+  getBubblePath,
+  getTailElements,
+  getBubbleFilterDefs,
+  getSpeedLines,
+  SpeedLine,
+  ThoughtDot,
+} from './bubbleShapes';
 import { ArtworkLibraryPanel } from './ArtworkLibraryPanel';
 import { LineBasedEditor, LINE_TEMPLATES, ORIENTATION_PRESETS, LineTemplate, LineBasedEditorRef } from './lineEditor';
 import { DividerLineData } from './lineEditor/LineRenderer';
@@ -50,6 +60,34 @@ interface CollaborativeComicEditorProps {
 
 type EditorMode = 'layout' | 'artwork' | 'text';
 
+// Style presets with their available bubble types
+const BUBBLE_STYLES: { value: BubbleStyle; label: string }[] = [
+  { value: 'manga', label: 'Manga' },
+  { value: 'western', label: 'Western' },
+];
+
+// Bubble types organized by style
+const MANGA_BUBBLE_TYPES: { value: BubbleType; label: string }[] = [
+  { value: 'oval', label: 'Speech' },
+  { value: 'flash', label: 'Flash' },
+  { value: 'thought', label: 'Thought' },
+  { value: 'wavy', label: 'Nervous' },
+  { value: 'angry', label: 'Angry' },
+  { value: 'shout', label: 'Shout' },
+  { value: 'whisper', label: 'Whisper' },
+];
+
+const WESTERN_BUBBLE_TYPES: { value: BubbleType; label: string }[] = [
+  { value: 'oval', label: 'Speech' },
+  { value: 'thought', label: 'Thought' },
+  { value: 'shout', label: 'Shout' },
+  { value: 'narrative', label: 'Narration' },
+  { value: 'electric', label: 'Electric' },
+  { value: 'poof', label: 'Poof/SFX' },
+  { value: 'caption', label: 'Caption' },
+];
+
+// Combined list for legacy/select elements
 const BUBBLE_TYPES: { value: BubbleType; label: string }[] = [
   { value: 'oval', label: 'Speech' },
   { value: 'thought', label: 'Thought' },
@@ -57,7 +95,30 @@ const BUBBLE_TYPES: { value: BubbleType; label: string }[] = [
   { value: 'narrative', label: 'Narration' },
   { value: 'whisper', label: 'Whisper' },
   { value: 'caption', label: 'Caption' },
+  { value: 'flash', label: 'Flash' },
+  { value: 'wavy', label: 'Nervous' },
+  { value: 'angry', label: 'Angry' },
+  { value: 'poof', label: 'Poof/SFX' },
+  { value: 'electric', label: 'Electric' },
 ];
+
+const TAIL_TYPES: { value: TailType; label: string }[] = [
+  { value: 'curved', label: 'Curved' },
+  { value: 'straight', label: 'Straight' },
+  { value: 'dots', label: 'Dots' },
+];
+
+// Helper to get bubble types for a specific style
+const getBubbleTypesForStyle = (style: BubbleStyle): { value: BubbleType; label: string }[] => {
+  switch (style) {
+    case 'manga':
+      return MANGA_BUBBLE_TYPES;
+    case 'western':
+      return WESTERN_BUBBLE_TYPES;
+    default:
+      return BUBBLE_TYPES;
+  }
+};
 
 // Panel layout templates for quick page setup
 interface PanelTemplate {
@@ -270,6 +331,7 @@ export default function CollaborativeComicEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [newBubbleType, setNewBubbleType] = useState<BubbleType>('oval');
+  const [newBubbleStyle, setNewBubbleStyle] = useState<BubbleStyle>('manga');
   const [showTemplates, setShowTemplates] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
@@ -1629,14 +1691,33 @@ export default function CollaborativeComicEditor({
     if (!canEditText || !currentPage) return;
     setSaving(true);
     try {
+      // Calculate tail default position (below bubble center)
+      const bubbleX = 20;
+      const bubbleY = 10;
+      const bubbleW = 40;
+      const bubbleH = 25;
+      const tailType = newBubbleType === 'thought' ? 'dots' : 'curved';
+
+      // Set default effects based on style
+      const speedLinesEnabled = newBubbleStyle === 'manga' && newBubbleType === 'flash';
+      const halftoneShadow = newBubbleStyle === 'western';
+
       const newBubble = await collaborationApi.createSpeechBubble({
         panel: panelId,
         bubble_type: newBubbleType,
-        x_percent: 20,
-        y_percent: 10,
-        width_percent: 40,
-        height_percent: 25,
+        x_percent: bubbleX,
+        y_percent: bubbleY,
+        width_percent: bubbleW,
+        height_percent: bubbleH,
         text: 'Enter text...',
+        // Tail fields - tail points below bubble by default
+        tail_end_x_percent: bubbleX + bubbleW / 2,
+        tail_end_y_percent: bubbleY + bubbleH + 15, // 15% below bubble
+        tail_type: tailType,
+        // Style system fields
+        bubble_style: newBubbleStyle,
+        speed_lines_enabled: speedLinesEnabled,
+        halftone_shadow: halftoneShadow,
       });
       // Update local state
       const updatedPages = [...pages];
@@ -1856,6 +1937,47 @@ export default function CollaborativeComicEditor({
         console.log('[BUBBLE] Resize saved to server:', response);
       } catch (err: any) {
         console.error('[BUBBLE] Failed to update bubble size:', err);
+      }
+    },
+    [pages, selectedPageIndex, currentPage, canEditText]
+  );
+
+  // Canvas-relative tail endpoint move handler
+  const handleTailMove = useCallback(
+    async (bubbleId: number, panelId: number, tailEndXPercent: number, tailEndYPercent: number) => {
+      if (!canEditText || !currentPage) return;
+
+      // Allow values outside 0-100 for tails pointing outside the bubble area
+      // Round to 2 decimal places for backend
+      const roundedX = Math.round(tailEndXPercent * 100) / 100;
+      const roundedY = Math.round(tailEndYPercent * 100) / 100;
+
+      console.log('[BUBBLE] Tail move - bubbleId:', bubbleId, 'new tail position:', { x: roundedX, y: roundedY });
+
+      // Update local state
+      const updatedPages = [...pages];
+      const panelIdx = currentPage.panels.findIndex(p => p.id === panelId);
+      if (panelIdx >= 0) {
+        const bubbleIdx = currentPage.panels[panelIdx].speech_bubbles.findIndex(b => b.id === bubbleId);
+        if (bubbleIdx >= 0) {
+          updatedPages[selectedPageIndex].panels[panelIdx].speech_bubbles[bubbleIdx] = {
+            ...currentPage.panels[panelIdx].speech_bubbles[bubbleIdx],
+            tail_end_x_percent: roundedX,
+            tail_end_y_percent: roundedY,
+          };
+          setPages(updatedPages);
+        }
+      }
+
+      // Save to server
+      try {
+        const response = await collaborationApi.updateSpeechBubble(bubbleId, {
+          tail_end_x_percent: roundedX,
+          tail_end_y_percent: roundedY,
+        });
+        console.log('[BUBBLE] Tail move saved to server:', response);
+      } catch (err: any) {
+        console.error('[BUBBLE] Failed to update tail position:', err);
       }
     },
     [pages, selectedPageIndex, currentPage, canEditText]
@@ -2429,9 +2551,37 @@ export default function CollaborativeComicEditor({
 
             {/* Legacy layout mode buttons removed - line-based editor has its own toolbar */}
 
-            {/* Bubble type selector for text mode */}
+            {/* Cascading bubble style and type selector for text mode */}
             {mode === 'text' && canEditText && selectedPanelId && (
               <>
+                {/* Style selector (Manga/Western) */}
+                <select
+                  value={newBubbleStyle}
+                  onChange={(e) => {
+                    const newStyle = e.target.value as BubbleStyle;
+                    setNewBubbleStyle(newStyle);
+                    // Reset to first available type in new style
+                    const typesForStyle = getBubbleTypesForStyle(newStyle);
+                    if (!typesForStyle.find(t => t.value === newBubbleType)) {
+                      setNewBubbleType(typesForStyle[0].value);
+                    }
+                  }}
+                  style={{
+                    background: '#0f172a',
+                    border: '1px solid #334155',
+                    borderRadius: 6,
+                    padding: '6px 8px',
+                    color: '#f8fafc',
+                    fontSize: 12,
+                  }}
+                >
+                  {BUBBLE_STYLES.map((bs) => (
+                    <option key={bs.value} value={bs.value}>
+                      {bs.label}
+                    </option>
+                  ))}
+                </select>
+                {/* Type selector (cascaded based on style) */}
                 <select
                   value={newBubbleType}
                   onChange={(e) => setNewBubbleType(e.target.value as BubbleType)}
@@ -2444,7 +2594,7 @@ export default function CollaborativeComicEditor({
                     fontSize: 12,
                   }}
                 >
-                  {BUBBLE_TYPES.map((bt) => (
+                  {getBubbleTypesForStyle(newBubbleStyle).map((bt) => (
                     <option key={bt.value} value={bt.value}>
                       {bt.label}
                     </option>
@@ -2574,177 +2724,292 @@ export default function CollaborativeComicEditor({
                   const bubbleW = (bubble.width_percent / 100) * displayWidth;
                   const bubbleH = (bubble.height_percent / 100) * displayHeight;
 
-                  console.log('[BUBBLE] Render - bubble:', bubble.id, {
-                    stored: { x: bubble.x_percent, y: bubble.y_percent, w: bubble.width_percent, h: bubble.height_percent },
-                    calculated: { x: bubbleX, y: bubbleY, w: bubbleW, h: bubbleH },
-                    canvasSize: { displayWidth, displayHeight },
-                  });
+                  // Calculate bubble center for tail calculations
+                  const bubbleCenterX = bubbleX + bubbleW / 2;
+                  const bubbleCenterY = bubbleY + bubbleH / 2;
 
-                  // Generate SVG path based on bubble type
-                  const getBubbleSvgPath = (w: number, h: number, type: string): string => {
-                    const cx = w / 2;
-                    const cy = h / 2;
-                    const rx = w / 2 - 2;
-                    const ry = h / 2 - 2;
+                  // Calculate tail endpoint position in pixels
+                  // tail_end values are percentages of the canvas, relative to bubble position
+                  const tailEndX = (bubble.tail_end_x_percent / 100) * displayWidth;
+                  const tailEndY = (bubble.tail_end_y_percent / 100) * displayHeight;
 
-                    switch (type) {
-                      case 'thought':
-                        // Cloud-like bumpy path
-                        return `M ${cx} ${h * 0.12}
-                          Q ${w * 0.75} ${h * 0.05}, ${w * 0.88} ${h * 0.3}
-                          Q ${w * 0.98} ${h * 0.5}, ${w * 0.88} ${h * 0.7}
-                          Q ${w * 0.75} ${h * 0.95}, ${cx} ${h * 0.88}
-                          Q ${w * 0.25} ${h * 0.95}, ${w * 0.12} ${h * 0.7}
-                          Q ${w * 0.02} ${h * 0.5}, ${w * 0.12} ${h * 0.3}
-                          Q ${w * 0.25} ${h * 0.05}, ${cx} ${h * 0.12}
-                          Z`;
-                      case 'shout':
-                        // Jagged explosion/burst path
-                        const points = 12;
-                        let path = '';
-                        for (let i = 0; i < points; i++) {
-                          const angle = (i / points) * Math.PI * 2 - Math.PI / 2;
-                          const r = i % 2 === 0 ? Math.min(rx, ry) * 0.65 : Math.min(rx, ry) * 1.0;
-                          const x = cx + Math.cos(angle) * r;
-                          const y = cy + Math.sin(angle) * r;
-                          path += (i === 0 ? 'M' : 'L') + ` ${x} ${y} `;
-                        }
-                        return path + 'Z';
-                      case 'narrative':
-                      case 'caption':
-                        // Rectangle with small corner radius
-                        return `M 4 2 L ${w - 4} 2 Q ${w - 2} 2 ${w - 2} 4 L ${w - 2} ${h - 4} Q ${w - 2} ${h - 2} ${w - 4} ${h - 2} L 4 ${h - 2} Q 2 ${h - 2} 2 ${h - 4} L 2 4 Q 2 2 4 2 Z`;
-                      case 'whisper':
-                        // Oval with dashed stroke (handled in strokeDasharray)
-                        return `M ${cx} ${cy - ry}
-                          A ${rx} ${ry} 0 1 1 ${cx} ${cy + ry}
-                          A ${rx} ${ry} 0 1 1 ${cx} ${cy - ry}`;
-                      case 'oval':
-                      default:
-                        // Standard oval
-                        return `M ${cx} ${cy - ry}
-                          A ${rx} ${ry} 0 1 1 ${cx} ${cy + ry}
-                          A ${rx} ${ry} 0 1 1 ${cx} ${cy - ry}`;
-                    }
-                  };
+                  // Use new shape utilities with style
+                  const bubbleStyle = bubble.bubble_style || 'manga';
+                  const { path: bubblePath, textPadding } = getBubblePath(
+                    bubbleW,
+                    bubbleH,
+                    bubble.bubble_type,
+                    bubble.id, // Use bubble ID as seed for consistent rendering
+                    bubbleStyle
+                  );
+
+                  // Generate speed lines for manga flash bubbles
+                  const showSpeedLines = bubble.speed_lines_enabled && bubble.bubble_type === 'flash';
+                  const speedLines: SpeedLine[] = showSpeedLines
+                    ? getSpeedLines(
+                        bubbleW / 2,
+                        bubbleH / 2,
+                        Math.min(bubbleW, bubbleH) * 0.5, // Start at bubble edge
+                        Math.min(bubbleW, bubbleH) * 0.7, // Extend outside
+                        32,
+                        bubble.id
+                      )
+                    : [];
+
+                  // Get tail elements (path or dots)
+                  const tailType = bubble.tail_type || 'curved';
+                  const tailElements = getTailElements(
+                    { x: bubbleCenterX, y: bubbleCenterY },
+                    bubbleW,
+                    bubbleH,
+                    tailEndX,
+                    tailEndY,
+                    tailType as TailType,
+                    bubble.bubble_type,
+                    bubble.border_width || 2
+                  );
+
+                  const isSelected = mode === 'text' && selectedBubbleId === bubble.id;
+                  const canInteract = mode === 'text' && canEditText;
+
+                  // Check if this bubble type should have a tail
+                  const hasTail = bubble.bubble_type !== 'narrative' && bubble.bubble_type !== 'caption';
 
                   return (
-                    <Rnd
-                      key={bubble.id}
-                      position={{ x: bubbleX, y: bubbleY }}
-                      size={{ width: bubbleW, height: bubbleH }}
-                      onDragStop={(_e, d) => {
-                        // Convert pixel position back to percentage
-                        const newXPercent = (d.x / displayWidth) * 100;
-                        const newYPercent = (d.y / displayHeight) * 100;
-                        handleBubbleMove(bubble.id, bubble.panelId, newXPercent, newYPercent);
-                      }}
-                      onResizeStop={(_e, _direction, ref, _delta, position) => {
-                        const newWidth = parseInt(ref.style.width, 10);
-                        const newHeight = parseInt(ref.style.height, 10);
-                        const newXPercent = (position.x / displayWidth) * 100;
-                        const newYPercent = (position.y / displayHeight) * 100;
-                        const newWidthPercent = (newWidth / displayWidth) * 100;
-                        const newHeightPercent = (newHeight / displayHeight) * 100;
-                        handleBubbleResize(bubble.id, bubble.panelId, newXPercent, newYPercent, newWidthPercent, newHeightPercent);
-                      }}
-                      bounds="parent"
-                      enableResizing={mode === 'text' && canEditText && selectedBubbleId === bubble.id}
-                      disableDragging={mode !== 'text' || !canEditText}
-                      style={{
-                        cursor: mode === 'text' && canEditText ? 'move' : 'default',
-                        boxShadow: mode === 'text' && selectedBubbleId === bubble.id ? '0 0 0 2px #3b82f6' : 'none',
-                        zIndex: 100,
-                        pointerEvents: mode === 'text' ? 'auto' : 'none',
-                      }}
-                      onClick={() => mode === 'text' && setSelectedBubbleId(bubble.id)}
-                    >
-                      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-                        {/* SVG bubble shape */}
+                    <React.Fragment key={bubble.id}>
+                      {/* Main bubble with Rnd for drag/resize */}
+                      <Rnd
+                        position={{ x: bubbleX, y: bubbleY }}
+                        size={{ width: bubbleW, height: bubbleH }}
+                        onDragStop={(_e, d) => {
+                          const newXPercent = (d.x / displayWidth) * 100;
+                          const newYPercent = (d.y / displayHeight) * 100;
+                          handleBubbleMove(bubble.id, bubble.panelId, newXPercent, newYPercent);
+                        }}
+                        onResizeStop={(_e, _direction, ref, _delta, position) => {
+                          const newWidth = parseInt(ref.style.width, 10);
+                          const newHeight = parseInt(ref.style.height, 10);
+                          const newXPercent = (position.x / displayWidth) * 100;
+                          const newYPercent = (position.y / displayHeight) * 100;
+                          const newWidthPercent = (newWidth / displayWidth) * 100;
+                          const newHeightPercent = (newHeight / displayHeight) * 100;
+                          handleBubbleResize(bubble.id, bubble.panelId, newXPercent, newYPercent, newWidthPercent, newHeightPercent);
+                        }}
+                        bounds="parent"
+                        enableResizing={canInteract && isSelected}
+                        disableDragging={!canInteract}
+                        style={{
+                          cursor: canInteract ? 'move' : 'default',
+                          zIndex: 100 + (bubble.z_index || 0),
+                          pointerEvents: mode === 'text' ? 'auto' : 'none',
+                        }}
+                        onClick={() => canInteract && setSelectedBubbleId(bubble.id)}
+                      >
+                        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                          {/* SVG bubble shape with professional rendering */}
+                          <svg
+                            width="100%"
+                            height="100%"
+                            viewBox={`0 0 ${bubbleW} ${bubbleH}`}
+                            preserveAspectRatio="none"
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              overflow: 'visible',
+                              filter: bubble.halftone_shadow ? 'none' : 'drop-shadow(2px 2px 3px rgba(0,0,0,0.15))',
+                            }}
+                          >
+                            {/* Halftone pattern definition for western style */}
+                            <defs>
+                              <pattern id={`halftone-${bubble.id}`} width="6" height="6" patternUnits="userSpaceOnUse">
+                                <circle cx="3" cy="3" r="1.5" fill="black" fillOpacity="0.35" />
+                              </pattern>
+                            </defs>
+
+                            {/* Halftone shadow for western comics (rendered first, behind bubble) */}
+                            {bubble.halftone_shadow && (
+                              <g transform="translate(4, 4)">
+                                <path
+                                  d={bubblePath}
+                                  fill={`url(#halftone-${bubble.id})`}
+                                  stroke="none"
+                                />
+                              </g>
+                            )}
+
+                            {/* Speed lines for manga flash (rendered behind main bubble) */}
+                            {showSpeedLines && speedLines.map((line, idx) => (
+                              <line
+                                key={idx}
+                                x1={line.x1}
+                                y1={line.y1}
+                                x2={line.x2}
+                                y2={line.y2}
+                                stroke={bubble.border_color || '#000'}
+                                strokeWidth={1}
+                                strokeLinecap="round"
+                              />
+                            ))}
+
+                            {/* Bubble shape */}
+                            <path
+                              d={bubblePath}
+                              fill={bubble.background_color || '#fff'}
+                              stroke={bubble.border_color || '#000'}
+                              strokeWidth={bubbleStyle === 'western' ? (bubble.border_width || 2) * 1.2 : (bubble.border_width || 2)}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeDasharray={bubble.bubble_type === 'whisper' || bubble.bubble_type === 'radio' ? '6,4' : 'none'}
+                            />
+                          </svg>
+
+                          {/* Selection indicator */}
+                          {isSelected && (
+                            <div
+                              style={{
+                                position: 'absolute',
+                                inset: -3,
+                                border: '2px dashed #3b82f6',
+                                borderRadius: bubble.bubble_type === 'narrative' || bubble.bubble_type === 'caption' ? 6 : '50%',
+                                pointerEvents: 'none',
+                                animation: 'marchingAnts 0.5s linear infinite',
+                              }}
+                            />
+                          )}
+
+                          {/* Text content with dynamic padding */}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: `${(textPadding.top / bubbleH) * 100}%`,
+                              left: `${(textPadding.left / bubbleW) * 100}%`,
+                              right: `${(textPadding.right / bubbleW) * 100}%`,
+                              bottom: `${(textPadding.bottom / bubbleH) * 100}%`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {canInteract && isSelected ? (
+                              <textarea
+                                value={bubble.text || ''}
+                                onChange={(e) => handleBubbleTextChange(bubble.id, e.target.value)}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  border: 'none',
+                                  background: 'transparent',
+                                  resize: 'none',
+                                  textAlign: (bubble.text_align as any) || 'center',
+                                  fontSize: Math.max(10, Math.min(bubbleH * 0.18, 18)),
+                                  fontFamily: bubble.font_family || "'Comic Neue', 'Comic Sans MS', cursive",
+                                  fontWeight: bubble.bubble_type === 'shout' || bubble.bubble_type === 'burst' ? 'bold' : (bubble.font_weight || 'normal'),
+                                  fontStyle: bubble.bubble_type === 'whisper' || bubble.bubble_type === 'narrative' ? 'italic' : (bubble.font_style || 'normal'),
+                                  color: bubble.font_color || '#000',
+                                  outline: 'none',
+                                  lineHeight: 1.3,
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: Math.max(10, Math.min(bubbleH * 0.18, 18)),
+                                  fontFamily: bubble.font_family || "'Comic Neue', 'Comic Sans MS', cursive",
+                                  fontWeight: bubble.bubble_type === 'shout' || bubble.bubble_type === 'burst' ? 'bold' : (bubble.font_weight || 'normal'),
+                                  fontStyle: bubble.bubble_type === 'whisper' || bubble.bubble_type === 'narrative' ? 'italic' : (bubble.font_style || 'normal'),
+                                  color: bubble.font_color || '#000',
+                                  textAlign: (bubble.text_align as any) || 'center',
+                                  wordBreak: 'break-word',
+                                  lineHeight: 1.3,
+                                  display: 'block',
+                                  width: '100%',
+                                }}
+                              >
+                                {bubble.text || 'Enter text...'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </Rnd>
+
+                      {/* Tail SVG - rendered separately to allow tail to extend outside bubble bounds */}
+                      {hasTail && (
                         <svg
-                          width="100%"
-                          height="100%"
-                          viewBox={`0 0 ${bubbleW} ${bubbleH}`}
-                          preserveAspectRatio="none"
-                          style={{ position: 'absolute', top: 0, left: 0 }}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: displayWidth,
+                            height: displayHeight,
+                            pointerEvents: 'none',
+                            zIndex: 99 + (bubble.z_index || 0),
+                            overflow: 'visible',
+                          }}
                         >
-                          <path
-                            d={getBubbleSvgPath(bubbleW, bubbleH, bubble.bubble_type)}
-                            fill={bubble.background_color || '#fff'}
-                            stroke={bubble.border_color || '#000'}
-                            strokeWidth={bubble.border_width || 2}
-                            strokeDasharray={bubble.bubble_type === 'whisper' ? '4,3' : 'none'}
-                          />
-                          {/* Pointer tail for non-narrative bubbles */}
-                          {bubble.pointer_direction !== 'none' && bubble.bubble_type !== 'narrative' && bubble.bubble_type !== 'caption' && (
-                            <polygon
-                              points={
-                                bubble.pointer_direction === 'bottom'
-                                  ? `${bubbleW * 0.4},${bubbleH * 0.85} ${bubbleW * 0.5},${bubbleH * 1.15} ${bubbleW * 0.6},${bubbleH * 0.85}`
-                                  : bubble.pointer_direction === 'left'
-                                  ? `${bubbleW * 0.1},${bubbleH * 0.4} ${-bubbleW * 0.1},${bubbleH * 0.5} ${bubbleW * 0.1},${bubbleH * 0.6}`
-                                  : bubble.pointer_direction === 'right'
-                                  ? `${bubbleW * 0.9},${bubbleH * 0.4} ${bubbleW * 1.1},${bubbleH * 0.5} ${bubbleW * 0.9},${bubbleH * 0.6}`
-                                  : `${bubbleW * 0.4},${bubbleH * 0.15} ${bubbleW * 0.5},${-bubbleH * 0.15} ${bubbleW * 0.6},${bubbleH * 0.15}`
-                              }
+                          {/* Render bezier tail path */}
+                          {tailElements.path && (
+                            <path
+                              d={tailElements.path}
                               fill={bubble.background_color || '#fff'}
                               stroke={bubble.border_color || '#000'}
                               strokeWidth={bubble.border_width || 2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{ filter: 'drop-shadow(1px 1px 2px rgba(0,0,0,0.1))' }}
                             />
                           )}
+
+                          {/* Render thought bubble dots */}
+                          {tailElements.dots && tailElements.dots.map((dot: ThoughtDot, idx: number) => (
+                            <circle
+                              key={idx}
+                              cx={dot.x}
+                              cy={dot.y}
+                              r={dot.radius}
+                              fill={bubble.background_color || '#fff'}
+                              stroke={bubble.border_color || '#000'}
+                              strokeWidth={Math.max(1, (bubble.border_width || 2) * 0.8)}
+                              style={{ filter: 'drop-shadow(1px 1px 2px rgba(0,0,0,0.1))' }}
+                            />
+                          ))}
                         </svg>
-                        {/* Text content */}
-                        <div
+                      )}
+
+                      {/* Draggable tail handle - PowerPoint-style yellow circle */}
+                      {hasTail && canInteract && isSelected && (
+                        <Rnd
+                          position={{ x: tailEndX - 8, y: tailEndY - 8 }}
+                          size={{ width: 16, height: 16 }}
+                          onDragStop={(_e, d) => {
+                            const newTailX = ((d.x + 8) / displayWidth) * 100;
+                            const newTailY = ((d.y + 8) / displayHeight) * 100;
+                            handleTailMove(bubble.id, bubble.panelId, newTailX, newTailY);
+                          }}
+                          enableResizing={false}
+                          bounds="parent"
                           style={{
-                            position: 'absolute',
-                            top: '15%',
-                            left: '15%',
-                            right: '15%',
-                            bottom: '15%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            overflow: 'hidden',
+                            zIndex: 200 + (bubble.z_index || 0),
+                            cursor: 'grab',
                           }}
                         >
-                          {mode === 'text' && canEditText && selectedBubbleId === bubble.id ? (
-                            <textarea
-                              value={bubble.text || ''}
-                              onChange={(e) => handleBubbleTextChange(bubble.id, e.target.value)}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                border: 'none',
-                                background: 'transparent',
-                                resize: 'none',
-                                textAlign: bubble.text_align as any || 'center',
-                                fontSize: Math.max(10, Math.min(bubbleH * 0.2, 16)),
-                                fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
-                                fontWeight: bubble.bubble_type === 'shout' ? 'bold' : 'normal',
-                                fontStyle: bubble.bubble_type === 'whisper' || bubble.bubble_type === 'narrative' ? 'italic' : 'normal',
-                                color: bubble.font_color || '#000',
-                                outline: 'none',
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          ) : (
-                            <span
-                              style={{
-                                fontSize: Math.max(10, Math.min(bubbleH * 0.2, 16)),
-                                fontFamily: bubble.font_family || 'Comic Sans MS, cursive',
-                                fontWeight: bubble.bubble_type === 'shout' ? 'bold' : 'normal',
-                                fontStyle: bubble.bubble_type === 'whisper' || bubble.bubble_type === 'narrative' ? 'italic' : 'normal',
-                                color: bubble.font_color || '#000',
-                                textAlign: bubble.text_align as any || 'center',
-                                wordBreak: 'break-word',
-                              }}
-                            >
-                              {bubble.text || 'Enter text...'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </Rnd>
+                          <div
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: '50%',
+                              background: '#fbbf24',
+                              border: '2px solid #f59e0b',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                              cursor: 'grab',
+                            }}
+                            title="Drag to move tail"
+                          />
+                        </Rnd>
+                      )}
+                    </React.Fragment>
                   );
                 });
               })()}
@@ -3003,28 +3268,61 @@ export default function CollaborativeComicEditor({
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {/* Bubble type selector */}
+                      {/* Style selector */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>
+                          Style
+                        </span>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {BUBBLE_STYLES.map((style) => (
+                            <button
+                              key={style.value}
+                              onClick={() => {
+                                setNewBubbleStyle(style.value);
+                                // Reset type if not available in new style
+                                const typesForStyle = getBubbleTypesForStyle(style.value);
+                                if (!typesForStyle.find(t => t.value === newBubbleType)) {
+                                  setNewBubbleType(typesForStyle[0].value);
+                                }
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                border: newBubbleStyle === style.value ? '1px solid #3b82f6' : '1px solid #334155',
+                                background: newBubbleStyle === style.value ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
+                                color: newBubbleStyle === style.value ? '#3b82f6' : '#94a3b8',
+                              }}
+                            >
+                              {style.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Bubble type selector (cascaded based on style) */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>
                           Bubble Type
                         </span>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                          {(['oval', 'thought', 'shout', 'whisper', 'narrative'] as BubbleType[]).map((type) => (
+                          {getBubbleTypesForStyle(newBubbleStyle).map((bt) => (
                             <button
-                              key={type}
-                              onClick={() => setNewBubbleType(type)}
+                              key={bt.value}
+                              onClick={() => setNewBubbleType(bt.value)}
                               style={{
                                 padding: '4px 8px',
                                 borderRadius: 4,
                                 fontSize: 10,
                                 fontWeight: 500,
                                 cursor: 'pointer',
-                                border: newBubbleType === type ? '1px solid #3b82f6' : '1px solid #334155',
-                                background: newBubbleType === type ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
-                                color: newBubbleType === type ? '#3b82f6' : '#94a3b8',
-                                textTransform: 'capitalize',
+                                border: newBubbleType === bt.value ? '1px solid #3b82f6' : '1px solid #334155',
+                                background: newBubbleType === bt.value ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
+                                color: newBubbleType === bt.value ? '#3b82f6' : '#94a3b8',
                               }}
                             >
-                              {type}
+                              {bt.label}
                             </button>
                           ))}
                         </div>
@@ -3056,14 +3354,33 @@ export default function CollaborativeComicEditor({
                             }
                             // Now add the speech bubble - positioned at canvas center
                             // x_percent/y_percent are now canvas-relative (0-100 of canvas)
+                            // Calculate tail default position (below bubble center)
+                            const bubbleX = 35;
+                            const bubbleY = 40;
+                            const bubbleW = 25;
+                            const bubbleH = 15;
+                            const tailType = newBubbleType === 'thought' ? 'dots' : 'curved';
+
+                            // Set default effects based on style
+                            const speedLinesEnabled = newBubbleStyle === 'manga' && newBubbleType === 'flash';
+                            const halftoneShadow = newBubbleStyle === 'western';
+
                             const newBubble = await collaborationApi.createSpeechBubble({
                               panel: targetPanel.id,
                               bubble_type: newBubbleType,
-                              x_percent: 35, // Center-ish on canvas
-                              y_percent: 40,
-                              width_percent: 25, // 25% of canvas width
-                              height_percent: 15, // 15% of canvas height
+                              x_percent: bubbleX, // Center-ish on canvas
+                              y_percent: bubbleY,
+                              width_percent: bubbleW, // 25% of canvas width
+                              height_percent: bubbleH, // 15% of canvas height
                               text: 'Enter text...',
+                              // Tail fields - tail points below bubble by default
+                              tail_end_x_percent: bubbleX + bubbleW / 2,
+                              tail_end_y_percent: bubbleY + bubbleH + 12, // 12% below bubble
+                              tail_type: tailType,
+                              // Style system fields
+                              bubble_style: newBubbleStyle,
+                              speed_lines_enabled: speedLinesEnabled,
+                              halftone_shadow: halftoneShadow,
                             });
                             // Update local state
                             const updatedPages = [...pages];

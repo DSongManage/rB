@@ -145,6 +145,9 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Voting power warning state
+  const [showVotingPowerWarning, setShowVotingPowerWarning] = useState(false);
+
   // Project type - required for new collaborations
   const [projectType, setProjectType] = useState<ProjectType>(initialProjectType || 'book');
 
@@ -305,7 +308,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     setTasks(tasks.filter(t => t.id !== id));
   };
 
-  const handleSend = async () => {
+  // Check if voting power warning should be shown
+  const handleSendClick = () => {
     setSuccessMsg('');
     setErrorMsg('');
 
@@ -321,6 +325,18 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
       }
     }
 
+    // Show voting power warning if allocating 50% or more
+    if (equityPercent >= 50) {
+      setShowVotingPowerWarning(true);
+      return;
+    }
+
+    // Otherwise proceed with sending
+    handleSend();
+  };
+
+  const handleSend = async () => {
+    setShowVotingPowerWarning(false);
     setSending(true);
 
     try {
@@ -417,6 +433,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     setTasks([]);
     setSuccessMsg('');
     setErrorMsg('');
+    setShowVotingPowerWarning(false);
     setCanEditText(true);
     setCanEditImages(true);
     setCanEditAudio(false);
@@ -1269,7 +1286,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               Cancel
             </button>
             <button
-              onClick={handleSend}
+              onClick={handleSendClick}
               disabled={sending || !message.trim() || message.length > 1000}
               style={{
                 background: sending ? '#64748b' : '#f59e0b',
@@ -1287,6 +1304,138 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           </div>
         </div>
       </div>
+
+      {/* Voting Power Warning Modal */}
+      {showVotingPowerWarning && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          padding: 20,
+        }}>
+          <div style={{
+            background: '#0f172a',
+            border: '2px solid #f59e0b',
+            borderRadius: 16,
+            padding: 32,
+            maxWidth: 500,
+            width: '100%',
+            boxShadow: '0 0 40px rgba(245, 158, 11, 0.3)',
+          }}>
+            {/* Warning Icon */}
+            <div style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: 'rgba(245, 158, 11, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
+              fontSize: 32,
+            }}>
+              <span role="img" aria-label="warning">&#9888;&#65039;</span>
+            </div>
+
+            <h3 style={{
+              color: '#f59e0b',
+              fontSize: 20,
+              fontWeight: 700,
+              textAlign: 'center',
+              marginBottom: 16,
+            }}>
+              Voting Power Warning
+            </h3>
+
+            <div style={{
+              color: '#cbd5e1',
+              fontSize: 14,
+              lineHeight: 1.6,
+              marginBottom: 24,
+            }}>
+              <p style={{ marginBottom: 12 }}>
+                By allocating <strong style={{ color: '#f59e0b' }}>{equityPercent}%</strong> revenue share
+                to @{recipient.username}, you will:
+              </p>
+              <ul style={{
+                margin: 0,
+                paddingLeft: 20,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}>
+                <li>
+                  {equityPercent > 50 ? (
+                    <span><strong style={{ color: '#ef4444' }}>Become the minority owner</strong> ({100 - equityPercent}% vs {equityPercent}%)</span>
+                  ) : (
+                    <span><strong style={{ color: '#f59e0b' }}>Share equal voting control</strong> (50% vs 50%)</span>
+                  )}
+                </li>
+                <li>
+                  <span>Require their approval for all project decisions</span>
+                </li>
+                <li>
+                  <span>Need {equityPercent > 50 ? 'their agreement' : 'unanimous agreement'} for revenue changes</span>
+                </li>
+              </ul>
+
+              <div style={{
+                marginTop: 16,
+                padding: 12,
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: 8,
+              }}>
+                <strong style={{ color: '#ef4444' }}>
+                  {equityPercent > 50
+                    ? 'Allocations above 50% give collaborators majority control.'
+                    : 'Allocations of 50% give collaborators veto power on all decisions.'}
+                </strong>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button
+                onClick={() => setShowVotingPowerWarning(false)}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #334155',
+                  color: '#cbd5e1',
+                  padding: '12px 24px',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleSend}
+                style={{
+                  background: '#f59e0b',
+                  color: '#000',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                I Understand, Send Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import FeedbackModal from './FeedbackModal';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, FlaskConical, Lightbulb, Gift, Rocket } from 'lucide-react';
 
 interface BetaBadgeProps {
   variant?: 'header' | 'inline' | 'full';
@@ -203,8 +203,8 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
         {/* Content */}
         <div style={{ marginBottom: '24px' }}>
           <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f59e0b', marginBottom: '8px' }}>
-              🧪 Test Mode Active
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f59e0b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <FlaskConical size={16} /> Test Mode Active
             </div>
             <ul style={{ fontSize: '13px', color: '#cbd5e1', margin: '0', paddingLeft: '20px', lineHeight: 1.6 }}>
               <li>No real money charged (use test card: 4242 4242 4242 4242)</li>
@@ -214,8 +214,8 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f59e0b', marginBottom: '8px' }}>
-              💡 What to Try
+            <div style={{ fontSize: '14px', fontWeight: 600, color: '#f59e0b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Lightbulb size={16} /> What to Try
             </div>
             <ul style={{ fontSize: '13px', color: '#cbd5e1', margin: '0', paddingLeft: '20px', lineHeight: 1.6 }}>
               <li>Create and publish your first content</li>
@@ -233,8 +233,8 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
               marginTop: '16px',
             }}
           >
-            <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 600, marginBottom: '4px' }}>
-              🎁 Beta Perks
+            <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Gift size={14} /> Beta Perks
             </div>
             <p style={{ fontSize: '12px', color: '#cbd5e1', margin: 0, lineHeight: 1.5 }}>
               As a beta tester, you'll get early access to new features and special recognition when we launch!
@@ -259,7 +259,7 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
               marginBottom: '12px',
             }}
           >
-            Let's Go! 🚀
+            Let's Go! <Rocket size={16} style={{ marginLeft: 4 }} />
           </button>
           <div style={{ fontSize: '12px', color: '#64748b' }}>
             Questions?{' '}

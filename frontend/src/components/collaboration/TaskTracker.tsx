@@ -8,6 +8,7 @@
  */
 
 import React, { useState } from 'react';
+import { ClipboardList, ChevronRight, ChevronDown } from 'lucide-react';
 import { API_URL } from '../../config';
 
 // Task status type
@@ -291,7 +292,7 @@ export function TaskTracker({
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>📋</span>
+            <ClipboardList size={20} style={{ color: '#94a3b8' }} />
             <h3 style={{ margin: 0, color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>
               Contract Tasks for @{collaboratorRole.username}
             </h3>
@@ -445,7 +446,7 @@ export function TaskTracker({
                     )}
                   </div>
                 </div>
-                <span style={{ color: '#64748b', fontSize: 18 }}>{isExpanded ? '▼' : '▶'}</span>
+                {isExpanded ? <ChevronDown size={18} style={{ color: '#64748b' }} /> : <ChevronRight size={18} style={{ color: '#64748b' }} />}
               </div>
 
               {/* Expanded details */}

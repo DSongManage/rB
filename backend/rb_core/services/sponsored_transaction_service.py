@@ -362,6 +362,93 @@ class SponsoredTransactionService:
             logger.error(f"Error submitting user-signed transaction: {e}")
             raise
 
+    def build_sponsored_multi_transfer(
+        self,
+        user_wallet: str,
+        transfers: list[tuple[str, Decimal]],  # List of (recipient_wallet, amount)
+    ) -> Dict[str, Any]:
+        """
+        Build a VersionedTransaction with multiple USDC transfers where platform pays fees.
+
+        Args:
+            user_wallet: User's wallet address (token authority)
+            transfers: List of (recipient_wallet, amount) tuples
+
+        Returns:
+            Dict containing serialized transaction data
+        """
+        try:
+            user_pubkey = Pubkey.from_string(user_wallet)
+            usdc_mint_pubkey = Pubkey.from_string(self.usdc_mint)
+            user_ata = self._get_associated_token_address(user_pubkey, usdc_mint_pubkey)
+
+            instructions = []
+            total_amount = Decimal('0')
+
+            for recipient_wallet, amount in transfers:
+                recipient_pubkey = Pubkey.from_string(recipient_wallet)
+                recipient_ata = self._get_associated_token_address(recipient_pubkey, usdc_mint_pubkey)
+
+                # Check if recipient ATA exists
+                recipient_ata_info = self.client.get_account_info(recipient_ata, commitment=Confirmed)
+                if recipient_ata_info.value is None:
+                    # Create ATA for recipient (platform pays)
+                    instructions.append(
+                        self._create_ata_instruction(
+                            payer=self.platform_pubkey,
+                            ata=recipient_ata,
+                            owner=recipient_pubkey,
+                            mint=usdc_mint_pubkey,
+                        )
+                    )
+
+                # Convert amount to token units
+                amount_units = int(amount * Decimal(10 ** USDC_DECIMALS))
+                total_amount += amount
+
+                # Add transfer instruction
+                instructions.append(
+                    self._create_transfer_instruction(
+                        source_ata=user_ata,
+                        destination_ata=recipient_ata,
+                        owner=user_pubkey,
+                        amount=amount_units,
+                    )
+                )
+
+            # Get recent blockhash
+            blockhash_response = self.client.get_latest_blockhash(commitment=Confirmed)
+            blockhash = blockhash_response.value.blockhash
+
+            # Build MessageV0 with platform as fee payer
+            message = MessageV0.try_compile(
+                payer=self.platform_pubkey,
+                instructions=instructions,
+                address_lookup_table_accounts=[],
+                recent_blockhash=blockhash,
+            )
+
+            # Create transaction with placeholder signatures
+            placeholder_sig = Signature.default()
+            placeholder_signatures = [placeholder_sig, placeholder_sig]
+
+            unsigned_tx = VersionedTransaction.populate(message, placeholder_signatures)
+            tx_bytes = bytes(unsigned_tx)
+
+            return {
+                'serialized_transaction': base64.b64encode(tx_bytes).decode('utf-8'),
+                'serialized_message': base64.b64encode(bytes(message)).decode('utf-8'),
+                'blockhash': str(blockhash),
+                'user_pubkey': user_wallet,
+                'platform_pubkey': str(self.platform_pubkey),
+                'amount': str(total_amount),
+                'num_transfers': len(transfers),
+            }
+
+        except Exception as e:
+            logger.error(f"Error building sponsored multi-transfer transaction: {e}")
+            raise
+
     def confirm_transaction(self, signature: str, max_wait_seconds: int = 30) -> bool:
         """
         Wait for transaction confirmation.

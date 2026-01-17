@@ -15,6 +15,11 @@ export interface CopyrightPreview {
   full_text: string;
 }
 
+export interface CanMintStatus {
+  can_mint: boolean;
+  blockers: string[];
+}
+
 export interface CollaborativeProject {
   id: number;
   title: string;
@@ -41,6 +46,10 @@ export interface CollaborativeProject {
   progress_percentage: number;
   is_solo: boolean;
   cover_image?: string | null;
+  // Pre-mint gate fields
+  has_active_dispute: boolean;
+  has_active_breach: boolean;
+  can_mint_status?: CanMintStatus;
 }
 
 export interface CollaborativeProjectListItem {
@@ -159,6 +168,9 @@ export interface CollaboratorRole {
   cancellation_eligible: boolean;
   contract_version: number;
   contract_locked_at?: string;
+  // Warranty of originality
+  warranty_of_originality_acknowledged: boolean;
+  warranty_acknowledged_at?: string;
 }
 
 export interface ProjectSection {
@@ -227,14 +239,22 @@ export interface RevenueSplit {
   percentage: number;
 }
 
+export interface ContractTaskData {
+  title: string;
+  description?: string;
+  deadline: string;
+}
+
 export interface InviteCollaboratorData {
   user_id: number;
   role: string;
+  role_definition_id?: number;
   revenue_percentage: number;
   can_edit_text?: boolean;
   can_edit_images?: boolean;
   can_edit_audio?: boolean;
   can_edit_video?: boolean;
+  tasks?: ContractTaskData[];
 }
 
 export interface CreateProjectData {
@@ -431,17 +451,23 @@ export const collaborationApi = {
 
   /**
    * Accept invitation to collaborate
+   * @param projectId - The project to accept invitation for
+   * @param warrantyAcknowledged - Whether the collaborator acknowledges warranty of originality
    */
-  async acceptInvitation(projectId: number): Promise<CollaboratorRole> {
+  async acceptInvitation(projectId: number, warrantyAcknowledged: boolean = true): Promise<CollaboratorRole> {
     const response = await fetch(
       `${API_BASE}/api/collaborative-projects/${projectId}/accept_invitation/`,
       {
         method: 'POST',
         credentials: 'include',
         headers: {
+          'Content-Type': 'application/json',
           'X-CSRFToken': await getFreshCsrfToken(),
-        'X-Requested-With': 'XMLHttpRequest',
+          'X-Requested-With': 'XMLHttpRequest',
         },
+        body: JSON.stringify({
+          warranty_of_originality_acknowledged: warrantyAcknowledged,
+        }),
       }
     );
 
@@ -2077,8 +2103,17 @@ export interface CollaboratorRatingData {
 
 // ===== Comic Book Collaboration Interfaces =====
 
-export type BubbleType = 'oval' | 'thought' | 'shout' | 'whisper' | 'narrative' | 'caption' | 'radio' | 'burst';
+export type BubbleType =
+  | 'oval' | 'thought' | 'shout' | 'whisper' | 'narrative' | 'caption' | 'radio' | 'burst'
+  // New manga/western types
+  | 'flash'     // Manga radial sunburst with speed lines
+  | 'wavy'      // Nervous/trembling outline for fear/hesitation
+  | 'angry'     // Small hostile spikes around edge
+  | 'poof'      // Sound effect cloud (POOF/BAM)
+  | 'electric'; // Lightning bolt edges for shock
+export type BubbleStyle = 'manga' | 'western' | 'custom';
 export type PointerDirection = 'none' | 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type TailType = 'straight' | 'curved' | 'dots';
 export type BorderStyle = 'solid' | 'dashed' | 'none' | 'jagged' | 'wavy';
 export type ArtworkFit = 'contain' | 'cover' | 'fill';
 export type PageFormat = 'standard' | 'manga' | 'webtoon' | 'custom';
@@ -2104,6 +2139,14 @@ export interface SpeechBubble {
   border_width: number;
   pointer_direction: PointerDirection;
   pointer_position: number;
+  // Draggable tail fields
+  tail_end_x_percent: number;  // Where tail tip points (% of panel width)
+  tail_end_y_percent: number;  // Where tail tip points (% of panel height)
+  tail_type: TailType;         // 'straight', 'curved', or 'dots' for thought bubbles
+  // Style preset system (manga vs western)
+  bubble_style: BubbleStyle;       // 'manga', 'western', or 'custom'
+  speed_lines_enabled: boolean;    // Radial speed lines (manga emphasis)
+  halftone_shadow: boolean;        // Halftone dot pattern shadow (western)
   writer?: number;
   writer_username?: string;
   order: number;
@@ -2255,6 +2298,14 @@ export interface CreateSpeechBubbleData {
   border_width?: number;
   pointer_direction?: PointerDirection;
   pointer_position?: number;
+  // Draggable tail fields
+  tail_end_x_percent?: number;
+  tail_end_y_percent?: number;
+  tail_type?: TailType;
+  // Style system fields
+  bubble_style?: BubbleStyle;
+  speed_lines_enabled?: boolean;
+  halftone_shadow?: boolean;
 }
 
 // ===== Comic Series & Issue Interfaces =====

@@ -430,19 +430,21 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
             </div>
 
             {/* Gutter Width */}
-            <div>
+            <div style={{ overflow: 'hidden' }}>
               <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>
                 Gap Width: {defaultGutterWidth.toFixed(1)}%
               </label>
-              <input
-                type="range"
-                min="0.5"
-                max="5"
-                step="0.5"
-                value={defaultGutterWidth}
-                onChange={(e) => onGutterWidthChange(parseFloat(e.target.value))}
-                style={{ width: '100%', accentColor: '#f59e0b' }}
-              />
+              <div style={{ padding: '0 8px' }}>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="5"
+                  step="0.5"
+                  value={defaultGutterWidth}
+                  onChange={(e) => onGutterWidthChange(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: '#f59e0b' }}
+                />
+              </div>
             </div>
 
             {/* Gutter Mode */}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CollaborativeProject, collaborationApi } from '../../../services/collaborationApi';
 import CopyrightPreview from '../../BookEditor/CopyrightPreview';
-import { Check, Clock, PartyPopper, AlertCircle } from 'lucide-react';
+import { Check, Clock, PartyPopper, AlertCircle, Eye, DollarSign, PenLine, Lock, Unlock } from 'lucide-react';
 
 interface User {
   id: number;
@@ -83,6 +83,15 @@ export default function PublishTab({
     0
   );
 
+  // Check for active breaches (any collaborator with uncured breach)
+  const hasUncuredBreach = project.has_active_breach ||
+    acceptedCollaborators.some(c => c.has_active_breach);
+
+  // Check warranty of originality acknowledgments
+  const allWarrantiesAcknowledged = acceptedCollaborators.every(
+    c => c.warranty_of_originality_acknowledged !== false
+  );
+
   // Check if all requirements are met
   const checklistItems = [
     {
@@ -137,6 +146,24 @@ export default function PublishTab({
       id: 'approved',
       label: 'All collaborators approved',
       checked: project.is_fully_approved,
+    },
+    {
+      id: 'no_disputes',
+      label: 'No active disputes',
+      checked: !project.has_active_dispute,
+      hint: project.has_active_dispute ? 'Resolve all disputes before minting' : undefined,
+    },
+    {
+      id: 'no_breaches',
+      label: 'No uncured breaches',
+      checked: !hasUncuredBreach,
+      hint: hasUncuredBreach ? 'All breaches must be cured or resolved' : undefined,
+    },
+    {
+      id: 'warranty',
+      label: 'All collaborators acknowledged warranty of originality',
+      checked: allWarrantiesAcknowledged,
+      hint: !allWarrantiesAcknowledged ? 'All collaborators must acknowledge their work is original' : undefined,
     },
   ];
 
@@ -417,165 +444,509 @@ function CustomizeStep({
   const maxWords = 100;
   const isOverLimit = wordCount > maxWords;
 
-  return (
-    <div style={{
-      background: 'var(--panel)',
-      border: '1px solid var(--panel-border)',
-      borderRadius: 12,
-      padding: 24,
-    }}>
-      <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18 }}>
-        Customize Your NFT
-      </h3>
+  // Price input handling - use string for better UX
+  const [priceInput, setPriceInput] = React.useState(price > 0 ? price.toString() : '');
 
+  const handlePriceChange = (value: string) => {
+    setPriceInput(value);
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed) && parsed >= 0) {
+      setPrice(parsed);
+    } else if (value === '' || value === '.') {
+      setPrice(0);
+    }
+  };
+
+  const handlePriceBlur = () => {
+    const parsed = parseFloat(priceInput);
+    if (!isNaN(parsed) && parsed > 0) {
+      setPriceInput(parsed.toFixed(2));
+      setPrice(parsed);
+    } else {
+      setPriceInput('');
+      setPrice(0);
+    }
+  };
+
+  // Editions input handling
+  const [editionsInput, setEditionsInput] = React.useState(editions.toString());
+
+  const handleEditionsChange = (value: string) => {
+    setEditionsInput(value);
+    const parsed = parseInt(value);
+    if (!isNaN(parsed) && parsed >= 1) {
+      setEditions(parsed);
+    }
+  };
+
+  const handleEditionsBlur = () => {
+    const parsed = parseInt(editionsInput);
+    if (!isNaN(parsed) && parsed >= 1) {
+      setEditionsInput(parsed.toString());
+      setEditions(parsed);
+    } else {
+      setEditionsInput('1');
+      setEditions(1);
+    }
+  };
+
+  // Teaser presets
+  const teaserPresets = [
+    { label: 'Sample', value: 10, description: 'Just a taste' },
+    { label: 'Preview', value: 25, description: 'First quarter' },
+    { label: 'Generous', value: 50, description: 'Half the content' },
+    { label: 'Most', value: 75, description: 'Almost all' },
+  ];
+
+  // Calculate estimated revenue
+  const grossRevenue = price * editions;
+  const platformFee = grossRevenue * 0.10;
+  const netRevenue = grossRevenue - platformFee;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {!isProjectLead && (
         <div style={{
           padding: 16,
-          background: 'rgba(245, 158, 11, 0.1)',
-          borderRadius: 8,
-          marginBottom: 20,
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderRadius: 12,
           color: '#f59e0b',
-          fontSize: 13,
+          fontSize: 14,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
         }}>
-          Only the project owner can modify these settings.
+          <Lock size={20} />
+          <span>Only the project owner can modify these settings.</span>
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Teaser Slider */}
-        <div>
-          <label style={{ fontSize: 13, color: '#94a3b8', display: 'block', marginBottom: 8 }}>
-            Teaser shown to public: {teaserPercent}%
+      {/* Section 1: Free Preview Settings */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)',
+        borderRadius: 16,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid var(--panel-border)',
+          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, transparent 100%)',
+        }}>
+          <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Eye size={20} style={{ color: '#3b82f6' }} />
+            Free Preview
+          </h3>
+          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+            How much of your content can non-buyers see?
+          </p>
+        </div>
+
+        <div style={{ padding: 24 }}>
+          {/* Visual Preview Bar */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{
+              display: 'flex',
+              height: 48,
+              borderRadius: 12,
+              overflow: 'hidden',
+              border: '1px solid var(--panel-border)',
+              background: 'var(--bg)',
+            }}>
+              <div style={{
+                width: `${teaserPercent}%`,
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'width 0.3s ease',
+                minWidth: teaserPercent > 0 ? 60 : 0,
+              }}>
+                {teaserPercent > 0 && (
+                  <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>
+                    Free {teaserPercent}%
+                  </span>
+                )}
+              </div>
+              <div style={{
+                flex: 1,
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderLeft: teaserPercent > 0 && teaserPercent < 100 ? '2px dashed var(--panel-border)' : 'none',
+              }}>
+                {teaserPercent < 100 && (
+                  <span style={{ color: '#f59e0b', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Lock size={14} /> Paid {100 - teaserPercent}%
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Preset Buttons */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: 12,
+            marginBottom: 20,
+          }}>
+            {teaserPresets.map((preset) => (
+              <button
+                key={preset.value}
+                onClick={() => isProjectLead && setTeaserPercent(preset.value)}
+                disabled={!isProjectLead}
+                style={{
+                  padding: '12px 8px',
+                  background: teaserPercent === preset.value
+                    ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                    : 'var(--bg)',
+                  border: teaserPercent === preset.value
+                    ? 'none'
+                    : '1px solid var(--panel-border)',
+                  borderRadius: 10,
+                  cursor: isProjectLead ? 'pointer' : 'not-allowed',
+                  opacity: isProjectLead ? 1 : 0.6,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: teaserPercent === preset.value ? '#111' : 'var(--text)',
+                }}>
+                  {preset.label}
+                </div>
+                <div style={{
+                  fontSize: 11,
+                  color: teaserPercent === preset.value ? '#333' : '#64748b',
+                  marginTop: 2,
+                }}>
+                  {preset.value}%
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Slider */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: '#64748b' }}>Custom amount</span>
+              <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{teaserPercent}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={teaserPercent}
+              onChange={(e) => setTeaserPercent(parseInt(e.target.value))}
+              disabled={!isProjectLead}
+              style={{
+                width: '100%',
+                height: 6,
+                borderRadius: 3,
+                appearance: 'none',
+                background: `linear-gradient(to right, #10b981 0%, #10b981 ${teaserPercent}%, var(--panel-border) ${teaserPercent}%, var(--panel-border) 100%)`,
+                cursor: isProjectLead ? 'pointer' : 'not-allowed',
+                opacity: isProjectLead ? 1 : 0.6,
+              }}
+            />
+          </div>
+
+          {/* Watermark Toggle */}
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 16px',
+            background: 'var(--bg)',
+            borderRadius: 10,
+            cursor: isProjectLead ? 'pointer' : 'not-allowed',
+            opacity: isProjectLead ? 1 : 0.6,
+          }}>
+            <div>
+              <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>
+                Watermark preview
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                Add subtle branding to free preview content
+              </div>
+            </div>
+            <div style={{
+              width: 44,
+              height: 24,
+              borderRadius: 12,
+              background: watermark ? '#10b981' : 'var(--panel-border)',
+              position: 'relative',
+              transition: 'background 0.2s ease',
+            }}>
+              <div style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                background: '#fff',
+                position: 'absolute',
+                top: 2,
+                left: watermark ? 22 : 2,
+                transition: 'left 0.2s ease',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              }} />
+              <input
+                type="checkbox"
+                checked={watermark}
+                onChange={(e) => setWatermark(e.target.checked)}
+                disabled={!isProjectLead}
+                style={{ opacity: 0, position: 'absolute', width: '100%', height: '100%', cursor: 'inherit' }}
+              />
+            </div>
           </label>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={teaserPercent}
-            onChange={(e) => setTeaserPercent(parseInt(e.target.value))}
-            disabled={!isProjectLead}
-            style={{ width: '100%' }}
-          />
+        </div>
+      </div>
+
+      {/* Section 2: Pricing */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)',
+        borderRadius: 16,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid var(--panel-border)',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, transparent 100%)',
+        }}>
+          <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <DollarSign size={20} style={{ color: '#10b981' }} />
+            Pricing
+          </h3>
+          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+            Set your price and edition count
+          </p>
         </div>
 
-        {/* Watermark Checkbox */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: isProjectLead ? 'pointer' : 'not-allowed' }}>
-          <input
-            type="checkbox"
-            checked={watermark}
-            onChange={(e) => setWatermark(e.target.checked)}
-            disabled={!isProjectLead}
-          />
-          <span style={{ fontSize: 13, color: 'var(--text)' }}>Show watermark on teaser</span>
-        </label>
+        <div style={{ padding: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {/* Price Input */}
+            <div>
+              <label style={{ fontSize: 13, color: '#94a3b8', display: 'block', marginBottom: 10 }}>
+                Price per edition
+              </label>
+              <div style={{ position: 'relative' }}>
+                <span style={{
+                  position: 'absolute',
+                  left: 16,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#64748b',
+                  fontSize: 18,
+                  fontWeight: 500,
+                }}>$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={priceInput}
+                  onChange={(e) => handlePriceChange(e.target.value.replace(/[^0-9.]/g, ''))}
+                  onBlur={handlePriceBlur}
+                  disabled={!isProjectLead}
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px 14px 36px',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--panel-border)',
+                    borderRadius: 10,
+                    color: 'var(--text)',
+                    fontSize: 18,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'border-color 0.2s ease',
+                    cursor: isProjectLead ? 'text' : 'not-allowed',
+                    opacity: isProjectLead ? 1 : 0.6,
+                  }}
+                />
+                <span style={{
+                  position: 'absolute',
+                  right: 16,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#64748b',
+                  fontSize: 12,
+                }}>USD</span>
+              </div>
+            </div>
 
-        {/* Price and Editions */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div>
-            <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 8 }}>
-              Price per edition (USD)
-            </label>
-            <input
-              type="number"
-              min={0.01}
-              step={0.01}
-              value={price}
-              onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-              disabled={!isProjectLead}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'var(--bg)',
-                border: '1px solid var(--panel-border)',
-                borderRadius: 8,
-                color: 'var(--text)',
-                fontSize: 16,
-              }}
-            />
+            {/* Editions Input */}
+            <div>
+              <label style={{ fontSize: 13, color: '#94a3b8', display: 'block', marginBottom: 10 }}>
+                Number of editions
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="1"
+                  value={editionsInput}
+                  onChange={(e) => handleEditionsChange(e.target.value.replace(/[^0-9]/g, ''))}
+                  onBlur={handleEditionsBlur}
+                  disabled={!isProjectLead}
+                  style={{
+                    width: '100%',
+                    padding: '14px 50px 14px 16px',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--panel-border)',
+                    borderRadius: 10,
+                    color: 'var(--text)',
+                    fontSize: 18,
+                    fontWeight: 500,
+                    outline: 'none',
+                    transition: 'border-color 0.2s ease',
+                    cursor: isProjectLead ? 'text' : 'not-allowed',
+                    opacity: isProjectLead ? 1 : 0.6,
+                  }}
+                />
+                <span style={{
+                  position: 'absolute',
+                  right: 16,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: '#64748b',
+                  fontSize: 12,
+                }}>copies</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 8 }}>
-              Number of editions
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={editions}
-              onChange={(e) => setEditions(parseInt(e.target.value) || 1)}
-              disabled={!isProjectLead}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: 'var(--bg)',
-                border: '1px solid var(--panel-border)',
-                borderRadius: 8,
-                color: 'var(--text)',
-                fontSize: 16,
-              }}
-            />
-          </div>
+
+          {/* Revenue Preview */}
+          {price > 0 && (
+            <div style={{
+              marginTop: 20,
+              padding: 16,
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%)',
+              borderRadius: 12,
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>Potential earnings (if all sell)</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981', marginTop: 4 }}>
+                    ${netRevenue.toFixed(2)}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>
+                  <div>Gross: ${grossRevenue.toFixed(2)}</div>
+                  <div>Platform fee (10%): -${platformFee.toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <p style={{ margin: '16px 0 0', fontSize: 12, color: '#64748b' }}>
+            Changing price or editions will reset all revenue split approvals.
+          </p>
         </div>
+      </div>
 
-        {/* Author's Note */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <label style={{ fontSize: 13, color: '#94a3b8' }}>
-              Author's Note (optional)
-            </label>
-            <span style={{ fontSize: 11, color: isOverLimit ? '#ef4444' : '#64748b' }}>
-              {wordCount}/{maxWords} words
+      {/* Section 3: Author's Note */}
+      <div style={{
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)',
+        borderRadius: 16,
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid var(--panel-border)',
+          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, transparent 100%)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <PenLine size={20} style={{ color: '#8b5cf6' }} />
+                Author's Note
+                <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>(optional)</span>
+              </h3>
+              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                Share a personal message with your audience
+              </p>
+            </div>
+            <span style={{
+              fontSize: 12,
+              color: isOverLimit ? '#ef4444' : '#64748b',
+              background: isOverLimit ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg)',
+              padding: '4px 10px',
+              borderRadius: 20,
+            }}>
+              {wordCount}/{maxWords}
             </span>
           </div>
+        </div>
+
+        <div style={{ padding: 24 }}>
           <textarea
             value={authorsNote}
             onChange={(e) => setAuthorsNote(e.target.value)}
-            placeholder="Share a brief note about this work with your audience..."
+            placeholder="Share the story behind this work, thank your collaborators, or leave a message for your readers..."
             disabled={!isProjectLead}
             style={{
               width: '100%',
-              minHeight: 80,
-              padding: '10px 14px',
+              minHeight: 120,
+              padding: 16,
               background: 'var(--bg)',
               border: `1px solid ${isOverLimit ? '#ef4444' : 'var(--panel-border)'}`,
-              borderRadius: 8,
+              borderRadius: 12,
               color: 'var(--text)',
               fontSize: 14,
+              lineHeight: 1.6,
               resize: 'vertical',
               fontFamily: 'inherit',
               cursor: isProjectLead ? 'text' : 'not-allowed',
               opacity: isProjectLead ? 1 : 0.6,
+              outline: 'none',
+              transition: 'border-color 0.2s ease',
             }}
           />
           {isOverLimit && (
-            <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+            <div style={{
+              fontSize: 12,
+              color: '#ef4444',
+              marginTop: 8,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}>
+              <AlertCircle size={14} />
               Please keep your note under {maxWords} words.
             </div>
           )}
         </div>
-
-        <div style={{ fontSize: 12, color: '#64748b' }}>
-          Platform fee applies per terms. Changing price or editions will reset all revenue split approvals.
-        </div>
-
-        {/* Copyright Preview */}
-        <CopyrightPreview authorName={authorName} />
       </div>
 
-      {/* Next Button */}
-      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+      {/* Section 4: Copyright */}
+      <CopyrightPreview authorName={authorName} />
+
+      {/* Action Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           onClick={onNext}
-          disabled={isProjectLead && saving}
+          disabled={(isProjectLead && saving) || isOverLimit}
           style={{
-            padding: '12px 32px',
-            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            padding: '14px 40px',
+            background: (saving || isOverLimit)
+              ? '#374151'
+              : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             border: 'none',
-            borderRadius: 8,
-            color: '#111',
+            borderRadius: 12,
+            color: (saving || isOverLimit) ? '#9ca3af' : '#111',
             fontWeight: 700,
-            fontSize: 14,
-            cursor: (isProjectLead && saving) ? 'not-allowed' : 'pointer',
-            opacity: (isProjectLead && saving) ? 0.7 : 1,
+            fontSize: 15,
+            cursor: (saving || isOverLimit) ? 'not-allowed' : 'pointer',
+            boxShadow: (saving || isOverLimit)
+              ? 'none'
+              : '0 4px 14px rgba(245, 158, 11, 0.4)',
+            transition: 'all 0.2s ease',
           }}
         >
           {isProjectLead ? (saving ? 'Saving...' : 'Save & Continue') : 'Continue to Approve'}

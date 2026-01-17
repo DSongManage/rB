@@ -25,9 +25,18 @@ export default function OverviewTab({
 
   const isProjectLead = project.created_by === currentUser.id;
   const acceptedCollaborators = project.collaborators?.filter(c => c.status === 'accepted') || [];
-  const totalApproved = acceptedCollaborators.filter(
-    c => c.approved_current_version && c.approved_revenue_split
-  ).length;
+
+  // Check if collaborator is fully ready (approved + warranty acknowledged)
+  const isCollaboratorReady = (c: CollaboratorRole) =>
+    c.approved_current_version &&
+    c.approved_revenue_split &&
+    c.warranty_of_originality_acknowledged !== false;
+
+  const totalApproved = acceptedCollaborators.filter(isCollaboratorReady).length;
+
+  // Use can_mint_status for accurate "ready to mint" status
+  const canMint = project.can_mint_status?.can_mint ?? false;
+  const mintBlockers = project.can_mint_status?.blockers ?? [];
 
   return (
     <div style={{
@@ -278,7 +287,7 @@ export default function OverviewTab({
         {/* Collaborator approval status */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {acceptedCollaborators.map(collab => {
-            const hasApproved = collab.approved_current_version && collab.approved_revenue_split;
+            const hasApproved = isCollaboratorReady(collab);
             return (
               <div
                 key={collab.id}
@@ -336,8 +345,8 @@ export default function OverviewTab({
           })}
         </div>
 
-        {/* Full approval badge */}
-        {project.is_fully_approved && (
+        {/* Mint readiness badge */}
+        {canMint ? (
           <div style={{
             marginTop: 16,
             padding: 12,
@@ -353,6 +362,26 @@ export default function OverviewTab({
             <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>
               Fully Approved - Ready to Mint!
             </span>
+          </div>
+        ) : mintBlockers.length > 0 && (
+          <div style={{
+            marginTop: 16,
+            padding: 12,
+            background: 'rgba(245, 158, 11, 0.1)',
+            border: '1px solid #f59e0b',
+            borderRadius: 8,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>
+              Not ready to mint:
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: '#94a3b8' }}>
+              {mintBlockers.slice(0, 3).map((blocker, i) => (
+                <li key={i}>{blocker}</li>
+              ))}
+              {mintBlockers.length > 3 && (
+                <li>...and {mintBlockers.length - 3} more</li>
+              )}
+            </ul>
           </div>
         )}
       </div>

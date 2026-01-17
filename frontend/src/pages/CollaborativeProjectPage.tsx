@@ -374,16 +374,16 @@ export default function CollaborativeProjectPage() {
               {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} Project
             </span>
             <span style={{
-              background: project.status === 'ready_for_mint'
+              background: project.can_mint_status?.can_mint
                 ? 'rgba(16, 185, 129, 0.1)'
                 : 'rgba(245, 158, 11, 0.1)',
-              color: project.status === 'ready_for_mint' ? '#10b981' : '#f59e0b',
+              color: project.can_mint_status?.can_mint ? '#10b981' : '#f59e0b',
               padding: '4px 10px',
               borderRadius: 6,
               fontSize: 12,
               fontWeight: 600,
             }}>
-              {project.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              {project.can_mint_status?.can_mint ? 'Ready to Mint' : 'Not Ready to Mint'}
             </span>
           </div>
         </div>

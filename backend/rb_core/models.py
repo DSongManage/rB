@@ -540,7 +540,8 @@ class BookProject(models.Model):
     
     class Meta:
         ordering = ['-updated_at']
-    
+        unique_together = ['creator', 'title']
+
     def __str__(self):
         return f"{self.title} by {self.creator.username}"
 
@@ -1700,11 +1701,59 @@ class CollaborativeProject(models.Model):
         help_text="Cover image for the project"
     )
 
+    # Dispute/freeze status
+    has_active_dispute = models.BooleanField(
+        default=False,
+        help_text="Whether project has an active dispute (blocks minting)"
+    )
+    has_active_breach = models.BooleanField(
+        default=False,
+        help_text="Whether any collaborator has an uncured breach (blocks minting)"
+    )
+
     class Meta:
         ordering = ['-created_at']
+        unique_together = ['created_by', 'title']
 
     def __str__(self):
         return self.title
+
+    def can_mint(self):
+        """Check if project can be minted (pre-mint gate checks)."""
+        blockers = []
+
+        # Check for active disputes
+        if self.has_active_dispute:
+            blockers.append("Active dispute must be resolved")
+
+        # Check for uncured breaches
+        if self.collaborators.filter(has_active_breach=True, breach_cured_at__isnull=True).exists():
+            blockers.append("Uncured breaches must be resolved")
+
+        # Check all collaborators accepted
+        if self.collaborators.filter(status='invited').exists():
+            blockers.append("All invitations must be accepted or declined")
+
+        # Check all tasks signed off
+        for collab in self.collaborators.filter(status='accepted'):
+            if collab.tasks_total > 0 and collab.tasks_signed_off < collab.tasks_total:
+                blockers.append(f"Tasks for {collab.user.username} must be signed off")
+
+        # Check all approvals
+        if not self.is_fully_approved():
+            blockers.append("All collaborators must approve content and revenue split")
+
+        # Check warranty acknowledgments
+        if self.collaborators.filter(
+            status='accepted',
+            warranty_of_originality_acknowledged=False
+        ).exists():
+            blockers.append("All collaborators must acknowledge warranty of originality")
+
+        return {
+            'can_mint': len(blockers) == 0,
+            'blockers': blockers
+        }
 
     def is_fully_approved(self):
         """Check if all collaborators have approved the current version and revenue split."""
@@ -1867,13 +1916,85 @@ class CollaboratorRole(models.Model):
         blank=True,
         help_text="Timestamp when contract was locked (on acceptance)"
     )
+    contract_effective_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When contract obligations begin (defaults to acceptance date if not set)"
+    )
+    # Breach tracking (enhanced)
+    BREACH_TYPE_CHOICES = [
+        ('deadline', 'Deadline Breach'),
+        ('quality', 'Quality Breach'),
+        ('communication', 'Communication Breach'),
+        ('abandonment', 'Abandonment'),
+        ('scope', 'Scope Violation'),
+        ('confidentiality', 'Confidentiality Breach'),
+    ]
+
+    BREACH_SEVERITY_CHOICES = [
+        ('minor', 'Minor'),       # Warning on record
+        ('moderate', 'Moderate'), # Revenue reduction eligible
+        ('severe', 'Severe'),     # Termination eligible
+        ('critical', 'Critical'), # Immediate termination + legal
+    ]
+
     has_active_breach = models.BooleanField(
         default=False,
-        help_text="Whether collaborator has an active deadline breach"
+        help_text="Whether collaborator has an active breach"
+    )
+    current_breach_type = models.CharField(
+        max_length=20,
+        choices=BREACH_TYPE_CHOICES,
+        blank=True,
+        help_text="Type of current active breach"
+    )
+    current_breach_severity = models.CharField(
+        max_length=20,
+        choices=BREACH_SEVERITY_CHOICES,
+        blank=True,
+        help_text="Severity level of current breach"
+    )
+    breach_detected_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the current breach was detected"
+    )
+    cure_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Deadline to cure the breach"
+    )
+    cure_actions_required = models.TextField(
+        blank=True,
+        help_text="Description of actions needed to cure the breach"
+    )
+    breach_cured_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the breach was cured (null if uncured)"
+    )
+    breach_contested = models.BooleanField(
+        default=False,
+        help_text="Whether the collaborator has contested this breach"
+    )
+    breach_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Cumulative count of breaches for this collaboration"
     )
     cancellation_eligible = models.BooleanField(
         default=False,
         help_text="Whether owner can cancel due to breach"
+    )
+
+    # Warranty of originality acknowledgment
+    warranty_of_originality_acknowledged = models.BooleanField(
+        default=False,
+        help_text="Collaborator acknowledges their contributions are original work"
+    )
+    warranty_acknowledged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When warranty of originality was acknowledged"
     )
 
     # Denormalized task counters for performance
@@ -1907,10 +2028,22 @@ class CollaboratorRole(models.Model):
         Merge default permissions from role_definition with custom overrides.
         Custom permissions field takes precedence.
         """
+        base_perms = None
+
         if self.role_definition:
             base_perms = self.role_definition.default_permissions.copy() if self.role_definition.default_permissions else {}
-        else:
-            # Fallback: derive from legacy boolean flags
+        elif self.role:
+            # Fallback: try to look up RoleDefinition by name
+            # This helps migrate existing records that have role names but no role_definition_id
+            try:
+                role_def = RoleDefinition.objects.filter(name=self.role).first()
+                if role_def and role_def.default_permissions:
+                    base_perms = role_def.default_permissions.copy()
+            except Exception:
+                pass
+
+        if base_perms is None:
+            # Final fallback: derive from legacy boolean flags
             base_perms = {
                 'create': [],
                 'edit': {'scope': 'own', 'types': []},
@@ -1942,7 +2075,16 @@ class CollaboratorRole(models.Model):
         if self.role_definition and self.role_definition.ui_components:
             return self.role_definition.ui_components
 
-        # Fallback: derive from legacy boolean flags
+        # Fallback: try to look up RoleDefinition by name
+        if self.role:
+            try:
+                role_def = RoleDefinition.objects.filter(name=self.role).first()
+                if role_def and role_def.ui_components:
+                    return role_def.ui_components
+            except Exception:
+                pass
+
+        # Final fallback: derive from legacy boolean flags
         components = []
         if self.can_edit_text:
             components.append('chapter_editor')
@@ -2013,6 +2155,107 @@ class CollaboratorRole(models.Model):
         self.tasks_total = self.contract_tasks.count()
         self.tasks_signed_off = self.contract_tasks.filter(status='signed_off').count()
         self.save(update_fields=['tasks_total', 'tasks_signed_off'])
+
+    def trigger_breach(self, breach_type, severity, cure_actions, notify=True):
+        """
+        Trigger a breach for this collaborator.
+
+        Cure periods by severity:
+        - minor: 7 days
+        - moderate: 14 days
+        - severe: 7 days
+        - critical: 0 days (immediate)
+        """
+        from datetime import timedelta
+        now = timezone.now()
+
+        cure_days = {
+            'minor': 7,
+            'moderate': 14,
+            'severe': 7,
+            'critical': 0,
+        }
+
+        # Halve cure period for repeat offenders (3+ breaches)
+        days = cure_days.get(severity, 7)
+        if self.breach_count >= 2:
+            days = max(0, days // 2)
+
+        self.has_active_breach = True
+        self.current_breach_type = breach_type
+        self.current_breach_severity = severity
+        self.breach_detected_at = now
+        self.cure_deadline = now + timedelta(days=days) if days > 0 else now
+        self.cure_actions_required = cure_actions
+        self.breach_cured_at = None
+        self.breach_contested = False
+        self.breach_count += 1
+
+        # Set cancellation eligibility for severe/critical breaches
+        if severity in ['severe', 'critical']:
+            self.cancellation_eligible = True
+
+        self.save()
+
+        # TODO: Send breach notification to collaborator if notify=True
+        return self
+
+    def cure_breach(self, notes=''):
+        """Mark the current breach as cured."""
+        if not self.has_active_breach:
+            raise ValueError("No active breach to cure")
+
+        now = timezone.now()
+        self.has_active_breach = False
+        self.breach_cured_at = now
+        self.cancellation_eligible = False
+        self.save()
+
+        return self
+
+    def contest_breach(self, reason=''):
+        """Collaborator contests the breach, triggering dispute escalation."""
+        if not self.has_active_breach:
+            raise ValueError("No active breach to contest")
+
+        self.breach_contested = True
+        self.save()
+
+        # This should trigger creation of a Dispute record
+        return self
+
+    def check_quality_breach(self):
+        """Check if task rejection count triggers a quality breach."""
+        # Quality breach: 3+ rejections on same task
+        for task in self.contract_tasks.all():
+            if task.rejection_count >= 3 and not self.has_active_breach:
+                self.trigger_breach(
+                    breach_type='quality',
+                    severity='moderate',
+                    cure_actions=f'Submit acceptable revision for task: {task.title}'
+                )
+                return True
+        return False
+
+    def check_abandonment(self, days_threshold=30):
+        """Check for abandonment (no activity for threshold days)."""
+        from datetime import timedelta
+        now = timezone.now()
+
+        # Check if any task has been updated in the threshold period
+        recent_activity = self.contract_tasks.filter(
+            updated_at__gte=now - timedelta(days=days_threshold)
+        ).exists()
+
+        if not recent_activity and not self.has_active_breach and self.status == 'accepted':
+            if self.tasks_signed_off < self.tasks_total:  # Still has pending work
+                self.trigger_breach(
+                    breach_type='abandonment',
+                    severity='severe',
+                    cure_actions='Resume active work on assigned tasks'
+                )
+                return True
+        return False
 
 
 class ContractTask(models.Model):
@@ -2108,6 +2351,10 @@ class ContractTask(models.Model):
         blank=True,
         help_text="When the completion was rejected"
     )
+    rejection_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of times this task has been rejected (3+ triggers quality breach)"
+    )
 
     # Breach tracking
     is_overdue = models.BooleanField(
@@ -2166,18 +2413,26 @@ class ContractTask(models.Model):
         self.collaborator_role.update_task_counts()
 
     def reject_completion(self, owner, reason):
-        """Owner rejects the completion and sends back for revision."""
+        """Owner rejects the completion and sends back for revision.
+
+        After 3 rejections on the same task, triggers a quality breach.
+        """
         if self.status != 'complete':
             raise ValueError(f"Cannot reject: task status is {self.status}, expected 'complete'")
 
         self.status = 'in_progress'
         self.rejection_notes = reason
         self.rejected_at = timezone.now()
+        self.rejection_count += 1
+
         # Clear completion tracking
         self.marked_complete_at = None
         self.marked_complete_by = None
         self.completion_notes = ''
         self.save()
+
+        # Check for quality breach (3+ rejections)
+        self.collaborator_role.check_quality_breach()
 
     def check_overdue(self):
         """Check if task is overdue and update breach status if needed."""
@@ -2189,14 +2444,237 @@ class ContractTask(models.Model):
             self.overdue_notified_at = timezone.now()
             self.save()
 
-            # Update CollaboratorRole breach status
+            # Trigger deadline breach using the new breach system
             role = self.collaborator_role
-            role.has_active_breach = True
-            role.cancellation_eligible = True
-            role.save(update_fields=['has_active_breach', 'cancellation_eligible'])
+            if not role.has_active_breach:
+                role.trigger_breach(
+                    breach_type='deadline',
+                    severity='minor',  # First deadline breach is minor
+                    cure_actions=f'Complete overdue task: {self.title}'
+                )
 
             return True  # Newly overdue
         return self.is_overdue
+
+
+class Dispute(models.Model):
+    """Dispute tracking for collaboration conflicts (PRE-MINT ONLY).
+
+    Escalation levels:
+    0 - Self-resolution (proposals/voting)
+    1 - Structured negotiation (formal ticket, 7-day window)
+    2 - Platform mediation (staff review, non-binding recommendation)
+    3 - Binding resolution (platform decision or external arbitration)
+
+    Once a project is minted, disputes are impossible - the smart contract governs.
+    """
+
+    CATEGORY_CHOICES = [
+        ('revenue', 'Revenue Dispute'),
+        ('quality', 'Quality Dispute'),
+        ('deadline', 'Deadline Dispute'),
+        ('scope', 'Scope Dispute'),
+        ('attribution', 'Attribution Dispute'),
+        ('bad_faith', 'Bad Faith / Fraud'),
+    ]
+
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('negotiating', 'Negotiating'),
+        ('mediating', 'Under Mediation'),
+        ('binding', 'Binding Decision Pending'),
+        ('resolved', 'Resolved'),
+        ('withdrawn', 'Withdrawn'),
+    ]
+
+    LEVEL_CHOICES = [
+        (0, 'Self-Resolution'),
+        (1, 'Structured Negotiation'),
+        (2, 'Platform Mediation'),
+        (3, 'Binding Resolution'),
+    ]
+
+    project = models.ForeignKey(
+        CollaborativeProject,
+        on_delete=models.CASCADE,
+        related_name='disputes',
+        help_text="Project this dispute relates to"
+    )
+    opened_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='disputes_opened',
+        help_text="User who opened the dispute"
+    )
+    respondent = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='disputes_against',
+        help_text="User the dispute is against"
+    )
+    category = models.CharField(
+        max_length=20,
+        choices=CATEGORY_CHOICES,
+        help_text="Category of dispute"
+    )
+    level = models.PositiveIntegerField(
+        choices=LEVEL_CHOICES,
+        default=1,
+        help_text="Current escalation level"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='open'
+    )
+
+    # Dispute content
+    title = models.CharField(
+        max_length=200,
+        help_text="Brief title describing the dispute"
+    )
+    opener_position = models.TextField(
+        help_text="Opening party's statement of the dispute"
+    )
+    respondent_position = models.TextField(
+        blank=True,
+        help_text="Respondent's statement/defense"
+    )
+
+    # Mediation/resolution
+    mediator_recommendation = models.TextField(
+        blank=True,
+        help_text="Platform mediator's non-binding recommendation"
+    )
+    final_decision = models.TextField(
+        blank=True,
+        help_text="Binding decision if escalated to level 3"
+    )
+    decision_by = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Who made the final decision (username or 'platform')"
+    )
+
+    # Timestamps
+    opened_at = models.DateTimeField(auto_now_add=True)
+    escalated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When dispute was last escalated"
+    )
+    resolved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When dispute was resolved"
+    )
+
+    # Related breach (if dispute stems from breach contest)
+    related_breach = models.BooleanField(
+        default=False,
+        help_text="Whether this dispute is from a contested breach"
+    )
+
+    class Meta:
+        ordering = ['-opened_at']
+        indexes = [
+            models.Index(fields=['project', 'status']),
+            models.Index(fields=['opened_by', 'status']),
+            models.Index(fields=['respondent', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Dispute: {self.title} ({self.get_status_display()})"
+
+    def escalate(self):
+        """Escalate dispute to next level."""
+        if self.level >= 3:
+            raise ValueError("Cannot escalate beyond level 3")
+
+        self.level += 1
+        self.escalated_at = timezone.now()
+
+        # Update status based on level
+        if self.level == 1:
+            self.status = 'negotiating'
+        elif self.level == 2:
+            self.status = 'mediating'
+        elif self.level == 3:
+            self.status = 'binding'
+
+        self.save()
+
+        # Freeze project actions
+        self.project.has_active_dispute = True
+        self.project.save(update_fields=['has_active_dispute'])
+
+        return self
+
+    def resolve(self, resolution, decision_by='platform'):
+        """Resolve the dispute."""
+        self.status = 'resolved'
+        self.final_decision = resolution
+        self.decision_by = decision_by
+        self.resolved_at = timezone.now()
+        self.save()
+
+        # Unfreeze project if no other active disputes
+        active_disputes = self.project.disputes.filter(
+            status__in=['open', 'negotiating', 'mediating', 'binding']
+        ).exclude(id=self.id).exists()
+
+        if not active_disputes:
+            self.project.has_active_dispute = False
+            self.project.save(update_fields=['has_active_dispute'])
+
+        return self
+
+    def withdraw(self):
+        """Opener withdraws the dispute."""
+        self.status = 'withdrawn'
+        self.resolved_at = timezone.now()
+        self.save()
+
+        # Unfreeze project if no other active disputes
+        active_disputes = self.project.disputes.filter(
+            status__in=['open', 'negotiating', 'mediating', 'binding']
+        ).exclude(id=self.id).exists()
+
+        if not active_disputes:
+            self.project.has_active_dispute = False
+            self.project.save(update_fields=['has_active_dispute'])
+
+        return self
+
+
+class DisputeMessage(models.Model):
+    """Messages within a dispute thread."""
+
+    dispute = models.ForeignKey(
+        Dispute,
+        on_delete=models.CASCADE,
+        related_name='messages',
+        help_text="Parent dispute"
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        help_text="Message author"
+    )
+    content = models.TextField(
+        help_text="Message content"
+    )
+    is_mediator = models.BooleanField(
+        default=False,
+        help_text="Whether this message is from platform mediator"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Message by {self.author.username} on {self.dispute.title}"
 
 
 class ProjectSection(models.Model):
@@ -2239,12 +2717,44 @@ class ProjectSection(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Asset provenance tracking (for termination/split handling)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_sections',
+        help_text="User who uploaded the current media file"
+    )
+    is_derivative = models.BooleanField(
+        default=False,
+        help_text="True if content is derived from another collaborator's work"
+    )
+    parent_section = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='derivatives',
+        help_text="Original section this was derived from (for derivative tracking)"
+    )
+
     class Meta:
         ordering = ['order', 'created_at']
         unique_together = ['project', 'order']
 
     def __str__(self):
         return f"{self.project.title} - {self.section_type} #{self.order}"
+
+    @property
+    def is_separable(self):
+        """
+        Determine if this section can be cleanly separated on termination.
+        Separable = uploaded as original by owner, not derived from others.
+        """
+        return not self.is_derivative and (
+            self.uploaded_by is None or self.uploaded_by == self.owner
+        )
 
 
 class ProjectComment(models.Model):
@@ -2426,6 +2936,7 @@ class ComicSeries(models.Model):
     class Meta:
         ordering = ['-updated_at']
         verbose_name_plural = 'Comic Series'
+        unique_together = ['creator', 'title']
 
     def __str__(self):
         return f"{self.title} by {self.creator.username}"
@@ -2630,7 +3141,7 @@ class ComicPage(models.Model):
     default_gutter_width = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=2.0,
+        default=0.5,
         help_text="Default gutter/line width in percentage of page width"
     )
     default_line_color = models.CharField(
@@ -2750,6 +3261,28 @@ class ComicPanel(models.Model):
         help_text="Artist responsible for this panel's artwork"
     )
 
+    # Derivative tracking (for termination/split handling)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_panels',
+        help_text="User who uploaded the current artwork"
+    )
+    is_derivative = models.BooleanField(
+        default=False,
+        help_text="True if artwork is derived from another collaborator's work"
+    )
+    source_panel = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='derivatives',
+        help_text="Original panel this was derived from"
+    )
+
     order = models.PositiveIntegerField(default=0, help_text="Reading order within page")
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -2760,6 +3293,15 @@ class ComicPanel(models.Model):
 
     def __str__(self):
         return f"Panel {self.order} on Page {self.page.page_number}"
+
+    @property
+    def is_separable(self):
+        """
+        Determine if this panel can be cleanly separated on termination.
+        """
+        return not self.is_derivative and (
+            self.uploaded_by is None or self.uploaded_by == self.artist
+        )
 
 
 class ArtworkLibraryItem(models.Model):
@@ -2813,6 +3355,20 @@ class ArtworkLibraryItem(models.Model):
     # Usage tracking
     usage_count = models.PositiveIntegerField(default=0, help_text="Times used in panels")
 
+    # Derivative tracking (for termination/split handling)
+    is_derivative = models.BooleanField(
+        default=False,
+        help_text="True if artwork is derived from another collaborator's work"
+    )
+    source_artwork = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='derivatives',
+        help_text="Original artwork this was derived from"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -2823,6 +3379,13 @@ class ArtworkLibraryItem(models.Model):
 
     def __str__(self):
         return f"{self.title or self.filename} ({self.project.title})"
+
+    @property
+    def is_separable(self):
+        """
+        Determine if this artwork can be cleanly separated on termination.
+        """
+        return not self.is_derivative
 
     def save(self, *args, **kwargs):
         # Auto-populate filename from file if not set
@@ -2859,6 +3422,18 @@ class SpeechBubble(models.Model):
         ('caption', 'Caption'),
         ('radio', 'Radio/Electronic'),
         ('burst', 'Action Burst'),
+        # New manga/western types
+        ('flash', 'Manga Flash'),       # Radial sunburst speed lines
+        ('wavy', 'Nervous/Wavy'),       # Trembling outline for fear/hesitation
+        ('angry', 'Angry Spikes'),      # Small hostile spikes around edge
+        ('poof', 'Sound Effect'),       # POOF/BAM cloud for SFX
+        ('electric', 'Electric/Shock'), # Lightning bolt edges
+    ]
+
+    BUBBLE_STYLE_CHOICES = [
+        ('manga', 'Manga/Japanese'),
+        ('western', 'Western/American'),
+        ('custom', 'Custom'),
     ]
 
     POINTER_DIRECTION_CHOICES = [
@@ -2887,6 +3462,12 @@ class SpeechBubble(models.Model):
     FONT_STYLE_CHOICES = [
         ('normal', 'Normal'),
         ('italic', 'Italic'),
+    ]
+
+    TAIL_TYPE_CHOICES = [
+        ('straight', 'Straight'),
+        ('curved', 'Curved'),
+        ('dots', 'Thought Dots'),
     ]
 
     panel = models.ForeignKey(
@@ -2936,7 +3517,7 @@ class SpeechBubble(models.Model):
     border_color = models.CharField(max_length=7, default='#000000')
     border_width = models.PositiveIntegerField(default=2)
 
-    # Pointer/tail
+    # Pointer/tail (legacy fields for backward compatibility)
     pointer_direction = models.CharField(
         max_length=20,
         choices=POINTER_DIRECTION_CHOICES,
@@ -2944,6 +3525,40 @@ class SpeechBubble(models.Model):
     )
     # Pointer position along the edge (0-100%)
     pointer_position = models.DecimalField(max_digits=5, decimal_places=2, default=50)
+
+    # New draggable tail system
+    # Tail endpoint position (as % of panel, relative to bubble center)
+    # Values > 100 or < 0 mean tail points outside the panel
+    tail_end_x_percent = models.DecimalField(
+        max_digits=6, decimal_places=2, default=50,
+        help_text='X position where tail tip points (as % of panel width)'
+    )
+    tail_end_y_percent = models.DecimalField(
+        max_digits=6, decimal_places=2, default=120,
+        help_text='Y position where tail tip points (as % of panel height). >100 means below panel.'
+    )
+    tail_type = models.CharField(
+        max_length=20,
+        choices=TAIL_TYPE_CHOICES,
+        default='curved',
+        help_text='Style of the tail: straight, curved bezier, or dots for thought bubbles'
+    )
+
+    # Style preset system (manga vs western)
+    bubble_style = models.CharField(
+        max_length=20,
+        choices=BUBBLE_STYLE_CHOICES,
+        default='manga',
+        help_text='Overall style preset: manga (clean, thin strokes) or western (halftone, thick strokes)'
+    )
+    speed_lines_enabled = models.BooleanField(
+        default=False,
+        help_text='Enable radial speed lines (manga-style emphasis effect)'
+    )
+    halftone_shadow = models.BooleanField(
+        default=False,
+        help_text='Enable halftone dot pattern shadow (western comics style)'
+    )
 
     # Ownership
     writer = models.ForeignKey(

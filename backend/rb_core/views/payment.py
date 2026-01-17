@@ -443,15 +443,30 @@ class PayWithBalanceView(APIView):
                 'error': 'Platform configuration error'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        # Calculate payment splits (platform fee + collaborator shares)
+        transfers = self._calculate_payment_splits(intent, platform_wallet)
+        if not transfers:
+            return Response({
+                'error': 'Failed to calculate payment distribution'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         # Build sponsored transaction (platform pays fees)
         from rb_core.services.sponsored_transaction_service import get_sponsored_transaction_service
         try:
             sponsored_service = get_sponsored_transaction_service()
-            tx_data = sponsored_service.build_sponsored_usdc_transfer(
-                user_wallet=user.wallet_address,
-                recipient_wallet=platform_wallet,
-                amount=intent.total_amount,
-            )
+            # Use multi-transfer if there are collaborators, single transfer otherwise
+            if len(transfers) > 1:
+                tx_data = sponsored_service.build_sponsored_multi_transfer(
+                    user_wallet=user.wallet_address,
+                    transfers=transfers,
+                )
+            else:
+                # Single recipient - use original function
+                tx_data = sponsored_service.build_sponsored_usdc_transfer(
+                    user_wallet=user.wallet_address,
+                    recipient_wallet=transfers[0][0],
+                    amount=transfers[0][1],
+                )
         except ValueError as e:
             logger.error(f"Platform wallet not configured: {e}")
             return Response({
@@ -470,7 +485,7 @@ class PayWithBalanceView(APIView):
         intent.save()
 
         # Return transaction data for client-side signing
-        return Response({
+        response_data = {
             'intent_id': intent.id,
             'status': 'awaiting_signature',
             'serialized_transaction': tx_data['serialized_transaction'],
@@ -479,14 +494,158 @@ class PayWithBalanceView(APIView):
             'platform_pubkey': tx_data['platform_pubkey'],
             'user_pubkey': tx_data['user_pubkey'],
             'amount': tx_data['amount'],
-            'recipient': tx_data['recipient'],
             'instructions': (
                 'Sign this transaction with your wallet to authorize the USDC transfer. '
                 'The platform will pay the transaction fee for you. '
                 'After signing, call the submit endpoint with your signature.'
             ),
             'submit_endpoint': f'/api/payment/intent/{intent.id}/submit/',
-        })
+        }
+
+        # Add recipient info (single transfer) or num_transfers (multi)
+        if 'recipient' in tx_data:
+            response_data['recipient'] = tx_data['recipient']
+        if 'num_transfers' in tx_data:
+            response_data['num_transfers'] = tx_data['num_transfers']
+            response_data['transfers'] = [(w, str(a)) for w, a in transfers]
+
+        return Response(response_data)
+
+    def _calculate_payment_splits(self, intent, platform_wallet: str) -> list[tuple[str, Decimal]]:
+        """
+        Calculate payment distribution for a purchase.
+
+        For collaborative content:
+        - Platform receives 10% of total
+        - Remaining 90% is split among collaborators by their revenue_percentage
+
+        For non-collaborative content:
+        - Platform receives 10%
+        - Creator receives 90%
+
+        Returns:
+            List of (wallet_address, amount) tuples
+        """
+        from rb_core.models import CollaboratorRole, CollaborativeProject
+        import json
+
+        total_amount = intent.total_amount
+        platform_fee_rate = Decimal('0.10')  # 10% platform fee
+        creator_pool_rate = Decimal('0.90')  # 90% to creators
+
+        platform_fee = (total_amount * platform_fee_rate).quantize(Decimal('0.000001'))
+        creator_pool = total_amount - platform_fee
+
+        transfers = []
+
+        # Check if this is a cart purchase with multiple items
+        if intent.is_cart_purchase and intent.cart_snapshot:
+            cart_data = intent.cart_snapshot if isinstance(intent.cart_snapshot, dict) else json.loads(intent.cart_snapshot)
+            items = cart_data.get('items', [])
+
+            # For simplicity, calculate splits for each item and aggregate
+            all_transfers = {}  # wallet -> amount
+            all_transfers[platform_wallet] = Decimal('0')
+
+            for item in items:
+                content_id = item.get('content_id')
+                item_price = Decimal(item.get('price', '0'))
+                item_platform_fee = (item_price * platform_fee_rate).quantize(Decimal('0.000001'))
+                item_creator_pool = item_price - item_platform_fee
+
+                all_transfers[platform_wallet] += item_platform_fee
+
+                if content_id:
+                    # Check for collaborative project
+                    try:
+                        content = Content.objects.get(id=content_id)
+                        collab_project = CollaborativeProject.objects.filter(
+                            published_content_id=content_id
+                        ).first()
+
+                        if collab_project:
+                            # Get collaborator splits
+                            collaborators = CollaboratorRole.objects.filter(
+                                project=collab_project,
+                                status='accepted'
+                            ).select_related('user__profile')
+
+                            for collab in collaborators:
+                                wallet = collab.user.wallet_address
+                                if wallet:
+                                    share = (item_creator_pool * Decimal(collab.revenue_percentage) / Decimal('100')).quantize(Decimal('0.000001'))
+                                    all_transfers[wallet] = all_transfers.get(wallet, Decimal('0')) + share
+                        else:
+                            # Non-collaborative - pay the creator
+                            creator_wallet = content.creator.wallet_address if hasattr(content, 'creator') else None
+                            if creator_wallet:
+                                all_transfers[creator_wallet] = all_transfers.get(creator_wallet, Decimal('0')) + item_creator_pool
+                            else:
+                                # Fallback: add to platform if no creator wallet
+                                all_transfers[platform_wallet] += item_creator_pool
+                    except Content.DoesNotExist:
+                        # Content not found, give to platform
+                        all_transfers[platform_wallet] += item_creator_pool
+                else:
+                    # No content_id, give to platform
+                    all_transfers[platform_wallet] += item_creator_pool
+
+            # Convert to list of tuples
+            for wallet, amount in all_transfers.items():
+                if amount > Decimal('0'):
+                    transfers.append((wallet, amount))
+
+        else:
+            # Single item purchase
+            content_id = None
+            content = None
+
+            # Try to find content from cart snapshot or intent
+            if intent.cart_snapshot:
+                cart_data = intent.cart_snapshot if isinstance(intent.cart_snapshot, dict) else json.loads(intent.cart_snapshot)
+                items = cart_data.get('items', [])
+                if items:
+                    content_id = items[0].get('content_id')
+
+            if content_id:
+                try:
+                    content = Content.objects.get(id=content_id)
+                except Content.DoesNotExist:
+                    pass
+
+            # Check for collaborative project
+            collab_project = None
+            if content_id:
+                collab_project = CollaborativeProject.objects.filter(
+                    published_content_id=content_id
+                ).first()
+
+            if collab_project:
+                # Add platform fee
+                transfers.append((platform_wallet, platform_fee))
+
+                # Get collaborator splits
+                collaborators = CollaboratorRole.objects.filter(
+                    project=collab_project,
+                    status='accepted'
+                ).select_related('user__profile')
+
+                for collab in collaborators:
+                    wallet = collab.user.wallet_address
+                    if wallet:
+                        share = (creator_pool * Decimal(collab.revenue_percentage) / Decimal('100')).quantize(Decimal('0.000001'))
+                        if share > Decimal('0'):
+                            transfers.append((wallet, share))
+                            logger.info(f"Collaborator {collab.user.username}: {collab.revenue_percentage}% = ${share}")
+
+                logger.info(f"Collaborative purchase: {len(transfers)} transfers for content {content_id}")
+            else:
+                # Non-collaborative content - send everything to platform
+                # (platform will distribute later or it's a solo creator)
+                transfers.append((platform_wallet, total_amount))
+                logger.info(f"Non-collaborative purchase: sending ${total_amount} to platform")
+
+        return transfers
 
 
 class SubmitSponsoredPaymentView(APIView):
@@ -568,13 +727,30 @@ class SubmitSponsoredPaymentView(APIView):
         intent.status = 'payment_received'
         intent.save()
 
-        # Trigger async purchase processing
+        # Trigger purchase processing - try async first, fall back to sync
         from rb_core.tasks import process_balance_purchase_task
+        purchase_result = None
         try:
-            process_balance_purchase_task.delay(intent.id, tx_signature)
+            # Try to queue async task (requires Celery broker)
+            result = process_balance_purchase_task.delay(intent.id, tx_signature)
+            logger.info(f"Queued async purchase processing for intent {intent.id}")
         except Exception as e:
-            logger.error(f"Failed to queue purchase processing: {e}")
-            # Still return success since payment is received
+            logger.warning(f"Celery not available, processing synchronously: {e}")
+            # Fall back to synchronous processing using .apply()
+            try:
+                # Use apply() with throw=False to run sync without raising broker errors
+                sync_result = process_balance_purchase_task.apply(
+                    args=[intent.id, tx_signature],
+                    throw=False
+                )
+                if sync_result.successful():
+                    purchase_result = sync_result.result
+                    logger.info(f"Synchronous purchase processing completed: {purchase_result}")
+                else:
+                    logger.error(f"Synchronous purchase processing failed: {sync_result.result}")
+            except Exception as sync_error:
+                logger.error(f"Synchronous purchase processing failed: {sync_error}")
+                # Don't fail the request - payment was received, purchase will be created later
 
         return Response({
             'intent_id': intent.id,

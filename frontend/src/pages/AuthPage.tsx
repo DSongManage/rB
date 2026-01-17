@@ -28,6 +28,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [web3authInstance, setWeb3authInstance] = useState<any>(null);
   const { refreshAuth } = useAuth();
+  const [shouldAutoTriggerWeb3Auth, setShouldAutoTriggerWeb3Auth] = useState(false);
 
   // Beta invite code handling
   const [searchParams] = useSearchParams();
@@ -61,6 +62,17 @@ export default function AuthPage() {
       validateInviteCode(inviteParam);
     }
   }, [searchParams]);
+
+  // Auto-trigger Web3Auth modal when entering wallet step from signup
+  useEffect(() => {
+    if (step === 'wallet' && walletChoice === 'web3auth' && shouldAutoTriggerWeb3Auth) {
+      setShouldAutoTriggerWeb3Auth(false);
+      // Small delay to ensure UI is ready
+      setTimeout(() => {
+        linkWalletWithWeb3Auth();
+      }, 500);
+    }
+  }, [step, walletChoice, shouldAutoTriggerWeb3Auth]);
 
   const validateInviteCode = async (code: string) => {
     if (!code || code.trim() === '') {
@@ -198,12 +210,12 @@ export default function AuthPage() {
         }
         // Refresh auth state after successful signup and login
         refreshAuth();
-        // Circle W3S creates wallet automatically in background
-        // Skip wallet step and go directly to done
+        // Go to wallet step for web3auth wallet creation
         if (walletChoice === 'web3auth') {
-          // Show success message that wallet is being created
-          setMsg('Account created! Your Solana wallet is being set up automatically.');
-          setStep('done');
+          // Go to wallet step and auto-trigger Web3Auth wallet creation
+          setMsg('Account created! Now let\'s set up your wallet.');
+          setShouldAutoTriggerWeb3Auth(true);
+          setStep('wallet');
         } else if (walletChoice === 'own') {
           // User wants to link their own wallet
           setStep('wallet');
@@ -631,9 +643,7 @@ export default function AuthPage() {
           Welcome to renaissBlock! 🎉
         </div>
         <div style={{fontSize:13, color:'#94a3b8', marginBottom:16}}>
-          {walletChoice === 'web3auth'
-            ? 'Your Web3Auth wallet has been created automatically. You can now receive NFTs and payments!'
-            : 'You can link a wallet anytime from your profile to receive NFTs and payments.'}
+          Your account is ready. You can link a wallet anytime from your profile to receive NFTs and payments.
         </div>
         <div style={{display:'flex', gap:8, justifyContent:'center'}}>
           <button onClick={()=> window.location.href = '/'}>Go to Home</button>

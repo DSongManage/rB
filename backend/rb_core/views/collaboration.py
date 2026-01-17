@@ -198,11 +198,19 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Check total revenue doesn't exceed 100%
-        current_total = project.total_revenue_percentage()
-        if current_total + revenue_percentage > 100:
+        # Get the inviter's (creator's) current collaborator role
+        try:
+            inviter_role = project.collaborators.get(user=core_user, status='accepted')
+        except CollaboratorRole.DoesNotExist:
             return Response(
-                {'error': f'Total revenue would exceed 100% (current: {current_total}%)'},
+                {'error': 'You must be an accepted collaborator to invite others'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Check if inviter has enough revenue percentage to give away
+        if inviter_role.revenue_percentage < revenue_percentage:
+            return Response(
+                {'error': f'You only have {inviter_role.revenue_percentage}% to allocate (requested: {revenue_percentage}%)'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -219,6 +227,10 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         # Create invitation within transaction
         with transaction.atomic():
+            # Deduct revenue percentage from inviter's share
+            inviter_role.revenue_percentage -= revenue_percentage
+            inviter_role.save(update_fields=['revenue_percentage'])
+
             collaborator = CollaboratorRole.objects.create(
                 project=project,
                 user=invited_user,
@@ -260,9 +272,11 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         """Accept a collaboration invitation and lock the contract.
 
         On acceptance:
+        - Warranty of originality must be acknowledged
         - Contract becomes locked (immutable)
         - All pending tasks become 'in_progress'
         - Contract version is recorded
+        - Contract effective date is set (defaults to acceptance time)
         """
         project = self.get_object()
 
@@ -283,6 +297,14 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Get warranty acknowledgment from request
+        warranty_acknowledged = request.data.get('warranty_of_originality_acknowledged', False)
+        if not warranty_acknowledged:
+            return Response(
+                {'error': 'You must acknowledge the warranty of originality to accept this invitation'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Accept invitation and lock contract within transaction
         with transaction.atomic():
             now = timezone.now()
@@ -291,9 +313,18 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             invitation.status = 'accepted'
             invitation.accepted_at = now
 
+            # Record warranty acknowledgment
+            invitation.warranty_of_originality_acknowledged = True
+            invitation.warranty_acknowledged_at = now
+
             # Lock the contract
             invitation.contract_locked_at = now
             invitation.contract_version += 1
+
+            # Set contract effective date (defaults to now if not already set)
+            if not invitation.contract_effective_date:
+                invitation.contract_effective_date = now
+
             invitation.save()
 
             # Activate all pending tasks (change from 'pending' to 'in_progress')
@@ -327,9 +358,18 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Decline invitation
-        invitation.status = 'declined'
-        invitation.save()
+        # Decline invitation and return revenue percentage to project creator
+        with transaction.atomic():
+            # Return revenue percentage to project creator
+            try:
+                creator_role = project.collaborators.get(user=project.created_by, status='accepted')
+                creator_role.revenue_percentage += invitation.revenue_percentage
+                creator_role.save(update_fields=['revenue_percentage'])
+            except CollaboratorRole.DoesNotExist:
+                pass  # Creator role doesn't exist (shouldn't happen)
+
+            invitation.status = 'declined'
+            invitation.save()
 
         # Notify project creator
         notify_invitation_response(invitation, accepted=False)

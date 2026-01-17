@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate, useBlocker } from 'react-router-dom';
 import { bookApi, BookProject, Chapter } from '../../services/bookApi';
 import ChapterList from './ChapterList';
 import ChapterEditor from './ChapterEditor';
 import PublishModal from './PublishModal';
-import { Menu, X, Settings } from 'lucide-react';
+import { Menu, X, Settings, AlertTriangle } from 'lucide-react';
 
 interface BookEditorProps {
   onPublish: (contentId: number) => void;
@@ -29,6 +29,24 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Title validation state
+  const [titleError, setTitleError] = useState<string>('');
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+
+  // Check if title is valid (not "Untitled Book" or empty)
+  const hasValidTitle = Boolean(
+    project?.title &&
+    project.title.trim() !== '' &&
+    project.title.trim().toLowerCase() !== 'untitled book'
+  );
+
+  // Check if there's unsaved content (chapters with content but no valid title)
+  const hasUnsavedContent = Boolean(
+    !hasValidTitle &&
+    chapters.some(ch => ch.content_html && ch.content_html.trim() !== '')
+  );
+
   // Handle window resize for mobile detection
   useEffect(() => {
     const handleResize = () => {
@@ -43,6 +61,35 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Warn before closing browser/tab if there's unsaved content without valid title
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedContent) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved content. Please add a title to save your work.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedContent]);
+
+  // Block in-app navigation if there's unsaved content without valid title
+  const blocker = useBlocker(
+    useCallback(
+      () => hasUnsavedContent,
+      [hasUnsavedContent]
+    )
+  );
+
+  // Show warning modal when navigation is blocked
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      setShowLeaveWarning(true);
+      setPendingNavigation(() => blocker.proceed);
+    }
+  }, [blocker.state]);
 
   // Initialize: Create a new project or load existing
   useEffect(() => {
@@ -173,12 +220,34 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
 
   const handleUpdateProjectTitle = async (title: string) => {
     if (!project) return;
-    
+
+    // Clear previous error
+    setTitleError('');
+
+    // Validate title
+    const trimmedTitle = title.trim();
+    if (trimmedTitle.toLowerCase() === 'untitled book') {
+      setTitleError('Please provide a unique title for your book');
+      return;
+    }
+
+    if (trimmedTitle === '') {
+      setTitleError('Title is required');
+      return;
+    }
+
     try {
-      const updatedProject = await bookApi.updateProject(project.id, { title });
+      const updatedProject = await bookApi.updateProject(project.id, { title: trimmedTitle });
       setProject(updatedProject);
+      setTitleError('');
     } catch (err: any) {
-      setError(err.message || 'Failed to update project title');
+      // Check if it's a duplicate title error from the backend
+      const errorMsg = err.message || 'Failed to update project title';
+      if (errorMsg.toLowerCase().includes('already have a book')) {
+        setTitleError('You already have a book with this title');
+      } else {
+        setError(errorMsg);
+      }
     }
   };
 
@@ -372,40 +441,49 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
     }}>
       {/* Mobile Header */}
       {isMobile ? (
-        <div className="book-editor-mobile-header">
-          <button
-            className="menu-btn"
-            onClick={() => setDrawerOpen(true)}
-            title="Open chapters"
-          >
-            <Menu size={20} />
-          </button>
-          <input
-            className="title-input"
-            type="text"
-            value={project?.title || ''}
-            onChange={(e) => {
-              if (project) {
-                setProject({ ...project, title: e.target.value });
-              }
-            }}
-            onBlur={(e) => handleUpdateProjectTitle(e.target.value)}
-            placeholder="Book Title"
-          />
-          <button
-            className="settings-btn"
-            onClick={() => setSettingsOpen(true)}
-            title="Book settings"
-          >
-            <Settings size={18} />
-          </button>
-          <button
-            className="publish-btn"
-            onClick={() => setShowPublishModal(true)}
-            disabled={chapters.length === 0}
-          >
-            Publish
-          </button>
+        <div style={{ flexShrink: 0 }}>
+          <div className="book-editor-mobile-header">
+            <button
+              className="menu-btn"
+              onClick={() => setDrawerOpen(true)}
+              title="Open chapters"
+            >
+              <Menu size={20} />
+            </button>
+            <input
+              className="title-input"
+              type="text"
+              value={project?.title || ''}
+              onChange={(e) => {
+                if (project) {
+                  setProject({ ...project, title: e.target.value });
+                  setTitleError(''); // Clear error on change
+                }
+              }}
+              onBlur={(e) => handleUpdateProjectTitle(e.target.value)}
+              placeholder="Book Title"
+              style={titleError ? { borderColor: '#ef4444' } : undefined}
+            />
+            <button
+              className="settings-btn"
+              onClick={() => setSettingsOpen(true)}
+              title="Book settings"
+            >
+              <Settings size={18} />
+            </button>
+            <button
+              className="publish-btn"
+              onClick={() => setShowPublishModal(true)}
+              disabled={chapters.length === 0}
+            >
+              Publish
+            </button>
+          </div>
+          {titleError && (
+            <div style={{ color: '#ef4444', fontSize: 12, padding: '4px 16px', background: 'var(--panel)' }}>
+              {titleError}
+            </div>
+          )}
         </div>
       ) : (
         /* Desktop Header */
@@ -416,7 +494,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
           padding: '16px 0',
           flexShrink: 0,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, flexWrap: 'wrap' }}>
             <button
               onClick={onBack}
               style={{
@@ -431,26 +509,36 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
             >
               ← Back
             </button>
-            <input
-              type="text"
-              value={project?.title || ''}
-              onChange={(e) => {
-                if (project) {
-                  setProject({ ...project, title: e.target.value });
-                }
-              }}
-              onBlur={(e) => handleUpdateProjectTitle(e.target.value)}
-              placeholder="Book Title"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text)',
-                fontSize: 20,
-                fontWeight: 700,
-                outline: 'none',
-                flex: 1,
-              }}
-            />
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <input
+                type="text"
+                value={project?.title || ''}
+                onChange={(e) => {
+                  if (project) {
+                    setProject({ ...project, title: e.target.value });
+                    setTitleError(''); // Clear error on change
+                  }
+                }}
+                onBlur={(e) => handleUpdateProjectTitle(e.target.value)}
+                placeholder="Book Title"
+                style={{
+                  background: 'transparent',
+                  border: titleError ? '1px solid #ef4444' : 'none',
+                  borderRadius: titleError ? 4 : 0,
+                  padding: titleError ? '4px 8px' : 0,
+                  color: 'var(--text)',
+                  fontSize: 20,
+                  fontWeight: 700,
+                  outline: 'none',
+                  width: '100%',
+                }}
+              />
+              {titleError && (
+                <div style={{ color: '#ef4444', fontSize: 12, marginTop: 4 }}>
+                  {titleError}
+                </div>
+              )}
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             {canDeleteProject && (
@@ -694,6 +782,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
             saving={saving}
             lastSaved={lastSaved}
             showManagement={selectedChapter?.is_published}
+            canAutosave={hasValidTitle}
             onManagementChange={async () => {
               if (project?.id) {
                 try {
@@ -716,6 +805,88 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
           />
         </div>
       </div>
+
+      {/* Navigation Warning Modal */}
+      {showLeaveWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            setShowLeaveWarning(false);
+            blocker.reset?.();
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--panel-border)',
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 400,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+              <AlertTriangle size={24} color="#f59e0b" />
+              <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 18 }}>
+                Unsaved Content
+              </h3>
+            </div>
+            <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
+              Your chapter content won't be saved because the book doesn't have a title yet.
+              Please add a title to save your work, or discard the project.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowLeaveWarning(false);
+                  blocker.reset?.();
+                }}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                Add Title
+              </button>
+              <button
+                onClick={() => {
+                  setShowLeaveWarning(false);
+                  pendingNavigation?.();
+                }}
+                style={{
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                Discard & Leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Publish Modal */}
       <PublishModal

@@ -11,6 +11,7 @@ interface ChapterEditorProps {
   lastSaved: Date | null;
   showManagement?: boolean;
   onManagementChange?: () => void;
+  canAutosave?: boolean; // If false, autosave is disabled (e.g., when book title is invalid)
 }
 
 export default function ChapterEditor({
@@ -19,7 +20,8 @@ export default function ChapterEditor({
   saving,
   lastSaved,
   showManagement,
-  onManagementChange
+  onManagementChange,
+  canAutosave = true
 }: ChapterEditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -62,8 +64,9 @@ export default function ChapterEditor({
   }, [chapter?.id, chapter?.title, chapter?.content_html, chapter?.synopsis]);
 
   // Debounced save - only trigger if user made changes (not syncing from props)
+  // AND if canAutosave is true (book has valid title)
   useEffect(() => {
-    if (!chapter || isSyncingFromProps.current) return;
+    if (!chapter || isSyncingFromProps.current || !canAutosave) return;
 
     const timer = setTimeout(() => {
       // Double-check we're not syncing and there are actual changes
@@ -73,7 +76,7 @@ export default function ChapterEditor({
     }, 3000); // 3 second debounce
 
     return () => clearTimeout(timer);
-  }, [title, content, synopsis, chapter, onUpdateChapter]);
+  }, [title, content, synopsis, chapter, onUpdateChapter, canAutosave]);
 
   // Memoize word count calculation - must be before any early returns to follow Rules of Hooks
   const wordCount = useMemo(() => {

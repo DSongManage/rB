@@ -370,6 +370,22 @@ class BookProjectSerializer(serializers.ModelSerializer):
             'full_text': f"{copyright_line}\n\n{blockchain_message}"
         }
 
+    def validate_title(self, value):
+        """Validate book title - reject 'Untitled Book' and duplicates per user."""
+        if value.strip().lower() == 'untitled book':
+            raise serializers.ValidationError("Please provide a unique title for your book")
+
+        # Check for duplicates (per user)
+        request = self.context.get('request')
+        if request and request.user:
+            existing = BookProject.objects.filter(creator=request.user, title__iexact=value)
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError("You already have a book with this title")
+
+        return value
+
 
 class SeriesSerializer(serializers.ModelSerializer):
     """Serializer for book series."""
@@ -567,8 +583,14 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             'can_edit_audio', 'can_edit_video', 'can_edit', 'approved_current_version',
             'approved_revenue_split',
             # Contract management fields
-            'contract_version', 'contract_locked_at', 'has_active_breach',
-            'cancellation_eligible', 'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
+            'contract_version', 'contract_locked_at', 'contract_effective_date',
+            'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
+            # Breach tracking fields
+            'has_active_breach', 'current_breach_type', 'current_breach_severity',
+            'breach_detected_at', 'cure_deadline', 'cure_actions_required',
+            'breach_cured_at', 'breach_contested', 'breach_count', 'cancellation_eligible',
+            # Warranty of originality
+            'warranty_of_originality_acknowledged', 'warranty_acknowledged_at',
             # Nested tasks
             'contract_tasks',
             # Counter-proposal fields
@@ -579,8 +601,12 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'invited_at', 'username', 'display_name', 'avatar_url', 'can_edit',
-            'contract_version', 'contract_locked_at', 'has_active_breach',
-            'cancellation_eligible', 'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
+            'contract_version', 'contract_locked_at', 'contract_effective_date',
+            'has_active_breach', 'current_breach_type', 'current_breach_severity',
+            'breach_detected_at', 'cure_deadline', 'cure_actions_required',
+            'breach_cured_at', 'breach_contested', 'breach_count', 'cancellation_eligible',
+            'warranty_of_originality_acknowledged', 'warranty_acknowledged_at',
+            'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
             'contract_tasks', 'role_definition_details', 'effective_role_name',
             'effective_permissions', 'ui_components',
         ]
@@ -604,17 +630,20 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             return ''
 
     def get_can_edit(self, obj):
-        """Return list of section types this collaborator can edit."""
-        can_edit = []
-        if obj.can_edit_text:
-            can_edit.append('text')
-        if obj.can_edit_images:
-            can_edit.append('image')
-        if obj.can_edit_audio:
-            can_edit.append('audio')
-        if obj.can_edit_video:
-            can_edit.append('video')
-        return can_edit
+        """Return list of section types this collaborator can edit.
+
+        Uses effective_permissions which merges RoleDefinition defaults
+        with custom overrides. Legacy boolean flags are only used when
+        no RoleDefinition is found.
+        """
+        # Use the effective_permissions property which handles all permission sources
+        perms = obj.effective_permissions
+        edit_config = perms.get('edit', {})
+        can_edit_types = edit_config.get('types', [])
+
+        # Return the types from effective_permissions (which already handles
+        # RoleDefinition lookup by ID or name, with legacy boolean fallback)
+        return list(can_edit_types)
 
     def get_ui_components(self, obj):
         """Return list of UI components this role should see."""
@@ -675,6 +704,7 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
     progress_percentage = serializers.SerializerMethodField()
     estimated_earnings = serializers.SerializerMethodField()
     copyright_preview = serializers.SerializerMethodField()
+    can_mint_status = serializers.SerializerMethodField()
 
     class Meta:
         model = CollaborativeProject
@@ -684,11 +714,14 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
             'created_by', 'created_by_username', 'created_at', 'updated_at',
             'collaborators', 'sections', 'recent_comments', 'is_fully_approved',
             'total_collaborators', 'progress_percentage', 'estimated_earnings',
-            'authors_note', 'copyright_preview', 'is_solo', 'cover_image'
+            'authors_note', 'copyright_preview', 'is_solo', 'cover_image',
+            # Dispute/breach status
+            'has_active_dispute', 'has_active_breach', 'can_mint_status'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'created_by', 'created_by_username',
-            'is_fully_approved', 'total_collaborators', 'estimated_earnings', 'copyright_preview'
+            'is_fully_approved', 'total_collaborators', 'estimated_earnings', 'copyright_preview',
+            'has_active_dispute', 'has_active_breach', 'can_mint_status'
         ]
 
     def get_recent_comments(self, obj):
@@ -746,6 +779,26 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
             'blockchain_message': blockchain_message,
             'full_text': f"{copyright_line}\n\n{blockchain_message}"
         }
+
+    def get_can_mint_status(self, obj):
+        """Get pre-mint gate status with blockers."""
+        return obj.can_mint()
+
+    def validate_title(self, value):
+        """Validate project title - reject 'Untitled Project' and duplicates per user."""
+        if value.strip().lower() in ['untitled project', 'untitled']:
+            raise serializers.ValidationError("Please provide a unique title for your project")
+
+        # Check for duplicates (per user)
+        request = self.context.get('request')
+        if request and request.user:
+            existing = CollaborativeProject.objects.filter(created_by=request.user, title__iexact=value)
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError("You already have a project with this title")
+
+        return value
 
 
 class CollaborativeProjectListSerializer(serializers.ModelSerializer):
@@ -1491,6 +1544,10 @@ class SpeechBubbleSerializer(serializers.ModelSerializer):
             'font_weight', 'font_style', 'text_align',
             'background_color', 'border_color', 'border_width',
             'pointer_direction', 'pointer_position',
+            # Draggable tail fields
+            'tail_end_x_percent', 'tail_end_y_percent', 'tail_type',
+            # Style preset system (manga vs western)
+            'bubble_style', 'speed_lines_enabled', 'halftone_shadow',
             'writer', 'writer_username', 'order',
             'created_at', 'updated_at'
         ]
@@ -1668,6 +1725,22 @@ class ComicSeriesSerializer(serializers.ModelSerializer):
 
     def get_issue_count(self, obj):
         return obj.issues.count()
+
+    def validate_title(self, value):
+        """Validate comic series title - reject 'Untitled Series' and duplicates per user."""
+        if value.strip().lower() in ['untitled series', 'untitled']:
+            raise serializers.ValidationError("Please provide a unique title for your comic series")
+
+        # Check for duplicates (per user)
+        request = self.context.get('request')
+        if request and request.user:
+            existing = ComicSeries.objects.filter(creator=request.user, title__iexact=value)
+            if self.instance:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise serializers.ValidationError("You already have a comic series with this title")
+
+        return value
 
 
 class ComicSeriesListSerializer(serializers.ModelSerializer):

@@ -116,6 +116,22 @@ export const useAuth = () => {
     checkAuth();
   }, [checkAuth]);
 
+  // Listen for logout events from other components (e.g., Header)
+  useEffect(() => {
+    const handleLogoutEvent = () => {
+      setAuthState({
+        user: null,
+        loading: false,
+        isAuthenticated: false,
+      });
+    };
+
+    window.addEventListener('auth-logout', handleLogoutEvent);
+    return () => {
+      window.removeEventListener('auth-logout', handleLogoutEvent);
+    };
+  }, []);
+
   return {
     user: authState.user,
     loading: authState.loading,

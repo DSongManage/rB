@@ -159,6 +159,9 @@ function Header() {
     // Optimistically flip immediately
     setIsAuthed(false);
 
+    // Notify useAuth hook and other listeners about logout
+    window.dispatchEvent(new Event('auth-logout'));
+
     // Navigate to home using React Router
     navigate('/');
 
@@ -322,11 +325,11 @@ export default function App() {
           display: 'grid',
           gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr',
           gap: 16,
-          ...(showLibrarySidebar ? {
-            marginLeft: libraryExpanded ? 320 : 48,
-            marginRight: 0,
-            width: libraryExpanded ? 'calc(100% - 320px)' : 'calc(100% - 48px)',
-          } : {}),
+          marginLeft: showLibrarySidebar ? (libraryExpanded ? 320 : 48) : 0,
+          marginRight: 0,
+          width: showLibrarySidebar
+            ? (libraryExpanded ? 'calc(100% - 320px)' : 'calc(100% - 48px)')
+            : '100%',
           transition: 'margin-left 0.3s ease, width 0.3s ease',
         }}
       >
@@ -359,7 +362,8 @@ export default function App() {
                 <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
                 <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
                 <Route path="/cart/success" element={<ProtectedRoute><CartSuccessPage /></ProtectedRoute>} />
-                <Route path="/collaborations" element={<ProtectedRoute><CollaborationDashboard /></ProtectedRoute>} />
+                {/* Redirect /collaborations to profile page with collaborations tab */}
+                <Route path="/collaborations" element={<Navigate to="/profile?tab=collaborations" replace />} />
                 <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />

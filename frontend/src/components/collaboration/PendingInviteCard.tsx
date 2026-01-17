@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Book, Music, Video, Image, FileText, Layers, CheckSquare, Square, Shield } from 'lucide-react';
 import {
   collaborationApi,
   CollaborativeProject,
@@ -29,25 +30,38 @@ export function PendingInviteCard({
   const navigate = useNavigate();
   const [loading, setLoading] = useState<'accept' | 'decline' | null>(null);
   const [error, setError] = useState('');
+  const [warrantyAcknowledged, setWarrantyAcknowledged] = useState(false);
 
   // Get project creator info
   const creator = project.collaborators.find(
     (c) => c.user === project.created_by
   );
 
-  const contentTypeIcons: Record<string, string> = {
-    book: '📖',
-    music: '🎵',
-    video: '🎬',
-    art: '🎨',
+  const getContentTypeIcon = (type: string) => {
+    const iconProps = { size: 20, strokeWidth: 2 };
+    switch (type) {
+      case 'book': return <Book {...iconProps} />;
+      case 'comic': return <Layers {...iconProps} />;
+      case 'music': return <Music {...iconProps} />;
+      case 'video': return <Video {...iconProps} />;
+      case 'art': return <Image {...iconProps} />;
+      default: return <FileText {...iconProps} />;
+    }
   };
 
   const handleAccept = async (e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // Require warranty acknowledgment
+    if (!warrantyAcknowledged) {
+      setError('Please acknowledge the warranty of originality to accept');
+      return;
+    }
+
     setLoading('accept');
     setError('');
     try {
-      await collaborationApi.acceptInvitation(project.id);
+      await collaborationApi.acceptInvitation(project.id, warrantyAcknowledged);
       onAction();
       navigate(`/collaborations/${project.id}`);
     } catch (err: any) {
@@ -123,7 +137,7 @@ export function PendingInviteCard({
             justifyContent: 'center',
           }}
         >
-          {contentTypeIcons[project.content_type] || '📄'}
+          {getContentTypeIcon(project.content_type)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3
@@ -177,6 +191,54 @@ export function PendingInviteCard({
           </div>
           <div style={{ color: '#10b981', fontSize: 14, fontWeight: 600 }}>
             {myInvite.revenue_percentage}%
+          </div>
+        </div>
+      </div>
+
+      {/* Warranty of Originality Acknowledgment */}
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setWarrantyAcknowledged(!warrantyAcknowledged);
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 10,
+          padding: '10px 12px',
+          marginBottom: 12,
+          background: warrantyAcknowledged ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+          border: `1px solid ${warrantyAcknowledged ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+          borderRadius: 8,
+          cursor: 'pointer',
+          transition: 'all 0.2s',
+        }}
+      >
+        <div style={{ flexShrink: 0, marginTop: 2 }}>
+          {warrantyAcknowledged ? (
+            <CheckSquare size={18} style={{ color: '#10b981' }} />
+          ) : (
+            <Square size={18} style={{ color: '#64748b' }} />
+          )}
+        </div>
+        <div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            marginBottom: 4,
+          }}>
+            <Shield size={14} style={{ color: warrantyAcknowledged ? '#10b981' : '#f59e0b' }} />
+            <span style={{
+              color: warrantyAcknowledged ? '#10b981' : '#f59e0b',
+              fontSize: 12,
+              fontWeight: 600,
+            }}>
+              Warranty of Originality
+            </span>
+          </div>
+          <div style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+            I acknowledge that my contributions will be original work and do not infringe on any third-party rights.
           </div>
         </div>
       </div>

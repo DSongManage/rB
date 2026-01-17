@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 import { WalletManagementPanel } from '../components/WalletManagementPanel';
 import { InviteResponseModal } from '../components/collaboration/InviteResponseModal';
@@ -9,7 +9,8 @@ import {
   MapPin, Wallet, CheckCircle, BookOpen, Users,
   BarChart3, FileText, Eye, DollarSign, Palette, Film, Music, X,
   Check, XCircle, Plus, Trash2, ExternalLink, Edit2, Briefcase,
-  ChevronDown, ChevronUp, TrendingUp, Clock, UserCheck, Loader2, Settings
+  ChevronDown, ChevronUp, TrendingUp, Clock, UserCheck, Loader2, Settings,
+  CheckSquare, Square, Shield
 } from 'lucide-react';
 import ArtManageModal from '../components/ArtManageModal';
 import { getFollowing, unfollowUser, FollowUser } from '../services/socialApi';
@@ -134,6 +135,7 @@ interface BookProject {
 
 export default function ProfilePageRedesigned() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isMobile, isPhone } = useMobile();
   const [user, setUser] = useState<UserStatus>(null);
   const [content, setContent] = useState<any[]>([]);
@@ -196,6 +198,8 @@ export default function ProfilePageRedesigned() {
   const [collaborationsLoading, setCollaborationsLoading] = useState(false);
   // Processing state for accept/decline buttons
   const [processingInvites, setProcessingInvites] = useState<Set<number>>(new Set());
+  // Warranty of originality acknowledgment tracking per invite
+  const [warrantyAcknowledgedInvites, setWarrantyAcknowledgedInvites] = useState<Set<number>>(new Set());
 
   // Sales analytics state
   const [salesAnalytics, setSalesAnalytics] = useState<SalesAnalytics | null>(null);
@@ -370,10 +374,23 @@ export default function ProfilePageRedesigned() {
   // Accept invitation handler
   async function handleAcceptInvite(projectId: number, e: React.MouseEvent) {
     e.stopPropagation();
+
+    // Check if warranty has been acknowledged
+    if (!warrantyAcknowledgedInvites.has(projectId)) {
+      setStatus('Please acknowledge the warranty of originality before accepting');
+      return;
+    }
+
     setProcessingInvites(prev => new Set(prev).add(projectId));
     try {
-      await collaborationApi.acceptInvitation(projectId);
+      await collaborationApi.acceptInvitation(projectId, true);
       setStatus('Invitation accepted!');
+      // Clear warranty state for this project
+      setWarrantyAcknowledgedInvites(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(projectId);
+        return newSet;
+      });
       // Refresh both lists
       await Promise.all([loadPendingInvites(), loadCollaborations()]);
     } catch (err: any) {
@@ -423,6 +440,14 @@ export default function ProfilePageRedesigned() {
         return <Palette size={size} />;
     }
   }
+
+  // Handle URL tab parameter (e.g., /profile?tab=collaborations)
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['content', 'collaborations', 'portfolio', 'analytics', 'following'].includes(tabParam)) {
+      setActiveTab(tabParam as TabType);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -1431,32 +1456,87 @@ export default function ProfilePageRedesigned() {
                   }
 
                   // Normal action buttons
+                  const isWarrantyAcknowledged = warrantyAcknowledgedInvites.has(project.id);
                   return (
-                    <div style={{
-                      display: 'flex',
-                      gap: 12,
-                      marginTop: 16,
-                      paddingTop: 16,
-                      borderTop: '1px solid #334155',
-                    }}>
+                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
+                      {/* Warranty of Originality Checkbox */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWarrantyAcknowledgedInvites(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(project.id)) {
+                              newSet.delete(project.id);
+                            } else {
+                              newSet.add(project.id);
+                            }
+                            return newSet;
+                          });
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 10,
+                          padding: '10px 12px',
+                          marginBottom: 12,
+                          background: isWarrantyAcknowledged ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                          border: `1px solid ${isWarrantyAcknowledged ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.2)'}`,
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <div style={{ flexShrink: 0, marginTop: 2 }}>
+                          {isWarrantyAcknowledged ? (
+                            <CheckSquare size={18} style={{ color: '#10b981' }} />
+                          ) : (
+                            <Square size={18} style={{ color: '#64748b' }} />
+                          )}
+                        </div>
+                        <div>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            marginBottom: 4,
+                          }}>
+                            <Shield size={14} style={{ color: isWarrantyAcknowledged ? '#10b981' : '#f59e0b' }} />
+                            <span style={{
+                              color: isWarrantyAcknowledged ? '#10b981' : '#f59e0b',
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}>
+                              Warranty of Originality
+                            </span>
+                          </div>
+                          <div style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+                            I acknowledge that my contributions will be original work and do not infringe on any third-party rights.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: 12 }}>
                       <button
                         onClick={(e) => handleAcceptInvite(project.id, e)}
-                        disabled={isProcessing}
+                        disabled={isProcessing || !isWarrantyAcknowledged}
                         style={{
                           flex: 1,
-                          background: '#10b981',
+                          background: isWarrantyAcknowledged ? '#10b981' : '#64748b',
                           color: '#fff',
                           border: 'none',
                           padding: '12px 20px',
                           borderRadius: 10,
                           fontSize: 14,
                           fontWeight: 700,
-                          cursor: isProcessing ? 'not-allowed' : 'pointer',
+                          cursor: (isProcessing || !isWarrantyAcknowledged) ? 'not-allowed' : 'pointer',
+                          opacity: isWarrantyAcknowledged ? 1 : 0.6,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 8,
                         }}
+                        title={!isWarrantyAcknowledged ? 'Please acknowledge the warranty of originality first' : 'Accept invitation'}
                       >
                         <Check size={18} />
                         {isProcessing ? 'Processing...' : 'Accept Invite'}
@@ -1498,6 +1578,7 @@ export default function ProfilePageRedesigned() {
                       >
                         View Details
                       </button>
+                      </div>
                     </div>
                   );
                 })()}
@@ -1988,26 +2069,62 @@ export default function ProfilePageRedesigned() {
                           }
 
                           // Normal action buttons
+                          const isWarrantyAcknowledgedCompact = warrantyAcknowledgedInvites.has(project.id);
                           return (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {/* Warranty checkbox - compact version */}
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setWarrantyAcknowledgedInvites(prev => {
+                                    const newSet = new Set(prev);
+                                    if (newSet.has(project.id)) {
+                                      newSet.delete(project.id);
+                                    } else {
+                                      newSet.add(project.id);
+                                    }
+                                    return newSet;
+                                  });
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '6px 10px',
+                                  background: isWarrantyAcknowledgedCompact ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.05)',
+                                  border: `1px solid ${isWarrantyAcknowledgedCompact ? 'rgba(16, 185, 129, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`,
+                                  borderRadius: 6,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                }}
+                                title="I acknowledge my contributions will be original work"
+                              >
+                                {isWarrantyAcknowledgedCompact ? (
+                                  <CheckSquare size={14} style={{ color: '#10b981' }} />
+                                ) : (
+                                  <Square size={14} style={{ color: '#64748b' }} />
+                                )}
+                                <Shield size={12} style={{ color: isWarrantyAcknowledgedCompact ? '#10b981' : '#f59e0b' }} />
+                              </div>
                               <button
                                 onClick={(e) => handleAcceptInvite(project.id, e)}
-                                disabled={isProcessing}
+                                disabled={isProcessing || !isWarrantyAcknowledgedCompact}
                                 style={{
-                                  background: '#10b981',
+                                  background: isWarrantyAcknowledgedCompact ? '#10b981' : '#64748b',
                                   color: '#fff',
                                   border: 'none',
                                   padding: '8px 12px',
                                   borderRadius: 6,
                                   fontWeight: 600,
-                                  cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                  cursor: (isProcessing || !isWarrantyAcknowledgedCompact) ? 'not-allowed' : 'pointer',
+                                  opacity: isWarrantyAcknowledgedCompact ? 1 : 0.6,
                                   display: 'flex',
                                   alignItems: 'center',
                                   gap: 4,
                                   fontSize: 13,
                                   transition: 'all 0.2s',
                                 }}
-                                title="Accept invitation"
+                                title={!isWarrantyAcknowledgedCompact ? 'Check the warranty box first' : 'Accept invitation'}
                               >
                                 <Check size={16} />
                                 {isProcessing ? '...' : 'Accept'}
