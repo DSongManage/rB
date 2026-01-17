@@ -25,7 +25,12 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error('ErrorBoundary caught an error:', error.message, error.stack);
+    console.error('Component stack:', errorInfo.componentStack);
+    // Also alert for debugging on production
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      console.error('PRODUCTION ERROR:', error.name, ':', error.message);
+    }
   }
 
   handleRetry = (): void => {
@@ -55,6 +60,11 @@ class ErrorBoundary extends Component<Props, State> {
           <p style={{ marginBottom: '24px', color: 'var(--text-muted, #94a3b8)' }}>
             An error occurred while loading this section.
           </p>
+          {this.state.error && (
+            <p style={{ marginBottom: '24px', color: '#ef4444', fontSize: '12px', maxWidth: '400px', wordBreak: 'break-word' }}>
+              Error: {this.state.error.message}
+            </p>
+          )}
           <button
             onClick={this.handleRetry}
             style={{
