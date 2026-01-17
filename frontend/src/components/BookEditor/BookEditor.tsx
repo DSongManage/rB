@@ -810,7 +810,6 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
           }}
           onClick={() => {
             setShowLeaveWarning(false);
-            blocker.reset?.();
           }}
         >
           <div
@@ -838,7 +837,6 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
               <button
                 onClick={() => {
                   setShowLeaveWarning(false);
-                  blocker.reset?.();
                 }}
                 style={{
                   background: 'transparent',

@@ -10,7 +10,7 @@ interface ChapterListProps {
 
 export default function ChapterList({ chapters, selectedChapterId, onSelectChapter, onAddChapter }: ChapterListProps) {
   const totalWords = chapters.reduce((sum, ch) => {
-    const text = ch.content_html.replace(/<[^>]*>/g, '');
+    const text = (ch.content_html || '').replace(/<[^>]*>/g, '');
     return sum + text.split(/\s+/).filter(w => w.length > 0).length;
   }, 0);
 
@@ -137,7 +137,7 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
               marginTop: 4,
               marginLeft: 28,
             }}>
-              {chapter.content_html.replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length} words
+              {(chapter.content_html || '').replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w.length > 0).length} words
             </div>
           </button>
         ))}
