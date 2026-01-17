@@ -76,20 +76,16 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
   }, [hasUnsavedContent]);
 
   // Block in-app navigation if there's unsaved content without valid title
-  const blocker = useBlocker(
-    useCallback(
-      () => hasUnsavedContent,
-      [hasUnsavedContent]
-    )
-  );
+  // Pass boolean directly - useBlocker expects boolean | BlockerFunction
+  const blocker = useBlocker(hasUnsavedContent);
 
   // Show warning modal when navigation is blocked
   useEffect(() => {
-    if (blocker.state === 'blocked') {
+    if (blocker && blocker.state === 'blocked') {
       setShowLeaveWarning(true);
       setPendingNavigation(() => blocker.proceed);
     }
-  }, [blocker.state]);
+  }, [blocker]);
 
   // Initialize: Create a new project or load existing
   useEffect(() => {
