@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { BetaWelcomeModal } from './BetaBadge';
 import { useAuth } from '../hooks/useAuth';
+import { useTour } from '../contexts/TourContext';
 
 /**
  * BetaOnboarding Component
  *
  * Shows welcome modal to new beta users on first login
  * Stores completion in localStorage to avoid showing again
+ * Triggers the welcome tour after the modal is closed
  */
 export function BetaOnboarding() {
   const { isAuthenticated, user } = useAuth();
+  const { startTour, hasCompletedTour } = useTour();
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
@@ -38,6 +41,14 @@ export function BetaOnboarding() {
       localStorage.setItem('beta_welcome_user_id', String(user.id));
     }
     setShowWelcome(false);
+
+    // Start the welcome tour after closing the modal (if not already completed)
+    if (!hasCompletedTour('welcome')) {
+      // Small delay to let the modal close animation finish
+      setTimeout(() => {
+        startTour('welcome');
+      }, 500);
+    }
   };
 
   return (

@@ -415,3 +415,72 @@ button:hover { background:#d97706; }
 .mobile-library-tabs::-webkit-scrollbar {
   display: none;
 }
+
+/* ============================================
+   TOUR STYLES (react-joyride)
+   ============================================ */
+
+/* Tour tooltip animations */
+.react-joyride__tooltip {
+  animation: tourFadeIn 0.2s ease-out;
+}
+
+@keyframes tourFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spotlight glow effect */
+.react-joyride__spotlight {
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Button hover states */
+.react-joyride__tooltip button[data-action="primary"]:hover {
+  background-color: #d97706 !important;
+}
+
+.react-joyride__tooltip button[data-action="back"]:hover,
+.react-joyride__tooltip button[data-action="skip"]:hover {
+  color: #e5e7eb !important;
+}
+
+/* Progress indicator styling */
+.tour-progress {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tour-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4b5563;
+  transition: all 0.2s ease;
+}
+
+.tour-progress-dot.active {
+  background: #f59e0b;
+  width: 8px;
+  height: 8px;
+}
+
+.tour-progress-dot.completed {
+  background: #10b981;
+}
+
+/* Ensure tour elements appear above other content */
+.react-joyride__overlay {
+  z-index: 10000 !important;
+}
+
+.react-joyride__tooltip {
+  z-index: 10001 !important;
+}

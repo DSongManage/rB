@@ -17,6 +17,9 @@ import { Footer } from './components/legal/Footer';
 import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
 import { CartProvider } from './contexts/CartContext';
+import { TourProvider } from './contexts/TourContext';
+import { TourRenderer } from './components/Tour/TourProvider';
+import { TourMenu } from './components/Tour/TourMenu';
 import CartIcon from './components/CartIcon';
 import {
   User, LogOut, Menu, X, Users
@@ -157,7 +160,7 @@ function Header() {
         </Link>
         <BetaBadge variant="header" showTestMode={true} />
       </div>
-      <div className="rb-header-center">
+      <div className="rb-header-center" data-tour="search-bar">
         <SearchAutocomplete />
       </div>
 
@@ -166,6 +169,7 @@ function Header() {
         className="rb-mobile-menu-toggle"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         aria-label="Toggle menu"
+        data-tour="mobile-menu-toggle"
       >
         {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -174,12 +178,17 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
-            <CartIcon />
-            <NotificationBell />
-            <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
+            <TourMenu />
+            <span data-tour="cart-button">
+              <CartIcon />
+            </span>
+            <span data-tour="notifications-button">
+              <NotificationBell />
+            </span>
+            <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators" data-tour="collaborators-link">
               <Users size={20} />
             </Link>
-            <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile">
+            <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile" data-tour="profile-link">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
@@ -292,6 +301,7 @@ export default function App() {
   }
 
   return (
+    <TourProvider>
     <CartProvider>
     <div className="rb-app">
       <Header />
@@ -353,7 +363,9 @@ export default function App() {
       <CookieBanner />
       <TestModeBanner />
       <BetaOnboarding />
+      <TourRenderer />
     </div>
     </CartProvider>
+    </TourProvider>
   );
 }

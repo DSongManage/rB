@@ -177,7 +177,7 @@ export default function HomePage() {
 
   return (
     <div>
-      <div className="chips">
+      <div className="chips" data-tour="genre-filters">
         {GENRE_FILTERS.map(f=> (
           <button
             key={f.value}
@@ -207,7 +207,7 @@ export default function HomePage() {
         ))}
       </div>
       <div className="page" style={{padding:0, background:'transparent', border:'none', boxShadow:'none'}}>
-        <div className="yt-grid">
+        <div className="yt-grid" data-tour="content-grid">
           {filtered.map((item) => {
             if (item.type === 'book') {
               const book = item.data as BookProject;

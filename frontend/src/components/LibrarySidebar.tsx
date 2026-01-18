@@ -108,6 +108,7 @@ export function LibrarySidebar() {
 
   return (
     <div
+      data-tour="library-sidebar"
       style={{
         position: 'fixed',
         left: 0,
@@ -179,6 +180,7 @@ export function LibrarySidebar() {
 
       {/* Tabs */}
       <div
+        data-tour="library-tabs"
         style={{
           display: 'flex',
           gap: 4,
@@ -323,8 +325,10 @@ export function LibrarySidebar() {
 
         {!loading && !error && currentItems.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {currentItems.map((item) => (
-              <LibraryItemCard key={item.id} item={item} />
+            {currentItems.map((item, index) => (
+              <div key={item.id} data-tour={index === 0 ? 'library-item' : undefined}>
+                <LibraryItemCard item={item} />
+              </div>
             ))}
           </div>
         )}

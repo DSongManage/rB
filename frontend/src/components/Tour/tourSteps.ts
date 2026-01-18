@@ -1,0 +1,323 @@
+/**
+ * Tour Step Definitions
+ *
+ * Defines all steps for consumer and creator tour tracks.
+ * Uses data-tour attributes for stable element targeting.
+ */
+
+import { Step } from 'react-joyride';
+
+// ============================================
+// CONSUMER TRACK TOURS
+// ============================================
+
+/**
+ * Welcome Tour - First tour shown after signup
+ * Focuses on browsing, discovery, and basic navigation
+ */
+export const welcomeTourSteps: Step[] = [
+  {
+    target: 'body',
+    content: 'Welcome to renaissBlock! Let us show you around so you can discover amazing content from independent creators.',
+    placement: 'center',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="genre-filters"]',
+    content: 'Browse content by category. Filter by Books, Art, and more content types coming soon.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="content-grid"]',
+    content: 'Discover content from independent creators. Click any item to preview before buying.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="search-bar"]',
+    content: 'Search for specific titles, genres, or creators.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="cart-button"]',
+    content: 'Your shopping cart. Add content here and checkout when ready.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="notifications-button"]',
+    content: 'Stay updated on your purchases, follows, and collaboration invites.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="profile-link"]',
+    content: 'Access your profile, wallet, purchased content, and settings.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: 'body',
+    content: 'Ready to create your own content? Visit the Studio when you\'re ready to publish your work!',
+    placement: 'center',
+    disableBeacon: true,
+  },
+];
+
+/**
+ * Welcome Tour - Mobile version (fewer steps, adjusted placements)
+ */
+export const welcomeTourStepsMobile: Step[] = [
+  {
+    target: 'body',
+    content: 'Welcome to renaissBlock! Let us show you around.',
+    placement: 'center',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="mobile-genre-selector"]',
+    content: 'Browse content by category here.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="content-grid"]',
+    content: 'Tap any item to preview and purchase content from creators.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="mobile-menu-toggle"]',
+    content: 'Access your cart, notifications, and profile from this menu.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: 'body',
+    content: 'You\'re all set! Enjoy exploring content from independent creators.',
+    placement: 'center',
+    disableBeacon: true,
+  },
+];
+
+/**
+ * Purchase Tour - Triggered on first "Add to Cart" action
+ * Guides users through the purchase flow
+ */
+export const purchaseTourSteps: Step[] = [
+  {
+    target: '[data-tour="cart-items"]',
+    content: 'Items you\'ve added appear here. Review your selections before checkout.',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="cart-summary"]',
+    content: 'See your total with any applicable fees. We keep pricing transparent.',
+    placement: 'left',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="checkout-button"]',
+    content: 'Ready to purchase? Click here to complete your order securely.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+];
+
+/**
+ * Library Tour - Triggered after first purchase
+ * Shows users how to access purchased content
+ */
+export const libraryTourSteps: Step[] = [
+  {
+    target: '[data-tour="library-sidebar"]',
+    content: 'Your Library! All purchased content is organized here by category.',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="library-tabs"]',
+    content: 'Switch between your Books, Art, and other content types.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="library-item"]',
+    content: 'Click any item to start reading or viewing. Your progress is saved automatically.',
+    placement: 'right',
+    disableBeacon: true,
+  },
+];
+
+// ============================================
+// CREATOR TRACK TOURS
+// ============================================
+
+/**
+ * Creator Intro Tour - Triggered on first /studio visit
+ * Introduces users to the creator experience
+ */
+export const creatorIntroTourSteps: Step[] = [
+  {
+    target: 'body',
+    content: 'Welcome to the Creator Studio! This is where you\'ll publish content and earn from your creative work.',
+    placement: 'center',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="solo-mode-card"]',
+    content: 'Create Solo: Work independently with full creative control and keep 100% of your revenue.',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="collab-mode-card"]',
+    content: 'Start Collaboration: Team up with other creators, set roles, and split revenue fairly.',
+    placement: 'left',
+    disableBeacon: true,
+  },
+  {
+    target: 'body',
+    content: 'Your earnings go directly to your connected wallet in USDC. Ready to create something amazing?',
+    placement: 'center',
+    disableBeacon: true,
+  },
+];
+
+/**
+ * Studio Tour - Guides through the creation wizard
+ * Triggered when starting first project
+ */
+export const studioTourSteps: Step[] = [
+  {
+    target: '[data-tour="content-type-selector"]',
+    content: 'First, choose what type of content you want to create: Book, Art, Video, or Music.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="upload-area"]',
+    content: 'Upload your files or use our built-in editor to create directly.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="customize-panel"]',
+    content: 'Set your price, number of editions, and how much to show as a free preview.',
+    placement: 'left',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="publish-button"]',
+    content: 'When everything looks good, publish to make your content available for purchase!',
+    placement: 'top',
+    disableBeacon: true,
+  },
+];
+
+/**
+ * Dashboard Tour - Shows creators their analytics
+ * Triggered on first /dashboard visit
+ */
+export const dashboardTourSteps: Step[] = [
+  {
+    target: '[data-tour="earnings-card"]',
+    content: 'Track your total earnings at a glance. See how much you\'ve made from your content.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="sales-chart"]',
+    content: 'View your sales performance over time with detailed analytics.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="content-list"]',
+    content: 'Manage all your published content. Edit, unpublish, or view stats for each item.',
+    placement: 'top',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="wallet-section"]',
+    content: 'Your connected wallet receives earnings automatically in USDC.',
+    placement: 'left',
+    disableBeacon: true,
+  },
+];
+
+/**
+ * Collaboration Tour - Guides through team project features
+ * Triggered when creating first collaboration
+ */
+export const collaborationTourSteps: Step[] = [
+  {
+    target: '[data-tour="team-panel"]',
+    content: 'Invite collaborators by email or username to join your project.',
+    placement: 'right',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="roles-dropdown"]',
+    content: 'Assign roles like Writer, Artist, Editor to define responsibilities.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="revenue-splits"]',
+    content: 'Set fair revenue distribution. Each team member sees their share upfront.',
+    placement: 'left',
+    disableBeacon: true,
+  },
+  {
+    target: '[data-tour="approval-workflow"]',
+    content: 'All team members must approve before publishing. No surprises!',
+    placement: 'top',
+    disableBeacon: true,
+  },
+];
+
+// ============================================
+// TOUR STEP GETTER
+// ============================================
+
+import type { TourName } from '../../contexts/TourContext';
+
+export function getTourSteps(tourName: TourName, isMobile: boolean = false): Step[] {
+  switch (tourName) {
+    // Consumer tours
+    case 'welcome':
+      return isMobile ? welcomeTourStepsMobile : welcomeTourSteps;
+    case 'purchase':
+      return purchaseTourSteps;
+    case 'library':
+      return libraryTourSteps;
+
+    // Creator tours
+    case 'creator-intro':
+      return creatorIntroTourSteps;
+    case 'studio':
+      return studioTourSteps;
+    case 'dashboard':
+      return dashboardTourSteps;
+    case 'collaboration':
+      return collaborationTourSteps;
+
+    default:
+      return [];
+  }
+}
+
+// Tour display names for UI
+export const tourDisplayNames: Record<TourName, string> = {
+  'welcome': 'Welcome Tour',
+  'purchase': 'Shopping Tour',
+  'library': 'Library Tour',
+  'creator-intro': 'Creator Introduction',
+  'studio': 'Studio Tour',
+  'dashboard': 'Dashboard Tour',
+  'collaboration': 'Collaboration Tour',
+};
