@@ -312,7 +312,7 @@ export default function CartPage() {
       padding: '40px 20px',
     }}>
       {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
+      <div className="rb-cart-header" style={{ marginBottom: '32px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px' }}>
           Shopping Cart
         </h1>
@@ -321,9 +321,9 @@ export default function CartPage() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '32px' }}>
+      <div className="rb-cart-grid">
         {/* Items List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="rb-cart-items">
           {cart.items.map(item => {
             // Build cover URL - handle relative paths from Django
             let coverSrc = null;
@@ -336,38 +336,18 @@ export default function CartPage() {
             return (
               <div
                 key={item.id}
+                className="rb-cart-item"
                 style={{
-                  display: 'flex',
-                  gap: '16px',
-                  padding: '16px',
-                  backgroundColor: 'var(--bg-secondary, #1e293b)',
-                  borderRadius: '12px',
-                  border: '1px solid var(--border, #334155)',
                   opacity: removingId === item.id ? 0.5 : 1,
                   transition: 'opacity 0.2s ease',
                 }}
               >
                 {/* Cover Image */}
-                <div style={{
-                  width: '80px',
-                  height: '100px',
-                  flexShrink: 0,
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  backgroundColor: 'var(--bg-tertiary, #0f172a)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
+                <div className="rb-cart-item-cover">
                   {coverSrc ? (
                     <img
                       src={coverSrc}
                       alt={item.title}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
                     />
                   ) : (
                     <BookOpen size={32} style={{ color: 'var(--text-muted, #64748b)', opacity: 0.5 }} />
@@ -455,15 +435,7 @@ export default function CartPage() {
         </div>
 
         {/* Order Summary */}
-        <div style={{
-          padding: '24px',
-          backgroundColor: 'var(--bg-secondary, #1e293b)',
-          borderRadius: '16px',
-          border: '1px solid var(--border, #334155)',
-          height: 'fit-content',
-          position: 'sticky',
-          top: '100px',
-        }}>
+        <div className="rb-cart-summary">
           <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '20px' }}>
             Order Summary
           </h2>
@@ -1094,6 +1066,126 @@ export default function CartPage() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        /* Cart grid layout - desktop */
+        .rb-cart-grid {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 32px;
+        }
+
+        /* Cart items list */
+        .rb-cart-items {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        /* Individual cart item */
+        .rb-cart-item {
+          display: flex;
+          gap: 16px;
+          padding: 16px;
+          background-color: var(--bg-secondary, #1e293b);
+          border-radius: 12px;
+          border: 1px solid var(--border, #334155);
+        }
+
+        /* Cart item cover image */
+        .rb-cart-item-cover {
+          width: 80px;
+          height: 100px;
+          flex-shrink: 0;
+          border-radius: 8px;
+          overflow: hidden;
+          background-color: var(--bg-tertiary, #0f172a);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .rb-cart-item-cover img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        /* Order summary panel */
+        .rb-cart-summary {
+          padding: 24px;
+          background-color: var(--bg-secondary, #1e293b);
+          border-radius: 16px;
+          border: 1px solid var(--border, #334155);
+          height: fit-content;
+          position: sticky;
+          top: 100px;
+        }
+
+        /* Mobile responsive styles */
+        @media (max-width: 768px) {
+          .rb-cart-page {
+            padding: 20px 16px !important;
+          }
+
+          .rb-cart-header {
+            margin-bottom: 20px !important;
+          }
+
+          .rb-cart-header h1 {
+            font-size: 22px !important;
+          }
+
+          .rb-cart-grid {
+            grid-template-columns: 1fr;
+            gap: 20px;
+          }
+
+          .rb-cart-items {
+            gap: 10px;
+          }
+
+          .rb-cart-item {
+            gap: 12px;
+            padding: 12px;
+          }
+
+          .rb-cart-item-cover {
+            width: 60px;
+            height: 75px;
+          }
+
+          .rb-cart-summary {
+            padding: 16px;
+            position: static;
+            order: -1;
+          }
+
+          .rb-cart-summary h2 {
+            font-size: 16px !important;
+            margin-bottom: 16px !important;
+          }
+        }
+
+        /* Extra small mobile */
+        @media (max-width: 400px) {
+          .rb-cart-page {
+            padding: 16px 12px !important;
+          }
+
+          .rb-cart-item {
+            gap: 10px;
+            padding: 10px;
+          }
+
+          .rb-cart-item-cover {
+            width: 50px;
+            height: 65px;
+          }
+
+          .rb-cart-summary {
+            padding: 14px;
+          }
         }
       `}</style>
     </div>
