@@ -1,0 +1,1 @@
+import"./web3auth-BkZxjmxM.js";import{r as t}from"./router-cVcvJ1e3.js";const e=t.createContext(null);function r(){const r=t.useContext(e);if(!r)throw new Error("useBalance must be used within a BalanceProvider");return r}export{r as u};
