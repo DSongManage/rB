@@ -13,8 +13,8 @@ export const tourStyles: Partial<Styles> = {
     backgroundColor: '#1a1a1a',
     // Arrow color matches tooltip background
     arrowColor: '#1a1a1a',
-    // NO overlay - completely transparent (user prefers border highlight only)
-    overlayColor: 'rgba(0, 0, 0, 0)',
+    // Very subtle overlay (5% opacity) - just enough to make spotlight visible
+    overlayColor: 'rgba(0, 0, 0, 0.05)',
     // Primary accent color (amber)
     primaryColor: '#f59e0b',
     // Text color
