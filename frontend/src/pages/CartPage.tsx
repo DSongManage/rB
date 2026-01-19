@@ -12,7 +12,7 @@ import { useCart } from '../contexts/CartContext';
 import { useBalance } from '../contexts/BalanceContext';
 import { API_URL } from '../config';
 import { paymentApi, PurchaseIntentResponse } from '../services/paymentApi';
-import { signMessageForSponsoredTx, getTransactionExplorerLink, getConnectedPublicKey } from '../services/web3authService';
+import { signMessageForSponsoredTx, getTransactionExplorerLink, getConnectedPublicKey, isWeb3AuthConnected } from '../services/web3authService';
 import {
   BalanceDisplay,
   PaymentOptionsSelector,
@@ -72,6 +72,14 @@ export default function CartPage() {
       await paymentApi.selectPaymentMethod(purchaseIntent.intent_id, method);
 
       if (method === 'balance') {
+        // Pre-check: Verify Web3Auth is connected before proceeding
+        // This gives the user a chance to reconnect with the right login method
+        setProcessingMessage('Verifying wallet connection...');
+        const isConnected = await isWeb3AuthConnected();
+        if (!isConnected) {
+          console.log('[CartPage] Web3Auth not connected, will prompt during signing');
+        }
+
         // Show confirmation modal immediately (don't get transaction yet - blockhash will expire)
         setPaymentStep('confirm_balance');
         // Set placeholder data for display - actual transaction fetched on confirm
@@ -103,10 +111,18 @@ export default function CartPage() {
       // This prevents signing with a stale session from a different user
       const connectedPubkey = await getConnectedPublicKey();
       const expectedPubkey = paymentData.user_pubkey;
+      const connectedAddress = connectedPubkey.toBase58();
 
-      if (connectedPubkey.toBase58() !== expectedPubkey) {
+      if (connectedAddress !== expectedPubkey) {
+        // Log details for debugging
+        console.error('[CartPage] Wallet mismatch detected:', {
+          connected: connectedAddress.slice(0, 8) + '...',
+          expected: expectedPubkey.slice(0, 8) + '...',
+        });
         throw new Error(
-          'Wallet session mismatch detected. Please logout and login again to refresh your wallet session.'
+          'Wallet mismatch: Your Web3Auth login method may have changed. ' +
+          'Please use the same login method (Google, email, etc.) you originally signed up with. ' +
+          'If issue persists, logout completely and login again using your original method.'
         );
       }
 
