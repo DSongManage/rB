@@ -320,29 +320,46 @@ class SolanaPollingService:
             logger.error(f"Error getting current slot: {e}")
             raise
 
-    def confirm_transaction(self, signature: str, max_retries: int = 3) -> bool:
+    def confirm_transaction(self, signature: str, max_wait_seconds: int = 30) -> bool:
         """
         Confirm a transaction has finalized.
 
+        Polls the transaction status until confirmed/finalized or timeout.
+
         Args:
             signature: Transaction signature to confirm
-            max_retries: Number of confirmation checks
+            max_wait_seconds: Maximum time to wait for confirmation
 
         Returns:
             bool: True if transaction is confirmed
         """
+        import time
         try:
             from solders.signature import Signature
+            from solders.transaction_status import TransactionConfirmationStatus
 
             sig = Signature.from_string(signature)
-            response = self.client.get_signature_statuses([sig])
+            start_time = time.time()
 
-            if response.value and response.value[0]:
-                status = response.value[0]
-                # Check if confirmed or finalized
-                if status.confirmation_status in ['confirmed', 'finalized']:
-                    return True
+            while time.time() - start_time < max_wait_seconds:
+                response = self.client.get_signature_statuses([sig])
 
+                if response.value and response.value[0]:
+                    status = response.value[0]
+                    # Check if confirmed or finalized (compare enum to enum, not string)
+                    if status.confirmation_status in [
+                        TransactionConfirmationStatus.Confirmed,
+                        TransactionConfirmationStatus.Finalized
+                    ]:
+                        logger.info(f"Transaction {signature} confirmed with status: {status.confirmation_status}")
+                        return True
+                    if status.err:
+                        logger.error(f"Transaction {signature} failed: {status.err}")
+                        return False
+
+                time.sleep(1)
+
+            logger.warning(f"Transaction {signature} not confirmed within {max_wait_seconds}s")
             return False
         except Exception as e:
             logger.error(f"Error confirming transaction {signature}: {e}")

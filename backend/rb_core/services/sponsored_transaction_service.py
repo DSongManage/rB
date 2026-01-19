@@ -27,6 +27,7 @@ from solders.message import MessageV0
 from solders.transaction import VersionedTransaction
 from solders.instruction import Instruction, AccountMeta
 from solders.signature import Signature
+from solders.transaction_status import TransactionConfirmationStatus
 from spl.token.constants import TOKEN_PROGRAM_ID
 
 logger = logging.getLogger(__name__)
@@ -490,7 +491,12 @@ class SponsoredTransactionService:
 
                 if response.value and response.value[0]:
                     status = response.value[0]
-                    if status.confirmation_status in ['confirmed', 'finalized']:
+                    # Compare enum to enum, not string
+                    if status.confirmation_status in [
+                        TransactionConfirmationStatus.Confirmed,
+                        TransactionConfirmationStatus.Finalized
+                    ]:
+                        logger.info(f"Transaction {signature} confirmed with status: {status.confirmation_status}")
                         return True
                     if status.err:
                         logger.error(f"Transaction {signature} failed: {status.err}")
