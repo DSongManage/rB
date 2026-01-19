@@ -82,6 +82,10 @@ if not DEBUG:
     # Beta-specific logging or features can be added here
     # Example: More verbose logging, special beta user tracking, etc.
 
+# Always allow Railway subdomains for PR preview environments
+if '.railway.app' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('.railway.app')
+
 
 # Application definition
 
