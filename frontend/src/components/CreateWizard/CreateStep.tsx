@@ -37,7 +37,7 @@ export default function CreateStep({ type, onReady, registerSubmit, showNextButt
   }, [registerSubmit, title, file, textHtml]);
 
   return (
-    <div style={{display:'grid', gap:12}}>
+    <div style={{display:'grid', gap:12}} data-tour="upload-area">
       <input placeholder="Title" value={title} onChange={(e)=> setTitle(e.target.value)} />
       {type === 'text' && (
         <ReactQuill theme="snow" value={textHtml} onChange={setTextHtml} placeholder="Start writing..." />

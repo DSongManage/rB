@@ -26,7 +26,7 @@ export default function TypeSelect({ onSelect }:{ onSelect:(t:'text'|'image'|'vi
     </button>
   );
   return (
-    <div className="type-select-grid">
+    <div className="type-select-grid" data-tour="content-type-selector">
       {card('text', <BookOpen size={28} />, 'Write a Book', 'Create a book with chapters, organize, and publish as a series or complete work')}
       {card('comic', <Layers size={28} />, 'Create a Comic Book', 'Design pages with panels, artwork, and speech bubbles')}
       {card('image', <Image size={28} />, 'Upload Image / Art', 'PNG/JPG/WebP up to 50MB; watermark optional')}

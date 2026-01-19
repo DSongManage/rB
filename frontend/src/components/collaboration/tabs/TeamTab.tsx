@@ -497,13 +497,16 @@ export default function TeamTab({
 
       {/* Invite Form */}
       {showInviteForm && (
-        <div style={{
-          background: 'var(--panel)',
-          border: '1px solid var(--panel-border)',
-          borderRadius: 12,
-          padding: 24,
-          overflow: 'hidden',
-        }}>
+        <div
+          data-tour="team-panel"
+          style={{
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 12,
+            padding: 24,
+            overflow: 'hidden',
+          }}
+        >
           <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 16 }}>
             Invite New Collaborator
           </h3>
@@ -748,7 +751,7 @@ export default function TeamTab({
           </div>
 
           {/* Role Selection Section */}
-          <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 20 }} data-tour="roles-dropdown">
             <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 10 }}>
               Their Role <span style={{ color: '#ef4444' }}>*</span>
             </label>
@@ -974,7 +977,7 @@ export default function TeamTab({
           </div>
 
           {/* Revenue Split with Equity Warning */}
-          <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 20 }} data-tour="revenue-splits">
             <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
               Revenue Split: {invitePercentage}%
             </label>

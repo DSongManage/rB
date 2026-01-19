@@ -74,7 +74,7 @@ export const welcomeTourStepsMobile: Step[] = [
     disableOverlay: true,
   },
   {
-    target: '[data-tour="mobile-genre-selector"]',
+    target: '[data-tour="genre-filters"]',
     content: 'Browse content by category here.',
     placement: 'bottom',
     disableBeacon: true,

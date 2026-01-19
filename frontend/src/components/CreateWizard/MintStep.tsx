@@ -160,6 +160,7 @@ export default function MintStep({ contentId, price, editions, onMint }: MintSte
         className="mint-button"
         disabled={!agree || loading}
         onClick={handleMint}
+        data-tour="publish-button"
       >
         <Rocket size={18} />
         {loading ? 'Publishing...' : 'Mint & Publish'}

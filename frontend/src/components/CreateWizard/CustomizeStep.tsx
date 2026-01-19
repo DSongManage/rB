@@ -52,7 +52,7 @@ export default function CustomizeStep({ onNext, registerSubmit }: Props) {
   }, [registerSubmit]);
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div style={{ display: 'grid', gap: 16 }} data-tour="customize-panel">
       <label>Teaser shown to public: {teaser}% <input type="range" min={0} max={100} value={teaser} onChange={(e) => setTeaser(parseInt(e.target.value))} /></label>
       <label title="Show a watermark overlay on the teaser only (original remains clean)"><input type="checkbox" checked={watermark} onChange={(e) => setWatermark(e.target.checked)} /> Show watermark on teaser</label>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

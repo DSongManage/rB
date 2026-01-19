@@ -323,7 +323,7 @@ export default function CartPage() {
 
       <div className="rb-cart-grid">
         {/* Items List */}
-        <div className="rb-cart-items">
+        <div className="rb-cart-items" data-tour="cart-items">
           {cart.items.map(item => {
             // Build cover URL - handle relative paths from Django
             let coverSrc = null;
@@ -435,7 +435,7 @@ export default function CartPage() {
         </div>
 
         {/* Order Summary */}
-        <div className="rb-cart-summary">
+        <div className="rb-cart-summary" data-tour="cart-summary">
           <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '20px' }}>
             Order Summary
           </h2>
@@ -482,6 +482,7 @@ export default function CartPage() {
           <button
             onClick={handleCheckout}
             disabled={paymentStep !== 'idle'}
+            data-tour="checkout-button"
             style={{
               width: '100%',
               display: 'flex',

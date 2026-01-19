@@ -24,9 +24,18 @@ export default function DashboardPage() {
   return (
     <div className="page">
       <h2>Dashboard</h2>
-      <div>Contents: {data.content_count}</div>
-      <div>Sales: ${data.sales}</div>
-      <div>Tier: {data.tier ?? 'N/A'} (Fee: {data.fee ?? 'N/A'}%)</div>
+      <div data-tour="earnings-card" style={{ marginBottom: 16 }}>
+        <div>Sales: ${data.sales}</div>
+      </div>
+      <div data-tour="sales-chart" style={{ marginBottom: 16 }}>
+        <div>Tier: {data.tier ?? 'N/A'} (Fee: {data.fee ?? 'N/A'}%)</div>
+      </div>
+      <div data-tour="content-list" style={{ marginBottom: 16 }}>
+        <div>Contents: {data.content_count}</div>
+      </div>
+      <div data-tour="wallet-section">
+        <div style={{ fontSize: 12, color: '#94a3b8' }}>Wallet connected via Web3Auth</div>
+      </div>
     </div>
   );
 }

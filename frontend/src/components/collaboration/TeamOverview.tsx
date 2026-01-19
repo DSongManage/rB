@@ -113,6 +113,7 @@ export function TeamOverview({
 
   return (
     <div
+      data-tour="approval-workflow"
       style={{
         background: '#0f172a',
         border: '1px solid #1e293b',
