@@ -140,10 +140,20 @@ export const tourCSS = `
   }
 }
 
-/* Spotlight border highlight effect - NO dark overlay, just a glowing border */
+/* Pulsing amber highlight effect - NO dark overlay */
 .react-joyride__spotlight {
-  box-shadow: 0 0 0 4px #f59e0b, 0 0 30px rgba(245, 158, 11, 0.5) !important;
+  box-shadow: 0 0 0 4px #f59e0b, 0 0 20px rgba(245, 158, 11, 0.6) !important;
   border-radius: 8px !important;
+  animation: tourPulse 1.5s ease-in-out infinite !important;
+}
+
+@keyframes tourPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 4px #f59e0b, 0 0 15px rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 6px #f59e0b, 0 0 30px rgba(245, 158, 11, 0.7);
+  }
 }
 
 /* Button hover states */
