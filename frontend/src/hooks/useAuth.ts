@@ -15,6 +15,7 @@ interface User {
   email?: string;
   display_name?: string;
   avatar?: string;
+  has_seen_beta_welcome?: boolean;
 }
 
 interface AuthState {

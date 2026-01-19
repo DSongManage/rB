@@ -2,16 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { BetaWelcomeModal } from './BetaBadge';
 import { useAuth } from '../hooks/useAuth';
 import { useTour } from '../contexts/TourContext';
+import { API_URL } from '../config';
 
 /**
  * BetaOnboarding Component
  *
  * Shows welcome modal to new beta users on first login
- * Stores completion in localStorage to avoid showing again
+ * Uses server-side flag (has_seen_beta_welcome) to track completion
+ * This ensures users don't see the modal again even on different browsers/devices
  * Triggers the welcome tour after the modal is closed
  */
 export function BetaOnboarding() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, refreshAuth } = useAuth();
   const { startTour, hasCompletedTour } = useTour();
   const [showWelcome, setShowWelcome] = useState(false);
 
@@ -20,14 +22,8 @@ export function BetaOnboarding() {
       return;
     }
 
-    // Check if user has seen the welcome modal
-    const hasSeenWelcome = localStorage.getItem('beta_welcome_seen');
-    const lastSeenUserId = localStorage.getItem('beta_welcome_user_id');
-
-    // Show welcome if:
-    // 1. Never seen before, OR
-    // 2. Different user than last time (account switching)
-    if (!hasSeenWelcome || lastSeenUserId !== String(user.id)) {
+    // Check server-side flag - only show if user hasn't seen the welcome modal
+    if (user.has_seen_beta_welcome === false) {
       // Small delay to let the app load first
       setTimeout(() => {
         setShowWelcome(true);
@@ -35,12 +31,35 @@ export function BetaOnboarding() {
     }
   }, [isAuthenticated, user]);
 
-  const handleClose = () => {
-    if (user) {
-      localStorage.setItem('beta_welcome_seen', 'true');
-      localStorage.setItem('beta_welcome_user_id', String(user.id));
-    }
+  const handleClose = async () => {
     setShowWelcome(false);
+
+    // Mark as seen on the server
+    if (user) {
+      try {
+        // Get CSRF token
+        const csrfResponse = await fetch(`${API_URL}/api/auth/csrf/`, {
+          credentials: 'include',
+        });
+        const csrfData = await csrfResponse.json();
+        const csrfToken = csrfData?.csrfToken || '';
+
+        await fetch(`${API_URL}/api/beta/welcome-seen/`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        });
+
+        // Refresh auth to update the user object with the new flag
+        refreshAuth();
+      } catch (error) {
+        console.error('[BetaOnboarding] Failed to mark welcome as seen:', error);
+      }
+    }
 
     // Start the welcome tour after closing the modal (if not already completed)
     if (!hasCompletedTour('welcome')) {

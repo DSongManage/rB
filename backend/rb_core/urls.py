@@ -188,6 +188,7 @@ urlpatterns = [
     path('api/beta/approve/', beta.approve_beta_request, name='beta_approve'),
     path('api/beta/validate/', beta.validate_invite_code, name='beta_validate'),
     path('api/beta/mark-used/', beta.mark_invite_used, name='beta_mark_used'),
+    path('api/beta/welcome-seen/', beta.mark_beta_welcome_seen, name='beta_welcome_seen'),
     # Beta feedback
     path('api/feedback/', submit_feedback, name='submit_feedback'),
     # Admin treasury dashboard

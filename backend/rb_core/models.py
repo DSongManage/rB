@@ -365,6 +365,9 @@ class UserProfile(models.Model):
     creator_agreement_accepted_at = models.DateTimeField(null=True, blank=True, help_text="When user accepted Creator Agreement")
     creator_agreement_version = models.CharField(max_length=20, blank=True, default='', help_text="Version of Creator Agreement accepted")
 
+    # Beta onboarding tracking
+    has_seen_beta_welcome = models.BooleanField(default=False, help_text="Whether user has seen the beta welcome modal")
+
     # Bridge.xyz Payout Preferences
     PAYOUT_DESTINATION_CHOICES = [
         ('wallet', 'Web3 Wallet'),

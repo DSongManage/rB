@@ -21,17 +21,12 @@ export const welcomeTourSteps: Step[] = [
     content: 'Welcome to renaissBlock! Let us show you around so you can discover amazing content from independent creators.',
     placement: 'center',
     disableBeacon: true,
+    disableOverlay: true,
   },
   {
     target: '[data-tour="genre-filters"]',
     content: 'Browse content by category. Filter by Books, Art, and more content types coming soon.',
     placement: 'bottom',
-    disableBeacon: true,
-  },
-  {
-    target: '[data-tour="content-grid"]',
-    content: 'Discover content from independent creators. Click any item to preview before buying.',
-    placement: 'top',
     disableBeacon: true,
   },
   {
@@ -60,9 +55,10 @@ export const welcomeTourSteps: Step[] = [
   },
   {
     target: 'body',
-    content: 'Ready to create your own content? Visit the Studio when you\'re ready to publish your work!',
+    content: 'The main area shows content from creators. Click any item to preview before buying. Ready to create? Visit the Studio!',
     placement: 'center',
     disableBeacon: true,
+    disableOverlay: true,
   },
 ];
 
@@ -75,17 +71,12 @@ export const welcomeTourStepsMobile: Step[] = [
     content: 'Welcome to renaissBlock! Let us show you around.',
     placement: 'center',
     disableBeacon: true,
+    disableOverlay: true,
   },
   {
     target: '[data-tour="mobile-genre-selector"]',
     content: 'Browse content by category here.',
     placement: 'bottom',
-    disableBeacon: true,
-  },
-  {
-    target: '[data-tour="content-grid"]',
-    content: 'Tap any item to preview and purchase content from creators.',
-    placement: 'top',
     disableBeacon: true,
   },
   {
@@ -96,9 +87,10 @@ export const welcomeTourStepsMobile: Step[] = [
   },
   {
     target: 'body',
-    content: 'You\'re all set! Enjoy exploring content from independent creators.',
+    content: 'Tap any content card to preview and purchase. Enjoy exploring!',
     placement: 'center',
     disableBeacon: true,
+    disableOverlay: true,
   },
 ];
 
@@ -133,14 +125,8 @@ export const purchaseTourSteps: Step[] = [
  */
 export const libraryTourSteps: Step[] = [
   {
-    target: '[data-tour="library-sidebar"]',
-    content: 'Your Library! All purchased content is organized here by category.',
-    placement: 'right',
-    disableBeacon: true,
-  },
-  {
     target: '[data-tour="library-tabs"]',
-    content: 'Switch between your Books, Art, and other content types.',
+    content: 'Your Library! Switch between Books, Art, and other content types you\'ve purchased.',
     placement: 'bottom',
     disableBeacon: true,
   },
@@ -149,6 +135,13 @@ export const libraryTourSteps: Step[] = [
     content: 'Click any item to start reading or viewing. Your progress is saved automatically.',
     placement: 'right',
     disableBeacon: true,
+  },
+  {
+    target: 'body',
+    content: 'All your purchased content appears in this sidebar. Happy reading!',
+    placement: 'center',
+    disableBeacon: true,
+    disableOverlay: true,
   },
 ];
 
@@ -166,17 +159,18 @@ export const creatorIntroTourSteps: Step[] = [
     content: 'Welcome to the Creator Studio! This is where you\'ll publish content and earn from your creative work.',
     placement: 'center',
     disableBeacon: true,
+    disableOverlay: true,
   },
   {
     target: '[data-tour="solo-mode-card"]',
     content: 'Create Solo: Work independently with full creative control and keep 100% of your revenue.',
-    placement: 'right',
+    placement: 'bottom',
     disableBeacon: true,
   },
   {
     target: '[data-tour="collab-mode-card"]',
     content: 'Start Collaboration: Team up with other creators, set roles, and split revenue fairly.',
-    placement: 'left',
+    placement: 'bottom',
     disableBeacon: true,
   },
   {
@@ -184,6 +178,7 @@ export const creatorIntroTourSteps: Step[] = [
     content: 'Your earnings go directly to your connected wallet in USDC. Ready to create something amazing?',
     placement: 'center',
     disableBeacon: true,
+    disableOverlay: true,
   },
 ];
 

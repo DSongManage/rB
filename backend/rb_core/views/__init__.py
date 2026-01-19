@@ -99,6 +99,7 @@ class AuthStatusView(APIView):
                 'email': getattr(request.user, 'email', ''),
                 'display_name': display_name,
                 'avatar_url': avatar_url,
+                'has_seen_beta_welcome': prof.has_seen_beta_welcome if prof else False,
             }
 
         return Response({

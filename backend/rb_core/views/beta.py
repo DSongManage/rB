@@ -12,8 +12,9 @@ from django.conf import settings
 from django.utils import timezone
 import logging
 
-from ..models import BetaInvite
+from ..models import BetaInvite, User as CoreUser, UserProfile
 from ..serializers import BetaInviteSerializer
+from rest_framework.permissions import IsAuthenticated
 
 logger = logging.getLogger(__name__)
 
@@ -290,3 +291,42 @@ renaissBlock - The Future of Creative Collaboration
         logger.error(f'Failed to send beta invite email to {beta_invite.email}: {e}')
         # Don't change status if email failed
         raise
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_beta_welcome_seen(request):
+    """
+    Mark the beta welcome modal as seen for the authenticated user.
+
+    This endpoint is called when a user closes the beta welcome modal,
+    ensuring they won't see it again even on different browsers/devices.
+    """
+    try:
+        core_user = CoreUser.objects.get(username=request.user.username)
+        profile, _ = UserProfile.objects.get_or_create(
+            user=core_user,
+            defaults={'username': request.user.username}
+        )
+
+        profile.has_seen_beta_welcome = True
+        profile.save(update_fields=['has_seen_beta_welcome'])
+
+        logger.info(f'Beta welcome marked as seen for user {request.user.username}')
+
+        return Response({
+            'success': True,
+            'has_seen_beta_welcome': True
+        }, status=status.HTTP_200_OK)
+
+    except CoreUser.DoesNotExist:
+        return Response(
+            {'error': 'User not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f'Error marking beta welcome as seen: {e}')
+        return Response(
+            {'error': 'Failed to update'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
