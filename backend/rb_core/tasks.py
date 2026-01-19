@@ -2,6 +2,7 @@
 Celery tasks for async NFT minting and payment processing.
 """
 
+import json
 import logging
 from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
@@ -1623,12 +1624,12 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
 
     Steps:
     1. Verify transaction on blockchain
-    2. Create Purchase record
+    2. Create Purchase record(s) - one per item for cart purchases
     3. Clear user's cart
-    4. Trigger NFT minting
+    4. Trigger NFT minting for each purchase
     5. Update user balance cache
     """
-    from .models import PurchaseIntent, Purchase, UserBalance, Cart
+    from .models import PurchaseIntent, Purchase, UserBalance, Cart, Content, Chapter
     from .services import get_solana_service
 
     try:
@@ -1643,24 +1644,75 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
         if not solana_service.confirm_transaction(transaction_signature):
             raise self.retry(countdown=10, exc=Exception("Transaction not confirmed"))
 
-        # Create Purchase record
-        purchase = Purchase.objects.create(
-            user=intent.user,
-            chapter=intent.chapter,
-            content=intent.content,
-            payment_provider='balance',
-            purchase_price_usd=intent.total_amount,
-            gross_amount=intent.total_amount,
-            buyer_total=intent.total_amount,
-            chapter_price=intent.item_price,
-            credit_card_fee=Decimal('0'),  # No fees for balance payment
-            stripe_fee=Decimal('0'),
-            status='payment_completed',
-            transaction_signature=transaction_signature,
-        )
+        purchases = []
 
-        # Link purchase to intent
-        intent.purchase = purchase
+        # Handle cart purchases (multiple items)
+        if intent.is_cart_purchase and intent.cart_snapshot:
+            cart_data = intent.cart_snapshot if isinstance(intent.cart_snapshot, dict) else json.loads(intent.cart_snapshot)
+            items = cart_data.get('items', [])
+
+            for item in items:
+                chapter_id = item.get('chapter_id')
+                content_id = item.get('content_id')
+                item_price = Decimal(item.get('price', '0'))
+
+                # Get the chapter or content object
+                chapter = None
+                content = None
+                if chapter_id:
+                    try:
+                        chapter = Chapter.objects.get(id=chapter_id)
+                        content = chapter.content
+                    except Chapter.DoesNotExist:
+                        logger.warning(f"[Balance Purchase] Chapter {chapter_id} not found")
+                elif content_id:
+                    try:
+                        content = Content.objects.get(id=content_id)
+                    except Content.DoesNotExist:
+                        logger.warning(f"[Balance Purchase] Content {content_id} not found")
+
+                if not content and not chapter:
+                    logger.error(f"[Balance Purchase] No content/chapter found for item: {item}")
+                    continue
+
+                purchase = Purchase.objects.create(
+                    user=intent.user,
+                    chapter=chapter,
+                    content=content,
+                    payment_provider='balance',
+                    purchase_price_usd=item_price,
+                    gross_amount=item_price,
+                    buyer_total=item_price,
+                    chapter_price=item_price,
+                    credit_card_fee=Decimal('0'),
+                    stripe_fee=Decimal('0'),
+                    status='payment_completed',
+                    transaction_signature=transaction_signature,
+                )
+                purchases.append(purchase)
+                logger.info(f"[Balance Purchase] Created purchase {purchase.id} for content {content_id or chapter_id}")
+
+        else:
+            # Single item purchase (original logic)
+            purchase = Purchase.objects.create(
+                user=intent.user,
+                chapter=intent.chapter,
+                content=intent.content,
+                payment_provider='balance',
+                purchase_price_usd=intent.total_amount,
+                gross_amount=intent.total_amount,
+                buyer_total=intent.total_amount,
+                chapter_price=intent.item_price,
+                credit_card_fee=Decimal('0'),
+                stripe_fee=Decimal('0'),
+                status='payment_completed',
+                transaction_signature=transaction_signature,
+            )
+            purchases.append(purchase)
+
+        # Link first purchase to intent (for backward compatibility)
+        if purchases:
+            intent.purchase = purchases[0]
         intent.status = 'processing'
         intent.save()
 
@@ -1681,11 +1733,13 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
         # Sync user balance (runs async to update cached balance)
         sync_user_balance_task.delay(intent.user.id)
 
-        # Trigger NFT minting (using existing atomic purchase logic)
-        process_atomic_purchase.delay(purchase.id)
+        # Trigger NFT minting for each purchase
+        for purchase in purchases:
+            process_atomic_purchase.delay(purchase.id)
 
-        logger.info(f"[Balance Purchase] Created purchase {purchase.id} for intent {intent_id}")
-        return {'purchase_id': purchase.id, 'status': 'processing'}
+        purchase_ids = [p.id for p in purchases]
+        logger.info(f"[Balance Purchase] Created {len(purchases)} purchase(s) {purchase_ids} for intent {intent_id}")
+        return {'purchase_ids': purchase_ids, 'status': 'processing'}
 
     except Exception as e:
         logger.error(f"[Balance Purchase] Failed for intent {intent_id}: {e}")
