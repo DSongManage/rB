@@ -10,6 +10,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import NotificationBell from './components/notifications/NotificationBell';
 import NotificationToastContainer from './components/notifications/NotificationToastContainer';
 import notificationService from './services/notificationService';
+import { disconnectWeb3Auth } from './services/web3authService';
 import { BetaBadge, TestModeBanner } from './components/BetaBadge';
 import { useAuth } from './hooks/useAuth';
 import BetaOnboarding from './components/BetaOnboarding';
@@ -139,6 +140,13 @@ function Header() {
       const t = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' }).then(r=>r.json()).then(j=> j?.csrfToken || '');
       await fetch(`${API_URL}/api/auth/logout/`, { method:'POST', credentials:'include', headers:{ 'X-CSRFToken': t, 'X-Requested-With': 'XMLHttpRequest' } });
     } catch {}
+
+    // CRITICAL: Disconnect Web3Auth to prevent wallet session mismatch on next login
+    try {
+      await disconnectWeb3Auth();
+    } catch (e) {
+      console.warn('[App] Web3Auth disconnect failed:', e);
+    }
 
     // Stop notification polling and reset
     notificationService.stopPolling();
