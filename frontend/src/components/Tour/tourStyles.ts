@@ -116,9 +116,8 @@ export const tourStyles: Partial<Styles> = {
     backgroundColor: 'rgba(245, 158, 11, 0.3)',
     border: '2px solid #f59e0b',
   },
-  // Overlay - dark background like the Tour menu modal
+  // Overlay - uses overlayColor from options (don't set backgroundColor here or it covers the spotlight)
   overlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     mixBlendMode: undefined,
   },
 };

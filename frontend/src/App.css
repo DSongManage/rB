@@ -498,6 +498,7 @@ button:hover { background:#d97706; }
 /* Ensure tour elements appear above other content */
 .react-joyride__overlay {
   z-index: 10000 !important;
+  /* Don't set background here - it covers the spotlight hole. Use overlayColor in tourStyles.ts instead */
 }
 
 .react-joyride__tooltip {
