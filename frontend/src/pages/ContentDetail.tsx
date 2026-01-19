@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Play, ChevronDown, ChevronUp, User } from 'lucide-react';
+import { ArrowLeft, Play, ChevronDown, ChevronUp, User, AlertCircle } from 'lucide-react';
 import PreviewModal from '../components/PreviewModal';
 import AddToCartButton from '../components/AddToCartButton';
 import CopyrightNotice from '../components/CopyrightNotice';
@@ -413,44 +413,21 @@ export default function ContentDetail(){
             </div>
           </div>
 
-          {/* User Balance - Show for authenticated users with wallet on paid content */}
-          {isAuthenticated && priceNum > 0 && syncStatus !== 'no_wallet' && (
+          {/* Insufficient Balance Warning - Only show when needed */}
+          {isAuthenticated && priceNum > 0 && syncStatus !== 'no_wallet' && !isBalanceSufficient(priceNum) && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: 8,
               marginBottom: 16,
-              padding: '10px 16px',
-              background: isBalanceSufficient(priceNum)
-                ? 'rgba(16, 185, 129, 0.1)'
-                : 'rgba(239, 68, 68, 0.1)',
-              border: `1px solid ${isBalanceSufficient(priceNum) ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-              borderRadius: 8,
+              fontSize: 13,
+              color: '#f87171',
             }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 2 }}>
-                  Your Balance
-                </div>
-                <div style={{
-                  fontSize: 16,
-                  fontWeight: 600,
-                  color: isBalanceSufficient(priceNum) ? '#10b981' : '#ef4444'
-                }}>
-                  {displayBalance || '$0.00'}
-                </div>
-              </div>
-              <div style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: isBalanceSufficient(priceNum) ? '#10b981' : '#f87171',
-                padding: '4px 8px',
-                background: isBalanceSufficient(priceNum)
-                  ? 'rgba(16, 185, 129, 0.2)'
-                  : 'rgba(239, 68, 68, 0.2)',
-                borderRadius: 4,
-              }}>
-                {isBalanceSufficient(priceNum) ? 'Sufficient' : 'Insufficient'}
-              </div>
+              <AlertCircle size={16} />
+              <span>
+                Your balance ({displayBalance || '$0.00'}) is insufficient.{' '}
+                <Link to="/wallet" style={{ color: '#60a5fa', fontWeight: 500 }}>Add funds</Link>
+              </span>
             </div>
           )}
 
@@ -488,9 +465,9 @@ export default function ContentDetail(){
           {/* Synopsis/Description for Books */}
           {data?.content_type === 'book' && data?.description && (
             <div style={{
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-              borderRadius: 12,
+              background: 'rgba(59, 130, 246, 0.06)',
+              border: '1px solid rgba(59, 130, 246, 0.15)',
+              borderRadius: 10,
               padding: 16,
               marginBottom: 16,
             }}>
@@ -518,9 +495,9 @@ export default function ContentDetail(){
           {/* Series Info */}
           {data?.series_info && (
             <div style={{
-              background: 'rgba(139, 92, 246, 0.08)',
-              border: '1px solid rgba(139, 92, 246, 0.2)',
-              borderRadius: 12,
+              background: 'rgba(139, 92, 246, 0.06)',
+              border: '1px solid rgba(139, 92, 246, 0.15)',
+              borderRadius: 10,
               padding: 16,
               marginBottom: 16,
             }}>
@@ -553,27 +530,25 @@ export default function ContentDetail(){
             </div>
           )}
 
-          {/* Author's Note */}
+          {/* Author's Note - Quote style with left border */}
           {data?.authors_note && (
             <div style={{
-              background: 'rgba(30, 41, 59, 0.5)',
-              border: '1px solid #334155',
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
+              paddingLeft: 16,
+              marginBottom: 20,
+              borderLeft: '3px solid #475569',
             }}>
               <div style={{
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 600,
-                color: '#94a3b8',
+                color: '#64748b',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
-                marginBottom: 8,
+                marginBottom: 6,
               }}>
                 From the Author
               </div>
               <p style={{
-                color: '#e2e8f0',
+                color: '#cbd5e1',
                 fontSize: 14,
                 lineHeight: 1.6,
                 margin: 0,

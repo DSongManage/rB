@@ -1,4 +1,5 @@
 import React from 'react';
+import { Shield } from 'lucide-react';
 
 interface CopyrightNoticeProps {
   authorName: string;
@@ -44,51 +45,45 @@ export default function CopyrightNotice({ authorName, year, compact = false }: C
     );
   }
 
+  // Footer-like styling - no nested boxes
   return (
     <div style={{
-      background: 'rgba(139, 92, 246, 0.08)',
-      border: '1px solid rgba(139, 92, 246, 0.2)',
-      borderRadius: 12,
-      padding: 16,
-      marginTop: 16,
+      marginTop: 24,
+      paddingTop: 16,
+      borderTop: '1px solid #334155',
     }}>
       <div style={{
-        fontSize: 12,
-        fontWeight: 600,
-        color: '#a78bfa',
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-        marginBottom: 12,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
       }}>
-        Copyright Notice
-      </div>
-
-      <div style={{
-        background: 'var(--bg)',
-        border: '1px solid var(--panel-border)',
-        borderRadius: 8,
-        padding: 20,
-        textAlign: 'center',
-      }}>
-        <p style={{
-          color: 'var(--text)',
-          fontSize: 14,
+        <Shield size={14} style={{ color: '#a78bfa' }} />
+        <span style={{
+          fontSize: 11,
           fontWeight: 600,
-          margin: '0 0 16px 0',
+          color: '#a78bfa',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
         }}>
-          {copyrightLine}
-        </p>
-
-        <p style={{
-          color: '#94a3b8',
-          fontSize: 12,
-          lineHeight: 1.6,
-          margin: 0,
-          fontStyle: 'italic',
-        }}>
-          {blockchainMessage}
-        </p>
+          Copyright
+        </span>
       </div>
+      <p style={{
+        color: '#94a3b8',
+        fontSize: 13,
+        margin: '0 0 4px 0',
+      }}>
+        {copyrightLine}
+      </p>
+      <p style={{
+        color: '#64748b',
+        fontSize: 11,
+        margin: 0,
+        fontStyle: 'italic',
+      }}>
+        {blockchainMessage}
+      </p>
     </div>
   );
 }
