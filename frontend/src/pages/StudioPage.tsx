@@ -4,13 +4,33 @@ import CreateWizard from '../components/CreateWizard/CreateWizard';
 import BookEditor from '../components/BookEditor/BookEditor';
 import { CreatorAgreementGate } from '../components/legal/CreatorAgreementGate';
 import { PenLine, Users } from 'lucide-react';
+import { useTour } from '../contexts/TourContext';
 
 export default function StudioPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { startTour, hasCompletedTour } = useTour();
   const [editContentId, setEditContentId] = useState<number | null>(null);
   const [editBookProjectId, setEditBookProjectId] = useState<number | null>(null);
   const [showChoice, setShowChoice] = useState(true);
+
+  // Trigger creator intro tour on first visit to studio choice screen
+  useEffect(() => {
+    const modeParam = searchParams.get('mode');
+    const mintContentParam = searchParams.get('mintContent');
+    const editContentParam = searchParams.get('editContent');
+    const editBookProjectParam = searchParams.get('editBookProject');
+
+    // Only show tour on the choice screen (no params)
+    if (!modeParam && !mintContentParam && !editContentParam && !editBookProjectParam) {
+      if (!hasCompletedTour('creator-intro')) {
+        // Small delay to let the page render
+        setTimeout(() => {
+          startTour('creator-intro');
+        }, 500);
+      }
+    }
+  }, [searchParams, hasCompletedTour, startTour]);
 
   useEffect(() => {
     const contentIdParam = searchParams.get('editContent');
@@ -50,10 +70,10 @@ export default function StudioPage() {
     return (
       <CreatorAgreementGate>
         <div style={{
-          width: '100%',
-          maxWidth: 'none',
+          maxWidth: 1100,
+          margin: '0 auto',
           height: 'calc(100vh - 80px)', // Account for header
-          padding: '0 24px',
+          padding: '0 16px',
           overflow: 'hidden',
         }}>
           <BookEditor
@@ -80,26 +100,67 @@ export default function StudioPage() {
   // Show choice screen: Solo vs Collaboration
   if (showChoice && !modeParam && !mintContentParam) {
     return (
-      <div className="page create-choice-container">
-        <div className="create-choice-header">
-          <h1>Create New Content</h1>
-          <p>Choose how you want to create your content</p>
+      <div className="page" style={{maxWidth:800, margin:'0 auto', padding:'48px 32px'}}>
+        <div style={{textAlign:'center', marginBottom:48}}>
+          <h1 style={{fontSize:32, fontWeight:800, color:'var(--text)', marginBottom:12}}>
+            Create New Content
+          </h1>
+          <p style={{fontSize:16, color:'#94a3b8'}}>
+            Choose how you want to create your content
+          </p>
         </div>
 
-        <div className="create-choice-grid">
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:24}} data-tour="studio-mode-selection">
           {/* Solo Content */}
           <div
-            className="create-choice-card solo"
             onClick={() => navigate('/studio?mode=solo')}
+            data-tour="solo-mode-card"
+            style={{
+              background:'var(--panel)',
+              border:'2px solid var(--panel-border)',
+              borderRadius:16,
+              padding:32,
+              cursor:'pointer',
+              transition:'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#3b82f6';
+              e.currentTarget.style.transform = 'translateY(-4px)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--panel-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
           >
-            <div className="create-choice-icon solo">
-              <PenLine size={32} />
+            <div style={{display:'flex', justifyContent:'center', marginBottom:16}}>
+              <div style={{
+                width:64,
+                height:64,
+                borderRadius:16,
+                background:'rgba(59, 130, 246, 0.15)',
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                color:'#3b82f6',
+              }}>
+                <PenLine size={32} />
+              </div>
             </div>
-            <h3>Create Solo</h3>
-            <p>
+            <h3 style={{fontSize:20, fontWeight:700, color:'var(--text)', marginBottom:12, textAlign:'center'}}>
+              Create Solo
+            </h3>
+            <p style={{fontSize:14, color:'#94a3b8', lineHeight:1.6, textAlign:'center'}}>
               Work independently on your own content. Perfect for individual creators who want full control.
             </p>
-            <ul>
+            <ul style={{
+              fontSize:13,
+              color:'#cbd5e1',
+              marginTop:16,
+              paddingLeft:20,
+              lineHeight:1.8,
+            }}>
               <li>100% creative control</li>
               <li>100% revenue</li>
               <li>Quick to publish</li>
@@ -108,17 +169,54 @@ export default function StudioPage() {
 
           {/* Collaborative Content */}
           <div
-            className="create-choice-card collab"
             onClick={() => navigate('/collaborations')}
+            data-tour="collab-mode-card"
+            style={{
+              background:'var(--panel)',
+              border:'2px solid var(--panel-border)',
+              borderRadius:16,
+              padding:32,
+              cursor:'pointer',
+              transition:'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#f59e0b';
+              e.currentTarget.style.transform = 'translateY(-4px)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(245, 158, 11, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--panel-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
           >
-            <div className="create-choice-icon collab">
-              <Users size={32} />
+            <div style={{display:'flex', justifyContent:'center', marginBottom:16}}>
+              <div style={{
+                width:64,
+                height:64,
+                borderRadius:16,
+                background:'rgba(245, 158, 11, 0.15)',
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                color:'#f59e0b',
+              }}>
+                <Users size={32} />
+              </div>
             </div>
-            <h3>Start Collaboration</h3>
-            <p>
+            <h3 style={{fontSize:20, fontWeight:700, color:'var(--text)', marginBottom:12, textAlign:'center'}}>
+              Start Collaboration
+            </h3>
+            <p style={{fontSize:14, color:'#94a3b8', lineHeight:1.6, textAlign:'center'}}>
               Work with other creators. Combine skills and split revenue transparently.
             </p>
-            <ul>
+            <ul style={{
+              fontSize:13,
+              color:'#cbd5e1',
+              marginTop:16,
+              paddingLeft:20,
+              lineHeight:1.8,
+            }}>
               <li>Invite multiple creators</li>
               <li>Set roles & permissions</li>
               <li>Fair revenue splits</li>
@@ -131,7 +229,7 @@ export default function StudioPage() {
 
   return (
     <CreatorAgreementGate>
-      <div className="page" style={{ width: '100%', maxWidth: 'none', padding: '16px' }}>
+      <div className="page" style={{maxWidth:1100, margin:'0 auto'}}>
         <CreateWizard />
       </div>
     </CreatorAgreementGate>

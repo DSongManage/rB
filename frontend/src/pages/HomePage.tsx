@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '../config';
 import { VideoCard } from '../components/VideoCard';
 import { BookCard } from '../components/BookCard';
-import { FilterDropdown } from '../components/FilterDropdown';
 
 type Collaborator = {
   username: string;
@@ -56,50 +55,26 @@ type BookProject = {
   content_type: 'book';
 };
 
-// Content type filter config
-const TYPE_FILTERS = [
+// Genre filter config - maps display name to content_type value
+const GENRE_FILTERS = [
   { label: 'All', value: 'all' },
   { label: 'Books', value: 'book' },
-  { label: 'Comics', value: 'comic' },
   { label: 'Art', value: 'art' },
   { label: 'Film', value: 'film', comingSoon: true },
   { label: 'Music', value: 'music', comingSoon: true },
-];
-
-// Genre filter config - for content genre (fantasy, scifi, etc.)
-const GENRE_FILTERS = [
-  { label: 'All Genres', value: 'all' },
-  { label: 'Fantasy', value: 'fantasy' },
-  { label: 'Sci-Fi', value: 'scifi' },
-  { label: 'Drama', value: 'drama' },
-  { label: 'Comedy', value: 'comedy' },
-  { label: 'Nonfiction', value: 'nonfiction' },
-];
-
-// Sort options for content ordering
-const SORT_OPTIONS = [
-  { label: 'Newest', value: 'newest' },
-  { label: 'Most Popular', value: 'popular' },
-  { label: 'Highest Rated', value: 'rated' },
-  { label: 'Best Sellers', value: 'bestsellers' },
 ];
 
 
 export default function HomePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
-  const [selectedType, setSelectedType] = useState('all');
-  const [selectedGenre, setSelectedGenre] = useState('all');
-  const [selectedSort, setSelectedSort] = useState('newest');
+  const [selectedFilter, setSelectedFilter] = useState('all');
 
   useEffect(()=>{
     const abortController = new AbortController();
 
-    // Build query params
-    const genreParam = selectedGenre !== 'all' ? `&genre=${selectedGenre}` : '';
-
     // Fetch regular content (art, film, music - excludes books which are shown aggregated)
-    const contentPromise = fetch(`${API_URL}/api/content/?sort=${selectedSort}${genreParam}`, {
+    const contentPromise = fetch(`${API_URL}/api/content/`, {
       credentials: 'include',
       signal: abortController.signal,
     })
@@ -116,7 +91,7 @@ export default function HomePage() {
       });
 
     // Fetch aggregated book projects
-    const booksPromise = fetch(`${API_URL}/api/book-projects/public/?sort=${selectedSort}${genreParam}`, {
+    const booksPromise = fetch(`${API_URL}/api/book-projects/public/`, {
       credentials: 'include',
       signal: abortController.signal,
     })
@@ -137,7 +112,7 @@ export default function HomePage() {
       });
 
     return () => abortController.abort();
-  },[selectedSort, selectedGenre]);
+  },[]);
 
   // Format time ago
   const getTimeAgo = (dateString?: string) => {
@@ -156,51 +131,18 @@ export default function HomePage() {
   // Create unified list with sorting info
   type DisplayItem = {
     type: 'content' | 'book';
+    sortKey: number; // timestamp for sorting
     data: Item | BookProject;
   };
 
   const allItems: DisplayItem[] = useMemo(() => {
-    // Get sort value based on selected sort option
-    const getSortValue = (item: DisplayItem): number => {
-      if (item.type === 'book') {
-        const book = item.data as BookProject;
-        switch (selectedSort) {
-          case 'popular':
-            return book.total_views || 0;
-          case 'rated':
-            // Sort by rating first, then by count for tiebreaker
-            return (book.average_rating || 0) * 10000 + (book.rating_count || 0);
-          case 'bestsellers':
-            // Books don't have purchase_count on frontend, use views as proxy
-            return book.total_views || 0;
-          case 'newest':
-          default:
-            return book.created_at ? new Date(book.created_at).getTime() : 0;
-        }
-      } else {
-        const content = item.data as Item;
-        switch (selectedSort) {
-          case 'popular':
-            return content.view_count || 0;
-          case 'rated':
-            // Sort by rating first, then by count for tiebreaker
-            return (content.average_rating || 0) * 10000 + (content.rating_count || 0);
-          case 'bestsellers':
-            // Content doesn't have purchase_count on frontend, use views as proxy
-            return content.view_count || 0;
-          case 'newest':
-          default:
-            return content.created_at ? new Date(content.created_at).getTime() : 0;
-        }
-      }
-    };
-
     const result: DisplayItem[] = [];
 
     // Add regular content items
     items.forEach(it => {
       result.push({
         type: 'content',
+        sortKey: it.created_at ? new Date(it.created_at).getTime() : 0,
         data: it,
       });
     });
@@ -209,70 +151,63 @@ export default function HomePage() {
     bookProjects.forEach(book => {
       result.push({
         type: 'book',
+        sortKey: book.created_at ? new Date(book.created_at).getTime() : 0,
         data: book,
       });
     });
 
-    // Sort based on selected sort option (descending)
-    result.sort((a, b) => getSortValue(b) - getSortValue(a));
+    // Sort by most recent first
+    result.sort((a, b) => b.sortKey - a.sortKey);
 
     return result;
-  }, [items, bookProjects, selectedSort]);
+  }, [items, bookProjects]);
 
   // Apply filter
   const filtered = useMemo(()=>{
-    if (selectedType === 'all') return allItems;
+    if (selectedFilter === 'all') return allItems;
 
     return allItems.filter(item => {
       if (item.type === 'book') {
-        return selectedType === 'book';
+        return selectedFilter === 'book';
       } else {
-        return (item.data as Item).content_type === selectedType;
+        return (item.data as Item).content_type === selectedFilter;
       }
     });
-  },[allItems, selectedType]);
+  },[allItems, selectedFilter]);
 
   return (
     <div>
-      {/* Filter Bar - single row with tabs + dropdowns */}
-      <div className="filter-bar">
-        {/* Primary content type tabs */}
-        <div className="filter-tabs">
-          {TYPE_FILTERS.map(f => (
-            <button
-              key={f.value}
-              className={`filter-tab ${selectedType === f.value ? 'active' : ''}`}
-              onClick={() => !f.comingSoon && setSelectedType(f.value)}
-              disabled={f.comingSoon}
-            >
-              {f.label}
-              {f.comingSoon && (
-                <span className="coming-soon-badge">Soon</span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* Dropdown filters */}
-        <FilterDropdown
-          label="Genre"
-          value={selectedGenre}
-          options={GENRE_FILTERS}
-          onChange={setSelectedGenre}
-        />
-        <FilterDropdown
-          label="Sort"
-          value={selectedSort}
-          options={SORT_OPTIONS}
-          onChange={setSelectedSort}
-        />
+      <div className="chips" data-tour="genre-filters">
+        {GENRE_FILTERS.map(f=> (
+          <button
+            key={f.value}
+            className={`chip ${selectedFilter===f.value?'active':''} ${f.comingSoon ? 'disabled' : ''}`}
+            onClick={()=> !f.comingSoon && setSelectedFilter(f.value)}
+            disabled={f.comingSoon}
+            style={{
+              opacity: f.comingSoon ? 0.5 : 1,
+              cursor: f.comingSoon ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {f.label}
+            {f.comingSoon && (
+              <span style={{
+                fontSize: 9,
+                background: '#f59e0b',
+                color: '#000',
+                padding: '1px 4px',
+                borderRadius: 3,
+                marginLeft: 4,
+                fontWeight: 700,
+              }}>
+                SOON
+              </span>
+            )}
+          </button>
+        ))}
       </div>
-
       <div className="page" style={{padding:0, background:'transparent', border:'none', boxShadow:'none'}}>
-        <div className="yt-grid">
+        <div className="yt-grid" data-tour="content-grid">
           {filtered.map((item) => {
             if (item.type === 'book') {
               const book = item.data as BookProject;

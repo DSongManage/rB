@@ -13,12 +13,13 @@ import notificationService from './services/notificationService';
 import { BetaBadge, TestModeBanner } from './components/BetaBadge';
 import { useAuth } from './hooks/useAuth';
 import BetaOnboarding from './components/BetaOnboarding';
-import { disconnectWeb3Auth } from './services/web3authService';
 import { Footer } from './components/legal/Footer';
 import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
 import { CartProvider } from './contexts/CartContext';
-import { BalanceProvider } from './contexts/BalanceContext';
+import { TourProvider } from './contexts/TourContext';
+import { TourRenderer } from './components/Tour/TourProvider';
+import { TourMenu } from './components/Tour/TourMenu';
 import CartIcon from './components/CartIcon';
 import {
   User, LogOut, Menu, X, Users
@@ -46,7 +47,6 @@ const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const FollowingFeedPage = lazy(() => import('./pages/FollowingFeedPage'));
 const CartPage = lazy(() => import('./pages/CartPage'));
 const CartSuccessPage = lazy(() => import('./pages/CartSuccessPage'));
-const PayoutSettingsPage = lazy(() => import('./pages/PayoutSettingsPage'));
 
 // Legal pages
 const TermsOfServicePage = lazy(() => import('./pages/legal/TermsOfServicePage'));
@@ -75,11 +75,6 @@ function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Close mobile menu on route change
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
 
   const checkAuth = React.useCallback(() => {
     fetch(`${API_URL}/api/auth/status/`, { credentials: 'include' })
@@ -144,23 +139,12 @@ function Header() {
       await fetch(`${API_URL}/api/auth/logout/`, { method:'POST', credentials:'include', headers:{ 'X-CSRFToken': t, 'X-Requested-With': 'XMLHttpRequest' } });
     } catch {}
 
-    // CRITICAL: Disconnect Web3Auth to prevent session key mismatch on next login
-    // This ensures the next user gets their own Web3Auth session, not a cached one
-    try {
-      await disconnectWeb3Auth();
-    } catch (e) {
-      console.warn('[Logout] Web3Auth disconnect failed:', e);
-    }
-
     // Stop notification polling and reset
     notificationService.stopPolling();
     notificationService.reset();
 
     // Optimistically flip immediately
     setIsAuthed(false);
-
-    // Notify useAuth hook and other listeners about logout
-    window.dispatchEvent(new Event('auth-logout'));
 
     // Navigate to home using React Router
     navigate('/');
@@ -176,7 +160,7 @@ function Header() {
         </Link>
         <BetaBadge variant="header" showTestMode={true} />
       </div>
-      <div className="rb-header-center">
+      <div className="rb-header-center" data-tour="search-bar">
         <SearchAutocomplete />
       </div>
 
@@ -185,6 +169,7 @@ function Header() {
         className="rb-mobile-menu-toggle"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         aria-label="Toggle menu"
+        data-tour="mobile-menu-toggle"
       >
         {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -193,13 +178,17 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
-            <CartIcon />
-            <NotificationBell />
-            <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
+            <TourMenu />
+            <span data-tour="cart-button">
+              <CartIcon />
+            </span>
+            <span data-tour="notifications-button">
+              <NotificationBell />
+            </span>
+            <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators" data-tour="collaborators-link">
               <Users size={20} />
-              <span>Creators</span>
             </Link>
-            <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile">
+            <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile" data-tour="profile-link">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
@@ -242,8 +231,6 @@ export default function App() {
   const location = useLocation();
   const { isAuthenticated, loading } = useAuth();
   const { isMobile } = useMobile();
-  // Library sidebar expansion state - lifted from LibrarySidebar for layout coordination
-  const [libraryExpanded, setLibraryExpanded] = useState(true);
 
   // Legacy CreatorSidebar removed - functionality now in navbar and page tabs
   const showCreatorSidebar = false;
@@ -314,22 +301,22 @@ export default function App() {
   }
 
   return (
+    <TourProvider>
     <CartProvider>
-    <BalanceProvider>
     <div className="rb-app">
       <Header />
-      {showLibrarySidebar && <LibrarySidebar isExpanded={libraryExpanded} onExpandedChange={setLibraryExpanded} />}
+      {showLibrarySidebar && <LibrarySidebar />}
       <main
         className="rb-main"
         style={{
           display: 'grid',
           gridTemplateColumns: showCreatorSidebar ? '240px 1fr' : '1fr',
           gap: 16,
-          marginLeft: showLibrarySidebar ? (libraryExpanded ? 320 : 48) : 0,
-          marginRight: 0,
-          width: showLibrarySidebar
-            ? (libraryExpanded ? 'calc(100% - 320px)' : 'calc(100% - 48px)')
-            : '100%',
+          ...(showLibrarySidebar ? {
+            marginLeft: 320,
+            marginRight: 0,
+            width: 'calc(100% - 320px)',
+          } : {}),
           transition: 'margin-left 0.3s ease, width 0.3s ease',
         }}
       >
@@ -362,12 +349,10 @@ export default function App() {
                 <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
                 <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
                 <Route path="/cart/success" element={<ProtectedRoute><CartSuccessPage /></ProtectedRoute>} />
-                {/* Redirect /collaborations to profile page with collaborations tab */}
-                <Route path="/collaborations" element={<Navigate to="/profile?tab=collaborations" replace />} />
+                <Route path="/collaborations" element={<ProtectedRoute><CollaborationDashboard /></ProtectedRoute>} />
                 <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />
-                <Route path="/payout-settings" element={<ProtectedRoute><PayoutSettingsPage /></ProtectedRoute>} />
               </Routes>
             </Suspense>
           </ErrorBoundary>
@@ -378,8 +363,9 @@ export default function App() {
       <CookieBanner />
       <TestModeBanner />
       <BetaOnboarding />
+      <TourRenderer />
     </div>
-    </BalanceProvider>
     </CartProvider>
+    </TourProvider>
   );
 }

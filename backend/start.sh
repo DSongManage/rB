@@ -13,6 +13,12 @@ python manage.py migrate --noinput
 echo "Collecting static files..."
 python manage.py collectstatic --noinput --clear
 
+# Create test superuser for PR preview environments (non-production only)
+if [ "$RAILWAY_ENVIRONMENT" != "production" ] && [ "$ENVIRONMENT" != "production" ]; then
+  echo "Non-production environment detected. Creating test superuser..."
+  python manage.py create_test_superuser || echo "Test superuser creation skipped or failed"
+fi
+
 # Start gunicorn with increased timeout and preload
 echo "Starting gunicorn..."
 exec gunicorn renaissBlock.wsgi \
