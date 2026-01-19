@@ -13,14 +13,14 @@ export const tourStyles: Partial<Styles> = {
     backgroundColor: '#1a1a1a',
     // Arrow color matches tooltip background
     arrowColor: '#1a1a1a',
-    // Overlay color (darkens the rest of the page)
-    overlayColor: 'rgba(0, 0, 0, 0.75)',
+    // NO overlay - completely transparent (user prefers border highlight only)
+    overlayColor: 'rgba(0, 0, 0, 0)',
     // Primary accent color (amber)
     primaryColor: '#f59e0b',
     // Text color
     textColor: '#e5e7eb',
-    // Spotlight shadow for highlighted elements
-    spotlightShadow: '0 0 20px rgba(245, 158, 11, 0.4)',
+    // Strong spotlight border/glow to highlight elements without dark overlay
+    spotlightShadow: '0 0 0 4px #f59e0b, 0 0 20px rgba(245, 158, 11, 0.6)',
     // High z-index to appear above everything
     zIndex: 10000,
     // Beacon color (pulsing dot)
@@ -140,9 +140,10 @@ export const tourCSS = `
   }
 }
 
-/* Spotlight glow effect */
+/* Spotlight border highlight effect - NO dark overlay, just a glowing border */
 .react-joyride__spotlight {
-  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.3) !important;
+  box-shadow: 0 0 0 4px #f59e0b, 0 0 30px rgba(245, 158, 11, 0.5) !important;
+  border-radius: 8px !important;
 }
 
 /* Button hover states */
