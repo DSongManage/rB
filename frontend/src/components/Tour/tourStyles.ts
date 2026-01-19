@@ -140,8 +140,9 @@ export const tourCSS = `
   }
 }
 
-/* Pulsing amber highlight effect - NO dark overlay */
+/* Pulsing amber highlight effect - transparent so element underneath is visible */
 .react-joyride__spotlight {
+  background: transparent !important;
   box-shadow: 0 0 0 4px #f59e0b, 0 0 20px rgba(245, 158, 11, 0.6) !important;
   border-radius: 8px !important;
   animation: tourPulse 1.5s ease-in-out infinite !important;
