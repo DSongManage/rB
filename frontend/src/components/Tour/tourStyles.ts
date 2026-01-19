@@ -13,8 +13,9 @@ export const tourStyles: Partial<Styles> = {
     backgroundColor: '#1a1a1a',
     // Arrow color matches tooltip background
     arrowColor: '#1a1a1a',
-    // Dark overlay to focus attention on highlighted element (70% black like TourMenu modal)
-    overlayColor: 'rgba(0, 0, 0, 0.7)',
+    // Overlay color - set to transparent since we use box-shadow on spotlight for the dark effect
+    // This avoids mix-blend-mode issues that can make the spotlight area dark
+    overlayColor: 'transparent',
     // Primary accent color (amber)
     primaryColor: '#f59e0b',
     // Text color
@@ -116,10 +117,8 @@ export const tourStyles: Partial<Styles> = {
     backgroundColor: 'rgba(245, 158, 11, 0.3)',
     border: '2px solid #f59e0b',
   },
-  // Overlay - uses overlayColor from options (don't set backgroundColor here or it covers the spotlight)
-  overlay: {
-    mixBlendMode: undefined,
-  },
+  // Overlay - let react-joyride handle this entirely via overlayColor in options
+  // Don't define overlay styles here as it can interfere with the SVG mask spotlight cutout
 };
 
 // Custom CSS for additional styling (to be added to index.css or App.css)
