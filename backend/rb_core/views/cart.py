@@ -78,18 +78,36 @@ class CartView(APIView):
             'chapter__book_project__creator__profile',
             'content__creator__profile',
             'creator__profile'
+        ).prefetch_related(
+            'content__source_collaborative_project',
+            'content__source_book_project'
         ).all():
             purchasable = item.chapter or item.content
 
-            # Get cover URL - chapters use book's cover, content uses teaser_link
+            # Get cover URL - chapters use book's cover, content checks multiple sources
             cover_url = None
             if item.chapter and item.chapter.book_project.cover_image:
                 cover_url = item.chapter.book_project.cover_image.url
-            elif item.content and item.content.teaser_link:
-                # For art/film/music content, teaser_link might be an image
-                teaser = item.content.teaser_link
-                if teaser and any(teaser.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
-                    cover_url = teaser
+            elif item.content:
+                # For content, check multiple sources for cover image:
+                # 1. Source collaborative project's cover_image
+                # 2. Source book project's cover_image
+                # 3. Content's teaser_link (if it's an image)
+                if hasattr(item.content, 'source_collaborative_project'):
+                    collab_project = item.content.source_collaborative_project.first()
+                    if collab_project and collab_project.cover_image:
+                        cover_url = collab_project.cover_image.url
+
+                if not cover_url and hasattr(item.content, 'source_book_project'):
+                    book_project = item.content.source_book_project.first()
+                    if book_project and book_project.cover_image:
+                        cover_url = book_project.cover_image.url
+
+                if not cover_url and item.content.teaser_link:
+                    # For art/film/music content, teaser_link might be an image
+                    teaser = item.content.teaser_link
+                    if teaser and any(teaser.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
+                        cover_url = teaser
 
             items.append({
                 'id': item.id,
