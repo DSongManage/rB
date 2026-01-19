@@ -282,11 +282,21 @@ class SignupSerializer(serializers.Serializer):
         )
 
         # Create profile
+        # Set wallet_provider based on how wallet was provided:
+        # - 'web3auth' if web3auth_token was provided (derived wallet)
+        # - 'external' if manual wallet_address without token
+        # - default ('web3auth') if no wallet linked yet
+        wallet_provider = 'web3auth'  # Default for new accounts
+        if wallet_address and not token:
+            # Wallet provided without web3auth token = external wallet
+            wallet_provider = 'external'
+
         profile = UserProfile.objects.create(
             user=user,
             username=desired,
             display_name=display_name,
-            wallet_address=wallet_address
+            wallet_address=wallet_address,
+            wallet_provider=wallet_provider if wallet_address else 'web3auth'
         )
 
         # Mark beta invite as used
