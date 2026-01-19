@@ -136,7 +136,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = [
-            'id', 'username', 'display_name', 'wallet_address',
+            'id', 'username', 'display_name', 'wallet_address', 'wallet_provider',
             'avatar', 'banner', 'avatar_url', 'banner_url',
             'location', 'roles', 'genres', 'bio', 'skills', 'social_links',
             'is_private', 'status',
@@ -144,7 +144,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             # Creator review aggregates
             'average_review_rating', 'review_count'
         ]
-        read_only_fields = ['username', 'avatar', 'banner', 'content_count', 'total_sales_usd', 'tier', 'fee_bps', 'average_review_rating', 'review_count']
+        read_only_fields = ['username', 'avatar', 'banner', 'wallet_provider', 'content_count', 'total_sales_usd', 'tier', 'fee_bps', 'average_review_rating', 'review_count']
 
     def get_avatar(self, obj: UserProfile) -> str:
         import logging
