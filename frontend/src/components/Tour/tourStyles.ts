@@ -13,8 +13,8 @@ export const tourStyles: Partial<Styles> = {
     backgroundColor: '#1a1a1a',
     // Arrow color matches tooltip background
     arrowColor: '#1a1a1a',
-    // Very subtle overlay (5% opacity) - just enough to make spotlight visible
-    overlayColor: 'rgba(0, 0, 0, 0.05)',
+    // Dark overlay to focus attention on highlighted element (70% black like TourMenu modal)
+    overlayColor: 'rgba(0, 0, 0, 0.7)',
     // Primary accent color (amber)
     primaryColor: '#f59e0b',
     // Text color
@@ -116,8 +116,9 @@ export const tourStyles: Partial<Styles> = {
     backgroundColor: 'rgba(245, 158, 11, 0.3)',
     border: '2px solid #f59e0b',
   },
-  // Overlay
+  // Overlay - dark background like the Tour menu modal
   overlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     mixBlendMode: undefined,
   },
 };
