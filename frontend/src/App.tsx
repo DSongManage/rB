@@ -18,6 +18,7 @@ import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
 import { CartProvider } from './contexts/CartContext';
 import { TourProvider } from './contexts/TourContext';
+import { BalanceProvider } from './contexts/BalanceContext';
 import { TourRenderer } from './components/Tour/TourProvider';
 import { TourMenu } from './components/Tour/TourMenu';
 import CartIcon from './components/CartIcon';
@@ -303,6 +304,7 @@ export default function App() {
   return (
     <TourProvider>
     <CartProvider>
+    <BalanceProvider>
     <div className="rb-app">
       <Header />
       {showLibrarySidebar && <LibrarySidebar />}
@@ -365,6 +367,7 @@ export default function App() {
       <BetaOnboarding />
       <TourRenderer />
     </div>
+    </BalanceProvider>
     </CartProvider>
     </TourProvider>
   );

@@ -1691,7 +1691,7 @@ export default function ProfilePageRedesigned() {
               count={
                 // Published comics are in inventory (Content records), not soloComicProjects
                 inventory.filter(i => i.inventory_status === 'minted').length +
-                bookProjects.filter(b => b.published_chapters > 0).length
+                bookProjects.filter(b => b.published_chapters > 0 || b.is_published).length
               }
               active={statusFilter === 'published'}
               onClick={() => setStatusFilter(statusFilter === 'published' ? 'all' : 'published')}
@@ -1701,7 +1701,7 @@ export default function ProfilePageRedesigned() {
               count={
                 // Draft comics are in soloComicProjects, not inventory
                 inventory.filter(i => i.inventory_status === 'draft' && i.content_type !== 'comic').length +
-                bookProjects.filter(b => b.published_chapters === 0).length +
+                bookProjects.filter(b => b.published_chapters === 0 && !b.is_published).length +
                 soloComicProjects.filter(c => c.status === 'draft').length
               }
               active={statusFilter === 'draft'}
@@ -1778,9 +1778,9 @@ export default function ProfilePageRedesigned() {
 
               // Apply status filter to books
               if (statusFilter === 'published') {
-                filteredBooks = filteredBooks.filter(b => b.published_chapters > 0);
+                filteredBooks = filteredBooks.filter(b => b.published_chapters > 0 || b.is_published);
               } else if (statusFilter === 'draft') {
-                filteredBooks = filteredBooks.filter(b => b.published_chapters === 0);
+                filteredBooks = filteredBooks.filter(b => b.published_chapters === 0 && !b.is_published);
               }
 
               // Filter solo comic projects by content type
@@ -3213,7 +3213,7 @@ function BookProjectCard({
   onViewChapter: (contentId: number) => void;
   onEditBook: () => void;
 }) {
-  const hasPublishedChapters = book.published_chapters > 0;
+  const hasPublishedChapters = book.published_chapters > 0 || book.is_published;
   const firstPublishedChapter = book.chapters.find(ch => ch.is_published && ch.content_id);
 
   return (
