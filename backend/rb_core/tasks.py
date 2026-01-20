@@ -393,7 +393,7 @@ def process_atomic_purchase(self, purchase_id):
         purchase.stripe_fee = stripe_fee
         purchase.net_after_stripe = net_amount
         purchase.mint_cost = mint_gas_fee
-        purchase.status = 'payment_processing'
+        purchase.status = 'minting'
         purchase.usdc_distribution_status = 'processing'
         purchase.save()
 
@@ -712,7 +712,7 @@ def process_atomic_purchase(self, purchase_id):
         # Update purchase to failed
         try:
             purchase = Purchase.objects.get(id=purchase_id)
-            purchase.status = 'payment_failed'
+            purchase.status = 'failed'
             purchase.usdc_distribution_status = 'failed'
             purchase.save()
         except Exception as db_error:
