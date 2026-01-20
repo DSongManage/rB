@@ -228,7 +228,7 @@ CLOUDINARY_STORAGE = {
 
 # Storage configuration (Django 5.2+ uses STORAGES instead of deprecated DEFAULT_FILE_STORAGE)
 # Uses Cloudinary for media in production, local storage in development
-# Uses WhiteNoise for serving static files in production with compression and caching
+# Uses WhiteNoise for serving static files in production with compression
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"
@@ -236,9 +236,10 @@ STORAGES = {
         else "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        # WhiteNoise storage for production: adds compression (gzip/brotli) and cache-busting
-        # manifests. This ensures Django admin and other static files are served properly.
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        # WhiteNoise storage for production: adds gzip/brotli compression.
+        # Using CompressedStaticFilesStorage (not Manifest) to avoid strict missing file checks
+        # that fail with Django admin CSS referencing optional SVG icons.
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"
         if not DEBUG
         else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
@@ -246,7 +247,7 @@ STORAGES = {
 
 # Legacy setting for django-cloudinary-storage compatibility (it still checks this)
 STATICFILES_STORAGE = (
-    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    "whitenoise.storage.CompressedStaticFilesStorage"
     if not DEBUG
     else "django.contrib.staticfiles.storage.StaticFilesStorage"
 )
