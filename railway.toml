@@ -2,7 +2,7 @@
 
 [build]
 builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+buildCommand = "pip install -r requirements.txt && echo 'PWD:' && pwd && echo 'LS /app:' && ls -la /app/ && cd /app && DJANGO_SETTINGS_MODULE=renaissBlock.settings python manage.py collectstatic --noinput --verbosity 2 && echo 'Staticfiles after collectstatic:' && ls -la /app/staticfiles/ || echo 'No staticfiles dir'"
 
 [deploy]
 startCommand = "bash start.sh"
