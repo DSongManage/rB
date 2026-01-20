@@ -9,13 +9,9 @@ echo "Starting deployment process..."
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
-# Verify static files were collected during build
-echo "Verifying static files..."
-if [ -d "/app/staticfiles/admin" ]; then
-  echo "Static files collected successfully."
-  ls -la /app/staticfiles/admin/
-else
-  echo "WARNING: Static files not found. Running collectstatic..."
+# Verify static files were collected during build (fallback to collectstatic if needed)
+if [ ! -d "/app/staticfiles/admin" ]; then
+  echo "Static files not found, running collectstatic..."
   python manage.py collectstatic --noinput
 fi
 
