@@ -64,27 +64,23 @@ function VideoCardComponent({ id, title, author = 'Creator', likeCount = 0, view
     if (isCollaborative && collaborators && collaborators.length > 0) {
       if (collaborators.length === 1) {
         return (
-          <>
-            By{' '}
-            <Link
-              to={`/profile/${collaborators[0]}`}
-              style={{ color: '#60a5fa', textDecoration: 'none' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              @{collaborators[0]}
-            </Link>
-          </>
+          <Link
+            to={`/profile/${collaborators[0]}`}
+            style={{ color: '#60a5fa', textDecoration: 'none' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {collaborators[0]}
+          </Link>
         );
       } else if (collaborators.length === 2) {
         return (
           <>
-            By{' '}
             <Link
               to={`/profile/${collaborators[0]}`}
               style={{ color: '#60a5fa', textDecoration: 'none' }}
               onClick={(e) => e.stopPropagation()}
             >
-              @{collaborators[0]}
+              {collaborators[0]}
             </Link>
             {' & '}
             <Link
@@ -92,20 +88,19 @@ function VideoCardComponent({ id, title, author = 'Creator', likeCount = 0, view
               style={{ color: '#60a5fa', textDecoration: 'none' }}
               onClick={(e) => e.stopPropagation()}
             >
-              @{collaborators[1]}
+              {collaborators[1]}
             </Link>
           </>
         );
       } else {
         return (
           <>
-            By{' '}
             <Link
               to={`/profile/${collaborators[0]}`}
               style={{ color: '#60a5fa', textDecoration: 'none' }}
               onClick={(e) => e.stopPropagation()}
             >
-              @{collaborators[0]}
+              {collaborators[0]}
             </Link>
             {` & ${collaborators.length - 1} others`}
           </>

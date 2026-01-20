@@ -10,6 +10,7 @@ type BookChapter = {
   content_id: number;
   price_usd: number;
   view_count: number;
+  editions?: number;
 };
 
 type Props = {
@@ -84,8 +85,8 @@ function BookCardComponent({
     <div
       className="yt-card"
       style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
         borderRadius: 16,
         overflow: 'hidden',
         transition: 'all 0.2s',
@@ -93,12 +94,12 @@ function BookCardComponent({
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-4px)';
         e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
-        e.currentTarget.style.borderColor = '#334155';
+        e.currentTarget.style.borderColor = 'var(--border)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
         e.currentTarget.style.boxShadow = 'none';
-        e.currentTarget.style.borderColor = '#1e293b';
+        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
       }}
     >
       {/* Cover Image */}
@@ -177,7 +178,7 @@ function BookCardComponent({
           <div style={{
             fontSize: 15,
             fontWeight: 600,
-            color: '#f8fafc',
+            color: 'var(--text)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -192,7 +193,7 @@ function BookCardComponent({
               gap: 3,
               fontSize: 11,
               fontWeight: isVeryPopular ? 700 : isPopular ? 600 : 500,
-              color: isVeryPopular ? '#f59e0b' : isPopular ? '#10b981' : '#94a3b8',
+              color: isVeryPopular ? '#f59e0b' : isPopular ? '#10b981' : 'var(--text-muted)',
               background: isVeryPopular ? 'rgba(245, 158, 11, 0.15)' : isPopular ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
               padding: isPopular ? '2px 6px' : '0',
               borderRadius: 4,
@@ -207,7 +208,7 @@ function BookCardComponent({
         {/* Author and meta */}
         <div style={{
           fontSize: 13,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           marginBottom: 12,
           display: 'flex',
           alignItems: 'center',
@@ -238,11 +239,11 @@ function BookCardComponent({
               onClick={() => setExpanded(!expanded)}
               style={{
                 width: '100%',
-                background: '#1e293b',
+                background: 'var(--dropdown-hover)',
                 border: 'none',
                 borderRadius: 8,
                 padding: '8px 12px',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -257,7 +258,7 @@ function BookCardComponent({
 
             {expanded && (
               <div style={{
-                background: '#0d1117',
+                background: 'var(--bg-input)',
                 borderRadius: 8,
                 padding: 8,
                 marginTop: 8,
@@ -273,13 +274,13 @@ function BookCardComponent({
                       justifyContent: 'space-between',
                       padding: '8px 10px',
                       borderRadius: 6,
-                      background: index % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
+                      background: index % 2 === 0 ? 'transparent' : 'var(--nav-hover-bg)',
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontSize: 13,
-                        color: '#e2e8f0',
+                        color: 'var(--text)',
                         fontWeight: 500,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
@@ -287,8 +288,12 @@ function BookCardComponent({
                       }}>
                         Ch {chapter.order + 1}: {chapter.title}
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>
-                        ${chapter.price_usd.toFixed(2)} • {chapter.view_count} views
+                      <div style={{ fontSize: 11, color: 'var(--subtle)' }}>
+                        ${chapter.price_usd.toFixed(2)} • {chapter.view_count} views{chapter.editions !== undefined && chapter.editions !== null && (
+                          <> • <span style={{ color: chapter.editions > 0 ? '#10b981' : '#ef4444' }}>
+                            {chapter.editions > 0 ? `${chapter.editions} ed.` : 'Sold out'}
+                          </span></>
+                        )}
                       </div>
                     </div>
                     <button
@@ -298,10 +303,10 @@ function BookCardComponent({
                       }}
                       style={{
                     background: 'transparent',
-                    border: '1px solid #334155',
+                    border: '1px solid var(--border)',
                     borderRadius: 6,
                     padding: '4px 10px',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     fontSize: 11,
                     fontWeight: 500,
                     cursor: 'pointer',

@@ -36,6 +36,7 @@ type BookChapter = {
   content_id: number;
   price_usd: number;
   view_count: number;
+  editions?: number;
 };
 
 type BookProject = {

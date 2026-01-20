@@ -2387,6 +2387,7 @@ class PublicBookProjectsView(APIView):
                     'content_id': content.id,
                     'price_usd': float(content.price_usd) if content.price_usd else 0,
                     'view_count': content.view_count or 0,
+                    'editions': content.editions,
                 }
                 chapters_data.append(chapter_data)
                 published_count += 1
@@ -2413,6 +2414,7 @@ class PublicBookProjectsView(APIView):
                     'content_id': content.id,
                     'price_usd': float(content.price_usd) if content.price_usd else 0,
                     'view_count': content.view_count or 0,
+                    'editions': content.editions,
                 }]
                 published_count = 1
                 total_views = content.view_count or 0
