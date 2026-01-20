@@ -228,6 +228,7 @@ CLOUDINARY_STORAGE = {
 
 # Storage configuration (Django 5.2+ uses STORAGES instead of deprecated DEFAULT_FILE_STORAGE)
 # Uses Cloudinary for media in production, local storage in development
+# Uses WhiteNoise for serving static files in production with compression and caching
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"
@@ -235,12 +236,20 @@ STORAGES = {
         else "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        # WhiteNoise storage for production: adds compression (gzip/brotli) and cache-busting
+        # manifests. This ensures Django admin and other static files are served properly.
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        if not DEBUG
+        else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 
 # Legacy setting for django-cloudinary-storage compatibility (it still checks this)
-STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+STATICFILES_STORAGE = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    if not DEBUG
+    else "django.contrib.staticfiles.storage.StaticFilesStorage"
+)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -259,11 +268,12 @@ SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME type sniffing
 SECURE_BROWSER_XSS_FILTER = True  # Enable browser XSS protection
 X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking
 # Content Security Policy - XSS Protection
-# Remove 'unsafe-inline' for production security
+# Note: Django admin requires 'unsafe-inline' for styles. For production frontend,
+# consider using a separate CSP configuration without unsafe-inline.
 CSP_DEFAULT_SRC = "'self'"
 CSP_IMG_SRC = "'self' data: https://picsum.photos https://ipfs.io"
-CSP_SCRIPT_SRC = "'self'"  # Removed 'unsafe-inline' for security
-CSP_STYLE_SRC = "'self'"   # Removed 'unsafe-inline' for security
+CSP_SCRIPT_SRC = "'self'"  # No unsafe-inline for scripts (security)
+CSP_STYLE_SRC = "'self' 'unsafe-inline'"  # Django admin requires inline styles
 CSP_CONNECT_SRC = "'self' wss://api.web3auth.io https://api.web3auth.io"
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
