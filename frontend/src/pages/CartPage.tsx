@@ -283,6 +283,210 @@ export default function CartPage() {
     );
   }
 
+  // Check for success state BEFORE empty cart check
+  // After a successful purchase, the cart is cleared but we still need to show the success modal
+  if (paymentStep === 'success') {
+    return (
+      <div className="rb-cart-page rb-cart-page--success" style={{
+        padding: '60px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '60vh',
+      }}>
+        <div
+          style={{
+            backgroundColor: 'var(--bg-primary, #0f172a)',
+            borderRadius: '16px',
+            padding: '32px',
+            maxWidth: '440px',
+            width: '100%',
+            textAlign: 'center',
+            border: '1px solid var(--border, #334155)',
+          }}
+        >
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(34, 197, 94, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}
+          >
+            <CheckCircle2 size={36} style={{ color: '#22c55e' }} />
+          </div>
+          <h3
+            style={{
+              color: 'var(--text-primary, #f1f5f9)',
+              fontSize: '22px',
+              margin: '0 0 8px',
+            }}
+          >
+            Purchase Complete!
+          </h3>
+          <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 20px' }}>
+            Your items have been added to your library.
+          </p>
+
+          {/* Transaction Link */}
+          {transactionSignature && (
+            <a
+              href={getTransactionExplorerLink(transactionSignature)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 16px',
+                backgroundColor: 'var(--bg-secondary, #1e293b)',
+                border: '1px solid var(--border, #334155)',
+                borderRadius: '8px',
+                color: 'var(--text-muted, #94a3b8)',
+                fontSize: '13px',
+                textDecoration: 'none',
+                marginBottom: '20px',
+              }}
+            >
+              <span>View on Solana Explorer</span>
+              <ExternalLink size={14} />
+            </a>
+          )}
+
+          {/* Creator Support Confirmation */}
+          <div
+            style={{
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.2)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+          >
+            <Heart size={16} style={{ color: '#22c55e' }} />
+            <span style={{ color: '#22c55e', fontSize: '14px', fontWeight: 500 }}>
+              You supported the creators!
+            </span>
+          </div>
+
+          <button
+            onClick={() => {
+              resetPaymentFlow();
+              navigate('/dashboard');
+            }}
+            style={{
+              width: '100%',
+              padding: '14px 24px',
+              backgroundColor: 'var(--accent, #3b82f6)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '16px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+          >
+            <BookOpen size={18} />
+            Go to Library
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Check for error state BEFORE empty cart check
+  // If payment failed, show the error modal even if cart was cleared
+  if (paymentStep === 'error') {
+    return (
+      <div className="rb-cart-page rb-cart-page--error" style={{
+        padding: '60px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '60vh',
+      }}>
+        <div
+          style={{
+            backgroundColor: 'var(--bg-primary, #0f172a)',
+            borderRadius: '16px',
+            padding: '32px',
+            maxWidth: '400px',
+            width: '100%',
+            textAlign: 'center',
+            border: '1px solid var(--border, #334155)',
+          }}
+        >
+          <AlertCircle
+            size={48}
+            style={{
+              color: 'var(--error, #ef4444)',
+              marginBottom: '16px',
+            }}
+          />
+          <h3
+            style={{
+              color: 'var(--text-primary, #f1f5f9)',
+              fontSize: '18px',
+              margin: '0 0 8px',
+            }}
+          >
+            Payment Failed
+          </h3>
+          <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 24px' }}>
+            {paymentError || 'Something went wrong with your payment.'}
+          </p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <button
+              onClick={() => {
+                setPaymentError(null);
+                setPaymentStep('selecting_method');
+              }}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: 'var(--accent, #3b82f6)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Try Again
+            </button>
+            <button
+              onClick={resetPaymentFlow}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: 'var(--bg-secondary, #1e293b)',
+                color: 'var(--text-primary, #f1f5f9)',
+                border: '1px solid var(--border, #334155)',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!cart || cart.item_count === 0) {
     return (
       <div className="rb-cart-page rb-cart-page--empty" style={{
@@ -871,213 +1075,7 @@ export default function CartPage() {
         />
       )}
 
-      {/* Success Modal */}
-      {paymentStep === 'success' && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--bg-primary, #0f172a)',
-              borderRadius: '16px',
-              padding: '32px',
-              maxWidth: '440px',
-              width: '100%',
-              textAlign: 'center',
-              border: '1px solid var(--border, #334155)',
-            }}
-          >
-            <div
-              style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px',
-              }}
-            >
-              <CheckCircle2 size={36} style={{ color: '#22c55e' }} />
-            </div>
-            <h3
-              style={{
-                color: 'var(--text-primary, #f1f5f9)',
-                fontSize: '22px',
-                margin: '0 0 8px',
-              }}
-            >
-              Purchase Complete!
-            </h3>
-            <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 20px' }}>
-              Your items have been added to your library.
-            </p>
-
-            {/* Transaction Link */}
-            {transactionSignature && (
-              <a
-                href={getTransactionExplorerLink(transactionSignature)}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '10px 16px',
-                  backgroundColor: 'var(--bg-secondary, #1e293b)',
-                  border: '1px solid var(--border, #334155)',
-                  borderRadius: '8px',
-                  color: 'var(--text-muted, #94a3b8)',
-                  fontSize: '13px',
-                  textDecoration: 'none',
-                  marginBottom: '20px',
-                }}
-              >
-                <span>View on Solana Explorer</span>
-                <ExternalLink size={14} />
-              </a>
-            )}
-
-            {/* Creator Support Confirmation */}
-            <div
-              style={{
-                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.2)',
-                borderRadius: '8px',
-                padding: '12px 16px',
-                marginBottom: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-            >
-              <Heart size={16} style={{ color: '#22c55e' }} />
-              <span style={{ color: '#22c55e', fontSize: '14px', fontWeight: 500 }}>
-                You supported the creators!
-              </span>
-            </div>
-
-            <button
-              onClick={() => {
-                resetPaymentFlow();
-                navigate('/dashboard');
-              }}
-              style={{
-                width: '100%',
-                padding: '14px 24px',
-                backgroundColor: 'var(--accent, #3b82f6)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '10px',
-                fontSize: '16px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-              }}
-            >
-              <BookOpen size={18} />
-              Go to Library
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Error Modal */}
-      {paymentStep === 'error' && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px',
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--bg-primary, #0f172a)',
-              borderRadius: '16px',
-              padding: '32px',
-              maxWidth: '400px',
-              width: '100%',
-              textAlign: 'center',
-              border: '1px solid var(--border, #334155)',
-            }}
-          >
-            <AlertCircle
-              size={48}
-              style={{
-                color: 'var(--error, #ef4444)',
-                marginBottom: '16px',
-              }}
-            />
-            <h3
-              style={{
-                color: 'var(--text-primary, #f1f5f9)',
-                fontSize: '18px',
-                margin: '0 0 8px',
-              }}
-            >
-              Payment Failed
-            </h3>
-            <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: '0 0 24px' }}>
-              {paymentError || 'Something went wrong with your payment.'}
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button
-                onClick={() => {
-                  setPaymentError(null);
-                  setPaymentStep('selecting_method');
-                }}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: 'var(--accent, #3b82f6)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
-                Try Again
-              </button>
-              <button
-                onClick={resetPaymentFlow}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: 'var(--bg-secondary, #1e293b)',
-                  color: 'var(--text-primary, #f1f5f9)',
-                  border: '1px solid var(--border, #334155)',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Note: Success and Error modals are now handled as early returns above the empty cart check */}
 
       <style>{`
         @keyframes spin {
