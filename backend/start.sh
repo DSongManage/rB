@@ -9,21 +9,22 @@ echo "Starting deployment process..."
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
-# Collect static files with debug info
+# Collect static files
 echo "Collecting static files..."
 echo "Current directory: $(pwd)"
-echo "Python path: $(which python)"
 
-# Debug: Check where Django admin static files are
-echo "Looking for admin static files..."
-python -c "import django.contrib.admin; import os; admin_path = os.path.dirname(django.contrib.admin.__file__); print(f'Admin module path: {admin_path}'); static_path = os.path.join(admin_path, 'static', 'admin'); print(f'Admin static path: {static_path}'); print(f'Exists: {os.path.exists(static_path)}'); import os; files = os.listdir(static_path) if os.path.exists(static_path) else []; print(f'Files: {files[:5]}')"
+# Debug: Try to find a specific admin static file using Django's findstatic
+echo "Testing findstatic for admin/css/base.css..."
+python manage.py findstatic admin/css/base.css --verbosity 2 || echo "findstatic failed"
 
-# Debug: Check staticfiles finders
-echo "Checking staticfiles finders..."
-python -c "from django.contrib.staticfiles import finders; print('Finders:', [f.__class__.__name__ for f in finders.get_finders()])"
-
-# Run collectstatic
+# Run collectstatic with verbosity
+echo "Running collectstatic..."
 python manage.py collectstatic --noinput --verbosity 2
+
+# Debug: Show what was collected
+echo "Contents of staticfiles directory:"
+ls -la /app/staticfiles/ 2>/dev/null || echo "staticfiles directory does not exist"
+ls -la /app/staticfiles/admin/ 2>/dev/null || echo "admin subdirectory does not exist"
 
 # Create test superuser for PR preview environments (non-production only)
 if [ "$RAILWAY_ENVIRONMENT" != "production" ] && [ "$ENVIRONMENT" != "production" ]; then
