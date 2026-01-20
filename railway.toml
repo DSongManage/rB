@@ -2,8 +2,7 @@
 
 [build]
 builder = "nixpacks"
-# Install deps and collect static files during build so they're baked into the image
-buildCommand = "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+buildCommand = "pip install -r requirements.txt"
 
 [deploy]
 startCommand = "bash start.sh"

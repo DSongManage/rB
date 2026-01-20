@@ -9,8 +9,12 @@ echo "Starting deployment process..."
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
-# Note: Static files are collected during build phase (see railway.toml)
-# This ensures they're baked into the Docker image and available immediately.
+# Collect static files with verbose output for debugging
+echo "Collecting static files..."
+echo "Current directory: $(pwd)"
+echo "Listing /app: $(ls -la /app 2>/dev/null || echo 'directory not found')"
+echo "Python path: $(which python)"
+python manage.py collectstatic --noinput --verbosity 2
 
 # Create test superuser for PR preview environments (non-production only)
 if [ "$RAILWAY_ENVIRONMENT" != "production" ] && [ "$ENVIRONMENT" != "production" ]; then
