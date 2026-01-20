@@ -2,7 +2,7 @@
 
 [build]
 builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt && cd /app && python -c \"import sys; print('Python path:', sys.path); import django.contrib.admin; print('Admin module:', django.contrib.admin.__file__)\" && DJANGO_SETTINGS_MODULE=renaissBlock.settings python manage.py collectstatic --noinput --verbosity 3 && ls -la /app/staticfiles/ || echo 'No staticfiles dir'"
+buildCommand = "pip install -r requirements.txt && cd /app && mkdir -p staticfiles && cp -r /opt/venv/lib/python3.13/site-packages/django/contrib/admin/static/admin staticfiles/ && cp -r /opt/venv/lib/python3.13/site-packages/rest_framework/static/rest_framework staticfiles/ 2>/dev/null || true && ls -la staticfiles/"
 
 [deploy]
 startCommand = "bash start.sh"
