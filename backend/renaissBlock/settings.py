@@ -213,6 +213,12 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+# Explicitly configure staticfiles finders to ensure Django admin static files are found
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
+
 # Media files
 # Using Cloudinary for persistent storage (Railway uses ephemeral storage)
 MEDIA_URL = '/media/'
