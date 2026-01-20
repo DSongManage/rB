@@ -9,11 +9,8 @@ echo "Starting deployment process..."
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
-# Collect static files
-# Note: Removed --clear flag as it caused issues with Railway deployments.
-# Each Railway deployment starts fresh, so clearing isn't necessary.
-echo "Collecting static files..."
-python manage.py collectstatic --noinput
+# Note: Static files are collected during build phase (see railway.toml)
+# This ensures they're baked into the Docker image and available immediately.
 
 # Create test superuser for PR preview environments (non-production only)
 if [ "$RAILWAY_ENVIRONMENT" != "production" ] && [ "$ENVIRONMENT" != "production" ]; then
