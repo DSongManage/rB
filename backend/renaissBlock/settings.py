@@ -228,7 +228,7 @@ CLOUDINARY_STORAGE = {
 
 # Storage configuration (Django 5.2+ uses STORAGES instead of deprecated DEFAULT_FILE_STORAGE)
 # Uses Cloudinary for media in production, local storage in development
-# Uses WhiteNoise for serving static files in production with compression
+# Note: WhiteNoise middleware handles static file serving - no special storage backend needed
 STORAGES = {
     "default": {
         "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"
@@ -236,21 +236,15 @@ STORAGES = {
         else "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        # WhiteNoise storage for production: adds gzip/brotli compression.
-        # Using CompressedStaticFilesStorage (not Manifest) to avoid strict missing file checks
-        # that fail with Django admin CSS referencing optional SVG icons.
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"
-        if not DEBUG
-        else "django.contrib.staticfiles.storage.StaticFilesStorage",
+        # Use standard Django storage. WhiteNoise middleware serves files with proper
+        # caching headers. Avoid WhiteNoise storage backends as they have compatibility
+        # issues with Django 5.2 admin and collectstatic --clear.
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 
 # Legacy setting for django-cloudinary-storage compatibility (it still checks this)
-STATICFILES_STORAGE = (
-    "whitenoise.storage.CompressedStaticFilesStorage"
-    if not DEBUG
-    else "django.contrib.staticfiles.storage.StaticFilesStorage"
-)
+STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
