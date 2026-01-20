@@ -13,6 +13,7 @@ Metaplex NFT Standard: https://docs.metaplex.com/programs/token-metadata/token-s
 import logging
 import json
 import hashlib
+import time
 from typing import Dict, Any, Optional, List
 from decimal import Decimal
 from django.conf import settings
@@ -320,6 +321,8 @@ def create_and_upload_chapter_metadata(
     Returns:
         str: IPFS URI for the metadata
     """
+    from rb_core.audit_utils import audit_ipfs_upload
+
     # Get cover image URL
     cover_url = None
     if hasattr(chapter, 'cover_image') and chapter.cover_image:
@@ -354,8 +357,48 @@ def create_and_upload_chapter_metadata(
         platform_wallet=platform_royalty_wallet,
     )
 
-    # Upload to IPFS
-    return upload_metadata_to_ipfs(metadata)
+    # Upload to IPFS with audit logging
+    start_time = time.time()
+    try:
+        ipfs_uri = upload_metadata_to_ipfs(metadata)
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Log successful IPFS upload
+        audit_ipfs_upload(
+            status='completed',
+            ipfs_uri=ipfs_uri,
+            user=purchase.user if purchase else None,
+            purchase=purchase,
+            duration_ms=duration_ms,
+            metadata={
+                'content_type': 'chapter',
+                'chapter_id': chapter.id,
+                'chapter_title': chapter.title,
+                'metadata_name': metadata.get('name', ''),
+            }
+        )
+
+        return ipfs_uri
+
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Log failed IPFS upload
+        audit_ipfs_upload(
+            status='failed',
+            user=purchase.user if purchase else None,
+            purchase=purchase,
+            error_message=str(e),
+            duration_ms=duration_ms,
+            metadata={
+                'content_type': 'chapter',
+                'chapter_id': chapter.id,
+                'chapter_title': chapter.title,
+                'error_type': type(e).__name__,
+            }
+        )
+
+        raise
 
 
 def create_and_upload_content_metadata(
@@ -374,6 +417,8 @@ def create_and_upload_content_metadata(
     Returns:
         str: IPFS URI for the metadata
     """
+    from rb_core.audit_utils import audit_ipfs_upload
+
     # Get cover image URL
     cover_url = None
     if hasattr(content, 'cover_image') and content.cover_image:
@@ -409,5 +454,45 @@ def create_and_upload_content_metadata(
         platform_wallet=platform_royalty_wallet,
     )
 
-    # Upload to IPFS
-    return upload_metadata_to_ipfs(metadata)
+    # Upload to IPFS with audit logging
+    start_time = time.time()
+    try:
+        ipfs_uri = upload_metadata_to_ipfs(metadata)
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Log successful IPFS upload
+        audit_ipfs_upload(
+            status='completed',
+            ipfs_uri=ipfs_uri,
+            user=purchase.user if purchase else None,
+            purchase=purchase,
+            duration_ms=duration_ms,
+            metadata={
+                'content_type': 'content',
+                'content_id': content.id,
+                'content_title': content.title,
+                'metadata_name': metadata.get('name', ''),
+            }
+        )
+
+        return ipfs_uri
+
+    except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Log failed IPFS upload
+        audit_ipfs_upload(
+            status='failed',
+            user=purchase.user if purchase else None,
+            purchase=purchase,
+            error_message=str(e),
+            duration_ms=duration_ms,
+            metadata={
+                'content_type': 'content',
+                'content_id': content.id,
+                'content_title': content.title,
+                'error_type': type(e).__name__,
+            }
+        )
+
+        raise

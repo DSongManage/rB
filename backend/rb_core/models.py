@@ -1505,6 +1505,173 @@ class TreasuryReconciliation(models.Model):
         return f"Treasury Reconciliation {self.week_start.date()} - {self.week_end.date()}"
 
 
+class BlockchainAuditLog(models.Model):
+    """
+    Append-only audit trail for all blockchain operations.
+
+    Tracks NFT mints, USDC distributions, IPFS uploads, payment detections,
+    and treasury reconciliation events. Designed for compliance, debugging,
+    and operational visibility.
+
+    All records are immutable once created (no edit/delete in admin).
+    """
+
+    ACTION_CHOICES = [
+        ('nft_mint', 'NFT Mint'),
+        ('usdc_distribute', 'USDC Distribution'),
+        ('ipfs_upload', 'IPFS Upload'),
+        ('payment_detected', 'Payment Detected'),
+        ('treasury_reconciliation', 'Treasury Reconciliation'),
+        ('wallet_creation', 'Wallet Creation'),
+        ('refund', 'Refund'),
+        ('retry', 'Retry Operation'),
+    ]
+
+    STATUS_CHOICES = [
+        ('started', 'Started'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('retrying', 'Retrying'),
+    ]
+
+    # Core fields
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='started', db_index=True)
+
+    # Related entities (all nullable for flexibility)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='blockchain_audit_logs',
+        help_text='User associated with this operation (nullable for system tasks)'
+    )
+    purchase = models.ForeignKey(
+        'Purchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='blockchain_audit_logs',
+        help_text='Purchase associated with this operation'
+    )
+    batch_purchase = models.ForeignKey(
+        'BatchPurchase',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='blockchain_audit_logs',
+        help_text='Batch purchase associated with this operation'
+    )
+
+    # Blockchain-specific fields
+    transaction_signature = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text='Solana transaction signature'
+    )
+    nft_mint_address = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        help_text='NFT mint address if applicable'
+    )
+    from_wallet = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        help_text='Source wallet address'
+    )
+    to_wallet = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        help_text='Destination wallet address'
+    )
+
+    # Financial tracking
+    amount_usdc = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='USDC amount involved in operation'
+    )
+    gas_fee_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='Gas fee in USD'
+    )
+    platform_fee_usdc = models.DecimalField(
+        max_digits=18,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text='Platform fee in USDC'
+    )
+
+    # Flexible metadata for additional context
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Additional structured data (IPFS URIs, collaborator details, etc.)'
+    )
+
+    # Error tracking
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Error message if operation failed'
+    )
+    error_code = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Error code or exception type'
+    )
+
+    # Async task tracking
+    celery_task_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text='Celery task ID for async operations'
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='When the operation completed (success or failure)'
+    )
+    duration_ms = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text='Operation duration in milliseconds'
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Blockchain Audit Log'
+        verbose_name_plural = 'Blockchain Audit Logs'
+        indexes = [
+            models.Index(fields=['action', 'status', 'created_at']),
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['purchase', 'created_at']),
+            models.Index(fields=['transaction_signature']),
+        ]
+
+    def __str__(self):
+        user_str = self.user.username if self.user else 'system'
+        return f"{self.action} ({self.status}) - {user_str} @ {self.created_at.strftime('%Y-%m-%d %H:%M')}"
+
+
 class ReadingProgress(models.Model):
     """Track user's reading position in content."""
 

@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from .models import (
     User, UserProfile, Content, Collaboration, TestFeeLog, BookProject, Chapter,
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, BetaInvite,
-    DelistApproval, CollaboratorApproval, Purchase, CollaboratorPayment
+    DelistApproval, CollaboratorApproval, Purchase, CollaboratorPayment, BlockchainAuditLog
 )
 from .views.beta import send_beta_invite_email
 
@@ -292,3 +292,138 @@ class CollaboratorPaymentAdmin(admin.ModelAdmin):
         """Optimize queries with select_related."""
         qs = super().get_queryset(request)
         return qs.select_related('purchase', 'collaborator')
+
+
+@admin.register(BlockchainAuditLog)
+class BlockchainAuditLogAdmin(admin.ModelAdmin):
+    """
+    Admin interface for blockchain audit logs.
+
+    Read-only view - no add/edit/delete permissions for audit trail integrity.
+    """
+    list_display = [
+        'id',
+        'action',
+        'status',
+        'user_display',
+        'purchase_display',
+        'amount_display',
+        'tx_signature_short',
+        'duration_display',
+        'created_at'
+    ]
+    list_filter = ['action', 'status', 'created_at']
+    search_fields = [
+        'transaction_signature',
+        'nft_mint_address',
+        'user__username',
+        'error_message',
+        'from_wallet',
+        'to_wallet'
+    ]
+    readonly_fields = [
+        'action',
+        'status',
+        'user',
+        'purchase',
+        'batch_purchase',
+        'transaction_signature',
+        'nft_mint_address',
+        'from_wallet',
+        'to_wallet',
+        'amount_usdc',
+        'gas_fee_usd',
+        'platform_fee_usdc',
+        'metadata',
+        'error_message',
+        'error_code',
+        'celery_task_id',
+        'created_at',
+        'completed_at',
+        'duration_ms'
+    ]
+    ordering = ['-created_at']
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        ('Operation', {
+            'fields': ('action', 'status', 'celery_task_id')
+        }),
+        ('Related Records', {
+            'fields': ('user', 'purchase', 'batch_purchase')
+        }),
+        ('Blockchain Details', {
+            'fields': ('transaction_signature', 'nft_mint_address', 'from_wallet', 'to_wallet')
+        }),
+        ('Financial', {
+            'fields': ('amount_usdc', 'gas_fee_usd', 'platform_fee_usdc')
+        }),
+        ('Timing', {
+            'fields': ('created_at', 'completed_at', 'duration_ms')
+        }),
+        ('Error Details', {
+            'fields': ('error_message', 'error_code'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('metadata',),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def user_display(self, obj):
+        """Display username or 'system'."""
+        return obj.user.username if obj.user else 'system'
+    user_display.short_description = 'User'
+    user_display.admin_order_field = 'user__username'
+
+    def purchase_display(self, obj):
+        """Display purchase ID or batch purchase ID."""
+        if obj.purchase:
+            return f'P#{obj.purchase.id}'
+        if obj.batch_purchase:
+            return f'B#{obj.batch_purchase.id}'
+        return '-'
+    purchase_display.short_description = 'Purchase'
+
+    def amount_display(self, obj):
+        """Display USDC amount."""
+        if obj.amount_usdc:
+            return f'${obj.amount_usdc:.2f}'
+        return '-'
+    amount_display.short_description = 'Amount'
+    amount_display.admin_order_field = 'amount_usdc'
+
+    def tx_signature_short(self, obj):
+        """Display shortened transaction signature."""
+        if obj.transaction_signature:
+            return f'{obj.transaction_signature[:16]}...'
+        return '-'
+    tx_signature_short.short_description = 'TX Sig'
+
+    def duration_display(self, obj):
+        """Display duration in human-readable format."""
+        if obj.duration_ms:
+            if obj.duration_ms >= 1000:
+                return f'{obj.duration_ms / 1000:.1f}s'
+            return f'{obj.duration_ms}ms'
+        return '-'
+    duration_display.short_description = 'Duration'
+    duration_display.admin_order_field = 'duration_ms'
+
+    def get_queryset(self, request):
+        """Optimize queries with select_related."""
+        qs = super().get_queryset(request)
+        return qs.select_related('user', 'purchase', 'batch_purchase')
+
+    def has_add_permission(self, request):
+        """Disable adding audit logs through admin."""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Disable editing audit logs - they are immutable."""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Disable deleting audit logs for audit trail integrity."""
+        return False

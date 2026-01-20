@@ -4,8 +4,16 @@ Celery tasks for async NFT minting and payment processing.
 
 import json
 import logging
+import time
 from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
+
+from .audit_utils import (
+    BlockchainAuditLogger,
+    audit_nft_mint,
+    audit_nft_mint_failed,
+    audit_treasury_reconciliation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -690,6 +698,27 @@ def process_atomic_purchase(self, purchase_id):
         logger.info(f'[Atomic Purchase] ✅ Purchase {purchase.id} completed successfully!')
         logger.info(f'[Atomic Purchase] ✅ All {len(collaborator_payments)} creators paid instantly via smart contract')
 
+        # Log successful NFT mint to audit trail
+        audit_nft_mint(
+            user=purchase.user,
+            purchase=purchase,
+            transaction_signature=result['transaction_signature'],
+            nft_mint_address=result['nft_mint_address'],
+            amount_usdc=amount_to_distribute,
+            gas_fee_usd=actual_gas_fee,
+            platform_fee_usdc=platform_usdc,
+            to_wallet=buyer_wallet,
+            celery_task_id=self.request.id,
+            metadata={
+                'item_type': item_type,
+                'item_id': item.id,
+                'item_title': item.title,
+                'collaborator_count': len(collaborator_payments),
+                'usdc_fronted': float(result['platform_usdc_fronted']),
+                'usdc_earned': float(result['platform_usdc_earned']),
+            }
+        )
+
         # Send notifications to creators
         try:
             from .notifications_utils import notify_content_purchase
@@ -734,6 +763,18 @@ def process_atomic_purchase(self, purchase_id):
             purchase.status = 'failed'
             purchase.usdc_distribution_status = 'failed'
             purchase.save()
+
+            # Log failed NFT mint to audit trail
+            audit_nft_mint_failed(
+                user=purchase.user,
+                purchase=purchase,
+                error_message=str(e),
+                error_code=type(e).__name__,
+                celery_task_id=self.request.id,
+                metadata={
+                    'retry_count': self.request.retries,
+                }
+            )
         except Exception as db_error:
             logger.error(f'[Atomic Purchase] Failed to mark purchase {purchase_id} as failed: {db_error}')
 
@@ -843,6 +884,22 @@ def weekly_treasury_reconciliation():
 
     # TODO: Send admin notification
     # send_treasury_replenishment_notification(reconciliation)
+
+    # Log treasury reconciliation to audit trail
+    audit_treasury_reconciliation(
+        reconciliation_id=reconciliation.id,
+        purchases_count=purchases_count,
+        total_fronted=total_fronted,
+        platform_fees_earned=total_earned,
+        net_to_replenish=net_fronted,
+        treasury_balance=current_balance,
+        health_status=health_status,
+        metadata={
+            'week_start': week_start.isoformat(),
+            'week_end': week_end.isoformat(),
+            'runway_days': round(days_of_runway, 1),
+        }
+    )
 
     logger.info(f"Reconciliation record created: ID {reconciliation.id}")
     logger.info("=" * 80)
@@ -1103,6 +1160,28 @@ def process_batch_purchase(self, batch_purchase_id):
                     'tx_signature': result.get('transaction_signature', '')
                 })
 
+                # Log successful NFT mint in batch to audit trail
+                audit_nft_mint(
+                    user=batch.user,
+                    purchase=purchase,
+                    batch_purchase=batch,
+                    transaction_signature=result.get('transaction_signature', ''),
+                    nft_mint_address=result.get('nft_mint_address', ''),
+                    amount_usdc=amount_to_distribute,
+                    gas_fee_usd=Decimal(str(result.get('actual_gas_fee_usd', '0.026'))),
+                    platform_fee_usdc=platform_usdc,
+                    to_wallet=batch.user.wallet_address,
+                    celery_task_id=self.request.id,
+                    metadata={
+                        'batch_purchase_id': batch.id,
+                        'item_type': item_type,
+                        'item_id': item.id,
+                        'item_title': item.title,
+                        'batch_item_index': batch.items_minted + 1,
+                        'batch_total_items': batch.total_items,
+                    }
+                )
+
                 batch.items_minted += 1
                 batch.processing_log.append({
                     'item_id': item.id,
@@ -1124,6 +1203,24 @@ def process_batch_purchase(self, batch_purchase_id):
                     'price': float(cart_item.unit_price),
                     'error': str(e)
                 })
+
+                # Log failed NFT mint in batch to audit trail
+                audit_nft_mint_failed(
+                    user=batch.user,
+                    purchase=purchase,
+                    batch_purchase=batch,
+                    error_message=str(e),
+                    error_code=type(e).__name__,
+                    celery_task_id=self.request.id,
+                    metadata={
+                        'batch_purchase_id': batch.id,
+                        'item_type': item_type,
+                        'item_id': item.id,
+                        'item_title': item.title if item else 'Unknown',
+                        'batch_item_index': batch.items_failed + 1,
+                        'batch_total_items': batch.total_items,
+                    }
+                )
 
                 batch.items_failed += 1
                 batch.processing_log.append({
