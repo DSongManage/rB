@@ -3675,6 +3675,7 @@ class Notification(models.Model):
         ('content_comment', 'Content Comment'),
         ('content_rating', 'Content Rating'),
         ('creator_review', 'Creator Review'),
+        ('content_purchase', 'Content Purchase'),
     ]
 
     # Core fields

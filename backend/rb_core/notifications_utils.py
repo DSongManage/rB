@@ -3,6 +3,7 @@ Notification Utility Functions
 Helper functions to create notifications for collaboration events
 """
 
+from decimal import Decimal
 from typing import List, Optional
 from rb_core.models import Notification, User, CollaborativeProject, CollaboratorRole
 
@@ -335,6 +336,43 @@ def notify_counter_proposal(
         message=f'{proposer.username} proposed {proposed_percentage}% revenue: "{message_preview}"',
         project=project,
         action_url=f'/collaborations/{project.id}'
+    )
+
+
+def notify_content_purchase(
+    recipient: User,
+    buyer: User,
+    content_title: str,
+    amount_usdc: Decimal,
+    role: str = None
+) -> Notification:
+    """
+    Notify creator when their content is purchased.
+
+    Args:
+        recipient: Creator receiving the payment
+        buyer: User who purchased the content
+        content_title: Title of the purchased content
+        amount_usdc: Amount earned in USDC
+        role: Optional role description (e.g., 'author', 'editor')
+
+    Returns:
+        Created Notification instance
+    """
+    formatted_amount = f"${amount_usdc:.2f}"
+
+    if role:
+        message = f'Someone purchased "{content_title}" - you earned {formatted_amount} USDC as {role}'
+    else:
+        message = f'Someone purchased "{content_title}" - you earned {formatted_amount} USDC'
+
+    return create_notification(
+        recipient=recipient,
+        from_user=buyer,
+        notification_type='content_purchase',
+        title=f'New Sale: {content_title}',
+        message=message,
+        action_url='/profile'
     )
 
 

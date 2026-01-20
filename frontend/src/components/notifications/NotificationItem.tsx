@@ -13,6 +13,10 @@ import {
   DollarSign,
   PartyPopper,
   Bell,
+  Heart,
+  Star,
+  ClipboardList,
+  Coins,
 } from 'lucide-react';
 import {
   Notification,
@@ -40,6 +44,16 @@ function getNotificationLucideIcon(type: NotificationType): React.ReactNode {
       return <DollarSign {...iconProps} />;
     case 'mint_ready':
       return <PartyPopper {...iconProps} />;
+    case 'content_like':
+      return <Heart {...iconProps} />;
+    case 'content_comment':
+      return <MessageSquare {...iconProps} />;
+    case 'content_rating':
+      return <Star {...iconProps} />;
+    case 'creator_review':
+      return <ClipboardList {...iconProps} />;
+    case 'content_purchase':
+      return <Coins {...iconProps} />;
     default:
       return <Bell {...iconProps} />;
   }

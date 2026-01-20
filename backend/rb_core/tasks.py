@@ -690,9 +690,28 @@ def process_atomic_purchase(self, purchase_id):
         logger.info(f'[Atomic Purchase] ✅ Purchase {purchase.id} completed successfully!')
         logger.info(f'[Atomic Purchase] ✅ All {len(collaborator_payments)} creators paid instantly via smart contract')
 
-        # TODO: Send notifications
-        # notify_buyer_purchase_complete(purchase)
-        # notify_creators_payment_received(purchase)
+        # Send notifications to creators
+        try:
+            from .notifications_utils import notify_content_purchase
+
+            content_title = purchase.chapter.title if purchase.chapter else (
+                purchase.content.title if purchase.content else 'Content'
+            )
+
+            for dist in result['distributions']:
+                creator_user = existing_users.get(dist['user'])
+                if creator_user and creator_user != purchase.user:  # Don't notify self-purchases
+                    notify_content_purchase(
+                        recipient=creator_user,
+                        buyer=purchase.user,
+                        content_title=content_title,
+                        amount_usdc=Decimal(str(dist['amount'])),
+                        role=dist.get('role')
+                    )
+
+            logger.info(f'[Atomic Purchase] ✅ Sent purchase notifications to creators')
+        except Exception as e:
+            logger.error(f'[Atomic Purchase] ⚠️ Failed to send notifications: {e}')
 
         return {
             'success': True,

@@ -43,7 +43,7 @@
 body { font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
 :root { --amber:#f59e0b; --gunmetal:#1f2937; }
 .rb-header { display:grid; grid-template-columns: auto minmax(200px, 720px) auto; align-items:center; gap:12px; padding:14px 22px; background:var(--gunmetal); color:#fff; position:sticky; top:0; border-bottom:1px solid #303a4a; z-index: 50; width: 100%; box-sizing: border-box; }
-.rb-header-left { display:flex; align-items:center; }
+.rb-header-left { display:flex; align-items:center; gap:12px; }
 .rb-header-center { display:flex; justify-content:center; z-index: 1; }
 .rb-header-right { display:flex; justify-content:flex-end; align-items:center; gap:14px; position: relative; z-index: 2; }
 .rb-search { display:flex; width:100%; max-width:720px; }
@@ -82,7 +82,7 @@ button:hover { background:#d97706; }
 .chip.active, .chip:hover { background: var(--amber); color:#111827; border-color: var(--amber); }
 
 .rb-logo-link { display:flex; align-items:center; }
-.rb-logo-img { height:28px; width:auto; border-radius:4px; }
+.rb-logo-img { height:35px; width:auto; border-radius:4px; }
 
 /* ReactQuill Editor - Flex layout support for Studio editor */
 .ql-editor {

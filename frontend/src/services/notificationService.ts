@@ -16,7 +16,12 @@ export type NotificationType =
   | 'approval'
   | 'section_update'
   | 'revenue_proposal'
-  | 'mint_ready';
+  | 'mint_ready'
+  | 'content_like'
+  | 'content_comment'
+  | 'content_rating'
+  | 'creator_review'
+  | 'content_purchase';
 
 export interface NotificationUser {
   id: number;
@@ -353,6 +358,11 @@ export async function getNotificationStats(): Promise<NotificationStats> {
       section_update: 0,
       revenue_proposal: 0,
       mint_ready: 0,
+      content_like: 0,
+      content_comment: 0,
+      content_rating: 0,
+      creator_review: 0,
+      content_purchase: 0,
     },
   };
 
@@ -573,6 +583,11 @@ export function getNotificationIcon(type: NotificationType): string {
     section_update: '📝',
     revenue_proposal: '💰',
     mint_ready: '🎉',
+    content_like: '❤️',
+    content_comment: '💬',
+    content_rating: '⭐',
+    creator_review: '📋',
+    content_purchase: '💵',
   };
   return icons[type] || '🔔';
 }
@@ -589,6 +604,11 @@ export function getNotificationColor(type: NotificationType): string {
     section_update: '#f59e0b', // amber
     revenue_proposal: '#eab308', // yellow
     mint_ready: '#ec4899', // pink
+    content_like: '#ef4444', // red
+    content_comment: '#06b6d4', // cyan
+    content_rating: '#f59e0b', // amber
+    creator_review: '#8b5cf6', // purple
+    content_purchase: '#10b981', // green for money/success
   };
   return colors[type] || '#6b7280';
 }

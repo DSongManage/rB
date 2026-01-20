@@ -167,6 +167,7 @@ function Header() {
           <img src="/rb-logo.png" alt="renaissBlock" className="rb-logo-img"/>
         </Link>
         <BetaBadge variant="header" showTestMode={true} />
+        {isAuthed && <TourMenu />}
       </div>
       <div className="rb-header-center" data-tour="search-bar">
         <SearchAutocomplete />
@@ -186,7 +187,6 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
-            <TourMenu />
             <span data-tour="cart-button">
               <CartIcon />
             </span>
