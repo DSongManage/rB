@@ -32,7 +32,6 @@ import { SearchAutocomplete } from './components/SearchAutocomplete';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
 const StudioPage = lazy(() => import('./pages/StudioPage'));
-const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePageRedesigned'));
 const AuthPage = lazy(() => import('./pages/AuthPage'));
 const WalletInfoPage = lazy(() => import('./pages/WalletInfoPage'));
@@ -343,7 +342,6 @@ export default function App() {
                 <Route path="/signup" element={<Navigate to="/auth" replace />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/studio" element={<StudioPage />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/profile/:username" element={<PublicProfilePage />} />
                 <Route path="/collaborators" element={<CollaboratorsPage />} />

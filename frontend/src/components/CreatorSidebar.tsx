@@ -16,9 +16,6 @@ export function CreatorSidebar() {
         <a className={`sidebar-item ${isActive('/collaborators') ? 'active' : ''}`} href="/collaborators">
           <span>Collaborators</span>
         </a>
-        <a className={`sidebar-item ${isActive('/dashboard') ? 'active' : ''}`} href="/dashboard">
-          <span>Analytics</span>
-        </a>
       </nav>
     </aside>
   );

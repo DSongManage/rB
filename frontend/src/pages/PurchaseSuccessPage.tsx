@@ -131,21 +131,6 @@ export default function PurchaseSuccessPage() {
           >
             Go to Home
           </button>
-          <button
-            onClick={() => navigate('/dashboard')}
-            style={{
-              padding: '12px 24px',
-              fontSize: '16px',
-              fontWeight: 600,
-              backgroundColor: 'white',
-              color: '#3b82f6',
-              border: '2px solid #3b82f6',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
-            View Dashboard
-          </button>
         </div>
       </div>
     </div>

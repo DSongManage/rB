@@ -380,7 +380,7 @@ export default function CartPage() {
           <button
             onClick={() => {
               resetPaymentFlow();
-              navigate('/dashboard');
+              navigate('/');
             }}
             style={{
               width: '100%',
