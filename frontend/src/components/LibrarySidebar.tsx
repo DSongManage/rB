@@ -53,8 +53,8 @@ export function LibrarySidebar() {
           top: 72,
           bottom: 0,
           width: 48,
-          background: '#0b1220',
-          borderRight: '1px solid #2a3444',
+          background: 'var(--bg-card)',
+          borderRight: '1px solid var(--panel-border-strong)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -67,19 +67,19 @@ export function LibrarySidebar() {
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: 8,
             borderRadius: 8,
             transition: 'all 0.2s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#111827';
-            e.currentTarget.style.color = '#e5e7eb';
+            e.currentTarget.style.background = 'var(--chip-bg)';
+            e.currentTarget.style.color = 'var(--text)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#94a3b8';
+            e.currentTarget.style.color = 'var(--text-muted)';
           }}
           aria-label="Expand library"
         >
@@ -90,7 +90,7 @@ export function LibrarySidebar() {
             writingMode: 'vertical-rl',
             fontSize: 12,
             fontWeight: 600,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             marginTop: 16,
           }}
         >
@@ -115,8 +115,8 @@ export function LibrarySidebar() {
         top: 72,
         bottom: 0,
         width: 320,
-        background: '#0b1220',
-        borderRight: '1px solid #2a3444',
+        background: 'var(--bg-card)',
+        borderRight: '1px solid var(--panel-border-strong)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 40,
@@ -127,7 +127,7 @@ export function LibrarySidebar() {
       <div
         style={{
           padding: 16,
-          borderBottom: '1px solid #2a3444',
+          borderBottom: '1px solid var(--panel-border-strong)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -138,7 +138,7 @@ export function LibrarySidebar() {
             style={{
               fontSize: 16,
               fontWeight: 700,
-              color: '#e5e7eb',
+              color: 'var(--text)',
             }}
           >
             My Library
@@ -146,7 +146,7 @@ export function LibrarySidebar() {
           <div
             style={{
               fontSize: 12,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               marginTop: 2,
             }}
           >
@@ -158,19 +158,19 @@ export function LibrarySidebar() {
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             padding: 8,
             borderRadius: 8,
             transition: 'all 0.2s ease',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#111827';
-            e.currentTarget.style.color = '#e5e7eb';
+            e.currentTarget.style.background = 'var(--chip-bg)';
+            e.currentTarget.style.color = 'var(--text)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#94a3b8';
+            e.currentTarget.style.color = 'var(--text-muted)';
           }}
           aria-label="Collapse library"
         >
@@ -185,7 +185,7 @@ export function LibrarySidebar() {
           display: 'flex',
           gap: 4,
           padding: '12px 16px',
-          borderBottom: '1px solid #2a3444',
+          borderBottom: '1px solid var(--panel-border-strong)',
           overflowX: 'auto',
         }}
       >
@@ -197,10 +197,10 @@ export function LibrarySidebar() {
               key={tab}
               onClick={() => setSelectedTab(tab)}
               style={{
-                background: isActive ? '#f59e0b' : '#111827',
+                background: isActive ? 'var(--accent)' : 'var(--chip-bg)',
                 border: '1px solid',
-                borderColor: isActive ? '#f59e0b' : '#2a3444',
-                color: isActive ? '#111827' : '#cbd5e1',
+                borderColor: isActive ? 'var(--accent)' : 'var(--panel-border-strong)',
+                color: isActive ? '#111827' : 'var(--text-dim)',
                 padding: '6px 12px',
                 borderRadius: 18,
                 fontSize: 12,
@@ -211,14 +211,14 @@ export function LibrarySidebar() {
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.background = '#1f2937';
-                  e.currentTarget.style.borderColor = '#374151';
+                  e.currentTarget.style.background = 'var(--header-bg)';
+                  e.currentTarget.style.borderColor = 'var(--subtle)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isActive) {
-                  e.currentTarget.style.background = '#111827';
-                  e.currentTarget.style.borderColor = '#2a3444';
+                  e.currentTarget.style.background = 'var(--chip-bg)';
+                  e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
                 }
               }}
             >
@@ -232,9 +232,9 @@ export function LibrarySidebar() {
             key={tab}
             disabled
             style={{
-              background: '#111827',
-              border: '1px solid #2a3444',
-              color: '#64748b',
+              background: 'var(--chip-bg)',
+              border: '1px solid var(--panel-border-strong)',
+              color: 'var(--subtle)',
               padding: '6px 12px',
               borderRadius: 18,
               fontSize: 12,
@@ -250,7 +250,7 @@ export function LibrarySidebar() {
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
             <span style={{
               fontSize: 8,
-              background: '#f59e0b',
+              background: 'var(--accent)',
               color: '#000',
               padding: '1px 3px',
               borderRadius: 2,
@@ -275,7 +275,7 @@ export function LibrarySidebar() {
             style={{
               textAlign: 'center',
               padding: 32,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 14,
             }}
           >
@@ -286,11 +286,11 @@ export function LibrarySidebar() {
         {error && (
           <div
             style={{
-              background: '#ef444420',
-              border: '1px solid #ef4444',
+              background: 'var(--error-bg)',
+              border: '1px solid var(--error-text)',
               borderRadius: 8,
               padding: 16,
-              color: '#fca5a5',
+              color: 'var(--error-text)',
               fontSize: 14,
             }}
           >
@@ -299,8 +299,8 @@ export function LibrarySidebar() {
               onClick={loadLibrary}
               style={{
                 marginTop: 8,
-                background: '#ef4444',
-                color: '#fff',
+                background: 'var(--accent)',
+                color: 'var(--button-text)',
                 padding: '6px 12px',
                 fontSize: 12,
               }}
@@ -315,7 +315,7 @@ export function LibrarySidebar() {
             style={{
               textAlign: 'center',
               padding: 32,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 14,
             }}
           >
@@ -338,7 +338,7 @@ export function LibrarySidebar() {
       <div
         style={{
           padding: '12px 16px',
-          borderTop: '1px solid #2a3444',
+          borderTop: '1px solid var(--panel-border-strong)',
           flexShrink: 0,
         }}
       >
@@ -372,7 +372,7 @@ export function LibrarySidebar() {
         <div
           style={{
             fontSize: 11,
-            color: '#64748b',
+            color: 'var(--subtle)',
           }}
         >
           © {new Date().getFullYear()} renaissBlock
@@ -384,8 +384,7 @@ export function LibrarySidebar() {
 
 const footerLinkStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#64748b',
+  color: 'var(--subtle)',
   textDecoration: 'none',
   transition: 'color 0.2s',
 };
-// Add hover effect via onMouseEnter/Leave in the JSX or use CSS classes

@@ -46,13 +46,13 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
           padding: '10px 16px',
           background: 'transparent',
           border: 'none',
-          color: '#d1d5db',
+          color: 'var(--text-muted)',
           fontSize: 14,
           cursor: 'pointer',
           textAlign: 'left',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#2a3444';
+          e.currentTarget.style.background = 'var(--dropdown-hover)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'transparent';
@@ -75,9 +75,9 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
           gap: 6,
           padding: '8px 12px',
           background: 'transparent',
-          border: '1px solid #374151',
+          border: '1px solid var(--panel-border-strong)',
           borderRadius: 8,
-          color: '#9ca3af',
+          color: 'var(--text-muted)',
           fontSize: 13,
           cursor: 'pointer',
           transition: 'all 0.2s ease',
@@ -87,8 +87,8 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
           e.currentTarget.style.color = '#f59e0b';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = '#374151';
-          e.currentTarget.style.color = '#9ca3af';
+          e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
+          e.currentTarget.style.color = 'var(--text-muted)';
         }}
         title="App Tour"
       >
@@ -112,12 +112,13 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
         >
           <div
             style={{
-              background: '#1a1a1a',
+              background: 'var(--dropdown-bg)',
               borderRadius: 16,
               padding: 24,
               maxWidth: 400,
               width: '90%',
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+              border: '1px solid var(--panel-border-strong)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -131,7 +132,7 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
               <h3 style={{
                 fontSize: 18,
                 fontWeight: 700,
-                color: '#ffffff',
+                color: 'var(--text)',
                 margin: 0,
               }}>
                 App Tours
@@ -141,7 +142,7 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#6b7280',
+                  color: 'var(--subtle)',
                   cursor: 'pointer',
                   padding: 4,
                 }}
@@ -155,7 +156,7 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
               <h4 style={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: '#6b7280',
+                color: 'var(--subtle)',
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
                 marginBottom: 12,
@@ -180,7 +181,7 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
               <h4 style={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: '#6b7280',
+                color: 'var(--subtle)',
                 textTransform: 'uppercase',
                 letterSpacing: 0.5,
                 marginBottom: 12,
@@ -211,20 +212,20 @@ export function TourMenu({ variant = 'button', onClose }: TourMenuProps) {
                 width: '100%',
                 padding: '10px 16px',
                 background: 'transparent',
-                border: '1px solid #374151',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 8,
-                color: '#9ca3af',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#6b7280';
-                e.currentTarget.style.color = '#d1d5db';
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.color = 'var(--text)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#374151';
-                e.currentTarget.style.color = '#9ca3af';
+                e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
+                e.currentTarget.style.color = 'var(--text-muted)';
               }}
             >
               <RotateCcw size={14} />
@@ -258,8 +259,8 @@ function TourButton({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '12px 16px',
-        background: '#111827',
-        border: '1px solid #2a3444',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
         borderRadius: 8,
         cursor: isRunning ? 'not-allowed' : 'pointer',
         transition: 'all 0.2s ease',
@@ -268,17 +269,17 @@ function TourButton({
       onMouseEnter={(e) => {
         if (!isRunning) {
           e.currentTarget.style.borderColor = '#f59e0b';
-          e.currentTarget.style.background = '#1f2937';
+          e.currentTarget.style.background = 'var(--dropdown-hover)';
         }
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = '#2a3444';
-        e.currentTarget.style.background = '#111827';
+        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
+        e.currentTarget.style.background = 'var(--bg-card)';
       }}
     >
       <span style={{
         fontSize: 14,
-        color: '#e5e7eb',
+        color: 'var(--text)',
         fontWeight: 500,
       }}>
         {tourDisplayNames[tourName]}

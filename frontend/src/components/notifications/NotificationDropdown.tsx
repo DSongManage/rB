@@ -154,8 +154,8 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
         marginTop: 8,
         width: 'min(420px, calc(100vw - 32px))',
         maxHeight: 600,
-        background: '#0f172a',
-        border: '1px solid #1f2937',
+        background: 'var(--dropdown-bg)',
+        border: '1px solid var(--dropdown-border)',
         borderRadius: 12,
         boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
         zIndex: 3000,
@@ -168,14 +168,14 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
       <div
         style={{
           padding: '16px 20px',
-          borderBottom: '1px solid #1f2937',
+          borderBottom: '1px solid var(--dropdown-border)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#e5e7eb', margin: 0 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
             Notifications
           </h3>
           {unreadCount > 0 && (
@@ -213,7 +213,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
               transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1e293b';
+              e.currentTarget.style.background = 'var(--dropdown-hover)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';
@@ -281,7 +281,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
         <div
           style={{
             padding: '12px 20px',
-            borderTop: '1px solid #1f2937',
+            borderTop: '1px solid var(--dropdown-border)',
             display: 'flex',
             gap: 8,
           }}
@@ -302,7 +302,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
               transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#1e293b';
+              e.currentTarget.style.background = 'var(--dropdown-hover)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent';

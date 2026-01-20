@@ -660,8 +660,8 @@ export default function ProfilePageRedesigned() {
       }}>
         {/* Loading skeleton for hero section */}
         <div style={{
-          background: '#0f172a',
-          border: '1px solid #1e293b',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--panel-border-strong)',
           borderRadius: isMobile ? 12 : 16,
           padding: isMobile ? 16 : 32,
           marginBottom: isMobile ? 16 : 24,
@@ -672,7 +672,7 @@ export default function ProfilePageRedesigned() {
               width: isPhone ? 80 : 100,
               height: isPhone ? 80 : 100,
               borderRadius: '50%',
-              background: 'linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%)',
+              background: 'linear-gradient(90deg, var(--bg-card) 25%, var(--panel-border-strong) 50%, var(--bg-card) 75%)',
               backgroundSize: '200% 100%',
               animation: 'shimmer 1.5s infinite',
             }} />
@@ -683,7 +683,7 @@ export default function ProfilePageRedesigned() {
                 height: 32,
                 borderRadius: 6,
                 marginBottom: 12,
-                background: 'linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%)',
+                background: 'linear-gradient(90deg, var(--bg-card) 25%, var(--panel-border-strong) 50%, var(--bg-card) 75%)',
                 backgroundSize: '200% 100%',
                 animation: 'shimmer 1.5s infinite',
               }} />
@@ -692,7 +692,7 @@ export default function ProfilePageRedesigned() {
                 width: 120,
                 height: 20,
                 borderRadius: 4,
-                background: 'linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%)',
+                background: 'linear-gradient(90deg, var(--bg-card) 25%, var(--panel-border-strong) 50%, var(--bg-card) 75%)',
                 backgroundSize: '200% 100%',
                 animation: 'shimmer 1.5s infinite',
               }} />
@@ -701,8 +701,8 @@ export default function ProfilePageRedesigned() {
         </div>
         {/* Wallet section skeleton */}
         <div style={{
-          background: '#1e293b',
-          border: '1px solid #334155',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--panel-border-strong)',
           borderRadius: 12,
           padding: '16px 20px',
           marginBottom: 24,
@@ -734,8 +734,8 @@ export default function ProfilePageRedesigned() {
         style={{
           background: (profile?.banner || profile?.banner_url)
             ? `linear-gradient(rgba(15,23,42,0.7), rgba(15,23,42,0.9)), url(${profile?.banner || profile?.banner_url}) center/cover`
-            : '#0f172a',
-          border: '1px solid #1e293b',
+            : 'var(--bg-card)',
+          border: '1px solid var(--panel-border-strong)',
           borderRadius: isMobile ? 12 : 16,
           padding: isMobile ? 16 : 32,
           marginBottom: isMobile ? 16 : 24,
@@ -788,19 +788,19 @@ export default function ProfilePageRedesigned() {
               borderRadius: '50%',
               overflow: 'hidden',
               cursor: 'pointer',
-              border: '3px solid #1e293b',
+              border: '3px solid var(--bg-card)',
               flexShrink: 0,
               transition: 'all 0.2s',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#1e293b',
+              background: 'var(--bg-card)',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = '#f59e0b';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#1e293b';
+              e.currentTarget.style.borderColor = 'var(--bg-card)';
             }}
             title="Click to upload avatar"
           >
@@ -822,11 +822,13 @@ export default function ProfilePageRedesigned() {
           </div>
 
           <div style={{ flex: 1, textAlign: isPhone ? 'center' : 'left' }}>
+            {/* Hero text always uses white with text-shadow for readability over any banner image */}
             <div style={{
               fontSize: isPhone ? 24 : 32,
               fontWeight: 700,
-              color: '#f8fafc',
+              color: '#ffffff',
               marginBottom: 8,
+              textShadow: '0 2px 4px rgba(0,0,0,0.5)',
             }}>
               {profile?.display_name || user?.username || 'User'}
             </div>
@@ -834,12 +836,13 @@ export default function ProfilePageRedesigned() {
             {profile?.location && (
               <div style={{
                 fontSize: isPhone ? 14 : 15,
-                color: '#94a3b8',
+                color: 'rgba(255,255,255,0.8)',
                 marginBottom: 8,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: isPhone ? 'center' : 'flex-start',
                 gap: 6,
+                textShadow: '0 1px 2px rgba(0,0,0,0.5)',
               }}>
                 <MapPin size={16} /> {profile.location}
               </div>
@@ -851,8 +854,9 @@ export default function ProfilePageRedesigned() {
               justifyContent: isPhone ? 'center' : 'flex-start',
               gap: 12,
               fontSize: 14,
-              color: '#cbd5e1',
+              color: 'rgba(255,255,255,0.7)',
               flexWrap: 'wrap',
+              textShadow: '0 1px 2px rgba(0,0,0,0.5)',
             }}>
               {profile?.status && (
                 <>
@@ -864,10 +868,10 @@ export default function ProfilePageRedesigned() {
                     <span style={{ color: '#10b981', fontSize: 12 }}>●</span>
                     {profile.status}
                   </span>
-                  <span style={{ color: '#475569' }}>•</span>
+                  <span style={{ color: 'rgba(255,255,255,0.5)' }}>•</span>
                 </>
               )}
-              <span style={{ color: '#94a3b8' }}>@{profile?.username || user?.username || ''}</span>
+              <span style={{ color: 'rgba(255,255,255,0.7)' }}>@{profile?.username || user?.username || ''}</span>
             </div>
           </div>
         </div>
@@ -875,8 +879,8 @@ export default function ProfilePageRedesigned() {
 
       {/* WALLET STATUS CARD - Compact */}
       <div style={{
-        background: profile?.wallet_address ? '#0f172a' : '#1e293b',
-        border: profile?.wallet_address ? '1px solid #10b981' : '1px solid #334155',
+        background: profile?.wallet_address ? 'var(--bg-card)' : 'var(--dropdown-hover)',
+        border: profile?.wallet_address ? '1px solid #10b981' : '1px solid var(--panel-border-strong)',
         borderRadius: 12,
         padding: '16px 20px',
         marginBottom: 24,
@@ -885,14 +889,14 @@ export default function ProfilePageRedesigned() {
         justifyContent: 'space-between',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ color: profile?.wallet_address ? '#10b981' : '#94a3b8' }}>
+          <div style={{ color: profile?.wallet_address ? '#10b981' : 'var(--text-muted)' }}>
             {profile?.wallet_address ? <CheckCircle size={24} /> : <Wallet size={24} />}
           </div>
           <div>
             <div style={{
               fontSize: 14,
               fontWeight: 600,
-              color: '#f8fafc',
+              color: 'var(--text)',
               marginBottom: profile?.wallet_address ? 4 : 0,
             }}>
               {profile?.wallet_address ? 'Wallet Connected' : 'Wallet Setup Required'}
@@ -900,7 +904,7 @@ export default function ProfilePageRedesigned() {
             {profile?.wallet_address && (
               <div style={{
                 fontSize: 13,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontFamily: 'monospace',
               }}>
                 {shortenAddress(profile.wallet_address)}
@@ -913,7 +917,7 @@ export default function ProfilePageRedesigned() {
           onClick={() => setShowWalletModal(true)}
           style={{
             background: profile?.wallet_address ? 'transparent' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-            border: profile?.wallet_address ? '1px solid #334155' : 'none',
+            border: profile?.wallet_address ? '1px solid var(--panel-border-strong)' : 'none',
             color: '#fff',
             padding: '8px 16px',
             borderRadius: 8,
@@ -924,8 +928,8 @@ export default function ProfilePageRedesigned() {
           }}
           onMouseEnter={(e) => {
             if (profile?.wallet_address) {
-              e.currentTarget.style.background = '#1e293b';
-              e.currentTarget.style.borderColor = '#475569';
+              e.currentTarget.style.background = 'var(--dropdown-hover)';
+              e.currentTarget.style.borderColor = 'var(--border)';
             } else {
               e.currentTarget.style.transform = 'translateY(-2px)';
             }
@@ -933,7 +937,7 @@ export default function ProfilePageRedesigned() {
           onMouseLeave={(e) => {
             if (profile?.wallet_address) {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = '#334155';
+              e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
             } else {
               e.currentTarget.style.transform = 'translateY(0)';
             }
@@ -945,8 +949,8 @@ export default function ProfilePageRedesigned() {
 
       {/* ABOUT SECTION */}
       <div style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
         borderRadius: 16,
         padding: 24,
         marginBottom: 24,
@@ -959,7 +963,7 @@ export default function ProfilePageRedesigned() {
           alignItems: 'center',
           marginBottom: 20,
         }}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+          <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
             About
           </h3>
           {!editingAbout ? (
@@ -967,8 +971,8 @@ export default function ProfilePageRedesigned() {
               onClick={startEditingAbout}
               style={{
                 background: 'transparent',
-                border: '1px solid #334155',
-                color: '#94a3b8',
+                border: '1px solid var(--panel-border-strong)',
+                color: 'var(--text-muted)',
                 padding: '6px 12px',
                 borderRadius: 6,
                 fontSize: 13,
@@ -984,8 +988,8 @@ export default function ProfilePageRedesigned() {
                 e.currentTarget.style.color = '#f59e0b';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#334155';
-                e.currentTarget.style.color = '#94a3b8';
+                e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
+                e.currentTarget.style.color = 'var(--text-muted)';
               }}
             >
               <Edit2 size={14} />
@@ -998,8 +1002,8 @@ export default function ProfilePageRedesigned() {
                 disabled={savingAbout}
                 style={{
                   background: 'transparent',
-                  border: '1px solid #334155',
-                  color: '#94a3b8',
+                  border: '1px solid var(--panel-border-strong)',
+                  color: 'var(--text-muted)',
                   padding: '6px 12px',
                   borderRadius: 6,
                   fontSize: 13,
@@ -1039,7 +1043,7 @@ export default function ProfilePageRedesigned() {
                 display: 'block',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 marginBottom: 8,
               }}>
                 Display Name
@@ -1051,11 +1055,11 @@ export default function ProfilePageRedesigned() {
                 placeholder="Your display name"
                 style={{
                   width: '100%',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--panel-border-strong)',
                   borderRadius: 8,
                   padding: '10px 14px',
-                  color: '#f8fafc',
+                  color: 'var(--text)',
                   fontSize: 14,
                   boxSizing: 'border-box',
                 }}
@@ -1068,7 +1072,7 @@ export default function ProfilePageRedesigned() {
                 display: 'block',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 marginBottom: 8,
               }}>
                 Location
@@ -1080,11 +1084,11 @@ export default function ProfilePageRedesigned() {
                 placeholder="e.g., New York, NY"
                 style={{
                   width: '100%',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--panel-border-strong)',
                   borderRadius: 8,
                   padding: '10px 14px',
-                  color: '#f8fafc',
+                  color: 'var(--text)',
                   fontSize: 14,
                   boxSizing: 'border-box',
                 }}
@@ -1097,7 +1101,7 @@ export default function ProfilePageRedesigned() {
                 display: 'block',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 marginBottom: 8,
               }}>
                 Availability Status
@@ -1107,11 +1111,11 @@ export default function ProfilePageRedesigned() {
                 onChange={(e) => setEditStatus(e.target.value)}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--panel-border-strong)',
                   borderRadius: 8,
                   padding: '10px 14px',
-                  color: '#f8fafc',
+                  color: 'var(--text)',
                   fontSize: 14,
                   boxSizing: 'border-box',
                 }}
@@ -1128,7 +1132,7 @@ export default function ProfilePageRedesigned() {
                 display: 'block',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 marginBottom: 8,
               }}>
                 Profile Visibility
@@ -1138,11 +1142,11 @@ export default function ProfilePageRedesigned() {
                 onChange={(e) => setEditIsPrivate(e.target.value === 'private')}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--panel-border-strong)',
                   borderRadius: 8,
                   padding: '10px 14px',
-                  color: '#f8fafc',
+                  color: 'var(--text)',
                   fontSize: 14,
                   boxSizing: 'border-box',
                 }}
@@ -1150,7 +1154,7 @@ export default function ProfilePageRedesigned() {
                 <option value="private">Private - Hidden from Collaborators page</option>
                 <option value="public">Public - Visible on Collaborators page</option>
               </select>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--subtle)', marginTop: 6 }}>
                 Private profiles won't appear in search results on the Collaborators page.
               </div>
             </div>
@@ -1161,10 +1165,10 @@ export default function ProfilePageRedesigned() {
                 display: 'block',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 marginBottom: 8,
               }}>
-                Your Roles <span style={{ color: '#64748b', fontWeight: 400 }}>(what you do)</span>
+                Your Roles <span style={{ color: 'var(--subtle)', fontWeight: 400 }}>(what you do)</span>
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', overflow: 'hidden' }}>
                 {ROLE_OPTIONS.map((role) => {
@@ -1181,9 +1185,9 @@ export default function ProfilePageRedesigned() {
                         }
                       }}
                       style={{
-                        background: isSelected ? 'rgba(245, 158, 11, 0.2)' : '#1e293b',
-                        border: `1px solid ${isSelected ? '#f59e0b' : '#334155'}`,
-                        color: isSelected ? '#fbbf24' : '#94a3b8',
+                        background: isSelected ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-card)',
+                        border: `1px solid ${isSelected ? '#f59e0b' : 'var(--panel-border-strong)'}`,
+                        color: isSelected ? '#fbbf24' : 'var(--text-muted)',
                         padding: '6px 12px',
                         borderRadius: 6,
                         fontSize: 13,
@@ -1197,7 +1201,7 @@ export default function ProfilePageRedesigned() {
                   );
                 })}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--subtle)', marginTop: 6 }}>
                 Select all roles that apply to you. This helps collaborators find you.
               </div>
             </div>
@@ -1208,10 +1212,10 @@ export default function ProfilePageRedesigned() {
                 display: 'block',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 marginBottom: 8,
               }}>
-                Your Genres <span style={{ color: '#64748b', fontWeight: 400 }}>(what you create)</span>
+                Your Genres <span style={{ color: 'var(--subtle)', fontWeight: 400 }}>(what you create)</span>
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', overflow: 'hidden' }}>
                 {GENRE_OPTIONS.map((genre) => {
@@ -1228,9 +1232,9 @@ export default function ProfilePageRedesigned() {
                         }
                       }}
                       style={{
-                        background: isSelected ? 'rgba(59, 130, 246, 0.2)' : '#1e293b',
-                        border: `1px solid ${isSelected ? '#3b82f6' : '#334155'}`,
-                        color: isSelected ? '#60a5fa' : '#94a3b8',
+                        background: isSelected ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-card)',
+                        border: `1px solid ${isSelected ? '#3b82f6' : 'var(--panel-border-strong)'}`,
+                        color: isSelected ? '#60a5fa' : 'var(--text-muted)',
                         padding: '6px 12px',
                         borderRadius: 6,
                         fontSize: 13,
@@ -1244,7 +1248,7 @@ export default function ProfilePageRedesigned() {
                   );
                 })}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--subtle)', marginTop: 6 }}>
                 Select genres you work in or are interested in.
               </div>
             </div>
@@ -1255,7 +1259,7 @@ export default function ProfilePageRedesigned() {
                 display: 'block',
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 marginBottom: 8,
               }}>
                 Bio
@@ -1267,11 +1271,11 @@ export default function ProfilePageRedesigned() {
                 rows={4}
                 style={{
                   width: '100%',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--panel-border-strong)',
                   borderRadius: 8,
                   padding: '10px 14px',
-                  color: '#f8fafc',
+                  color: 'var(--text)',
                   fontSize: 14,
                   resize: 'vertical',
                   minHeight: 100,
@@ -1279,7 +1283,7 @@ export default function ProfilePageRedesigned() {
                   boxSizing: 'border-box',
                 }}
               />
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--subtle)', marginTop: 6 }}>
                 Describe your experience, interests, and what kind of collaborations you're seeking.
               </div>
             </div>
@@ -1290,7 +1294,7 @@ export default function ProfilePageRedesigned() {
             {/* Bio */}
             {profile?.bio ? (
               <p style={{
-                color: '#cbd5e1',
+                color: 'var(--text-muted)',
                 fontSize: 15,
                 lineHeight: 1.7,
                 margin: 0,
@@ -1300,7 +1304,7 @@ export default function ProfilePageRedesigned() {
               </p>
             ) : (
               <p style={{
-                color: '#64748b',
+                color: 'var(--subtle)',
                 fontSize: 14,
                 fontStyle: 'italic',
                 margin: 0,
@@ -1315,7 +1319,7 @@ export default function ProfilePageRedesigned() {
       {/* PENDING COLLABORATION INVITES */}
       {pendingInvites.length > 0 && (
         <div style={{
-          background: '#0f172a',
+          background: 'var(--bg-card)',
           border: '1px solid #f59e0b40',
           borderRadius: 16,
           padding: 24,
@@ -1337,7 +1341,7 @@ export default function ProfilePageRedesigned() {
             }}>
               {pendingInvites.length}
             </span>
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#f8fafc' }}>
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
               Collaboration Invites
             </span>
           </div>
@@ -1347,8 +1351,8 @@ export default function ProfilePageRedesigned() {
               const isProcessing = processingInvites.has(project.id);
               return (
               <div key={project.id} style={{
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 12,
                 padding: 20,
                 opacity: isProcessing ? 0.7 : 1,
@@ -1372,20 +1376,20 @@ export default function ProfilePageRedesigned() {
 
                   {/* Invite Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 17, fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
                       {project.title}
                     </div>
-                    <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 10 }}>
-                      <span style={{ color: '#cbd5e1' }}>@{project.created_by_username}</span> invited you as{' '}
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 10 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>@{project.created_by_username}</span> invited you as{' '}
                       <span style={{ color: '#f59e0b', fontWeight: 600 }}>{invite.role}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 20, fontSize: 13 }}>
                       <div>
-                        <span style={{ color: '#64748b' }}>Revenue Split:</span>{' '}
+                        <span style={{ color: 'var(--subtle)' }}>Revenue Split:</span>{' '}
                         <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
                       </div>
                       <div>
-                        <span style={{ color: '#64748b' }}>Team:</span>{' '}
+                        <span style={{ color: 'var(--subtle)' }}>Team:</span>{' '}
                         <span style={{ color: '#e2e8f0' }}>{project.total_collaborators} people</span>
                       </div>
                     </div>
@@ -1405,7 +1409,7 @@ export default function ProfilePageRedesigned() {
                       <div style={{
                         marginTop: 16,
                         paddingTop: 16,
-                        borderTop: '1px solid #334155',
+                        borderTop: '1px solid var(--panel-border-strong)',
                       }}>
                         <div style={{
                           background: 'linear-gradient(135deg, #f59e0b10 0%, #fbbf2410 100%)',
@@ -1430,7 +1434,7 @@ export default function ProfilePageRedesigned() {
                             You proposed <strong>{invite.proposed_percentage}%</strong> revenue
                             (original offer: {invite.revenue_percentage}%)
                           </p>
-                          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 12 }}>
+                          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 12 }}>
                             Waiting for @{project.created_by_username} to respond
                           </p>
                           <button
@@ -1458,7 +1462,7 @@ export default function ProfilePageRedesigned() {
                   // Normal action buttons
                   const isWarrantyAcknowledged = warrantyAcknowledgedInvites.has(project.id);
                   return (
-                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
+                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--panel-border-strong)' }}>
                       {/* Warranty of Originality Checkbox */}
                       <div
                         onClick={(e) => {
@@ -1490,7 +1494,7 @@ export default function ProfilePageRedesigned() {
                           {isWarrantyAcknowledged ? (
                             <CheckSquare size={18} style={{ color: '#10b981' }} />
                           ) : (
-                            <Square size={18} style={{ color: '#64748b' }} />
+                            <Square size={18} style={{ color: 'var(--subtle)' }} />
                           )}
                         </div>
                         <div>
@@ -1509,7 +1513,7 @@ export default function ProfilePageRedesigned() {
                               Warranty of Originality
                             </span>
                           </div>
-                          <div style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.4 }}>
                             I acknowledge that my contributions will be original work and do not infringe on any third-party rights.
                           </div>
                         </div>
@@ -1522,7 +1526,7 @@ export default function ProfilePageRedesigned() {
                         disabled={isProcessing || !isWarrantyAcknowledged}
                         style={{
                           flex: 1,
-                          background: isWarrantyAcknowledged ? '#10b981' : '#64748b',
+                          background: isWarrantyAcknowledged ? '#10b981' : 'var(--subtle)',
                           color: '#fff',
                           border: 'none',
                           padding: '12px 20px',
@@ -1567,8 +1571,8 @@ export default function ProfilePageRedesigned() {
                         disabled={isProcessing}
                         style={{
                           background: 'transparent',
-                          color: '#94a3b8',
-                          border: '1px solid #334155',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--panel-border-strong)',
                           padding: '12px 20px',
                           borderRadius: 10,
                           fontSize: 14,
@@ -1593,7 +1597,7 @@ export default function ProfilePageRedesigned() {
       <div style={{
         display: 'flex',
         gap: 4,
-        borderBottom: '1px solid #1e293b',
+        borderBottom: '1px solid var(--panel-border-strong)',
         marginBottom: 16,
         overflowX: isMobile ? 'auto' : 'visible',
         WebkitOverflowScrolling: 'touch',
@@ -1685,7 +1689,7 @@ export default function ProfilePageRedesigned() {
               onClick={() => setContentFilter('art')}
             />
             {/* Music & Film coming soon - hidden from filters */}
-            <div style={{ width: 1, height: 24, background: '#334155', margin: '0 8px' }} />
+            <div style={{ width: 1, height: 24, background: 'var(--dropdown-hover)', margin: '0 8px' }} />
             <FilterChip
               label="Published"
               count={
@@ -1804,9 +1808,9 @@ export default function ProfilePageRedesigned() {
                 : contentFilter;
 
               return !hasContent ? (
-                <div style={{ textAlign: 'center', padding: '60px 24px', color: '#64748b' }}>
+                <div style={{ textAlign: 'center', padding: '60px 24px', color: 'var(--subtle)' }}>
                   <FileText size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
-                  <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8' }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-muted)' }}>
                     No {filterLabel} content yet
                   </div>
                 </div>
@@ -1853,10 +1857,10 @@ export default function ProfilePageRedesigned() {
                       <div
                         key={`comic-${comic.id}`}
                         style={{
-                          background: '#1e293b',
+                          background: 'var(--bg-card)',
                           borderRadius: 12,
                           overflow: 'hidden',
-                          border: '1px solid #334155',
+                          border: '1px solid var(--panel-border-strong)',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                         }}
@@ -1866,18 +1870,18 @@ export default function ProfilePageRedesigned() {
                           e.currentTarget.style.transform = 'translateY(-2px)';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = '#334155';
+                          e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
                           e.currentTarget.style.transform = 'translateY(0)';
                         }}
                       >
                         {/* Comic thumbnail - show cover image if available */}
                         <div style={{
                           height: 160,
-                          background: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)',
+                          background: 'var(--bg-card)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#64748b',
+                          color: 'var(--subtle)',
                           overflow: 'hidden',
                         }}>
                           {comic.cover_image ? (
@@ -1902,7 +1906,7 @@ export default function ProfilePageRedesigned() {
                             marginBottom: 8,
                           }}>
                             <span style={{
-                              background: comic.status === 'draft' ? '#64748b' : '#22c55e',
+                              background: comic.status === 'draft' ? 'var(--subtle)' : '#22c55e',
                               color: '#fff',
                               fontSize: 10,
                               fontWeight: 700,
@@ -1932,7 +1936,7 @@ export default function ProfilePageRedesigned() {
                           }}>
                             {comic.title}
                           </h4>
-                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                          <div style={{ fontSize: 12, color: 'var(--subtle)' }}>
                             Updated {formattedDate}
                           </div>
                         </div>
@@ -1970,7 +1974,7 @@ export default function ProfilePageRedesigned() {
         <div>
           {/* Loading state */}
           {collaborationsLoading && (
-            <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
               Loading collaborations...
             </div>
           )}
@@ -1989,7 +1993,7 @@ export default function ProfilePageRedesigned() {
                     <div
                       key={`invite-${project.id}`}
                       style={{
-                        background: '#1e293b',
+                        background: 'var(--bg-card)',
                         border: '1px solid #f59e0b40',
                         borderRadius: 12,
                         padding: 16,
@@ -2014,8 +2018,8 @@ export default function ProfilePageRedesigned() {
                           {getContentTypeIcon(project.content_type, 20)}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, color: '#f8fafc', marginBottom: 2 }}>{project.title}</div>
-                          <div style={{ fontSize: 13, color: '#94a3b8' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{project.title}</div>
+                          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                             {project.total_collaborators} collaborator{project.total_collaborators !== 1 ? 's' : ''} · {invite.revenue_percentage}% revenue
                           </div>
                         </div>
@@ -2102,7 +2106,7 @@ export default function ProfilePageRedesigned() {
                                 {isWarrantyAcknowledgedCompact ? (
                                   <CheckSquare size={14} style={{ color: '#10b981' }} />
                                 ) : (
-                                  <Square size={14} style={{ color: '#64748b' }} />
+                                  <Square size={14} style={{ color: 'var(--subtle)' }} />
                                 )}
                                 <Shield size={12} style={{ color: isWarrantyAcknowledgedCompact ? '#10b981' : '#f59e0b' }} />
                               </div>
@@ -2110,7 +2114,7 @@ export default function ProfilePageRedesigned() {
                                 onClick={(e) => handleAcceptInvite(project.id, e)}
                                 disabled={isProcessing || !isWarrantyAcknowledgedCompact}
                                 style={{
-                                  background: isWarrantyAcknowledgedCompact ? '#10b981' : '#64748b',
+                                  background: isWarrantyAcknowledgedCompact ? '#10b981' : 'var(--subtle)',
                                   color: '#fff',
                                   border: 'none',
                                   padding: '8px 12px',
@@ -2175,8 +2179,8 @@ export default function ProfilePageRedesigned() {
                   <div
                     key={`collab-${project.id}`}
                     style={{
-                      background: '#1e293b',
-                      border: '1px solid #334155',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--panel-border-strong)',
                       borderRadius: 12,
                       padding: 16,
                       cursor: 'pointer',
@@ -2193,20 +2197,20 @@ export default function ProfilePageRedesigned() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: project.status === 'active' ? '#10b981' : '#94a3b8',
+                        color: project.status === 'active' ? '#10b981' : 'var(--text-muted)',
                         flexShrink: 0,
                       }}>
                         {getContentTypeIcon(project.content_type, 20)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, color: '#f8fafc', marginBottom: 2 }}>{project.title}</div>
-                        <div style={{ fontSize: 13, color: '#94a3b8' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{project.title}</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                           {project.total_collaborators} collaborator{project.total_collaborators !== 1 ? 's' : ''} · {project.status}
                         </div>
                       </div>
                       <div style={{
                         background: project.status === 'active' ? '#10b98120' : '#64748b20',
-                        color: project.status === 'active' ? '#10b981' : '#94a3b8',
+                        color: project.status === 'active' ? '#10b981' : 'var(--text-muted)',
                         padding: '4px 12px',
                         borderRadius: 12,
                         fontSize: 12,
@@ -2240,8 +2244,8 @@ export default function ProfilePageRedesigned() {
                 onClick={() => navigate('/collaborators')}
                 style={{
                   background: 'transparent',
-                  border: '1px solid #334155',
-                  color: '#94a3b8',
+                  border: '1px solid var(--panel-border-strong)',
+                  color: 'var(--text-muted)',
                   padding: '10px 24px',
                   borderRadius: 8,
                   cursor: 'pointer',
@@ -2260,8 +2264,8 @@ export default function ProfilePageRedesigned() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <div>
-              <h3 style={{ color: '#f8fafc', fontSize: 18, fontWeight: 700, margin: 0 }}>External Portfolio</h3>
-              <p style={{ color: '#94a3b8', fontSize: 14, margin: '4px 0 0' }}>
+              <h3 style={{ color: 'var(--text)', fontSize: 18, fontWeight: 700, margin: 0 }}>External Portfolio</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '4px 0 0' }}>
                 Showcase your past work and external projects on your public profile
               </p>
             </div>
@@ -2302,8 +2306,8 @@ export default function ProfilePageRedesigned() {
             }}>
               {externalPortfolio.map(item => (
                 <div key={item.id} style={{
-                  background: '#0f172a',
-                  border: '1px solid #1e293b',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--panel-border-strong)',
                   borderRadius: 16,
                   overflow: 'hidden',
                   transition: 'all 0.2s',
@@ -2311,12 +2315,12 @@ export default function ProfilePageRedesigned() {
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
                   e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
-                  e.currentTarget.style.borderColor = '#334155';
+                  e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
                   e.currentTarget.style.boxShadow = 'none';
-                  e.currentTarget.style.borderColor = '#1e293b';
+                  e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
                 }}
                 >
                   {/* Cover Image */}
@@ -2363,7 +2367,7 @@ export default function ProfilePageRedesigned() {
                     <div style={{
                       fontSize: 16,
                       fontWeight: 600,
-                      color: '#f8fafc',
+                      color: 'var(--text)',
                       marginBottom: 4,
                     }}>
                       {item.title}
@@ -2380,7 +2384,7 @@ export default function ProfilePageRedesigned() {
                     {item.description && (
                       <div style={{
                         fontSize: 13,
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                         marginBottom: 12,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -2424,8 +2428,8 @@ export default function ProfilePageRedesigned() {
                         onClick={() => { setEditingPortfolioItem(item); setPortfolioModalOpen(true); }}
                         style={{
                           background: 'transparent',
-                          border: '1px solid #334155',
-                          color: '#cbd5e1',
+                          border: '1px solid var(--panel-border-strong)',
+                          color: 'var(--text-muted)',
                           padding: '8px 12px',
                           borderRadius: 8,
                           cursor: 'pointer',
@@ -2465,8 +2469,8 @@ export default function ProfilePageRedesigned() {
         <div>
           {/* Sales Overview Card */}
           <div style={{
-            background: '#0f172a',
-            border: '1px solid #1e293b',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--panel-border-strong)',
             borderRadius: 16,
             padding: 24,
             marginBottom: 24,
@@ -2480,7 +2484,7 @@ export default function ProfilePageRedesigned() {
               <h3 style={{
                 fontSize: 18,
                 fontWeight: 700,
-                color: '#f8fafc',
+                color: 'var(--text)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
@@ -2495,21 +2499,21 @@ export default function ProfilePageRedesigned() {
                   alignItems: 'center',
                   gap: 6,
                   padding: '8px 16px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--panel-border-strong)',
                   borderRadius: 8,
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   fontSize: 14,
                   textDecoration: 'none',
                   transition: 'all 0.2s',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#334155';
-                  e.currentTarget.style.color = '#f8fafc';
+                  e.currentTarget.style.background = 'var(--dropdown-hover)';
+                  e.currentTarget.style.color = 'var(--text)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#1e293b';
-                  e.currentTarget.style.color = '#94a3b8';
+                  e.currentTarget.style.background = 'var(--dropdown-hover)';
+                  e.currentTarget.style.color = 'var(--text-muted)';
                 }}
               >
                 <Settings size={16} />
@@ -2522,44 +2526,44 @@ export default function ProfilePageRedesigned() {
               gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
               gap: 16,
             }}>
-              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Total Earnings
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>
                   ${salesAnalytics?.summary.total_earnings_usdc.toFixed(2) || dash.sales.toFixed(2)}
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>USDC</div>
+                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>USDC</div>
               </div>
 
-              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Solo Content
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: '#60a5fa' }}>
                   ${salesAnalytics?.summary.solo_earnings.toFixed(2) || '0.00'}
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{salesAnalytics?.summary.content_count || 0} items</div>
+                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.content_count || 0} items</div>
               </div>
 
-              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Collaborations
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: '#f59e0b' }}>
                   ${salesAnalytics?.summary.collaboration_earnings.toFixed(2) || '0.00'}
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{salesAnalytics?.summary.collaboration_count || 0} projects</div>
+                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.collaboration_count || 0} projects</div>
               </div>
 
-              <div style={{ background: '#1e293b', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Total Sales
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#f8fafc' }}>
+                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text)' }}>
                   {salesAnalytics?.summary.total_sales || 0}
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>transactions</div>
+                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>transactions</div>
               </div>
             </div>
           </div>
@@ -2570,17 +2574,17 @@ export default function ProfilePageRedesigned() {
           {/* Content Performance - Expandable Cards */}
           {salesAnalytics && (salesAnalytics.content_sales.length > 0 || salesAnalytics.collaboration_sales.length > 0) && (
             <div style={{
-              background: '#0f172a',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
               padding: 24,
               marginBottom: 24,
             }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <TrendingUp size={18} style={{ color: '#60a5fa' }} />
                 Earnings Breakdown
               </h3>
-              <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
+              <p style={{ fontSize: 12, color: 'var(--subtle)', marginBottom: 16 }}>
                 Click any item to see individual transactions
               </p>
 
@@ -2602,19 +2606,19 @@ export default function ProfilePageRedesigned() {
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '12px 16px',
-                            background: '#1e293b',
+                            background: 'var(--bg-card)',
                             borderRadius: isExpanded ? '8px 8px 0 0' : 8,
                             cursor: 'pointer',
                             transition: 'background 0.2s',
                           }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
-                          onMouseLeave={e => (e.currentTarget.style.background = '#1e293b')}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--dropdown-hover)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-card)')}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             {getContentTypeIcon(item.content_type, 18)}
                             <div>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
-                              <div style={{ fontSize: 12, color: '#64748b' }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{item.title}</div>
+                              <div style={{ fontSize: 12, color: 'var(--subtle)' }}>
                                 {item.sales_count} sale{item.sales_count !== 1 ? 's' : ''} • {item.role} • ${item.price.toFixed(2)} price
                               </div>
                             </div>
@@ -2622,21 +2626,21 @@ export default function ProfilePageRedesigned() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ textAlign: 'right' }}>
                               <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>${item.total_earnings.toFixed(2)}</div>
-                              <div style={{ fontSize: 11, color: '#64748b' }}>{item.percentage}% split</div>
+                              <div style={{ fontSize: 11, color: 'var(--subtle)' }}>{item.percentage}% split</div>
                             </div>
-                            {isExpanded ? <ChevronUp size={18} color="#64748b" /> : <ChevronDown size={18} color="#64748b" />}
+                            {isExpanded ? <ChevronUp size={18} color="var(--subtle)" /> : <ChevronDown size={18} color="var(--subtle)" />}
                           </div>
                         </div>
                         {/* Expanded transaction list */}
                         {isExpanded && item.transactions && item.transactions.length > 0 && (
                           <div style={{
-                            background: '#0f172a',
-                            border: '1px solid #334155',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--panel-border-strong)',
                             borderTop: 'none',
                             borderRadius: '0 0 8px 8px',
                             padding: '12px 16px',
                           }}>
-                            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                               Transaction History
                             </div>
                             {item.transactions.map((tx, idx) => (
@@ -2645,13 +2649,13 @@ export default function ProfilePageRedesigned() {
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                                 padding: '8px 0',
-                                borderBottom: idx < item.transactions.length - 1 ? '1px solid #1e293b' : 'none',
+                                borderBottom: idx < item.transactions.length - 1 ? '1px solid var(--panel-border-strong)' : 'none',
                               }}>
                                 <div>
-                                  <div style={{ fontSize: 13, color: '#f8fafc' }}>
+                                  <div style={{ fontSize: 13, color: 'var(--text)' }}>
                                     Purchased by <span style={{ color: '#60a5fa' }}>@{tx.buyer}</span>
                                   </div>
-                                  <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <div style={{ fontSize: 11, color: 'var(--subtle)', display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Clock size={10} />
                                     {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </div>
@@ -2688,20 +2692,20 @@ export default function ProfilePageRedesigned() {
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '12px 16px',
-                            background: '#1e293b',
+                            background: 'var(--bg-card)',
                             borderRadius: isExpanded ? '8px 8px 0 0' : 8,
                             borderLeft: '3px solid #f59e0b',
                             cursor: 'pointer',
                             transition: 'background 0.2s',
                           }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#334155')}
-                          onMouseLeave={e => (e.currentTarget.style.background = '#1e293b')}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--dropdown-hover)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-card)')}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             {getContentTypeIcon(item.content_type, 18)}
                             <div>
-                              <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{item.title}</div>
-                              <div style={{ fontSize: 12, color: '#64748b' }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{item.title}</div>
+                              <div style={{ fontSize: 12, color: 'var(--subtle)' }}>
                                 {item.role} • {item.percentage}% split • {item.sales_count} sale{item.sales_count !== 1 ? 's' : ''}
                               </div>
                             </div>
@@ -2709,21 +2713,21 @@ export default function ProfilePageRedesigned() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ textAlign: 'right' }}>
                               <div style={{ fontSize: 16, fontWeight: 700, color: '#f59e0b' }}>${item.total_earnings.toFixed(2)}</div>
-                              <div style={{ fontSize: 11, color: '#64748b' }}>your share</div>
+                              <div style={{ fontSize: 11, color: 'var(--subtle)' }}>your share</div>
                             </div>
-                            {isExpanded ? <ChevronUp size={18} color="#64748b" /> : <ChevronDown size={18} color="#64748b" />}
+                            {isExpanded ? <ChevronUp size={18} color="var(--subtle)" /> : <ChevronDown size={18} color="var(--subtle)" />}
                           </div>
                         </div>
                         {/* Expanded transaction list */}
                         {isExpanded && item.transactions && item.transactions.length > 0 && (
                           <div style={{
-                            background: '#0f172a',
-                            border: '1px solid #334155',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--panel-border-strong)',
                             borderTop: 'none',
                             borderRadius: '0 0 8px 8px',
                             padding: '12px 16px',
                           }}>
-                            <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                               Transaction History
                             </div>
                             {item.transactions.map((tx, idx) => (
@@ -2732,13 +2736,13 @@ export default function ProfilePageRedesigned() {
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                                 padding: '8px 0',
-                                borderBottom: idx < item.transactions.length - 1 ? '1px solid #1e293b' : 'none',
+                                borderBottom: idx < item.transactions.length - 1 ? '1px solid var(--panel-border-strong)' : 'none',
                               }}>
                                 <div>
-                                  <div style={{ fontSize: 13, color: '#f8fafc' }}>
+                                  <div style={{ fontSize: 13, color: 'var(--text)' }}>
                                     Purchased by <span style={{ color: '#60a5fa' }}>@{tx.buyer}</span>
                                   </div>
-                                  <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <div style={{ fontSize: 11, color: 'var(--subtle)', display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Clock size={10} />
                                     {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </div>
@@ -2762,12 +2766,12 @@ export default function ProfilePageRedesigned() {
           {/* Recent Transactions */}
           {salesAnalytics && salesAnalytics.recent_transactions.length > 0 && (
             <div style={{
-              background: '#0f172a',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
               padding: 24,
             }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText size={18} style={{ color: '#a78bfa' }} />
                 Recent Transactions
               </h3>
@@ -2778,12 +2782,12 @@ export default function ProfilePageRedesigned() {
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '12px 16px',
-                    background: '#1e293b',
+                    background: 'var(--bg-card)',
                     borderRadius: 8,
                   }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>{tx.title}</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{tx.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--subtle)' }}>
                         Bought by @{tx.buyer} • {tx.role} ({tx.percentage}%) • {new Date(tx.date).toLocaleDateString()}
                       </div>
                       {tx.tx_signature && (
@@ -2808,15 +2812,15 @@ export default function ProfilePageRedesigned() {
             <div style={{
               textAlign: 'center',
               padding: '40px 24px',
-              background: '#0f172a',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
             }}>
               <BarChart3 size={48} style={{ color: '#475569', marginBottom: 16 }} />
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>
                 No sales yet
               </div>
-              <div style={{ fontSize: 14, color: '#64748b' }}>
+              <div style={{ fontSize: 14, color: 'var(--subtle)' }}>
                 Once you start making sales, you'll see detailed breakdowns here
               </div>
             </div>
@@ -2827,11 +2831,11 @@ export default function ProfilePageRedesigned() {
             <div style={{
               textAlign: 'center',
               padding: '40px 24px',
-              background: '#0f172a',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
             }}>
-              <div style={{ fontSize: 14, color: '#94a3b8' }}>Loading analytics...</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Loading analytics...</div>
             </div>
           )}
         </div>
@@ -2844,26 +2848,26 @@ export default function ProfilePageRedesigned() {
             <div style={{
               textAlign: 'center',
               padding: '40px 24px',
-              background: '#0f172a',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
             }}>
               <Loader2 size={32} style={{ color: '#f59e0b', animation: 'spin 1s linear infinite' }} />
-              <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 12 }}>Loading following...</div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 12 }}>Loading following...</div>
             </div>
           ) : followingList.length === 0 ? (
             <div style={{
               textAlign: 'center',
               padding: '40px 24px',
-              background: '#0f172a',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
             }}>
               <UserCheck size={48} style={{ color: '#475569', marginBottom: 16 }} />
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>
                 Not following anyone yet
               </div>
-              <div style={{ fontSize: 14, color: '#64748b' }}>
+              <div style={{ fontSize: 14, color: 'var(--subtle)' }}>
                 Explore creators and follow them to see their latest work in your feed
               </div>
               <Link
@@ -2884,19 +2888,19 @@ export default function ProfilePageRedesigned() {
             </div>
           ) : (
             <div style={{
-              background: '#0f172a',
-              border: '1px solid #1e293b',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
               overflow: 'hidden',
             }}>
               <div style={{
                 padding: '16px 20px',
-                borderBottom: '1px solid #1e293b',
+                borderBottom: '1px solid var(--panel-border-strong)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
               }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
                   Following ({followingList.length})
                 </h3>
               </div>
@@ -2909,10 +2913,10 @@ export default function ProfilePageRedesigned() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '16px 20px',
-                      borderBottom: index < followingList.length - 1 ? '1px solid #1e293b' : 'none',
+                      borderBottom: index < followingList.length - 1 ? '1px solid var(--panel-border-strong)' : 'none',
                       transition: 'background 0.2s',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#1e293b')}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--dropdown-hover)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <Link
@@ -2941,14 +2945,14 @@ export default function ProfilePageRedesigned() {
                         {!user.avatar && (user.username || '?').slice(0, 1).toUpperCase()}
                       </div>
                       <div>
-                        <div style={{ fontSize: 15, fontWeight: 600, color: '#f8fafc' }}>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>
                           {user.display_name || user.username}
                         </div>
-                        <div style={{ fontSize: 13, color: '#64748b' }}>
+                        <div style={{ fontSize: 13, color: 'var(--subtle)' }}>
                           @{user.username}
                         </div>
                         {user.bio && (
-                          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, maxWidth: 400 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, maxWidth: 400 }}>
                             {user.bio.length > 80 ? user.bio.slice(0, 80) + '...' : user.bio}
                           </div>
                         )}
@@ -2963,9 +2967,9 @@ export default function ProfilePageRedesigned() {
                         gap: 6,
                         padding: '8px 16px',
                         background: 'transparent',
-                        border: '1px solid #334155',
+                        border: '1px solid var(--panel-border-strong)',
                         borderRadius: 8,
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                         fontSize: 13,
                         fontWeight: 600,
                         cursor: unfollowingUsers.has(user.id) ? 'not-allowed' : 'pointer',
@@ -2979,8 +2983,8 @@ export default function ProfilePageRedesigned() {
                         }
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = '#334155';
-                        e.currentTarget.style.color = '#94a3b8';
+                        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
+                        e.currentTarget.style.color = 'var(--text-muted)';
                       }}
                     >
                       {unfollowingUsers.has(user.id) ? (
@@ -3109,7 +3113,7 @@ function Tab({ icon, label, count, active, onClick }: { icon: React.ReactNode; l
         background: 'transparent',
         border: 'none',
         borderBottom: active ? '2px solid #f59e0b' : '2px solid transparent',
-        color: active ? '#f59e0b' : '#94a3b8',
+        color: active ? '#f59e0b' : 'var(--text-muted)',
         padding: '12px 16px',
         fontSize: 14,
         fontWeight: 600,
@@ -3129,7 +3133,7 @@ function Tab({ icon, label, count, active, onClick }: { icon: React.ReactNode; l
       }}
       onMouseLeave={(e) => {
         if (!active) {
-          e.currentTarget.style.color = '#94a3b8';
+          e.currentTarget.style.color = 'var(--text-muted)';
         }
       }}
     >
@@ -3137,8 +3141,8 @@ function Tab({ icon, label, count, active, onClick }: { icon: React.ReactNode; l
       <span>{label}</span>
       {count !== undefined && count > 0 && (
         <span style={{
-          background: active ? '#f59e0b' : '#334155',
-          color: active ? '#000' : '#94a3b8',
+          background: active ? '#f59e0b' : 'var(--dropdown-hover)',
+          color: active ? '#000' : 'var(--text-muted)',
           padding: '2px 8px',
           borderRadius: 10,
           fontSize: 12,
@@ -3160,9 +3164,9 @@ function FilterChip({ label, count, active, onClick }: { label: string; count: n
     <button
       onClick={onClick}
       style={{
-        background: active ? '#f59e0b' : '#1e293b',
-        border: active ? 'none' : '1px solid #334155',
-        color: active ? '#000' : '#94a3b8',
+        background: active ? '#f59e0b' : 'var(--bg-card)',
+        border: active ? 'none' : '1px solid var(--panel-border-strong)',
+        color: active ? '#000' : 'var(--text-muted)',
         padding: '6px 14px',
         borderRadius: 20,
         fontSize: 13,
@@ -3181,14 +3185,14 @@ function FilterChip({ label, count, active, onClick }: { label: string; count: n
       }}
       onMouseLeave={(e) => {
         if (!active) {
-          e.currentTarget.style.borderColor = '#334155';
-          e.currentTarget.style.color = '#94a3b8';
+          e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
+          e.currentTarget.style.color = 'var(--text-muted)';
         }
       }}
     >
       {label}
       <span style={{
-        background: active ? 'rgba(0,0,0,0.2)' : '#334155',
+        background: active ? 'rgba(0,0,0,0.2)' : 'var(--dropdown-hover)',
         padding: '1px 6px',
         borderRadius: 8,
         fontSize: 11,
@@ -3218,8 +3222,8 @@ function BookProjectCard({
 
   return (
     <div style={{
-      background: '#0f172a',
-      border: '1px solid #1e293b',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--panel-border-strong)',
       borderRadius: 16,
       overflow: 'hidden',
       transition: 'all 0.2s',
@@ -3228,12 +3232,12 @@ function BookProjectCard({
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-4px)';
         e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
-        e.currentTarget.style.borderColor = '#334155';
+        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
         e.currentTarget.style.boxShadow = 'none';
-        e.currentTarget.style.borderColor = '#1e293b';
+        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
       }}
     >
       {/* Cover Image */}
@@ -3267,7 +3271,7 @@ function BookProjectCard({
           top: 12,
           right: 12,
           background: hasPublishedChapters ? 'rgba(0,0,0,0.75)' : 'rgba(100, 116, 139, 0.9)',
-          color: '#f8fafc',
+          color: 'var(--text)',
           padding: '4px 10px',
           borderRadius: hasPublishedChapters ? 12 : 6,
           fontSize: hasPublishedChapters ? 12 : 11,
@@ -3288,7 +3292,7 @@ function BookProjectCard({
         <div style={{
           fontSize: 16,
           fontWeight: 600,
-          color: '#f8fafc',
+          color: 'var(--text)',
           marginBottom: 8,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -3302,7 +3306,7 @@ function BookProjectCard({
 
         <div style={{
           fontSize: 13,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           marginBottom: 12,
         }}>
           {hasPublishedChapters
@@ -3317,7 +3321,7 @@ function BookProjectCard({
             alignItems: 'center',
             gap: 16,
             fontSize: 13,
-            color: '#cbd5e1',
+            color: 'var(--text-muted)',
             marginBottom: 12,
           }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -3336,11 +3340,11 @@ function BookProjectCard({
               onClick={onToggleExpand}
               style={{
                 width: '100%',
-                background: '#1e293b',
+                background: 'var(--bg-card)',
                 border: 'none',
                 borderRadius: 8,
                 padding: '8px 12px',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -3393,7 +3397,7 @@ function BookProjectCard({
                           <span style={{
                             fontSize: 9,
                             background: 'rgba(100, 116, 139, 0.5)',
-                            color: '#cbd5e1',
+                            color: 'var(--text-muted)',
                             padding: '2px 5px',
                             borderRadius: 3,
                             textTransform: 'uppercase',
@@ -3404,7 +3408,7 @@ function BookProjectCard({
                         )}
                       </div>
                       {chapter.is_published && (
-                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                        <div style={{ fontSize: 11, color: 'var(--subtle)' }}>
                           ${chapter.price_usd.toFixed(2)} • {chapter.view_count} views
                         </div>
                       )}
@@ -3417,10 +3421,10 @@ function BookProjectCard({
                         }}
                         style={{
                           background: 'transparent',
-                          border: '1px solid #334155',
+                          border: '1px solid var(--panel-border-strong)',
                           borderRadius: 6,
                           padding: '4px 10px',
-                          color: '#94a3b8',
+                          color: 'var(--text-muted)',
                           fontSize: 11,
                           fontWeight: 500,
                           cursor: 'pointer',
@@ -3445,10 +3449,10 @@ function BookProjectCard({
             style={{
               flex: 1,
               background: 'transparent',
-              border: '1px solid #334155',
+              border: '1px solid var(--panel-border-strong)',
               borderRadius: 10,
               padding: '10px 16px',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 14,
               fontWeight: 600,
               cursor: 'pointer',
@@ -3491,8 +3495,8 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
 
   return (
     <div style={{
-      background: '#0f172a',
-      border: '1px solid #1e293b',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--panel-border-strong)',
       borderRadius: 16,
       overflow: 'hidden',
       cursor: 'pointer',
@@ -3502,12 +3506,12 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-4px)';
         e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
-        e.currentTarget.style.borderColor = '#334155';
+        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
         e.currentTarget.style.boxShadow = 'none';
-        e.currentTarget.style.borderColor = '#1e293b';
+        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
       }}
     >
       {/* Draft Badge */}
@@ -3517,7 +3521,7 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
           top: 12,
           right: 12,
           background: 'rgba(100, 116, 139, 0.9)',
-          color: '#f8fafc',
+          color: 'var(--text)',
           padding: '4px 10px',
           borderRadius: 6,
           fontSize: 11,
@@ -3561,7 +3565,7 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
         <div style={{
           fontSize: 16,
           fontWeight: 600,
-          color: '#f8fafc',
+          color: 'var(--text)',
           marginBottom: 8,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -3575,7 +3579,7 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
 
         <div style={{
           fontSize: 13,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           marginBottom: 12,
         }}>
           {item.content_type} {item.genre && `• ${item.genre}`}
@@ -3586,7 +3590,7 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
           alignItems: 'center',
           gap: 16,
           fontSize: 13,
-          color: '#cbd5e1',
+          color: 'var(--text-muted)',
           marginBottom: 16,
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -3613,8 +3617,8 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
                 justifyContent: 'center',
                 gap: 6,
                 background: 'transparent',
-                border: '1px solid #334155',
-                color: '#cbd5e1',
+                border: '1px solid var(--panel-border-strong)',
+                color: 'var(--text-muted)',
                 padding: '8px 16px',
                 borderRadius: 8,
                 fontSize: 13,
@@ -3623,12 +3627,12 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
                 transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#1e293b';
+                e.currentTarget.style.background = 'var(--dropdown-hover)';
                 e.currentTarget.style.borderColor = '#475569';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.borderColor = '#334155';
+                e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
               }}
             >
               <Settings size={14} />
@@ -3641,8 +3645,8 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
               style={{
                 flex: 1,
                 background: 'transparent',
-                border: '1px solid #334155',
-                color: '#cbd5e1',
+                border: '1px solid var(--panel-border-strong)',
+                color: 'var(--text-muted)',
                 padding: '8px 16px',
                 borderRadius: 8,
                 fontSize: 13,
@@ -3651,12 +3655,12 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
                 transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#1e293b';
+                e.currentTarget.style.background = 'var(--dropdown-hover)';
                 e.currentTarget.style.borderColor = '#475569';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.borderColor = '#334155';
+                e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
               }}
             >
               Edit
@@ -3710,14 +3714,14 @@ function EmptyState({ icon, title, description, actionLabel, onAction }: {
       <div style={{
         fontSize: 24,
         fontWeight: 600,
-        color: '#f8fafc',
+        color: 'var(--text)',
         marginBottom: 12,
       }}>
         {title}
       </div>
       <div style={{
         fontSize: 15,
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
         marginBottom: 32,
         maxWidth: 400,
         margin: '0 auto 32px',
@@ -3794,8 +3798,8 @@ function PortfolioItemModal({
       zIndex: 2000,
     }} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
         borderRadius: 16,
         padding: 32,
         width: '90%',
@@ -3806,7 +3810,7 @@ function PortfolioItemModal({
         <div style={{
           fontSize: 24,
           fontWeight: 700,
-          color: '#f8fafc',
+          color: 'var(--text)',
           marginBottom: 24,
           display: 'flex',
           alignItems: 'center',
@@ -3818,7 +3822,7 @@ function PortfolioItemModal({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: 4,
               display: 'grid',
@@ -3835,7 +3839,7 @@ function PortfolioItemModal({
               display: 'block',
               fontSize: 13,
               fontWeight: 600,
-              color: '#cbd5e1',
+              color: 'var(--text-muted)',
               marginBottom: 8,
             }}>
               Title *
@@ -3848,11 +3852,11 @@ function PortfolioItemModal({
               placeholder="Project title"
               style={{
                 width: '100%',
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 8,
                 padding: '10px 14px',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
               }}
             />
@@ -3863,7 +3867,7 @@ function PortfolioItemModal({
               display: 'block',
               fontSize: 13,
               fontWeight: 600,
-              color: '#cbd5e1',
+              color: 'var(--text-muted)',
               marginBottom: 8,
             }}>
               Project Type
@@ -3873,11 +3877,11 @@ function PortfolioItemModal({
               onChange={(e) => setProjectType(e.target.value)}
               style={{
                 width: '100%',
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 8,
                 padding: '10px 14px',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
               }}
             >
@@ -3895,7 +3899,7 @@ function PortfolioItemModal({
               display: 'block',
               fontSize: 13,
               fontWeight: 600,
-              color: '#cbd5e1',
+              color: 'var(--text-muted)',
               marginBottom: 8,
             }}>
               Your Role
@@ -3907,11 +3911,11 @@ function PortfolioItemModal({
               placeholder="e.g., Author, Illustrator, Producer"
               style={{
                 width: '100%',
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 8,
                 padding: '10px 14px',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
               }}
             />
@@ -3922,7 +3926,7 @@ function PortfolioItemModal({
               display: 'block',
               fontSize: 13,
               fontWeight: 600,
-              color: '#cbd5e1',
+              color: 'var(--text-muted)',
               marginBottom: 8,
             }}>
               Description
@@ -3934,11 +3938,11 @@ function PortfolioItemModal({
               placeholder="Brief description of the project"
               style={{
                 width: '100%',
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 8,
                 padding: '10px 14px',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
                 resize: 'vertical',
               }}
@@ -3950,7 +3954,7 @@ function PortfolioItemModal({
               display: 'block',
               fontSize: 13,
               fontWeight: 600,
-              color: '#cbd5e1',
+              color: 'var(--text-muted)',
               marginBottom: 8,
             }}>
               External URL
@@ -3962,11 +3966,11 @@ function PortfolioItemModal({
               placeholder="https://..."
               style={{
                 width: '100%',
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 8,
                 padding: '10px 14px',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
               }}
             />
@@ -3977,7 +3981,7 @@ function PortfolioItemModal({
               display: 'block',
               fontSize: 13,
               fontWeight: 600,
-              color: '#cbd5e1',
+              color: 'var(--text-muted)',
               marginBottom: 8,
             }}>
               Date (optional)
@@ -3988,11 +3992,11 @@ function PortfolioItemModal({
               onChange={(e) => setCreatedDate(e.target.value)}
               style={{
                 width: '100%',
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 8,
                 padding: '10px 14px',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
               }}
             />
@@ -4005,8 +4009,8 @@ function PortfolioItemModal({
               style={{
                 flex: 1,
                 background: 'transparent',
-                border: '1px solid #334155',
-                color: '#cbd5e1',
+                border: '1px solid var(--panel-border-strong)',
+                color: 'var(--text-muted)',
                 padding: '12px',
                 borderRadius: 8,
                 fontSize: 14,

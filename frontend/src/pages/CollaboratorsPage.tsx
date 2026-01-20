@@ -83,8 +83,8 @@ export default function CollaboratorsPage() {
 
   return (
     <div style={{width: '100%', padding: isMobile ? '0 8px' : 0}}>
-      <div style={{background:'#0f172a', border:'1px solid #1f2937', borderRadius: isMobile ? 8 : 12, padding: isMobile ? 12 : 20, marginBottom: isMobile ? 16 : 24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
-        <h2 style={{margin:0, marginBottom: isMobile ? 12 : 16, color:'#f1f5f9', fontSize: isMobile ? 20 : 24, fontWeight:700}}>Find Collaborators</h2>
+      <div style={{background:'var(--bg-card)', border:'1px solid var(--panel-border-strong)', borderRadius: isMobile ? 8 : 12, padding: isMobile ? 12 : 20, marginBottom: isMobile ? 16 : 24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
+        <h2 style={{margin:0, marginBottom: isMobile ? 12 : 16, color:'var(--text)', fontSize: isMobile ? 20 : 24, fontWeight:700}}>Find Collaborators</h2>
         <div style={{display:'grid', gridTemplateColumns: isPhone ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap:12}}>
           <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search by name or @handle" style={{padding:'10px 14px'}} />
           <input value={role} onChange={(e)=>setRole(e.target.value)} placeholder="Role (e.g., author, artist)" style={{padding:'10px 14px'}} />
@@ -109,9 +109,9 @@ export default function CollaboratorsPage() {
         gap: isMobile ? 16 : 24,
         marginBottom: isMobile ? 20 : 32
       }}>
-        {loading && <div style={{color:'#94a3b8', fontSize:14}}>Searching…</div>}
+        {loading && <div style={{color:'var(--text-muted)', fontSize:14}}>Searching…</div>}
         {!loading && results.length === 0 && (
-          <div style={{color:'#94a3b8', fontSize:14}}>No collaborators found. Try broadening your filters.</div>
+          <div style={{color:'var(--text-muted)', fontSize:14}}>No collaborators found. Try broadening your filters.</div>
         )}
         {!loading && results.map((p)=> {
           // Status badge color
@@ -127,7 +127,7 @@ export default function CollaboratorsPage() {
               key={p.id}
               onClick={() => navigate(`/profile/${p.username}`)}
               style={{
-                background:'#1e293b',
+                background:'var(--bg-card)',
                 borderRadius:16,
                 overflow:'hidden',
                 boxShadow: '0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)',
@@ -180,7 +180,7 @@ export default function CollaboratorsPage() {
                   height: 96,
                   borderRadius: '50%',
                   background: p.avatar_url ? `url(${p.avatar_url}) center/cover` : '#374151',
-                  border: '4px solid #1e293b',
+                  border: '4px solid var(--bg-card)',
                   marginTop: -48,
                   marginBottom: 12,
                   display: 'flex',
@@ -196,11 +196,11 @@ export default function CollaboratorsPage() {
 
                 {/* Username & Display Name */}
                 <div style={{marginBottom: 12}}>
-                  <div style={{color:'#f1f5f9', fontWeight:700, fontSize:18, marginBottom: 2}}>
+                  <div style={{color:'var(--text)', fontWeight:700, fontSize:18, marginBottom: 2}}>
                     @{p.username}
                   </div>
                   {p.display_name && (
-                    <div style={{fontSize:14, color:'#cbd5e1', fontWeight: 500}}>
+                    <div style={{fontSize:14, color:'var(--text-muted)', fontWeight: 500}}>
                       {p.display_name}
                     </div>
                   )}
@@ -213,7 +213,7 @@ export default function CollaboratorsPage() {
                     alignItems: 'center',
                     gap: 6,
                     fontSize: 13,
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     marginBottom: 16
                   }}>
                     <MapPin size={14} />
@@ -267,7 +267,7 @@ export default function CollaboratorsPage() {
                   }}>
                     <p style={{
                       fontSize: 13,
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       margin: 0,
                       lineHeight: 1.5
                     }}>
@@ -280,7 +280,7 @@ export default function CollaboratorsPage() {
                       left: 0,
                       right: 0,
                       height: 30,
-                      background: 'linear-gradient(transparent, #1e293b)',
+                      background: 'linear-gradient(transparent, var(--bg-card))',
                       pointerEvents: 'none'
                     }} />
                   </div>
@@ -292,43 +292,43 @@ export default function CollaboratorsPage() {
                   gridTemplateColumns: 'repeat(4, 1fr)',
                   gap: 8,
                   padding: '16px 0',
-                  borderTop: '1px solid #334155',
-                  borderBottom: '1px solid #334155',
+                  borderTop: '1px solid var(--panel-border-strong)',
+                  borderBottom: '1px solid var(--panel-border-strong)',
                   marginBottom: 16
                 }}>
                   <div style={{textAlign: 'center'}}>
-                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                    <div style={{fontSize:18, fontWeight:700, color:'var(--text)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
                       <BookOpen size={14} style={{color: '#60a5fa'}} />
                       {p.content_count || 0}
                     </div>
-                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                    <div style={{fontSize:9, color:'var(--subtle)', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
                       Works
                     </div>
                   </div>
                   <div style={{textAlign: 'center'}}>
-                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                    <div style={{fontSize:18, fontWeight:700, color:'var(--text)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
                       <Users size={14} style={{color: '#a78bfa'}} />
                       {p.follower_count || 0}
                     </div>
-                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                    <div style={{fontSize:9, color:'var(--subtle)', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
                       Followers
                     </div>
                   </div>
                   <div style={{textAlign: 'center'}}>
-                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                    <div style={{fontSize:18, fontWeight:700, color:'var(--text)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
                       <Eye size={14} style={{color: '#34d399'}} />
                       {p.total_views || 0}
                     </div>
-                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                    <div style={{fontSize:9, color:'var(--subtle)', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
                       Views
                     </div>
                   </div>
                   <div style={{textAlign: 'center'}}>
-                    <div style={{fontSize:18, fontWeight:700, color:'#f1f5f9', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                    <div style={{fontSize:18, fontWeight:700, color:'var(--text)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
                       <Star size={14} style={{color: '#fbbf24'}} />
                       {p.average_rating != null ? p.average_rating.toFixed(1) : '-'}
                     </div>
-                    <div style={{fontSize:9, color:'#64748b', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                    <div style={{fontSize:9, color:'var(--subtle)', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
                       Rating
                     </div>
                   </div>
@@ -409,9 +409,9 @@ export default function CollaboratorsPage() {
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: hasPrev ? '#1e293b' : '#0f172a',
-              color: hasPrev ? '#f1f5f9' : '#475569',
-              border: '1px solid #334155',
+              background: hasPrev ? 'var(--bg-card)' : 'var(--dropdown-hover)',
+              color: hasPrev ? 'var(--text)' : 'var(--text-muted)',
+              border: '1px solid var(--panel-border-strong)',
               padding: '10px 20px',
               borderRadius: 8,
               fontWeight: 600,
@@ -428,7 +428,7 @@ export default function CollaboratorsPage() {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             fontSize: 14
           }}>
             <span>Page</span>
@@ -444,7 +444,7 @@ export default function CollaboratorsPage() {
               {page}
             </span>
             <span>of {totalPages}</span>
-            <span style={{ marginLeft: 8, color: '#64748b' }}>
+            <span style={{ marginLeft: 8, color: 'var(--subtle)' }}>
               ({totalCount} collaborators)
             </span>
           </div>
@@ -456,9 +456,9 @@ export default function CollaboratorsPage() {
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: hasNext ? '#1e293b' : '#0f172a',
-              color: hasNext ? '#f1f5f9' : '#475569',
-              border: '1px solid #334155',
+              background: hasNext ? 'var(--bg-card)' : 'var(--dropdown-hover)',
+              color: hasNext ? 'var(--text)' : 'var(--text-muted)',
+              border: '1px solid var(--panel-border-strong)',
               padding: '10px 20px',
               borderRadius: 8,
               fontWeight: 600,

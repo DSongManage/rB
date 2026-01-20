@@ -1,12 +1,64 @@
 :root {
   --bg: #141414; /* charcoal */
+  --bg-app: #0a0f1a; /* app background */
+  --bg-page: #0e1527; /* page background */
+  --bg-card: #0b1220; /* card background */
+  --bg-input: #0b1220; /* input background */
   --panel: #1a1a1a; /* magnetite */
   --panel-border: #262626;
+  --panel-border-strong: #2a3444; /* stronger border */
+  --header-bg: #1f2937; /* gunmetal */
+  --header-border: #303a4a;
   --subtle: #9ca3af; /* grey-400 */
   --text: #e5e7eb; /* grey-200 */
   --text-dim: #cbd5e1; /* grey-300 */
+  --text-muted: #94a3b8; /* grey-400 */
   --accent: #f59e0b; /* amber-500 */
   --accent-soft: #fbbf24; /* amber-400 */
+  --chip-bg: #111827;
+  --nav-hover-bg: rgba(255, 255, 255, 0.08);
+  /* Additional variables for components */
+  --text-secondary: #cbd5e1;
+  --bg-secondary: #1e293b;
+  --border: #334155;
+  --error-bg: rgba(239, 68, 68, 0.1);
+  --error-text: #fca5a5;
+  --button-text: #16181d;
+  --dropdown-bg: #0f172a;
+  --dropdown-border: #1f2937;
+  --dropdown-hover: #1e293b;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-app: #f1f5f9;
+  --bg-page: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --panel: #f8fafc;
+  --panel-border: #e2e8f0;
+  --panel-border-strong: #cbd5e1;
+  --header-bg: #ffffff;
+  --header-border: #e2e8f0;
+  --subtle: #64748b;
+  --text: #1e293b;
+  --text-dim: #475569;
+  --text-muted: #64748b;
+  --accent: #f59e0b; /* Keep amber accent */
+  --accent-soft: #fbbf24;
+  --chip-bg: #f1f5f9;
+  --nav-hover-bg: rgba(0, 0, 0, 0.05);
+  /* Additional variables for components */
+  --text-secondary: #475569;
+  --bg-secondary: #f1f5f9;
+  --border: #e2e8f0;
+  --error-bg: rgba(220, 38, 38, 0.1);
+  --error-text: #b91c1c;
+  --button-text: #16181d;
+  --dropdown-bg: #ffffff;
+  --dropdown-border: #e2e8f0;
+  --dropdown-hover: #f1f5f9;
 }
 
 html {
@@ -26,6 +78,20 @@ body {
   width: 100%;
 }
 
+/* Smooth theme transitions */
+body,
+.rb-app,
+.rb-header,
+.sidebar,
+.card,
+.page,
+button,
+input,
+select,
+a {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
@@ -36,7 +102,7 @@ code {
 .sidebar-title { color:var(--text); font-weight:700; font-size:14px; margin-bottom:8px; }
 .sidebar-nav { display:grid; gap:6px; }
 .sidebar-item { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; color:var(--text-dim); text-decoration:none; border:1px solid transparent; }
-.sidebar-item:hover { background:#111; border-color:var(--panel-border); color:var(--text); }
+.sidebar-item:hover { background:var(--chip-bg); border-color:var(--panel-border); color:var(--text); }
 .sidebar-item.active { position:relative; color:var(--accent-soft); }
 .sidebar-item.active::after { content:""; position:absolute; left:10px; right:10px; bottom:-3px; height:3px; border-radius:999px; background: radial-gradient(60% 100% at 50% 100%, rgba(245,158,11,0.9), rgba(245,158,11,0.2)); box-shadow:0 0 8px rgba(245,158,11,0.7); }
 
@@ -45,6 +111,6 @@ a { color:var(--text-dim); }
 a:hover { color:var(--text); }
 
 /* Utility chip for wallet */
-.chip { display:inline-flex; align-items:center; gap:6px; background:#111; color:var(--text-dim); border:1px solid var(--panel-border); padding:2px 8px; border-radius:999px; font-size:12px; }
+.chip { display:inline-flex; align-items:center; gap:6px; background:var(--chip-bg); color:var(--text-dim); border:1px solid var(--panel-border); padding:2px 8px; border-radius:999px; font-size:12px; }
 .chip button { background:transparent; border:none; color:#9ca3af; cursor:pointer; font-size:12px; }
 .chip button:hover { color:var(--text); }

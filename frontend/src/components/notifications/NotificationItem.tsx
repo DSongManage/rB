@@ -87,16 +87,16 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
       style={{
         padding: '12px 20px',
         cursor: 'pointer',
-        background: notification.read ? 'transparent' : '#0b1220',
+        background: notification.read ? 'transparent' : 'var(--bg-card)',
         borderLeft: `3px solid ${notification.read ? 'transparent' : color}`,
         transition: 'all 0.2s',
         position: 'relative',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = '#1e293b';
+        e.currentTarget.style.background = 'var(--dropdown-hover)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = notification.read ? 'transparent' : '#0b1220';
+        e.currentTarget.style.background = notification.read ? 'transparent' : 'var(--bg-card)';
       }}
     >
       <div style={{ display: 'flex', gap: 12 }}>
@@ -124,7 +124,7 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
             style={{
               fontSize: 13,
               fontWeight: 600,
-              color: '#e5e7eb',
+              color: 'var(--text)',
               marginBottom: 4,
               lineHeight: 1.4,
             }}
@@ -134,7 +134,7 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
           <div
             style={{
               fontSize: 12,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               marginBottom: 6,
               lineHeight: 1.5,
             }}
@@ -147,7 +147,7 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
               alignItems: 'center',
               gap: 8,
               fontSize: 11,
-              color: '#64748b',
+              color: 'var(--subtle)',
             }}
           >
             <span>@{notification.from_user.username}</span>
@@ -196,7 +196,7 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#64748b',
+            color: 'var(--subtle)',
             cursor: 'pointer',
             padding: 4,
             borderRadius: 4,
@@ -211,13 +211,13 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#1e293b';
+            e.currentTarget.style.background = 'var(--dropdown-hover)';
             e.currentTarget.style.color = '#ef4444';
             e.currentTarget.style.opacity = '1';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#64748b';
+            e.currentTarget.style.color = 'var(--subtle)';
             e.currentTarget.style.opacity = '0.6';
           }}
         >

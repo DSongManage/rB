@@ -266,7 +266,7 @@ export default function PublicProfilePage() {
             height: isPhone ? 100 : 140,
             borderRadius: '50%',
             background: p.avatar ? `url(${p.avatar}) center/cover` : '#374151',
-            border: isPhone ? '4px solid #1e293b' : '6px solid #1e293b',
+            border: isPhone ? '4px solid var(--bg-card)' : '6px solid var(--bg-card)',
             marginTop: isPhone ? -50 : -70,
             marginBottom: 16,
             display: 'flex',
@@ -283,16 +283,16 @@ export default function PublicProfilePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: isPhone ? 16 : 24 }}>
             <div style={{ flex: 1, minWidth: isPhone ? 0 : 300 }}>
               {/* Name & Username */}
-              <h1 style={{ color: '#f1f5f9', fontWeight: 700, fontSize: isPhone ? 22 : 28, margin: '0 0 4px' }}>
+              <h1 style={{ color: 'var(--text)', fontWeight: 700, fontSize: isPhone ? 22 : 28, margin: '0 0 4px' }}>
                 {p.display_name || `@${p.username}`}
               </h1>
-              <div style={{ color: '#94a3b8', fontSize: 16, marginBottom: 12 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 16, marginBottom: 12 }}>
                 @{p.username}
               </div>
 
               {/* Location */}
               {p.location && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', marginBottom: 16 }}>
                   <MapPin size={16} />
                   <span>{p.location}</span>
                 </div>
@@ -300,7 +300,7 @@ export default function PublicProfilePage() {
 
               {/* Bio */}
               {p.bio && (
-                <p style={{ color: '#cbd5e1', fontSize: 15, lineHeight: 1.6, margin: '0 0 16px', maxWidth: 600 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.6, margin: '0 0 16px', maxWidth: 600 }}>
                   {p.bio}
                 </p>
               )}

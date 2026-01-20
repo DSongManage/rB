@@ -14,6 +14,7 @@ import { API_URL } from '../config';
 import { Eye, Plus, Trash2, ExternalLink, GripVertical, Edit2, Settings } from 'lucide-react';
 import { useMobile } from '../hooks/useMobile';
 import { useBalance } from '../contexts/BalanceContext';
+import { SettingsModal } from '../components/settings/SettingsModal';
 
 interface ExternalPortfolioItem {
   id: number;
@@ -69,6 +70,7 @@ export default function ProfilePage() {
   const [portfolioModalOpen, setPortfolioModalOpen] = useState(false);
   const [editingPortfolioItem, setEditingPortfolioItem] = useState<ExternalPortfolioItem | null>(null);
   const [activeTab, setActiveTab] = useState<'content' | 'collaborations' | 'portfolio' | 'analytics'>('content');
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const { isMobile, isPhone } = useMobile();
   const { displayBalance, loading: balanceLoading, syncStatus } = useBalance();
 
@@ -427,7 +429,7 @@ export default function ProfilePage() {
             {isPhone ? 'Public' : 'View Public Profile'}
           </Link>
           <button
-            onClick={(e) => { e.stopPropagation(); /* Could open settings modal */ }}
+            onClick={(e) => { e.stopPropagation(); setSettingsModalOpen(true); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -851,6 +853,12 @@ export default function ProfilePage() {
           onSave={savePortfolioItem}
         />
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        open={settingsModalOpen}
+        onClose={() => setSettingsModalOpen(false)}
+      />
     </div>
   );
 }

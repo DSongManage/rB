@@ -20,11 +20,13 @@ import { API_URL } from './config';
 import { CartProvider } from './contexts/CartContext';
 import { TourProvider } from './contexts/TourContext';
 import { BalanceProvider } from './contexts/BalanceContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { ProfileDropdown } from './components/profile/ProfileDropdown';
 import { TourRenderer } from './components/Tour/TourProvider';
 import { TourMenu } from './components/Tour/TourMenu';
 import CartIcon from './components/CartIcon';
 import {
-  User, LogOut, Menu, X, Users
+  User, Menu, X, Users
 } from 'lucide-react';
 import { SearchAutocomplete } from './components/SearchAutocomplete';
 
@@ -74,6 +76,8 @@ function Header() {
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const profileButtonRef = React.useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -196,32 +200,54 @@ function Header() {
             <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators" data-tour="collaborators-link">
               <Users size={20} />
             </Link>
-            <Link to="/profile" className="rb-nav-link rb-profile-link" title="Profile" data-tour="profile-link">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={username}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    border: '2px solid var(--accent)',
-                  }}
-                />
-              ) : (
-                <User size={20} />
-              )}
-              <span>@{username || 'Profile'}</span>
-            </Link>
-            <button
-              onClick={doLogout}
-              className="rb-nav-link rb-logout-btn"
-              title="Logout"
-            >
-              <LogOut size={20} />
-              <span>Logout</span>
-            </button>
+            {/* Profile Dropdown */}
+            <div style={{ position: 'relative' }} data-tour="profile-link">
+              <button
+                ref={profileButtonRef}
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="rb-nav-link rb-profile-btn"
+                title="Profile menu"
+                aria-expanded={profileDropdownOpen}
+                aria-haspopup="menu"
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={username}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid var(--accent)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      background: 'var(--chip-bg)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '2px solid var(--accent)',
+                    }}
+                  >
+                    <User size={18} />
+                  </div>
+                )}
+              </button>
+              <ProfileDropdown
+                isOpen={profileDropdownOpen}
+                onClose={() => setProfileDropdownOpen(false)}
+                anchorEl={profileButtonRef.current}
+                username={username}
+                avatarUrl={avatarUrl}
+                onLogout={doLogout}
+              />
+            </div>
           </>
         )}
         {!isAuthed && (
@@ -309,6 +335,7 @@ export default function App() {
   }
 
   return (
+    <ThemeProvider>
     <TourProvider>
     <CartProvider>
     <BalanceProvider>
@@ -376,5 +403,6 @@ export default function App() {
     </BalanceProvider>
     </CartProvider>
     </TourProvider>
+    </ThemeProvider>
   );
 }

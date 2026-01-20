@@ -226,7 +226,7 @@ export default function NotificationsPage() {
             gap: 8,
             background: 'transparent',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             fontSize: 14,
             cursor: 'pointer',
             padding: '8px 0',
@@ -253,7 +253,7 @@ export default function NotificationsPage() {
               style={{
                 fontSize: isPhone ? 20 : 24,
                 fontWeight: 700,
-                color: '#e5e7eb',
+                color: 'var(--text)',
                 margin: 0,
               }}
             >
@@ -283,8 +283,8 @@ export default function NotificationsPage() {
               alignItems: 'center',
               gap: 8,
               background: unreadCount > 0 ? '#f59e0b' : 'transparent',
-              border: unreadCount > 0 ? 'none' : '1px solid #374151',
-              color: unreadCount > 0 ? '#000' : '#64748b',
+              border: unreadCount > 0 ? 'none' : '1px solid var(--border)',
+              color: unreadCount > 0 ? '#000' : 'var(--subtle)',
               fontSize: 13,
               fontWeight: 600,
               padding: '10px 16px',
@@ -316,13 +316,13 @@ export default function NotificationsPage() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            background: '#0f172a',
-            border: '1px solid #1f2937',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--panel-border-strong)',
             borderRadius: 8,
             padding: '0 12px',
           }}
         >
-          <Search size={18} color="#64748b" />
+          <Search size={18} color="var(--subtle)" />
           <input
             type="text"
             placeholder="Search notifications..."
@@ -332,7 +332,7 @@ export default function NotificationsPage() {
               flex: 1,
               background: 'transparent',
               border: 'none',
-              color: '#e5e7eb',
+              color: 'var(--text)',
               fontSize: 14,
               padding: '12px',
               outline: 'none',
@@ -345,7 +345,7 @@ export default function NotificationsPage() {
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#64748b',
+                color: 'var(--subtle)',
                 cursor: 'pointer',
                 padding: 4,
                 display: 'flex',
@@ -367,16 +367,16 @@ export default function NotificationsPage() {
         >
           {/* Type Filter */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Filter size={16} color="#64748b" />
+            <Filter size={16} color="var(--subtle)" />
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               style={{
                 flex: 1,
-                background: '#0f172a',
-                border: '1px solid #1f2937',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 6,
-                color: '#e5e7eb',
+                color: 'var(--text)',
                 fontSize: 13,
                 padding: '10px 12px',
                 cursor: 'pointer',
@@ -394,16 +394,16 @@ export default function NotificationsPage() {
 
           {/* Date Range Filter */}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Calendar size={16} color="#64748b" />
+            <Calendar size={16} color="var(--subtle)" />
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value as DateRangeType)}
               style={{
                 flex: 1,
-                background: '#0f172a',
-                border: '1px solid #1f2937',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--panel-border-strong)',
                 borderRadius: 6,
-                color: '#e5e7eb',
+                color: 'var(--text)',
                 fontSize: 13,
                 padding: '10px 12px',
                 cursor: 'pointer',
@@ -428,7 +428,7 @@ export default function NotificationsPage() {
           justifyContent: 'space-between',
           alignItems: 'center',
           marginBottom: 16,
-          borderBottom: '1px solid #1f2937',
+          borderBottom: '1px solid var(--panel-border-strong)',
           paddingBottom: 12,
           gap: 8,
           flexWrap: 'wrap',
@@ -448,9 +448,9 @@ export default function NotificationsPage() {
               key={filterType}
               onClick={() => setReadFilter(filterType)}
               style={{
-                background: readFilter === filterType ? '#1f2937' : 'transparent',
+                background: readFilter === filterType ? 'var(--dropdown-hover)' : 'transparent',
                 border: 'none',
-                color: readFilter === filterType ? '#f59e0b' : '#94a3b8',
+                color: readFilter === filterType ? '#f59e0b' : 'var(--text-muted)',
                 fontSize: 13,
                 fontWeight: 600,
                 padding: '8px 14px',
@@ -476,9 +476,9 @@ export default function NotificationsPage() {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            background: selectMode ? '#1e3a5f' : 'transparent',
-            border: `1px solid ${selectMode ? '#3b82f6' : '#374151'}`,
-            color: selectMode ? '#3b82f6' : '#94a3b8',
+            background: selectMode ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
+            border: `1px solid ${selectMode ? '#3b82f6' : 'var(--border)'}`,
+            color: selectMode ? '#3b82f6' : 'var(--text-muted)',
             fontSize: 12,
             fontWeight: 600,
             padding: '6px 12px',
@@ -502,7 +502,7 @@ export default function NotificationsPage() {
             justifyContent: 'space-between',
             gap: 12,
             padding: '12px 16px',
-            background: '#1e293b',
+            background: 'var(--dropdown-hover)',
             borderRadius: 8,
             marginBottom: 16,
           }}
@@ -519,8 +519,8 @@ export default function NotificationsPage() {
               onClick={selectAllVisible}
               style={{
                 background: 'transparent',
-                border: '1px solid #374151',
-                color: '#94a3b8',
+                border: '1px solid var(--border)',
+                color: 'var(--text-muted)',
                 fontSize: 12,
                 fontWeight: 600,
                 padding: '6px 12px',
@@ -536,8 +536,8 @@ export default function NotificationsPage() {
               disabled={selectedIds.size === 0}
               style={{
                 background: 'transparent',
-                border: '1px solid #374151',
-                color: selectedIds.size > 0 ? '#94a3b8' : '#475569',
+                border: '1px solid var(--border)',
+                color: selectedIds.size > 0 ? 'var(--text-muted)' : 'var(--subtle)',
                 fontSize: 12,
                 fontWeight: 600,
                 padding: '6px 12px',
@@ -548,7 +548,7 @@ export default function NotificationsPage() {
             >
               Clear
             </button>
-            <span style={{ fontSize: 13, color: '#64748b' }}>
+            <span style={{ fontSize: 13, color: 'var(--subtle)' }}>
               {selectedIds.size} selected
             </span>
           </div>
@@ -561,9 +561,9 @@ export default function NotificationsPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                background: selectedIds.size > 0 ? '#3b82f6' : '#1f2937',
+                background: selectedIds.size > 0 ? '#3b82f6' : 'var(--chip-bg)',
                 border: 'none',
-                color: selectedIds.size > 0 ? '#fff' : '#475569',
+                color: selectedIds.size > 0 ? '#fff' : 'var(--subtle)',
                 fontSize: 12,
                 fontWeight: 600,
                 padding: '8px 14px',
@@ -584,9 +584,9 @@ export default function NotificationsPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                background: selectedIds.size > 0 ? '#dc2626' : '#1f2937',
+                background: selectedIds.size > 0 ? '#dc2626' : 'var(--chip-bg)',
                 border: 'none',
-                color: selectedIds.size > 0 ? '#fff' : '#475569',
+                color: selectedIds.size > 0 ? '#fff' : 'var(--subtle)',
                 fontSize: 12,
                 fontWeight: 600,
                 padding: '8px 14px',
@@ -607,18 +607,18 @@ export default function NotificationsPage() {
       {/* Notifications List */}
       <div
         style={{
-          background: '#0f172a',
+          background: 'var(--bg-card)',
           borderRadius: 12,
-          border: '1px solid #1f2937',
+          border: '1px solid var(--panel-border-strong)',
           overflow: 'hidden',
         }}
       >
         {isLoading && notifications.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
             Loading notifications...
           </div>
         ) : filteredNotifications.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
             <Bell size={40} style={{ marginBottom: 16, opacity: 0.5 }} />
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
               {searchQuery
@@ -629,7 +629,7 @@ export default function NotificationsPage() {
                 ? 'No unread notifications'
                 : 'No read notifications'}
             </div>
-            <div style={{ fontSize: 13, color: '#64748b' }}>
+            <div style={{ fontSize: 13, color: 'var(--subtle)' }}>
               {searchQuery
                 ? 'Try adjusting your search or filters'
                 : readFilter === 'all'
@@ -660,7 +660,7 @@ export default function NotificationsPage() {
                         ? 'rgba(59, 130, 246, 0.1)'
                         : 'transparent',
                       border: 'none',
-                      borderRight: '1px solid #1f2937',
+                      borderRight: '1px solid var(--panel-border-strong)',
                       cursor: 'pointer',
                       flexShrink: 0,
                     }}
@@ -668,7 +668,7 @@ export default function NotificationsPage() {
                     {selectedIds.has(notification.id) ? (
                       <CheckSquare size={20} color="#3b82f6" />
                     ) : (
-                      <Square size={20} color="#475569" />
+                      <Square size={20} color="var(--subtle)" />
                     )}
                   </button>
                 )}
@@ -698,7 +698,7 @@ export default function NotificationsPage() {
             padding: 12,
             textAlign: 'center',
             fontSize: 12,
-            color: '#64748b',
+            color: 'var(--subtle)',
           }}
         >
           Showing {filteredNotifications.length} of {notifications.length} notifications
@@ -725,11 +725,12 @@ export default function NotificationsPage() {
         >
           <div
             style={{
-              background: '#1a1f2e',
+              background: 'var(--bg-card)',
               borderRadius: 12,
               padding: 24,
               maxWidth: 400,
               width: '100%',
+              border: '1px solid var(--panel-border-strong)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -737,13 +738,13 @@ export default function NotificationsPage() {
               style={{
                 fontSize: 18,
                 fontWeight: 700,
-                color: '#e5e7eb',
+                color: 'var(--text)',
                 margin: '0 0 12px 0',
               }}
             >
               Delete Notifications?
             </h3>
-            <p style={{ fontSize: 14, color: '#94a3b8', margin: '0 0 20px 0' }}>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 20px 0' }}>
               Are you sure you want to delete {selectedIds.size} notification
               {selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.
             </p>
@@ -753,8 +754,8 @@ export default function NotificationsPage() {
                 style={{
                   flex: 1,
                   background: 'transparent',
-                  border: '1px solid #374151',
-                  color: '#94a3b8',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
                   fontSize: 14,
                   fontWeight: 600,
                   padding: '12px 20px',

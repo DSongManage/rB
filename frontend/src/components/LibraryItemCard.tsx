@@ -41,8 +41,8 @@ function LibraryItemCardComponent({ item, onClick }: LibraryItemCardProps) {
         display: 'flex',
         gap: 12,
         padding: 12,
-        background: '#0b1220',
-        border: '1px solid #2a3444',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
         borderRadius: 8,
         textDecoration: 'none',
         color: 'inherit',
@@ -50,12 +50,12 @@ function LibraryItemCardComponent({ item, onClick }: LibraryItemCardProps) {
         cursor: 'pointer',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = '#111827';
-        e.currentTarget.style.borderColor = '#374151';
+        e.currentTarget.style.background = 'var(--dropdown-hover)';
+        e.currentTarget.style.borderColor = 'var(--border)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = '#0b1220';
-        e.currentTarget.style.borderColor = '#2a3444';
+        e.currentTarget.style.background = 'var(--bg-card)';
+        e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
       }}
     >
       {/* Thumbnail */}
@@ -67,7 +67,7 @@ function LibraryItemCardComponent({ item, onClick }: LibraryItemCardProps) {
           flexShrink: 0,
           borderRadius: 6,
           overflow: 'hidden',
-          background: '#0e1320',
+          background: 'var(--bg-input)',
         }}
       >
         <img
@@ -119,7 +119,7 @@ function LibraryItemCardComponent({ item, onClick }: LibraryItemCardProps) {
             style={{
               fontWeight: 600,
               fontSize: 14,
-              color: '#e5e7eb',
+              color: 'var(--text)',
               marginBottom: 4,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -131,7 +131,7 @@ function LibraryItemCardComponent({ item, onClick }: LibraryItemCardProps) {
           <div
             style={{
               fontSize: 12,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
             }}
           >
             {item.creator}
@@ -141,14 +141,14 @@ function LibraryItemCardComponent({ item, onClick }: LibraryItemCardProps) {
           <span
             style={{
               fontSize: 11,
-              color: progressPercentage === 100 ? '#10b981' : progressPercentage > 0 ? '#f59e0b' : '#64748b',
+              color: progressPercentage === 100 ? '#10b981' : progressPercentage > 0 ? '#f59e0b' : 'var(--subtle)',
               fontWeight: 600,
             }}
           >
             {progressPercentage === 100 ? 'Finished' : progressPercentage > 0 ? `${progressPercentage}% complete` : 'Not started'}
           </span>
           {relativeTime && progressPercentage > 0 && (
-            <span style={{ fontSize: 10, color: '#64748b' }}>
+            <span style={{ fontSize: 10, color: 'var(--subtle)' }}>
               · {relativeTime}
             </span>
           )}

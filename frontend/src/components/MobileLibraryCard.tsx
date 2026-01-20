@@ -38,8 +38,8 @@ function MobileLibraryCardComponent({ item }: MobileLibraryCardProps) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        background: '#0b1220',
-        border: '1px solid #2a3444',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
         borderRadius: 12,
         overflow: 'hidden',
         textDecoration: 'none',
@@ -52,7 +52,7 @@ function MobileLibraryCardComponent({ item }: MobileLibraryCardProps) {
         style={{
           position: 'relative',
           aspectRatio: '1',
-          background: '#0e1320',
+          background: 'var(--bg-input)',
         }}
       >
         <img
@@ -95,7 +95,7 @@ function MobileLibraryCardComponent({ item }: MobileLibraryCardProps) {
           style={{
             fontWeight: 600,
             fontSize: 13,
-            color: '#e5e7eb',
+            color: 'var(--text)',
             marginBottom: 4,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -107,7 +107,7 @@ function MobileLibraryCardComponent({ item }: MobileLibraryCardProps) {
         <div
           style={{
             fontSize: 11,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             marginBottom: 4,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -120,14 +120,14 @@ function MobileLibraryCardComponent({ item }: MobileLibraryCardProps) {
           <span
             style={{
               fontSize: 11,
-              color: progressPercentage === 100 ? '#10b981' : progressPercentage > 0 ? '#f59e0b' : '#64748b',
+              color: progressPercentage === 100 ? '#10b981' : progressPercentage > 0 ? '#f59e0b' : 'var(--subtle)',
               fontWeight: 500,
             }}
           >
             {progressPercentage === 100 ? 'Finished' : progressPercentage > 0 ? `${progressPercentage}%` : 'Not started'}
           </span>
           {relativeTime && progressPercentage > 0 && (
-            <span style={{ fontSize: 10, color: '#64748b' }}>
+            <span style={{ fontSize: 10, color: 'var(--subtle)' }}>
               · {relativeTime}
             </span>
           )}
