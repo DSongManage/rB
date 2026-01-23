@@ -42,14 +42,14 @@ export default function BetaLanding() {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage('✅ Thanks! We\'ll review your request and send an invite if approved.');
+        setMessage('Thanks! We\'ll review your request and send an invite if approved.');
         setEmail('');
       } else {
-        setMessage(`❌ ${data.error || 'Something went wrong. Please try again.'}`);
+        setMessage(`${data.error || 'Something went wrong. Please try again.'}`);
       }
     } catch (error) {
       console.error('Beta request error:', error);
-      setMessage('❌ Unable to submit request. Please try again later.');
+      setMessage('Unable to submit request. Please try again later.');
     } finally {
       setSubmitting(false);
     }
@@ -70,11 +70,11 @@ export default function BetaLanding() {
           </div>
 
           <h1 className="hero-title">
-            Unleash What's Inside You
+            Stories Need Art. Art Needs Stories.
           </h1>
 
           <p className="hero-subtitle">
-            A home for serious creators to write, collaborate, and share their work with the world
+            A marketplace for comic collaborations. You focus on your craft - we handle payments, splits, and publishing.
           </p>
 
           <div className="hero-form">
@@ -97,10 +97,10 @@ export default function BetaLanding() {
                   {submitting ? 'Submitting...' : 'Start Creating'}
                 </button>
               </div>
-              {message && <div className={`form-message ${message.startsWith('✅') ? 'success' : 'error'}`}>{message}</div>}
+              {message && <div className={`form-message ${message.includes('Thanks') ? 'success' : 'error'}`}>{message}</div>}
             </form>
             <p className="hero-proof">
-              Join a growing community of authors and artists
+              Join writers and artists already creating together
             </p>
             <p className="signin-link">
               Already have access?{' '}
@@ -122,38 +122,38 @@ export default function BetaLanding() {
               <thead>
                 <tr>
                   <th className="old-way-header">THE OLD WAY</th>
-                  <th className="new-way-header">THE renaissBlock WAY</th>
+                  <th className="new-way-header">THE RENAISSBLOCK WAY</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td className="old-way">
-                    <span className="main-text">Gatekeepers Decide</span>
-                    <span className="sub-text">wait for permission</span>
+                    <span className="main-text">Find Collaborators by Luck</span>
+                    <span className="sub-text">hope you know someone</span>
                   </td>
                   <td className="new-way">
-                    <span className="main-text">You Decide</span>
-                    <span className="sub-text">publish when you're ready</span>
+                    <span className="main-text">Browse a Marketplace</span>
+                    <span className="sub-text">writers and artists looking for each other</span>
                   </td>
                 </tr>
                 <tr>
                   <td className="old-way">
-                    <span className="main-text">Work in Isolation</span>
-                    <span className="sub-text">hope to meet the right collaborator</span>
+                    <span className="main-text">Negotiate Awkward Splits</span>
+                    <span className="sub-text">verbal agreements, hope for the best</span>
                   </td>
                   <td className="new-way">
-                    <span className="main-text">Find Your People</span>
-                    <span className="sub-text">connect with creators who complete your vision</span>
+                    <span className="main-text">Set Terms Upfront</span>
+                    <span className="sub-text">revenue splits are automatic, every sale</span>
                   </td>
                 </tr>
                 <tr>
                   <td className="old-way">
-                    <span className="main-text">Chase Your Earnings</span>
-                    <span className="sub-text">invoices, delays, disputes</span>
+                    <span className="main-text">Risk the Whole Project</span>
+                    <span className="sub-text">commit to 200 pages with a stranger</span>
                   </td>
                   <td className="new-way">
-                    <span className="main-text">Earnings Come to You</span>
-                    <span className="sub-text">automatic, instant, fair</span>
+                    <span className="main-text">Publish Chapter by Chapter</span>
+                    <span className="sub-text">test the collaboration, build as you go</span>
                   </td>
                 </tr>
               </tbody>
@@ -162,26 +162,26 @@ export default function BetaLanding() {
         </div>
       </section>
 
-      {/* 3. WHY CREATORS CHOOSE US */}
+      {/* 3. VALUE PROPS */}
       <section className="benefits-section">
         <div className="container">
-          <h2 className="section-title">Built for Creators Who Mean It</h2>
+          <h2 className="section-title">Built for Comics That Take Two</h2>
 
           <div className="benefits-grid">
             <div className="benefit-card">
               <div className="benefit-icon">
                 <Pen size={48} />
               </div>
-              <h3>Your Work, Your Way</h3>
-              <p>No gatekeepers. No algorithms deciding your fate. Just you and your readers.</p>
+              <h3>Your Script or Your Art</h3>
+              <p>Bring what you've got. Post your project, set your terms, find the missing piece.</p>
             </div>
 
             <div className="benefit-card">
               <div className="benefit-icon">
                 <Users size={48} />
               </div>
-              <h3>Find Your Creative Other Half</h3>
-              <p>Writers meet illustrators. Musicians meet lyricists. Great work happens together.</p>
+              <h3>Find Your Collaborator</h3>
+              <p>Browse writers looking for artists. Browse artists looking for scripts. Message, discuss, team up.</p>
             </div>
 
             <div className="benefit-card">
@@ -189,7 +189,7 @@ export default function BetaLanding() {
                 <Heart size={48} />
               </div>
               <h3>Fair Splits, Zero Drama</h3>
-              <p>Collaborate with confidence. Everyone gets paid automatically, exactly as agreed.</p>
+              <p>Revenue splits happen automatically every sale. No invoices, no chasing, no awkward conversations.</p>
             </div>
           </div>
         </div>
@@ -203,8 +203,8 @@ export default function BetaLanding() {
           <div className="timeline">
             <div className="timeline-step">
               <div className="step-number">1</div>
-              <h3>Create</h3>
-              <p>Bring your vision to life</p>
+              <h3>Post</h3>
+              <p>Writers post scripts. Artists post portfolios. Describe what you're looking for.</p>
             </div>
 
             <div className="timeline-connector">
@@ -213,8 +213,8 @@ export default function BetaLanding() {
 
             <div className="timeline-step">
               <div className="step-number">2</div>
-              <h3>Collaborate</h3>
-              <p>Find partners who elevate your work</p>
+              <h3>Team Up</h3>
+              <p>Find your match. Agree on a split. Start your first chapter.</p>
             </div>
 
             <div className="timeline-connector">
@@ -223,8 +223,8 @@ export default function BetaLanding() {
 
             <div className="timeline-step">
               <div className="step-number">3</div>
-              <h3>Share</h3>
-              <p>Reach readers who value quality</p>
+              <h3>Publish & Earn</h3>
+              <p>Release chapter by chapter. Every sale pays both of you instantly.</p>
             </div>
           </div>
         </div>
@@ -235,13 +235,25 @@ export default function BetaLanding() {
         <div className="container">
           <h2 className="section-title">Creators Already Here</h2>
 
-          <div className="testimonial-card">
-            <p className="testimonial-quote">
-              "I'd been sitting on my manuscript for two years, afraid to self-publish alone. On renaissBlock, I found Maya — the illustrator I didn't know I needed. Three months later, we had a book we're both proud of."
-            </p>
-            <div className="testimonial-author">
-              <div className="author-name">Sarah K.</div>
-              <div className="author-role">Children's Author</div>
+          <div className="testimonials-grid">
+            <div className="testimonial-card">
+              <p className="testimonial-quote">
+                "I'd been sitting on a fantasy script for two years because I can't draw. Found an artist in the first week, and we just published chapter three."
+              </p>
+              <div className="testimonial-author">
+                <div className="author-name">Marcus T.</div>
+                <div className="author-role">Writer</div>
+              </div>
+            </div>
+
+            <div className="testimonial-card">
+              <p className="testimonial-quote">
+                "I was tired of drawing fan art for exposure. Now I'm working on an original series and actually getting paid for it."
+              </p>
+              <div className="testimonial-author">
+                <div className="author-name">Elena R.</div>
+                <div className="author-role">Artist</div>
+              </div>
             </div>
           </div>
         </div>
@@ -251,9 +263,9 @@ export default function BetaLanding() {
       <section className="final-cta-section">
         <div className="container">
           <div className="final-cta-card">
-            <h2>Ready to Create Something Meaningful?</h2>
+            <h2>Your Comic Is Waiting</h2>
             <p className="cta-subtext">
-              Join a community of serious creators building the next wave of quality content
+              Whether you write or draw, someone's looking for you.
             </p>
 
             <form onSubmit={handleSubmit} className="final-cta-form">
@@ -272,10 +284,10 @@ export default function BetaLanding() {
                   disabled={submitting}
                   className="cta-button"
                 >
-                  {submitting ? 'Submitting...' : 'Get Early Access'}
+                  {submitting ? 'Submitting...' : 'Join the Beta'}
                 </button>
               </div>
-              {message && <div className={`form-message ${message.startsWith('✅') ? 'success' : 'error'}`}>{message}</div>}
+              {message && <div className={`form-message ${message.includes('Thanks') ? 'success' : 'error'}`}>{message}</div>}
             </form>
 
             <p className="signin-link">
@@ -291,35 +303,16 @@ export default function BetaLanding() {
       {/* FOOTER */}
       <footer className="landing-footer">
         <div className="container">
-          <div className="footer-grid">
-            <div className="footer-col">
-              <div className="footer-logo">
-                <img src="/rb-logo.png" alt="renaissBlock" />
-                <span>renaissBlock</span>
-              </div>
-              <p className="footer-tagline">
-                Where serious creators thrive
-              </p>
-            </div>
-
-            <div className="footer-col">
-              <h4>Platform</h4>
-              <ul>
-                <li><Link to="/auth">Sign In</Link></li>
-                <li><Link to="/wallet-info">About Wallets</Link></li>
-              </ul>
-            </div>
-
-            <div className="footer-col">
-              <h4>Legal</h4>
-              <ul>
-                <li><Link to="/terms">Terms of Service</Link></li>
-              </ul>
-            </div>
+          <div className="footer-links">
+            <Link to="/about">About</Link>
+            <Link to="/faq">FAQ</Link>
+            <Link to="/terms">Terms</Link>
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/contact">Contact</Link>
           </div>
 
           <div className="footer-bottom">
-            <p>&copy; 2026 renaissBlock. Built for creators, by creators.</p>
+            <p>&copy; 2026 renaissBlock</p>
           </div>
         </div>
       </footer>

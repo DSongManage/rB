@@ -427,13 +427,19 @@
   background: linear-gradient(180deg, #0a0f1a 0%, #0e1527 100%);
 }
 
-.testimonial-card {
-  max-width: 700px;
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px;
+  max-width: 1000px;
   margin: 0 auto;
+}
+
+.testimonial-card {
   background: rgba(14, 21, 39, 0.8);
   border: 2px solid #334155;
   border-radius: 20px;
-  padding: 56px 48px;
+  padding: 40px 32px;
   text-align: center;
   transition: all 0.3s;
 }
@@ -524,71 +530,25 @@
 .landing-footer {
   background: #0e1527;
   border-top: 1px solid #334155;
-  padding: 60px 24px 32px;
+  padding: 40px 24px 32px;
 }
 
-.footer-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 48px;
-  margin-bottom: 40px;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.footer-logo {
+.footer-links {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
 }
 
-.footer-logo img {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-}
-
-.footer-logo span {
-  font-size: 18px;
-  font-weight: 700;
-  color: #e5e7eb;
-}
-
-.footer-tagline {
-  font-size: 14px;
-  color: #64748b;
-  margin-top: 8px;
-}
-
-.footer-col h4 {
-  font-size: 13px;
-  font-weight: 700;
-  color: #e5e7eb;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 16px;
-}
-
-.footer-col ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.footer-col ul li {
-  margin-bottom: 12px;
-}
-
-.footer-col ul li a {
+.footer-links a {
   color: #94a3b8;
   text-decoration: none;
   font-size: 14px;
   transition: color 0.2s;
 }
 
-.footer-col ul li a:hover {
+.footer-links a:hover {
   color: #FF9500;
 }
 
@@ -651,6 +611,10 @@
     gap: 32px;
   }
 
+  .testimonials-grid {
+    grid-template-columns: 1fr;
+  }
+
   .timeline {
     flex-direction: column;
   }
@@ -706,10 +670,6 @@
     padding: 36px 28px;
   }
 
-  .footer-grid {
-    grid-template-columns: 1fr;
-    gap: 32px;
-  }
 }
 
 @media (max-width: 480px) {
