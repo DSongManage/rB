@@ -44,7 +44,6 @@ const PublicProfilePage = lazy(() => import('./pages/PublicProfilePage'));
 const ContentDetail = lazy(() => import('./pages/ContentDetail'));
 const PurchaseSuccessPage = lazy(() => import('./pages/PurchaseSuccessPage'));
 const ReaderPage = lazy(() => import('./pages/ReaderPage').then(m => ({ default: m.ReaderPage })));
-const CollaborationDashboard = lazy(() => import('./pages/CollaborationDashboard'));
 const CollaborativeProjectPage = lazy(() => import('./pages/CollaborativeProjectPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const FollowingFeedPage = lazy(() => import('./pages/FollowingFeedPage'));
@@ -57,6 +56,9 @@ const PrivacyPolicyPage = lazy(() => import('./pages/legal/PrivacyPolicyPage'));
 const ContentPolicyPage = lazy(() => import('./pages/legal/ContentPolicyPage'));
 const DMCAPolicyPage = lazy(() => import('./pages/legal/DMCAPolicyPage'));
 const CreatorAgreementPage = lazy(() => import('./pages/legal/CreatorAgreementPage'));
+
+// Info pages
+const HowPaymentsWorkPage = lazy(() => import('./pages/HowPaymentsWorkPage'));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -277,7 +279,7 @@ export default function App() {
   const showFooter = !showLibrarySidebar;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/', '/legal'];
+  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/', '/legal', '/how-payments-work'];
   const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
 
   // Show loading state while checking authentication
@@ -380,11 +382,11 @@ export default function App() {
                 <Route path="/legal/content-policy" element={<ContentPolicyPage />} />
                 <Route path="/legal/dmca" element={<DMCAPolicyPage />} />
                 <Route path="/legal/creator-agreement" element={<CreatorAgreementPage />} />
+                <Route path="/how-payments-work" element={<HowPaymentsWorkPage />} />
                 <Route path="/content/:id" element={<ContentDetail />} />
                 <Route path="/purchase/success" element={<PurchaseSuccessPage />} />
                 <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
                 <Route path="/cart/success" element={<ProtectedRoute><CartSuccessPage /></ProtectedRoute>} />
-                <Route path="/collaborations" element={<ProtectedRoute><CollaborationDashboard /></ProtectedRoute>} />
                 <Route path="/collaborations/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />

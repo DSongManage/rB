@@ -711,6 +711,7 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
     recent_comments = serializers.SerializerMethodField()
     is_fully_approved = serializers.SerializerMethodField()
     total_collaborators = serializers.SerializerMethodField()
+    is_solo = serializers.SerializerMethodField()
     progress_percentage = serializers.SerializerMethodField()
     estimated_earnings = serializers.SerializerMethodField()
     copyright_preview = serializers.SerializerMethodField()
@@ -725,12 +726,13 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
             'collaborators', 'sections', 'recent_comments', 'is_fully_approved',
             'total_collaborators', 'progress_percentage', 'estimated_earnings',
             'authors_note', 'copyright_preview', 'is_solo', 'cover_image',
+            'reading_direction',
             # Dispute/breach status
             'has_active_dispute', 'has_active_breach', 'can_mint_status'
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'created_by', 'created_by_username',
-            'is_fully_approved', 'total_collaborators', 'estimated_earnings', 'copyright_preview',
+            'is_fully_approved', 'total_collaborators', 'is_solo', 'estimated_earnings', 'copyright_preview',
             'has_active_dispute', 'has_active_breach', 'can_mint_status'
         ]
 
@@ -746,6 +748,10 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
     def get_total_collaborators(self, obj):
         """Count accepted collaborators."""
         return obj.collaborators.filter(status='accepted').count()
+
+    def get_is_solo(self, obj):
+        """A project is solo if it has only 1 accepted collaborator."""
+        return obj.collaborators.filter(status='accepted').count() <= 1
 
     def get_progress_percentage(self, obj):
         """Calculate project completion percentage based on milestones."""
@@ -816,6 +822,7 @@ class CollaborativeProjectListSerializer(serializers.ModelSerializer):
     created_by = serializers.IntegerField(source='created_by.id', read_only=True)
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     total_collaborators = serializers.SerializerMethodField()
+    is_solo = serializers.SerializerMethodField()
 
     class Meta:
         model = CollaborativeProject
@@ -823,11 +830,15 @@ class CollaborativeProjectListSerializer(serializers.ModelSerializer):
             'id', 'title', 'content_type', 'status', 'created_by', 'created_by_username',
             'total_collaborators', 'created_at', 'updated_at', 'price_usd', 'is_solo', 'cover_image'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by', 'created_by_username', 'total_collaborators']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by', 'created_by_username', 'total_collaborators', 'is_solo']
 
     def get_total_collaborators(self, obj):
         """Count accepted collaborators."""
         return obj.collaborators.filter(status='accepted').count()
+
+    def get_is_solo(self, obj):
+        """A project is solo if it has only 1 accepted collaborator."""
+        return obj.collaborators.filter(status='accepted').count() <= 1
 
 
 class NotificationUserSerializer(serializers.ModelSerializer):
@@ -1654,6 +1665,8 @@ class ComicPageSerializer(serializers.ModelSerializer):
             # Line-based layout fields
             'orientation', 'gutter_mode', 'default_gutter_width',
             'default_line_color', 'layout_version',
+            # Script data for writer-artist collaboration
+            'script_data',
             # Nested content
             'panels', 'divider_lines',
             'created_at', 'updated_at'

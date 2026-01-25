@@ -25,7 +25,7 @@ export interface CollaborativeProject {
   title: string;
   content_type: 'book' | 'music' | 'video' | 'art' | 'comic';
   description: string;
-  status: 'draft' | 'active' | 'ready_for_mint' | 'minted' | 'cancelled';
+  status: 'draft' | 'active' | 'ready_for_mint' | 'minted' | 'unpublished' | 'cancelled';
   milestones: Milestone[];
   price_usd: number;
   editions: number;
@@ -46,6 +46,8 @@ export interface CollaborativeProject {
   progress_percentage: number;
   is_solo: boolean;
   cover_image?: string | null;
+  // Reading direction for comic projects (manga vs western)
+  reading_direction?: 'ltr' | 'rtl';
   // Pre-mint gate fields
   has_active_dispute: boolean;
   has_active_breach: boolean;
@@ -314,6 +316,18 @@ async function handleResponse<T>(response: Response): Promise<T> {
         errorMessage = errorData.error;
       } else if (errorData.detail) {
         errorMessage = errorData.detail;
+      } else if (typeof errorData === 'object') {
+        // Handle Django REST Framework field-level validation errors
+        // Format: {"field_name": ["error message 1", "error message 2"]}
+        const fieldErrors = Object.entries(errorData)
+          .filter(([_, value]) => Array.isArray(value))
+          .map(([field, messages]) => {
+            const msgs = messages as string[];
+            return msgs.join(', ');
+          });
+        if (fieldErrors.length > 0) {
+          errorMessage = fieldErrors.join('; ');
+        }
       }
     } catch {
       // Response body not JSON, use status text
@@ -407,6 +421,11 @@ export const collaborationApi = {
 
   /**
    * Delete collaborative project
+   *
+   * Deletion rules:
+   * - Only the project owner can delete
+   * - Cannot delete minted projects (must unpublish first)
+   * - Multi-collaborator projects require >=51% ownership to delete
    */
   async deleteCollaborativeProject(id: number): Promise<void> {
     const response = await fetch(`${API_BASE}/api/collaborative-projects/${id}/`, {
@@ -419,8 +438,64 @@ export const collaborationApi = {
     });
 
     if (!response.ok) {
+      // Try to parse error message from backend
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          throw new Error(errorData.detail);
+        } else if (errorData.error) {
+          throw new Error(errorData.error);
+        } else if (Array.isArray(errorData) && errorData.length > 0) {
+          throw new Error(errorData[0]);
+        }
+      } catch (parseError) {
+        // If parsing fails, use status text
+      }
       throw new Error(`Failed to delete project: ${response.statusText}`);
     }
+  },
+
+  /**
+   * Unpublish a project (remove from marketplace)
+   * Only the project owner can unpublish. Project must be in 'minted' status.
+   * Existing buyers retain access to their purchased content.
+   */
+  async unpublishProject(id: number): Promise<{ status: string; message: string }> {
+    const response = await fetch(`${API_BASE}/api/collaborative-projects/${id}/unpublish/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to unpublish project');
+    }
+    return response.json();
+  },
+
+  /**
+   * Republish a project (re-list on marketplace)
+   * Only the project owner can republish. Project must be in 'unpublished' status.
+   */
+  async republishProject(id: number): Promise<{ status: string; message: string }> {
+    const response = await fetch(`${API_BASE}/api/collaborative-projects/${id}/republish/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to republish project');
+    }
+    return response.json();
   },
 
   // ===== Collaboration Actions =====
@@ -2220,6 +2295,19 @@ export interface CreateDividerLineData {
 // Page orientation types
 export type PageOrientation = 'portrait' | 'landscape' | 'square' | 'webtoon' | 'manga_b5' | 'social_square' | 'social_story';
 
+// Script data for writer-artist collaboration
+export interface ScriptPanel {
+  panel_number: number;
+  scene: string;      // Scene description for artist
+  dialogue: string;   // Pre-written dialogue
+  notes: string;      // Additional notes (character emotions, etc.)
+}
+
+export interface ScriptData {
+  page_description: string;
+  panels: ScriptPanel[];
+}
+
 export interface ComicPage {
   id: number;
   project?: number | null;
@@ -2236,6 +2324,8 @@ export interface ComicPage {
   default_gutter_width: number;
   default_line_color: string;
   layout_version: number;
+  // Script data for writer-artist collaboration
+  script_data: ScriptData;
   // Content
   panels: ComicPanel[];
   divider_lines: DividerLine[];
@@ -2258,6 +2348,7 @@ export interface CreateComicPageData {
   canvas_width?: number;
   canvas_height?: number;
   background_color?: string;
+  script_data?: ScriptData;
 }
 
 export interface CreateComicPanelData {

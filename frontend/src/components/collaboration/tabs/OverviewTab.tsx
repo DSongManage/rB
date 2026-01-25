@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { CollaborativeProject, CollaboratorRole } from '../../../services/collaborationApi';
+import { CollaborativeProject, CollaboratorRole, collaborationApi } from '../../../services/collaborationApi';
 import RevenueSplitChart from '../RevenueSplitChart';
-import { FileText, MessageSquare, Users, Rocket } from 'lucide-react';
+import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2 } from 'lucide-react';
 
 interface User {
   id: number;
@@ -22,8 +22,32 @@ export default function OverviewTab({
 }: OverviewTabProps) {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [description, setDescription] = useState(project.description || '');
+  const [readingDirection, setReadingDirection] = useState<'ltr' | 'rtl'>(project.reading_direction || 'ltr');
+  const [savingReadingDirection, setSavingReadingDirection] = useState(false);
 
   const isProjectLead = project.created_by === currentUser.id;
+
+  // Handle reading direction change
+  const handleReadingDirectionChange = async (newDirection: 'ltr' | 'rtl') => {
+    if (newDirection === readingDirection || savingReadingDirection) return;
+
+    setSavingReadingDirection(true);
+    try {
+      const updated = await collaborationApi.updateCollaborativeProject(project.id, {
+        reading_direction: newDirection,
+      } as any);
+      setReadingDirection(newDirection);
+      if (onProjectUpdate) {
+        onProjectUpdate({ ...project, reading_direction: newDirection });
+      }
+    } catch (err) {
+      console.error('Failed to update reading direction:', err);
+      // Revert on error
+      setReadingDirection(readingDirection);
+    } finally {
+      setSavingReadingDirection(false);
+    }
+  };
   const acceptedCollaborators = project.collaborators?.filter(c => c.status === 'accepted') || [];
 
   // Check if collaborator is fully ready (approved + warranty acknowledged)
@@ -177,6 +201,73 @@ export default function OverviewTab({
               {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)}
             </div>
           </div>
+
+          {/* Reading Direction - only for comic projects */}
+          {project.content_type === 'comic' && (
+            <div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Reading Direction</div>
+              {isProjectLead ? (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button
+                    onClick={() => handleReadingDirectionChange('ltr')}
+                    disabled={savingReadingDirection}
+                    style={{
+                      padding: '6px 12px',
+                      background: readingDirection === 'ltr'
+                        ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                        : 'var(--bg)',
+                      border: readingDirection === 'ltr'
+                        ? '1px solid #8b5cf6'
+                        : '1px solid var(--panel-border)',
+                      borderRadius: 6,
+                      color: readingDirection === 'ltr' ? '#fff' : '#94a3b8',
+                      fontSize: 12,
+                      fontWeight: readingDirection === 'ltr' ? 600 : 400,
+                      cursor: savingReadingDirection ? 'wait' : 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    LTR (Western)
+                  </button>
+                  <button
+                    onClick={() => handleReadingDirectionChange('rtl')}
+                    disabled={savingReadingDirection}
+                    style={{
+                      padding: '6px 12px',
+                      background: readingDirection === 'rtl'
+                        ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+                        : 'var(--bg)',
+                      border: readingDirection === 'rtl'
+                        ? '1px solid #8b5cf6'
+                        : '1px solid var(--panel-border)',
+                      borderRadius: 6,
+                      color: readingDirection === 'rtl' ? '#fff' : '#94a3b8',
+                      fontSize: 12,
+                      fontWeight: readingDirection === 'rtl' ? 600 : 400,
+                      cursor: savingReadingDirection ? 'wait' : 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    RTL (Manga)
+                  </button>
+                  {savingReadingDirection && (
+                    <Loader2 size={14} style={{ color: '#8b5cf6', animation: 'spin 1s linear infinite' }} />
+                  )}
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 13,
+                  color: 'var(--text)',
+                }}>
+                  <BookOpen size={14} style={{ color: '#8b5cf6' }} />
+                  {readingDirection === 'rtl' ? 'Right-to-Left (Manga)' : 'Left-to-Right (Western)'}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

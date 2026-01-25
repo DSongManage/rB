@@ -108,7 +108,7 @@ class Content(models.Model):
     editions = models.PositiveIntegerField(default=1)
     teaser_percent = models.PositiveIntegerField(default=10)
     watermark_preview = models.BooleanField(default=False)
-    inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted'),('unpublished','Unpublished')], default='draft')
+    inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted'),('unpublished','Unpublished'),('delisted','Delisted')], default='draft')
     flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
     # View tracking for analytics and discovery
@@ -1808,6 +1808,7 @@ class CollaborativeProject(models.Model):
         ('active', 'Active'),
         ('ready_for_mint', 'Ready for Mint'),
         ('minted', 'Minted'),
+        ('unpublished', 'Unpublished'),
         ('cancelled', 'Cancelled'),
     ]
 
@@ -1869,6 +1870,18 @@ class CollaborativeProject(models.Model):
         blank=True,
         max_length=500,
         help_text="Cover image for the project"
+    )
+
+    # Reading direction for comic projects (manga vs western)
+    READING_DIRECTION_CHOICES = [
+        ('ltr', 'Left-to-Right (Western)'),
+        ('rtl', 'Right-to-Left (Manga)'),
+    ]
+    reading_direction = models.CharField(
+        max_length=3,
+        choices=READING_DIRECTION_CHOICES,
+        default='ltr',
+        help_text="Reading direction for comic pages"
     )
 
     # Dispute/freeze status
@@ -2196,47 +2209,60 @@ class CollaboratorRole(models.Model):
     def effective_permissions(self):
         """
         Merge default permissions from role_definition with custom overrides.
-        Custom permissions field takes precedence.
+        Legacy boolean flags are always included as a fallback layer.
         """
-        base_perms = None
+        # Start with legacy boolean flags as the base
+        legacy_perms = {
+            'create': [],
+            'edit': {'scope': 'own', 'types': []},
+            'review': []
+        }
+        if self.can_edit_text:
+            legacy_perms['create'].append('text')
+            legacy_perms['edit']['types'].append('text')
+        if self.can_edit_images:
+            legacy_perms['create'].append('image')
+            legacy_perms['edit']['types'].append('image')
+        if self.can_edit_audio:
+            legacy_perms['create'].append('audio')
+            legacy_perms['edit']['types'].append('audio')
+        if self.can_edit_video:
+            legacy_perms['create'].append('video')
+            legacy_perms['edit']['types'].append('video')
 
+        # Layer role_definition permissions on top
+        role_perms = None
         if self.role_definition:
-            base_perms = self.role_definition.default_permissions.copy() if self.role_definition.default_permissions else {}
+            role_perms = self.role_definition.default_permissions.copy() if self.role_definition.default_permissions else None
         elif self.role:
             # Fallback: try to look up RoleDefinition by name
-            # This helps migrate existing records that have role names but no role_definition_id
             try:
                 role_def = RoleDefinition.objects.filter(name=self.role).first()
                 if role_def and role_def.default_permissions:
-                    base_perms = role_def.default_permissions.copy()
+                    role_perms = role_def.default_permissions.copy()
             except Exception:
                 pass
 
-        if base_perms is None:
-            # Final fallback: derive from legacy boolean flags
-            base_perms = {
-                'create': [],
-                'edit': {'scope': 'own', 'types': []},
-                'review': []
-            }
-            if self.can_edit_text:
-                base_perms['create'].append('text')
-                base_perms['edit']['types'].append('text')
-            if self.can_edit_images:
-                base_perms['create'].append('image')
-                base_perms['edit']['types'].append('image')
-            if self.can_edit_audio:
-                base_perms['create'].append('audio')
-                base_perms['edit']['types'].append('audio')
-            if self.can_edit_video:
-                base_perms['create'].append('video')
-                base_perms['edit']['types'].append('video')
-
-        # Merge with custom permissions (custom takes precedence)
-        if self.permissions:
-            merged = {**base_perms, **self.permissions}
+        # Merge: role_perms extends legacy_perms (combine types lists)
+        if role_perms:
+            merged = legacy_perms.copy()
+            for key, value in role_perms.items():
+                if key == 'edit' and isinstance(value, dict):
+                    merged['edit'] = {
+                        'scope': value.get('scope', merged['edit'].get('scope', 'own')),
+                        'types': list(set(merged['edit'].get('types', []) + value.get('types', [])))
+                    }
+                elif key in ('create', 'review') and isinstance(value, list):
+                    merged[key] = list(set(merged.get(key, []) + value))
+                else:
+                    merged[key] = value
         else:
-            merged = base_perms
+            merged = legacy_perms
+
+        # Custom permissions override everything
+        if self.permissions:
+            for key, value in self.permissions.items():
+                merged[key] = value
 
         return merged
 
@@ -3322,6 +3348,14 @@ class ComicPage(models.Model):
     layout_version = models.IntegerField(
         default=2,
         help_text="1 = legacy rectangle-based panels, 2 = line-based dividers"
+    )
+
+    # Script data for writer-to-artist collaboration
+    # Structure: { "page_description": "...", "panels": [{ "panel_number": 1, "scene": "...", "dialogue": "...", "notes": "..." }] }
+    script_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured script data for this page (description, panel scripts)"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
