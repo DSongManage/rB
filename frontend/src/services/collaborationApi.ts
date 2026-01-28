@@ -2079,6 +2079,30 @@ export const collaborationApi = {
   },
 
   /**
+   * Upload or remove cover image for a project (multipart form data)
+   */
+  async uploadCoverImage(projectId: number, file: File | null): Promise<CollaborativeProject> {
+    const formData = new FormData();
+    if (file) {
+      formData.append('cover_image', file);
+    } else {
+      formData.append('cover_image', '');
+    }
+
+    const response = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData,
+    });
+
+    return handleResponse<CollaborativeProject>(response);
+  },
+
+  /**
    * Apply artwork from library to a panel
    */
   async applyArtworkToPanel(

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { CollaborativeProject, CollaboratorRole, collaborationApi } from '../../../services/collaborationApi';
 import RevenueSplitChart from '../RevenueSplitChart';
-import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2 } from 'lucide-react';
+import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2, Upload, ImageIcon, Trash2 } from 'lucide-react';
 
 interface User {
   id: number;
@@ -24,6 +24,8 @@ export default function OverviewTab({
   const [description, setDescription] = useState(project.description || '');
   const [readingDirection, setReadingDirection] = useState<'ltr' | 'rtl'>(project.reading_direction || 'ltr');
   const [savingReadingDirection, setSavingReadingDirection] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const isProjectLead = project.created_by === currentUser.id;
 
@@ -48,6 +50,33 @@ export default function OverviewTab({
       setSavingReadingDirection(false);
     }
   };
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingCover(true);
+    try {
+      const updated = await collaborationApi.uploadCoverImage(project.id, file);
+      onProjectUpdate?.(updated);
+    } catch (err) {
+      console.error('Failed to upload cover image:', err);
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
+  };
+
+  const handleCoverRemove = async () => {
+    setUploadingCover(true);
+    try {
+      const updated = await collaborationApi.uploadCoverImage(project.id, null);
+      onProjectUpdate?.(updated);
+    } catch (err) {
+      console.error('Failed to remove cover image:', err);
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
   const acceptedCollaborators = project.collaborators?.filter(c => c.status === 'accepted') || [];
 
   // Check if collaborator is fully ready (approved + warranty acknowledged)
@@ -68,6 +97,106 @@ export default function OverviewTab({
       gridTemplateColumns: 'repeat(12, 1fr)',
       gap: 20,
     }}>
+      {/* Cover Art - Full width */}
+      <div style={{
+        gridColumn: 'span 12',
+        background: 'var(--panel)',
+        border: '1px solid var(--panel-border)',
+        borderRadius: 12,
+        padding: 24,
+      }}>
+        <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
+          Cover Art
+        </h3>
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          style={{ display: 'none' }}
+          onChange={handleCoverUpload}
+        />
+        {project.cover_image ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <img
+              src={project.cover_image}
+              alt="Cover art"
+              style={{
+                maxWidth: 320,
+                maxHeight: 400,
+                borderRadius: 8,
+                border: '1px solid var(--panel-border)',
+                objectFit: 'contain',
+              }}
+            />
+            {isProjectLead && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={() => coverInputRef.current?.click()}
+                  disabled={uploadingCover}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'transparent',
+                    border: '1px solid var(--panel-border)',
+                    borderRadius: 6,
+                    padding: '6px 14px',
+                    color: '#94a3b8',
+                    cursor: uploadingCover ? 'wait' : 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  {uploadingCover ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={14} />}
+                  Replace
+                </button>
+                <button
+                  onClick={handleCoverRemove}
+                  disabled={uploadingCover}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'transparent',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: 6,
+                    padding: '6px 14px',
+                    color: '#ef4444',
+                    cursor: uploadingCover ? 'wait' : 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            onClick={isProjectLead && !uploadingCover ? () => coverInputRef.current?.click() : undefined}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 12,
+              padding: 40,
+              border: '2px dashed var(--panel-border)',
+              borderRadius: 8,
+              cursor: isProjectLead ? 'pointer' : 'default',
+              transition: 'border-color 0.2s ease',
+            }}
+          >
+            {uploadingCover ? (
+              <Loader2 size={32} style={{ color: '#64748b', animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <ImageIcon size={32} style={{ color: '#64748b' }} />
+            )}
+            <span style={{ fontSize: 14, color: '#64748b' }}>
+              {isProjectLead ? 'Click to upload cover art' : 'No cover art uploaded'}
+            </span>
+            {isProjectLead && (
+              <span style={{ fontSize: 11, color: '#475569' }}>
+                PNG, JPEG, or WebP
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Proposal Summary - Full width */}
       <div style={{
         gridColumn: 'span 12',
