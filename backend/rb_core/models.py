@@ -1916,6 +1916,14 @@ class CollaborativeProject(models.Model):
                 'blockers': blockers
             }
 
+        # Single-creator project is effectively solo — skip collab checks
+        accepted = self.collaborators.filter(status='accepted')
+        if accepted.count() == 1 and accepted.first().user_id == self.created_by_id:
+            return {
+                'can_mint': len(blockers) == 0,
+                'blockers': blockers
+            }
+
         # --- Collaborative project checks below ---
 
         # Check for uncured breaches
@@ -1956,6 +1964,11 @@ class CollaborativeProject(models.Model):
         collaborators = self.collaborators.filter(status='accepted')
         if not collaborators.exists():
             return False
+
+        # Single-creator project with no other collaborators is effectively solo
+        if collaborators.count() == 1 and collaborators.first().user_id == self.created_by_id:
+            return True
+
         return all(
             c.approved_current_version and c.approved_revenue_split
             for c in collaborators

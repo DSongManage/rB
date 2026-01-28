@@ -1452,68 +1452,82 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         # ========== END MINIMUM PUBLISHING CRITERIA ==========
 
-        # Verify all collaborators have approved
-        if not project.is_fully_approved():
-            return Response(
-                {
-                    'error': 'All collaborators must approve before minting',
-                    'detail': 'Check that all collaborators have approved the current version and revenue split'
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if project.is_solo:
+            # Solo projects only need the creator's wallet
+            creator = project.created_by
+            if not hasattr(creator, 'profile') or not creator.profile.wallet_address:
+                return Response(
+                    {
+                        'error': 'Wallet address required',
+                        'detail': 'Please connect your wallet before minting'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            # ========== COLLABORATIVE PROJECT CHECKS ==========
 
-        # Get accepted collaborators with wallet addresses
-        collaborators = project.collaborators.filter(status='accepted')
+            # Verify all collaborators have approved
+            if not project.is_fully_approved():
+                return Response(
+                    {
+                        'error': 'All collaborators must approve before minting',
+                        'detail': 'Check that all collaborators have approved the current version and revenue split'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # ========== TASK COMPLETION CHECK ==========
-        # Verify all contract tasks are signed off
-        collaborators_with_incomplete_tasks = []
-        for collab in collaborators:
-            if collab.tasks_total > 0 and not collab.all_tasks_complete:
-                incomplete_count = collab.tasks_total - collab.tasks_signed_off
-                collaborators_with_incomplete_tasks.append({
-                    'user_id': collab.user.id,
-                    'username': collab.user.username,
-                    'role': collab.role,
-                    'incomplete_tasks': incomplete_count,
-                    'total_tasks': collab.tasks_total
-                })
+            # Get accepted collaborators with wallet addresses
+            collaborators = project.collaborators.filter(status='accepted')
 
-        if collaborators_with_incomplete_tasks:
-            return Response(
-                {
-                    'error': 'All contract tasks must be signed off before minting',
-                    'detail': 'Some collaborators have unsigned tasks',
-                    'collaborators_with_incomplete_tasks': collaborators_with_incomplete_tasks
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        # ========== END TASK COMPLETION CHECK ==========
+            # ========== TASK COMPLETION CHECK ==========
+            # Verify all contract tasks are signed off
+            collaborators_with_incomplete_tasks = []
+            for collab in collaborators:
+                if collab.tasks_total > 0 and not collab.all_tasks_complete:
+                    incomplete_count = collab.tasks_total - collab.tasks_signed_off
+                    collaborators_with_incomplete_tasks.append({
+                        'user_id': collab.user.id,
+                        'username': collab.user.username,
+                        'role': collab.role,
+                        'incomplete_tasks': incomplete_count,
+                        'total_tasks': collab.tasks_total
+                    })
 
-        if not collaborators.exists():
-            return Response(
-                {'error': 'No accepted collaborators found'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if collaborators_with_incomplete_tasks:
+                return Response(
+                    {
+                        'error': 'All contract tasks must be signed off before minting',
+                        'detail': 'Some collaborators have unsigned tasks',
+                        'collaborators_with_incomplete_tasks': collaborators_with_incomplete_tasks
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # ========== END TASK COMPLETION CHECK ==========
 
-        # Check that all collaborators have wallet addresses
-        collaborators_without_wallets = []
-        for collab in collaborators:
-            if not hasattr(collab.user, 'profile') or not collab.user.profile.wallet_address:
-                collaborators_without_wallets.append({
-                    'user_id': collab.user.id,
-                    'username': collab.user.username,
-                    'role': collab.role
-                })
+            if not collaborators.exists():
+                return Response(
+                    {'error': 'No accepted collaborators found'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        if collaborators_without_wallets:
-            return Response(
-                {
-                    'error': 'All collaborators must have wallet addresses set',
-                    'collaborators_without_wallets': collaborators_without_wallets
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Check that all collaborators have wallet addresses
+            collaborators_without_wallets = []
+            for collab in collaborators:
+                if not hasattr(collab.user, 'profile') or not collab.user.profile.wallet_address:
+                    collaborators_without_wallets.append({
+                        'user_id': collab.user.id,
+                        'username': collab.user.username,
+                        'role': collab.role
+                    })
+
+            if collaborators_without_wallets:
+                return Response(
+                    {
+                        'error': 'All collaborators must have wallet addresses set',
+                        'collaborators_without_wallets': collaborators_without_wallets
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Prepare creator splits for smart contract
         creator_splits = []
