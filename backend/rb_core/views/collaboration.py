@@ -1360,16 +1360,29 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate content requirements - must have at least one section
-        sections = project.sections.all()
-        if not sections.exists():
-            return Response(
-                {
-                    'error': 'Project has no content',
-                    'detail': 'Please add at least one section to your project before publishing'
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Validate content requirements based on project type
+        if project.content_type == 'comic':
+            # Comic projects store content as ComicPages via ComicIssues, not sections
+            from rb_core.models import ComicPage
+            comic_pages = ComicPage.objects.filter(issue__project=project)
+            if not comic_pages.exists():
+                return Response(
+                    {
+                        'error': 'Comic has no pages',
+                        'detail': 'Please add at least one page with artwork to your comic before publishing'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            sections = project.sections.all()
+            if not sections.exists():
+                return Response(
+                    {
+                        'error': 'Project has no content',
+                        'detail': 'Please add at least one section to your project before publishing'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # For book projects, validate text content exists
         if project.content_type == 'book':
