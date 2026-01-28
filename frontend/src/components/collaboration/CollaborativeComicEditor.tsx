@@ -1737,10 +1737,10 @@ export default function CollaborativeComicEditor({
         start_y: line.start_y,
         end_x: line.end_x,
         end_y: line.end_y,
-        control1_x: line.control1_x,
-        control1_y: line.control1_y,
-        control2_x: line.control2_x,
-        control2_y: line.control2_y,
+        control1_x: line.control1_x ?? undefined,
+        control1_y: line.control1_y ?? undefined,
+        control2_x: line.control2_x ?? undefined,
+        control2_y: line.control2_y ?? undefined,
       }));
 
       // Compute panels for this page (using percentage coordinates 0-100)
