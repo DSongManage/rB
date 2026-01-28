@@ -82,6 +82,28 @@ export function Footer() {
           </nav>
         </div>
 
+        {/* Payments */}
+        <div style={{ minWidth: 150 }}>
+          <div style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: 'var(--text, #e5e7eb)',
+            marginBottom: 12,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
+            Payments
+          </div>
+          <nav style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}>
+            <Link to="/how-payments-work" style={linkStyle}>How Payments Work</Link>
+            <a href="https://www.circle.com/en/usdc" target="_blank" rel="noopener noreferrer" style={linkStyle}>About USDC</a>
+          </nav>
+        </div>
+
         {/* Support Links */}
         <div style={{ minWidth: 150 }}>
           <div style={{

@@ -187,7 +187,7 @@ export default function NotificationsPage() {
     if (notification.action_url) {
       navigate(notification.action_url);
     } else if (notification.project_id) {
-      navigate(`/collaborations/${notification.project_id}`);
+      navigate(`/studio/${notification.project_id}`);
     }
   };
 

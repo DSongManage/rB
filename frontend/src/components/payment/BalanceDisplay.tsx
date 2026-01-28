@@ -2,7 +2,7 @@
  * BalanceDisplay Component
  *
  * Shows user's renaissBlock Balance in a user-friendly format.
- * Never shows "USDC" - always shows as regular dollars.
+ * Shows balance as dollars with a subtle "(USDC)" indicator to clarify the currency.
  */
 
 import React from 'react';
@@ -146,7 +146,16 @@ export function BalanceDisplay({
               lineHeight: 1,
             }}
           >
-            renaissBlock Balance
+            renaissBlock Balance{' '}
+            <span
+              title="Your balance is held in USDC, a digital dollar always worth $1 USD"
+              style={{
+                cursor: 'help',
+                opacity: 0.7,
+              }}
+            >
+              (USDC)
+            </span>
           </span>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

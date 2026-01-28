@@ -73,8 +73,8 @@ export default function CollaborationDashboard() {
 
   // Filter and sort projects
   const filteredAndSortedProjects = useMemo(() => {
-    // First filter out solo projects - they should not appear in collaborations
-    let filtered = projects.filter(p => !p.is_solo);
+    // Show all projects (including solo projects)
+    let filtered = [...projects];
 
     // Apply content type filter
     if (filter !== 'all') {
@@ -106,7 +106,7 @@ export default function CollaborationDashboard() {
     p => p.status === 'ready_for_mint'
   );
   const completedProjects = filteredAndSortedProjects.filter(
-    p => p.status === 'minted' || p.status === 'cancelled'
+    p => p.status === 'minted' || p.status === 'unpublished' || p.status === 'cancelled'
   );
 
   return (
@@ -128,14 +128,14 @@ export default function CollaborationDashboard() {
             color: 'var(--text)',
             marginBottom: 8,
           }}>
-            {isPhone ? 'Collaborations' : 'My Collaborative Projects'}
+            {isPhone ? 'Projects' : 'My Projects'}
           </h1>
           <p style={{
             margin: 0,
             fontSize: isMobile ? 13 : 14,
             color: '#94a3b8',
           }}>
-            {isPhone ? 'Manage your creative team projects' : 'Manage your collaborative creations with other artists'}
+            {isPhone ? 'Manage your creative projects' : 'Manage your creative projects'}
           </p>
         </div>
       </div>
@@ -164,7 +164,7 @@ export default function CollaborationDashboard() {
           }}
         >
           <span style={{ fontSize: 18 }}>+</span>
-          New Collaboration
+          New Project
         </button>
 
         {/* Filter */}
@@ -293,7 +293,7 @@ export default function CollaborationDashboard() {
               padding: 48,
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🤝</div>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>✨</div>
               <h3 style={{
                 margin: 0,
                 fontSize: 20,
@@ -301,7 +301,7 @@ export default function CollaborationDashboard() {
                 color: 'var(--text)',
                 marginBottom: 8,
               }}>
-                No Collaborative Projects Yet
+                No Projects Yet
               </h3>
               <p style={{
                 margin: 0,
@@ -312,7 +312,7 @@ export default function CollaborationDashboard() {
                 marginLeft: 'auto',
                 marginRight: 'auto',
               }}>
-                Start your first collaboration! Work with other creators to build amazing content together.
+                Create your first project. Work solo or invite collaborators anytime.
               </p>
               <button
                 onClick={() => setShowNewProjectModal(true)}
@@ -327,7 +327,7 @@ export default function CollaborationDashboard() {
                   fontSize: 14,
                 }}
               >
-                Create Your First Collaboration
+                Create Your First Project
               </button>
             </div>
           )}
@@ -539,7 +539,7 @@ export default function CollaborationDashboard() {
           onCreated={(project) => {
             setShowNewProjectModal(false);
             loadProjects();
-            navigate(`/collaborations/${project.id}`);
+            navigate(`/studio/${project.id}`);
           }}
         />
       )}
@@ -597,6 +597,8 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
         return { text: '✅ Ready to Mint', color: '#10b981' };
       case 'minted':
         return { text: 'Minted', color: '#8b5cf6' };
+      case 'unpublished':
+        return { text: 'Unpublished', color: '#f59e0b' };
       case 'cancelled':
         return { text: 'Cancelled', color: '#ef4444' };
       default:
@@ -607,11 +609,11 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
   const statusBadge = getStatusBadge(project.status);
 
   const handleEdit = () => {
-    navigate(`/collaborations/${project.id}`);
+    navigate(`/studio/${project.id}`);
   };
 
   const handleViewDetails = () => {
-    navigate(`/collaborations/${project.id}?tab=overview`);
+    navigate(`/studio/${project.id}?tab=overview`);
   };
 
   const handleMint = () => {
@@ -619,16 +621,20 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
     alert('Minting flow coming soon!');
   };
 
+  const [deleteError, setDeleteError] = useState<string>('');
+
   const handleDelete = async () => {
     setLoading(true);
+    setDeleteError('');
     try {
       await collaborationApi.deleteCollaborativeProject(project.id);
+      setShowDeleteConfirm(false);
       onRefresh();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete project');
+      // Show error in the modal instead of alert
+      setDeleteError(err.message || 'Failed to delete project');
     } finally {
       setLoading(false);
-      setShowDeleteConfirm(false);
     }
   };
 
@@ -778,8 +784,8 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
             View Details
           </button>
 
-          {/* Delete/Cancel button for project owners */}
-          {isOwner && (project.status === 'draft' || project.status === 'active') && (
+          {/* Delete/Cancel button for project owners (cannot delete minted projects) */}
+          {isOwner && ['draft', 'active', 'unpublished', 'cancelled'].includes(project.status) && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
               disabled={loading}
@@ -794,7 +800,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
                 fontSize: 12,
               }}
             >
-              Cancel
+              Delete
             </button>
           )}
         </div>
@@ -815,14 +821,17 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
             justifyContent: 'center',
             zIndex: 1000,
           }}
-          onClick={() => setShowDeleteConfirm(false)}
+          onClick={() => {
+            setShowDeleteConfirm(false);
+            setDeleteError('');
+          }}
         >
           <div
             style={{
               background: 'var(--panel)',
               borderRadius: 12,
               padding: 24,
-              maxWidth: 400,
+              maxWidth: 440,
               width: '90%',
             }}
             onClick={(e) => e.stopPropagation()}
@@ -834,20 +843,60 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
               fontWeight: 700,
               color: 'var(--text)',
             }}>
-              Cancel Collaboration?
+              Delete Project?
             </h3>
             <p style={{
               margin: 0,
-              marginBottom: 24,
+              marginBottom: 16,
               fontSize: 14,
               color: '#94a3b8',
               lineHeight: 1.5,
             }}>
-              Are you sure you want to cancel "{project.title}"? This will remove the project and cancel any pending invitations. This action cannot be undone.
+              Are you sure you want to delete "{project.title}"? This will permanently remove the project and all its content.
+            </p>
+            {project.total_collaborators > 1 && (
+              <p style={{
+                margin: 0,
+                marginBottom: 16,
+                fontSize: 13,
+                color: '#f59e0b',
+                lineHeight: 1.5,
+                padding: '8px 12px',
+                background: 'rgba(245, 158, 11, 0.1)',
+                borderRadius: 6,
+              }}>
+                This project has multiple collaborators. You need at least 51% ownership to delete it.
+              </p>
+            )}
+            {deleteError && (
+              <p style={{
+                margin: 0,
+                marginBottom: 16,
+                fontSize: 13,
+                color: '#ef4444',
+                lineHeight: 1.5,
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                borderRadius: 6,
+              }}>
+                {deleteError}
+              </p>
+            )}
+            <p style={{
+              margin: 0,
+              marginBottom: 24,
+              fontSize: 13,
+              color: '#64748b',
+              lineHeight: 1.5,
+            }}>
+              This action cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteError('');
+                }}
                 disabled={loading}
                 style={{
                   background: 'transparent',
@@ -876,7 +925,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
                   fontSize: 13,
                 }}
               >
-                {loading ? 'Canceling...' : 'Yes, Cancel Project'}
+                {loading ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
           </div>
@@ -958,7 +1007,7 @@ function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
           fontWeight: 700,
           color: 'var(--text)',
         }}>
-          Create New Collaboration
+          Create New Project
         </h2>
 
         {/* Error */}

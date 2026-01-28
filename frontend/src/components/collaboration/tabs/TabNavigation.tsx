@@ -1,7 +1,7 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Users, MessageSquare, Rocket } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, MessageSquare, Rocket, ScrollText, Layers, Image, BookOpen } from 'lucide-react';
 
-export type TabId = 'overview' | 'content' | 'team' | 'activity' | 'publish';
+export type TabId = 'overview' | 'script' | 'content' | 'team' | 'activity' | 'publish';
 
 interface Tab {
   id: TabId;
@@ -18,22 +18,64 @@ interface TabNavigationProps {
     team?: number;
   };
   isFullyApproved?: boolean;
+  contentType?: 'comic' | 'book' | 'art';
+  isSolo?: boolean;
 }
 
-const tabs: Tab[] = [
-  { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={18} /> },
-  { id: 'content', label: 'Content', icon: <FileText size={18} /> },
-  { id: 'team', label: 'Team', icon: <Users size={18} /> },
-  { id: 'activity', label: 'Activity', icon: <MessageSquare size={18} /> },
-  { id: 'publish', label: 'Publish', icon: <Rocket size={18} /> },
-];
+function getTabs(contentType?: 'comic' | 'book' | 'art', isSolo?: boolean): Tab[] {
+  const baseTabs: Tab[] = [
+    { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={18} /> },
+  ];
+
+  // Add content-specific tabs based on content type
+  if (contentType === 'comic') {
+    // Comic: has Script tab AND Comic tab
+    baseTabs.push(
+      { id: 'script', label: 'Script', icon: <ScrollText size={18} /> },
+      { id: 'content', label: 'Comic', icon: <Layers size={18} /> }
+    );
+  } else if (contentType === 'book') {
+    // Book: has Editor tab (writer's editor) - no Script
+    baseTabs.push(
+      { id: 'content', label: 'Editor', icon: <BookOpen size={18} /> }
+    );
+  } else if (contentType === 'art') {
+    // Art: has Gallery tab (image uploads) - no Script or Comic
+    baseTabs.push(
+      { id: 'content', label: 'Gallery', icon: <Image size={18} /> }
+    );
+  } else {
+    // Fallback - show all tabs for unknown content types
+    baseTabs.push(
+      { id: 'script', label: 'Script', icon: <ScrollText size={18} /> },
+      { id: 'content', label: 'Comic', icon: <Layers size={18} /> }
+    );
+  }
+
+  // Add common tabs
+  baseTabs.push(
+    { id: 'team', label: 'Team', icon: <Users size={18} /> }
+  );
+
+  // Only show Activity tab for collaborative projects (not solo)
+  if (!isSolo) {
+    baseTabs.push({ id: 'activity', label: 'Activity', icon: <MessageSquare size={18} /> });
+  }
+
+  baseTabs.push({ id: 'publish', label: 'Publish', icon: <Rocket size={18} /> });
+
+  return baseTabs;
+}
 
 export default function TabNavigation({
   activeTab,
   onTabChange,
   badges = {},
   isFullyApproved = false,
+  contentType,
+  isSolo = false,
 }: TabNavigationProps) {
+  const tabs = getTabs(contentType, isSolo);
   return (
     <div style={{
       display: 'flex',

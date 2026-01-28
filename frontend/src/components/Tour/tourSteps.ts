@@ -18,14 +18,14 @@ import { Step } from 'react-joyride';
 export const welcomeTourSteps: Step[] = [
   {
     target: 'body',
-    content: 'Welcome to renaissBlock! Let us show you around so you can discover amazing content from independent creators.',
+    content: 'Welcome to renaissBlock! Let us show you around so you can discover comics from writers and artists working together.',
     placement: 'center',
     disableBeacon: true,
     disableOverlay: true,
   },
   {
     target: '[data-tour="genre-filters"]',
-    content: 'Browse content by category. Filter by Books, Art, and more content types coming soon.',
+    content: 'Browse comics and art from collaborating creators. Filter by type and genre.',
     placement: 'bottom',
     disableBeacon: true,
   },
@@ -55,7 +55,7 @@ export const welcomeTourSteps: Step[] = [
   },
   {
     target: 'body',
-    content: 'The main area shows content from creators. Click any item to preview before buying. Ready to create? Visit the Studio!',
+    content: 'The main area shows comics from creators. Click any item to preview before buying. Ready to create? Visit the Studio!',
     placement: 'center',
     disableBeacon: true,
     disableOverlay: true,
@@ -156,26 +156,26 @@ export const libraryTourSteps: Step[] = [
 export const creatorIntroTourSteps: Step[] = [
   {
     target: 'body',
-    content: 'Welcome to the Creator Studio! This is where you\'ll publish content and earn from your creative work.',
+    content: 'Welcome to the Creator Studio! This is where you\'ll create and publish your work.',
     placement: 'center',
     disableBeacon: true,
     disableOverlay: true,
   },
   {
-    target: '[data-tour="solo-mode-card"]',
-    content: 'Create Solo: Work independently with full creative control and keep 100% of your revenue.',
+    target: '[data-tour="content-type-selection"]',
+    content: 'Choose what you want to create: Books, Comics, or Art. Each has its own editor optimized for that content type.',
     placement: 'bottom',
     disableBeacon: true,
   },
   {
-    target: '[data-tour="collab-mode-card"]',
-    content: 'Start Collaboration: Team up with other creators, set roles, and split revenue fairly.',
+    target: '[data-tour="comic-type-card"]',
+    content: 'Comics let you create visual stories with panel layouts. Upload artwork or create directly in our editor.',
     placement: 'bottom',
     disableBeacon: true,
   },
   {
     target: 'body',
-    content: 'Your earnings go directly to your connected wallet in USDC. Ready to create something amazing?',
+    content: 'All projects support collaboration - invite team members anytime from the Team tab. Your earnings go directly to your connected wallet in USDC.',
     placement: 'center',
     disableBeacon: true,
     disableOverlay: true,
@@ -251,7 +251,7 @@ export const dashboardTourSteps: Step[] = [
 export const collaborationTourSteps: Step[] = [
   {
     target: '[data-tour="team-panel"]',
-    content: 'Invite collaborators by email or username to join your project.',
+    content: 'Invite your writer or artist partner by email or username.',
     placement: 'right',
     disableBeacon: true,
   },
@@ -263,7 +263,7 @@ export const collaborationTourSteps: Step[] = [
   },
   {
     target: '[data-tour="revenue-splits"]',
-    content: 'Set fair revenue distribution. Each team member sees their share upfront.',
+    content: 'Set fair revenue distribution. Every team member sees their share upfront.',
     placement: 'left',
     disableBeacon: true,
   },

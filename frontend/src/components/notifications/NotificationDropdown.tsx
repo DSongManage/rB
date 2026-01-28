@@ -112,7 +112,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
       navigate(notification.action_url);
       onClose();
     } else if (notification.project_id) {
-      navigate(`/collaborations/${notification.project_id}`);
+      navigate(`/studio/${notification.project_id}`);
       onClose();
     }
   };

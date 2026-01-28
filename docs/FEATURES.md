@@ -4,17 +4,17 @@ Complete feature documentation for the renaissBlock platform.
 
 ---
 
-## 📚 Book Management
+## 🎨 Comic/Manga Project Management
 
-### Book Editor
-- Rich text editing with chapter management
-- Create, edit, and reorder chapters
+### Comic Creation Suite
+- Chapter-based editor for visual storytelling
+- Create, edit, and reorder chapters/episodes
 - Auto-save functionality
 - Draft and published states
-- Word count tracking
+- Page tracking
 - Chapter navigation
 
-### Book Cover Art
+### Cover Art
 - Upload custom cover images
 - Image preview and cropping
 - Supported formats: JPG, PNG, WebP
@@ -22,7 +22,7 @@ Complete feature documentation for the renaissBlock platform.
 - Fallback to generated covers
 
 ### Publishing Workflow
-1. Create book with title and description
+1. Create comic with title and description
 2. Add chapters with content
 3. Upload cover art (optional)
 4. Preview before publishing
@@ -31,28 +31,28 @@ Complete feature documentation for the renaissBlock platform.
 
 ### Reading Interface
 - Clean, distraction-free reading experience
-- Text wrapping and formatting
+- Optimized for visual content
 - Chapter navigation
 - Reading progress tracking
 - Bookmark support
 - Responsive design for all devices
 
 ### Library Management
-- View all owned and published books
-- Book cover thumbnails in grid view
+- View all owned and published comics
+- Cover thumbnails in grid view
 - Filter by status (published/unpublished)
-- Search by title or author
+- Search by title or creator
 - Reading progress indicators
 
 ---
 
-## 👥 Collaboration System
+## 👥 Writer-Artist Collaboration
 
-### Multi-Author Collaboration
-- Invite co-authors to collaborate on books
+### Collaborative Projects
+- Invite writers, artists, and collaborators to your comic
 - Role-based permissions (owner/collaborator)
 - Owner controls publishing and major decisions
-- Collaborators can edit content and participate
+- Collaborators contribute based on their roles
 
 ### Invite System
 - Send invites by username or email
@@ -83,30 +83,30 @@ Complete feature documentation for the renaissBlock platform.
 ## 🎨 NFT Minting
 
 ### Individual NFT Minting
-- Mint published books as Solana NFTs
+- Mint published comics as Solana NFTs
 - Cost: 100 credits per mint
 - Platform takes 10% fee (10 credits to platform wallet)
-- Author receives 90% (90 credits)
+- Creator receives 90% (90 credits)
 - Metadata stored on-chain using Metaplex standard
-- NFT includes book title, author, cover art
+- NFT includes comic title, creators, cover art
 
 ### Collaborative NFT Minting
-- Co-authors can collectively mint books as NFTs
+- Teams can collectively mint comics as NFTs
 - Cost split among collaborators
 - Profits distributed based on contribution
-- All co-authors must approve minting
+- All team members must approve minting
 - Transparent profit sharing model
 - On-chain proof of collaboration
 
 ### Metadata Standard
 ```json
 {
-  "name": "Book Title",
-  "symbol": "BOOK",
-  "description": "Book description",
+  "name": "Comic Title",
+  "symbol": "COMIC",
+  "description": "Comic description",
   "image": "https://...",
   "attributes": [
-    {"trait_type": "Author", "value": "Author Name"},
+    {"trait_type": "Creator", "value": "Creator Name"},
     {"trait_type": "Chapters", "value": "10"},
     {"trait_type": "Published", "value": "2025-11-09"}
   ]
@@ -132,7 +132,7 @@ Complete feature documentation for the renaissBlock platform.
 - No minimum purchase
 
 ### Spending Credits
-- Buy books: Variable price set by author
+- Buy comics/chapters: Variable price set by creator
 - Mint NFTs: 100 credits per mint
 - Future: Unlock premium features
 
@@ -206,17 +206,17 @@ Complete feature documentation for the renaissBlock platform.
 ## 🔍 Discovery & Search
 
 ### Search Functionality
-- Search books by title
-- Search books by author
+- Search comics by title
+- Search comics by creator
 - Filter by published status
 - Real-time search results
 - Responsive search UI
 
-### Book Discovery
-- Browse all published books
-- View book details
-- Preview book content
-- See author information
+### Comic Discovery
+- Browse all published comics
+- View comic details
+- Preview comic content
+- See creator information
 - View NFT status
 
 ---
@@ -231,7 +231,7 @@ Complete feature documentation for the renaissBlock platform.
 - Wallet address display
 
 ### Public Profiles
-- View other users' published books
+- View other users' published comics
 - See collaboration projects
 - View NFT collection (future)
 - Follow/unfollow (future)
@@ -267,8 +267,8 @@ Complete feature documentation for the renaissBlock platform.
 ### Phase 2 - Enhanced Discovery
 - Recommendation engine
 - Genre categorization
-- Trending books
-- Author rankings
+- Trending comics
+- Creator rankings
 - Review and rating system
 
 ### Phase 3 - Marketplace
@@ -284,11 +284,11 @@ Complete feature documentation for the renaissBlock platform.
 - Mobile-optimized editor
 
 ### Phase 5 - Advanced Features
-- Author analytics dashboard
+- Creator analytics dashboard
 - Reader engagement metrics
 - Revenue tracking
 - Marketing tools
-- A/B testing for book covers
+- A/B testing for comic covers
 
 ---
 

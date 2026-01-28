@@ -1785,6 +1785,161 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'message': 'Comic prepared for minting'
         }, status=status.HTTP_201_CREATED)
 
+    # ========== Unpublish & Delete Features ==========
+
+    @action(detail=True, methods=['post'])
+    def unpublish(self, request, pk=None):
+        """Remove published content from marketplace.
+
+        Only the project owner can unpublish. The project must be in 'minted' status.
+        Unpublished projects can be re-published by calling the republish endpoint.
+        Existing buyers retain access to their purchased content.
+        """
+        project = self.get_object()
+
+        # Get core user
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Only owner can unpublish
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can unpublish'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Must be in minted status
+        if project.status != 'minted':
+            return Response(
+                {'error': 'Only published projects can be unpublished'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update project status
+        project.status = 'unpublished'
+        project.save()
+
+        # Update linked Content record to remove from marketplace
+        if project.published_content:
+            project.published_content.inventory_status = 'delisted'
+            project.published_content.save()
+
+        return Response({
+            'status': 'unpublished',
+            'message': 'Content removed from marketplace'
+        })
+
+    @action(detail=True, methods=['post'])
+    def republish(self, request, pk=None):
+        """Re-list unpublished content on marketplace.
+
+        Only the project owner can republish. The project must be in 'unpublished' status.
+        This returns the project to 'minted' status and re-lists the content for sale.
+        """
+        project = self.get_object()
+
+        # Get core user
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Only owner can republish
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can republish'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Must be in unpublished status
+        if project.status != 'unpublished':
+            return Response(
+                {'error': 'Only unpublished projects can be republished'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Update project status back to minted
+        project.status = 'minted'
+        project.save()
+
+        # Re-list the Content record
+        if project.published_content:
+            project.published_content.inventory_status = 'minted'
+            project.published_content.save()
+
+        return Response({
+            'status': 'minted',
+            'message': 'Content re-listed on marketplace'
+        })
+
+    def perform_destroy(self, instance):
+        """Delete project with ownership validation.
+
+        Deletion rules:
+        - Only the project owner (created_by) can initiate deletion
+        - Cannot delete minted projects (must unpublish first)
+        - Solo projects (1 collaborator): owner can delete freely
+        - Multi-collaborator projects: require >=51% ownership to delete
+
+        For collaborative deletion when no single majority owner exists,
+        collaborators should contact each other to negotiate deletion.
+        """
+        project = instance
+
+        # Get core user
+        try:
+            core_user = CoreUser.objects.get(username=self.request.user.username)
+        except CoreUser.DoesNotExist:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('User not found')
+
+        # Must be owner to initiate delete
+        if project.created_by != core_user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Only the project owner can delete projects')
+
+        # Cannot delete minted projects (must unpublish first)
+        if project.status == 'minted':
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError('Cannot delete published projects. Unpublish first.')
+
+        # Get current user's collaborator role
+        user_collab = project.collaborators.filter(user=core_user).first()
+        if not user_collab:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You are not a collaborator on this project')
+
+        # Check ownership threshold
+        total_collaborators = project.collaborators.filter(status='accepted').count()
+
+        if total_collaborators <= 1:
+            # Solo project - owner can delete
+            instance.delete()
+            return
+
+        # Multi-collaborator: need >=51% ownership
+        user_ownership = float(user_collab.revenue_percentage)
+
+        if user_ownership >= 51:
+            # Majority owner can delete
+            instance.delete()
+            return
+
+        # Otherwise, cannot delete
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError(
+            f'You have {user_ownership:.1f}% ownership. Need >=51% to delete. '
+            'Contact collaborators to request deletion.'
+        )
+
 
 class ProjectSectionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing project sections.

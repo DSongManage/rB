@@ -1905,9 +1905,18 @@ class CollaborativeProject(models.Model):
         """Check if project can be minted (pre-mint gate checks)."""
         blockers = []
 
-        # Check for active disputes
+        # Check for active disputes (applies to both solo and collaborative)
         if self.has_active_dispute:
             blockers.append("Active dispute must be resolved")
+
+        # For solo projects, skip collaboration-specific checks
+        if self.is_solo:
+            return {
+                'can_mint': len(blockers) == 0,
+                'blockers': blockers
+            }
+
+        # --- Collaborative project checks below ---
 
         # Check for uncured breaches
         if self.collaborators.filter(has_active_breach=True, breach_cured_at__isnull=True).exists():
@@ -1940,6 +1949,10 @@ class CollaborativeProject(models.Model):
 
     def is_fully_approved(self):
         """Check if all collaborators have approved the current version and revenue split."""
+        # Solo projects are always considered "fully approved" - no team approval needed
+        if self.is_solo:
+            return True
+
         collaborators = self.collaborators.filter(status='accepted')
         if not collaborators.exists():
             return False

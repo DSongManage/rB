@@ -305,18 +305,123 @@ curl https://renaissblock.com
 
 ---
 
-## 📊 Monitoring Setup (Recommended)
+## 🚀 Operational Readiness (CRITICAL)
 
-1. **Sentry** (Error Tracking)
-   - Sign up at https://sentry.io
-   - Add Sentry SDK to both frontend and backend
+### Before Launch Checklist
 
-2. **UptimeRobot** (Uptime Monitoring)
-   - Monitor https://api.renaissblock.com/api/auth/csrf/
-   - Monitor https://renaissblock.com
+**Legal (BLOCKERS):**
+- [ ] LLC formation completed
+- [ ] Attorney review of marketplace model
+- [ ] Money transmission compliance review
 
-3. **Railway Metrics**
-   - View CPU, Memory, and Database usage in Railway dashboard
+**Infrastructure:**
+- [ ] Railway upgraded to Pro tier ($20/mo) - 8GB RAM for handling load
+- [ ] Production Solana RPC configured (Helius/QuickNode, $50-100/mo)
+- [ ] Cloudinary credentials verified and tested
+- [ ] Live Stripe keys configured (not test keys)
+
+**Monitoring:**
+- [ ] Sentry DSN configured for error tracking
+- [ ] UptimeRobot monitoring health endpoint
+- [ ] Slack webhook configured for critical alerts
+- [ ] Statuspage.io account created
+
+**Compliance:**
+- [ ] OFAC screening enabled (when API configured)
+- [ ] Geo-restriction enabled for US-only
+
+### Environment Variables for Operational Readiness
+
+Add these to Railway:
+
+```bash
+# Monitoring
+SENTRY_DSN=https://your-sentry-dsn@sentry.io/project
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
+
+# Performance (for Pro tier)
+GUNICORN_WORKERS=4
+GUNICORN_THREADS=2
+GUNICORN_TIMEOUT=120
+
+# Compliance (enable when ready)
+GEO_RESTRICTION_ENABLED=false
+GEO_ALLOWED_COUNTRIES=US
+OFAC_SCREENING_ENABLED=false
+OFAC_API_URL=
+OFAC_API_KEY=
+
+# Maintenance
+MAINTENANCE_MODE=false
+MAINTENANCE_BYPASS_IPS=
+MAINTENANCE_MESSAGE=We are performing scheduled maintenance.
+```
+
+### Verification Steps After Setup
+
+1. **Test Sentry:**
+   ```bash
+   curl -X POST https://api.renaissblock.com/api/test/error/
+   # Check Sentry dashboard for the error
+   ```
+
+2. **Test Health Endpoint:**
+   ```bash
+   curl -s https://api.renaissblock.com/health/ | jq
+   # Should return: {"status": "healthy", ...}
+   ```
+
+3. **Test Maintenance Mode:**
+   ```bash
+   railway variables set MAINTENANCE_MODE=true
+   curl -s https://api.renaissblock.com/api/auth/status/
+   # Should return 503 with maintenance message
+   railway variables set MAINTENANCE_MODE=false
+   ```
+
+4. **Monitor Resources:**
+   - Check Railway dashboard for CPU/Memory usage
+   - Verify Gunicorn workers are running
+
+---
+
+## 📊 Monitoring Setup (REQUIRED)
+
+### 1. Sentry (Error Tracking) - FREE TIER
+
+1. Sign up at https://sentry.io
+2. Create a Django project
+3. Copy the DSN
+4. Add to Railway:
+   ```bash
+   railway variables set SENTRY_DSN=your-dsn-here
+   ```
+5. Verify: Check Sentry dashboard for initialization event
+
+### 2. UptimeRobot (Uptime Monitoring) - FREE TIER
+
+1. Sign up at https://uptimerobot.com
+2. Add monitors:
+   - **Health Check:** `GET https://api.renaissblock.com/health/` (HTTP 200)
+   - **Frontend:** `GET https://renaissblock.com` (HTTP 200)
+3. Configure alerts:
+   - Email notifications
+   - Webhook to Slack (optional)
+
+### 3. Slack Alerts (Optional)
+
+1. Create Slack app at https://api.slack.com/apps
+2. Enable Incoming Webhooks
+3. Create webhook for alerts channel
+4. Add to Railway:
+   ```bash
+   railway variables set SLACK_WEBHOOK_URL=your-webhook-url
+   ```
+
+### 4. Railway Metrics
+
+- View CPU, Memory, and Database usage in Railway dashboard
+- Set up alerts for high resource usage
 
 ---
 

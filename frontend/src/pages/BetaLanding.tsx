@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Sparkles, Pen, Users, Heart, ArrowRight, CheckCircle
+  Sparkles, Pen, Users, Heart, ArrowRight, CheckCircle, DollarSign
 } from 'lucide-react';
 import { API_URL } from '../config';
 import './BetaLanding.css';
@@ -143,7 +143,7 @@ export default function BetaLanding() {
                   </td>
                   <td className="new-way">
                     <span className="main-text">Set Terms Upfront</span>
-                    <span className="sub-text">revenue splits are automatic, every sale</span>
+                    <span className="sub-text">revenue splits are automatic, powered by instant digital payments</span>
                   </td>
                 </tr>
                 <tr>
@@ -255,6 +255,25 @@ export default function BetaLanding() {
                 <div className="author-role">Artist</div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* PAYMENT INFO SECTION */}
+      <section className="payment-info-section">
+        <div className="container">
+          <div className="payment-info-card">
+            <div className="payment-icon">
+              <DollarSign size={28} />
+            </div>
+            <h4>Instant, Stable Payments</h4>
+            <p>
+              Earnings are paid in <strong>digital dollars</strong> (USDC) — always worth exactly $1.
+              Withdraw to your bank anytime, or keep your balance for future purchases.
+            </p>
+            <Link to="/how-payments-work" className="payment-learn-link">
+              Learn how it works <ArrowRight size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
+            </Link>
           </div>
         </div>
       </section>

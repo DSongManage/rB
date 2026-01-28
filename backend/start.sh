@@ -21,13 +21,22 @@ if [ "$RAILWAY_ENVIRONMENT" != "production" ] && [ "$ENVIRONMENT" != "production
   python manage.py create_test_superuser || echo "Test superuser creation skipped or failed"
 fi
 
-# Start gunicorn with increased timeout and preload
-echo "Starting gunicorn..."
+# Configure gunicorn workers based on tier
+# Hobby tier (512MB): 2 workers
+# Pro tier (8GB): 4-8 workers (set via GUNICORN_WORKERS env var)
+WORKERS=${GUNICORN_WORKERS:-2}
+THREADS=${GUNICORN_THREADS:-1}
+TIMEOUT=${GUNICORN_TIMEOUT:-120}
+
+echo "Starting gunicorn with $WORKERS workers, $THREADS threads, ${TIMEOUT}s timeout..."
 exec gunicorn renaissBlock.wsgi \
   --bind 0.0.0.0:8080 \
-  --workers 2 \
-  --timeout 120 \
+  --workers $WORKERS \
+  --threads $THREADS \
+  --timeout $TIMEOUT \
   --preload \
+  --max-requests 1000 \
+  --max-requests-jitter 100 \
   --log-file - \
   --access-logfile - \
   --error-logfile - \

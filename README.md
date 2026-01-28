@@ -1,8 +1,8 @@
 # renaissBlock (rB)
 
-**The Future of Creative Collaboration**
+**The Future of Comic Collaboration**
 
-A decentralized platform for collaborative content creation with trustless revenue splits on the Solana blockchain.
+A platform connecting writers and artists to create comics and manga with trustless revenue splits on the Solana blockchain.
 
 ---
 
@@ -80,18 +80,18 @@ See [`docs/README.md`](docs/README.md) for full documentation index.
 ## 🎯 Core Features
 
 ### ✅ Completed
-- 📚 **Book Creation & Editing** - Rich text editor with chapter management
-- 🎨 **Cover Art Generation** - AI-powered book covers
+- 🎨 **Comic/Manga Creation** - Chapter-based editor for visual storytelling
+- 🖼️ **Cover Art Generation** - AI-powered cover creation
 - 🔐 **Web3Auth Integration** - Keyless wallet authentication
 - 💰 **Fiat Payments** - Stripe integration for purchases
-- 👥 **Collaboration System** - Multi-author projects with revenue splits
+- 👥 **Writer-Artist Collaboration** - Team projects with trustless revenue splits
 - 🔔 **Real-time Notifications** - WebSocket-based updates
-- 🔍 **Search & Discovery** - Content search and filtering
+- 🔍 **Search & Discovery** - Comics search and filtering
 - 📖 **Reading Experience** - Progress tracking and bookmarks
 - 🚀 **Beta Landing Page** - Public-facing marketing site
 
 ### 🔮 Planned
-- ⛓️ **NFT Minting** - Mint books as Solana NFTs (Metaplex)
+- ⛓️ **NFT Minting** - Mint comics as Solana NFTs (Metaplex)
 - 💎 **Secondary Sales** - Creator royalties on resales
 - 🏆 **Creator Analytics** - Earnings and engagement metrics
 - 🌐 **IPFS Storage** - Decentralized content storage

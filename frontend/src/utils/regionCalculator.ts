@@ -497,14 +497,20 @@ function panelsAreSame(a: { centroid: Point; area: number }, b: { centroid: Poin
 }
 
 /**
- * Split a polygon by a line SEGMENT, returning the resulting polygons.
+ * Split a polygon by a line SEGMENT or curved path, returning the resulting polygons.
  * The divider line is treated as a SEGMENT (only splits where it actually exists).
  * Includes tolerance for endpoints that are CLOSE to but not exactly on edges.
+ *
+ * @param polygon - The polygon to split
+ * @param lineStart - Start point of the divider
+ * @param lineEnd - End point of the divider
+ * @param curvePoints - Optional array of points along a curved path (for bezier curves)
  */
 function splitPolygonByLine(
   polygon: Point[],
   lineStart: Point,
-  lineEnd: Point
+  lineEnd: Point,
+  curvePoints?: Point[]
 ): Point[][] {
   if (polygon.length < 3) return [polygon];
 
@@ -610,14 +616,62 @@ function splitPolygonByLine(
   const poly1: Point[] = [];
   const poly2: Point[] = [];
 
-  // First polygon: from int1 to int2 going forward
+  // If we have curve points, determine the correct direction for each polygon
+  // The curve goes from curvePoints[0] (near lineStart) to curvePoints[last] (near lineEnd)
+  // We need to add curve points in the direction that closes each polygon properly
+  let curvePointsForPoly1: Point[] = [];
+  let curvePointsForPoly2: Point[] = [];
+
+  if (curvePoints && curvePoints.length > 2) {
+    // Determine which intersection is closer to the start vs end of the curve
+    const curveStart = curvePoints[0];
+    const curveEnd = curvePoints[curvePoints.length - 1];
+
+    const int1DistToStart = distance(int1.point, curveStart);
+    const int1DistToEnd = distance(int1.point, curveEnd);
+    const int2DistToStart = distance(int2.point, curveStart);
+    const int2DistToEnd = distance(int2.point, curveEnd);
+
+    // For poly1: goes from int1 → (around polygon) → int2, then needs curve from int2 back to int1
+    // For poly2: goes from int2 → (around polygon) → int1, then needs curve from int1 back to int2
+
+    // If int2 is closer to curve start and int1 is closer to curve end:
+    // - poly1 needs curve from int2→int1, which is start→end (forward)
+    // - poly2 needs curve from int1→int2, which is end→start (reverse)
+    // And vice versa
+
+    if (int2DistToStart < int2DistToEnd) {
+      // int2 is near curve start, int1 is near curve end
+      // poly1: int2→int1 = start→end = forward
+      // poly2: int1→int2 = end→start = reverse
+      curvePointsForPoly1 = [...curvePoints];
+      curvePointsForPoly2 = [...curvePoints].reverse();
+    } else {
+      // int2 is near curve end, int1 is near curve start
+      // poly1: int2→int1 = end→start = reverse
+      // poly2: int1→int2 = start→end = forward
+      curvePointsForPoly1 = [...curvePoints].reverse();
+      curvePointsForPoly2 = [...curvePoints];
+    }
+  }
+
+  // First polygon: from int1 to int2 going forward along polygon edges,
+  // then back along the curve from int2 to int1
   poly1.push(int1.point);
   for (let i = int1.edgeIndex + 1; i <= int2.edgeIndex; i++) {
     poly1.push(polygon[i]);
   }
   poly1.push(int2.point);
+  // Add curve points to close back to int1 (direction determined above)
+  if (curvePointsForPoly1.length > 0) {
+    // Skip first and last curve points as they're close to intersection points
+    for (let i = 1; i < curvePointsForPoly1.length - 1; i++) {
+      poly1.push(curvePointsForPoly1[i]);
+    }
+  }
 
-  // Second polygon: from int2 to int1 going forward (wrapping)
+  // Second polygon: from int2 to int1 going forward (wrapping) along polygon edges,
+  // then back along the curve from int1 to int2
   poly2.push(int2.point);
   for (let i = int2.edgeIndex + 1; i < polygon.length; i++) {
     poly2.push(polygon[i]);
@@ -626,13 +680,23 @@ function splitPolygonByLine(
     poly2.push(polygon[i]);
   }
   poly2.push(int1.point);
+  // Add curve points to close back to int2 (direction determined above)
+  if (curvePointsForPoly2.length > 0) {
+    // Skip first and last curve points as they're close to intersection points
+    for (let i = 1; i < curvePointsForPoly2.length - 1; i++) {
+      poly2.push(curvePointsForPoly2[i]);
+    }
+  }
 
   // Filter out degenerate polygons
   const result: Point[][] = [];
-  if (poly1.length >= 3 && polygonArea(poly1) > 0.5) {
+  const poly1Area = polygonArea(poly1);
+  const poly2Area = polygonArea(poly2);
+
+  if (poly1.length >= 3 && poly1Area > 0.5) {
     result.push(poly1);
   }
-  if (poly2.length >= 3 && polygonArea(poly2) > 0.5) {
+  if (poly2.length >= 3 && poly2Area > 0.5) {
     result.push(poly2);
   }
 
@@ -658,20 +722,49 @@ function computePanelsBySplitting(
     ],
   ];
 
-  // Convert all lines to pixel coordinates
-  const pixelLines = lines.map(line => ({
-    start: {
+  // Convert all lines to pixel coordinates, preserving curve information
+  interface ProcessedLine {
+    start: Point;
+    end: Point;
+    curvePoints?: Point[]; // Sampled points for bezier curves
+  }
+  const processedLines: ProcessedLine[] = [];
+
+  for (const line of lines) {
+    // Convert coordinates from percentages to target coordinate space
+    const start: Point = {
       x: (line.start_x / 100) * pageWidth,
-      y: (line.start_y / 100) * pageHeight
-    },
-    end: {
+      y: (line.start_y / 100) * pageHeight,
+    };
+    const end: Point = {
       x: (line.end_x / 100) * pageWidth,
-      y: (line.end_y / 100) * pageHeight
+      y: (line.end_y / 100) * pageHeight,
+    };
+
+    if (line.line_type === 'bezier' && line.control1_x !== undefined) {
+      // Sample bezier curve into points for the curved boundary
+      const control1: Point = {
+        x: (line.control1_x / 100) * pageWidth,
+        y: (line.control1_y! / 100) * pageHeight,
+      };
+      const control2: Point = {
+        x: ((line.control2_x ?? line.control1_x) / 100) * pageWidth,
+        y: ((line.control2_y ?? line.control1_y!) / 100) * pageHeight,
+      };
+      // Sample the bezier curve into 30 points for smooth curves
+      const curvePoints = sampleBezierCurve(start, control1, control2, end, 30);
+      processedLines.push({ start, end, curvePoints });
+    } else {
+      // Straight line - no curve points needed
+      processedLines.push({ start, end });
     }
-  }));
+  }
 
   // Multi-pass processing: keep trying to split until no more progress
   // This handles cases where Line B depends on Line A creating a boundary first
+  // IMPORTANT: Once a line successfully splits polygons, we mark it as "used"
+  // and don't try to split with it again (to avoid re-splitting on curve edges)
+  const usedLineIndices = new Set<number>();
   let madeProgress = true;
   let maxPasses = lines.length + 2; // Safety limit
   let passCount = 0;
@@ -680,12 +773,19 @@ function computePanelsBySplitting(
     madeProgress = false;
     passCount++;
 
-    for (const line of pixelLines) {
+    for (let lineIdx = 0; lineIdx < processedLines.length; lineIdx++) {
+      // Skip lines that have already successfully split polygons
+      if (usedLineIndices.has(lineIdx)) {
+        continue;
+      }
+
+      const line = processedLines[lineIdx];
       const newPolygons: Point[][] = [];
       let splitOccurred = false;
 
       for (const polygon of polygons) {
-        const splitResult = splitPolygonByLine(polygon, line.start, line.end);
+        // Pass curve points for bezier curves so the polygon boundary follows the curve
+        const splitResult = splitPolygonByLine(polygon, line.start, line.end, line.curvePoints);
         newPolygons.push(...splitResult);
         if (splitResult.length > 1) {
           splitOccurred = true;
@@ -695,6 +795,8 @@ function computePanelsBySplitting(
       if (splitOccurred) {
         polygons = newPolygons;
         madeProgress = true;
+        // Mark this line as used so we don't try to split with it again
+        usedLineIndices.add(lineIdx);
       }
     }
   }
@@ -721,13 +823,15 @@ function computePanelsBySplitting(
     .filter(panel => panel.area >= minPanelArea);
 
   // Deduplicate panels with very similar centroids (likely duplicates from multi-pass)
+  // Be careful not to merge adjacent panels - use very tight thresholds
   const deduplicatedPanels: ComputedPanel[] = [];
   for (const panel of panels) {
     const isDuplicate = deduplicatedPanels.some(existing => {
       const centroidDist = distance(existing.centroid, panel.centroid);
       const areaDiff = Math.abs(existing.area - panel.area) / Math.max(existing.area, panel.area);
-      // Consider duplicate if centroids within 10px AND areas within 10%
-      return centroidDist < 10 && areaDiff < 0.1;
+      // Consider duplicate ONLY if centroids within 2px AND areas within 5%
+      // This is very strict to avoid merging adjacent panels split by curves
+      return centroidDist < 2 && areaDiff < 0.05;
     });
     if (!isDuplicate) {
       deduplicatedPanels.push(panel);

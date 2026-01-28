@@ -15,6 +15,8 @@ import {
   Maximize2,
   Minimize2,
   Grid3X3,
+  BookOpen,
+  Rows3,
 } from 'lucide-react';
 import { ComicReaderData } from '../../services/libraryApi';
 import { libraryApi } from '../../services/libraryApi';
@@ -37,9 +39,15 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
   const [showThumbnails, setShowThumbnails] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isLoadingPosition, setIsLoadingPosition] = useState(true);
+  const [readingMode, setReadingMode] = useState<'page' | 'scroll'>(() => {
+    return (localStorage.getItem('comicReadingMode') as 'page' | 'scroll') || 'page';
+  });
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const progressUpdateTimer = useRef<NodeJS.Timeout | null>(null);
   const hasRestoredPosition = useRef(false);
+  const isScrollingToPage = useRef(false);
 
   const totalPages = comicData.total_pages;
   const currentPageData = comicData.pages[currentPage];
@@ -110,6 +118,62 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
     setZoom(1);
   }, []);
 
+  // Reading mode toggle
+  const toggleReadingMode = useCallback(() => {
+    setReadingMode((prev) => {
+      const next = prev === 'page' ? 'scroll' : 'page';
+      localStorage.setItem('comicReadingMode', next);
+      return next;
+    });
+  }, []);
+
+  // Scroll to current page when switching to scroll mode
+  useEffect(() => {
+    if (readingMode === 'scroll' && scrollContainerRef.current && pageRefs.current[currentPage]) {
+      isScrollingToPage.current = true;
+      pageRefs.current[currentPage]?.scrollIntoView({ behavior: 'instant' });
+      setTimeout(() => { isScrollingToPage.current = false; }, 100);
+    }
+  // Only run when readingMode changes, not on every currentPage change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readingMode]);
+
+  // IntersectionObserver for scroll mode progress tracking
+  useEffect(() => {
+    if (readingMode !== 'scroll') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (isScrollingToPage.current) return;
+        let mostVisibleEntry: IntersectionObserverEntry | null = null;
+        let maxRatio = 0;
+        for (const entry of entries) {
+          if (entry.intersectionRatio > maxRatio) {
+            maxRatio = entry.intersectionRatio;
+            mostVisibleEntry = entry;
+          }
+        }
+        if (mostVisibleEntry) {
+          const pageIndex = Number((mostVisibleEntry.target as HTMLElement).dataset.pageIndex);
+          if (!isNaN(pageIndex)) {
+            setCurrentPage(pageIndex);
+          }
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      }
+    );
+
+    const refs = pageRefs.current;
+    refs.forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [readingMode, totalPages]);
+
   // Fullscreen toggle
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -142,21 +206,29 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
         case 'ArrowRight':
         case ' ':
         case 'PageDown':
-          e.preventDefault();
-          nextPage();
+          if (readingMode === 'page') {
+            e.preventDefault();
+            nextPage();
+          }
           break;
         case 'ArrowLeft':
         case 'PageUp':
-          e.preventDefault();
-          prevPage();
+          if (readingMode === 'page') {
+            e.preventDefault();
+            prevPage();
+          }
           break;
         case 'Home':
-          e.preventDefault();
-          goToPage(0);
+          if (readingMode === 'page') {
+            e.preventDefault();
+            goToPage(0);
+          }
           break;
         case 'End':
-          e.preventDefault();
-          goToPage(totalPages - 1);
+          if (readingMode === 'page') {
+            e.preventDefault();
+            goToPage(totalPages - 1);
+          }
           break;
         case 'Escape':
           if (showThumbnails) {
@@ -190,6 +262,11 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
           e.preventDefault();
           toggleFullscreen();
           break;
+        case 'p':
+        case 'P':
+          e.preventDefault();
+          toggleReadingMode();
+          break;
       }
     };
 
@@ -207,6 +284,8 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
     zoomOut,
     resetZoom,
     toggleFullscreen,
+    toggleReadingMode,
+    readingMode,
   ]);
 
   // Progress tracking (debounced with save on unmount)
@@ -354,6 +433,25 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
             <Grid3X3 size={20} />
           </button>
 
+          {/* Reading mode toggle */}
+          <button
+            onClick={toggleReadingMode}
+            style={{
+              background: 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: 8,
+              padding: 8,
+              cursor: 'pointer',
+              color: '#f8fafc',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            title={readingMode === 'page' ? 'Switch to scroll mode (P)' : 'Switch to page mode (P)'}
+          >
+            {readingMode === 'page' ? <Rows3 size={20} /> : <BookOpen size={20} />}
+          </button>
+
           {/* Zoom controls */}
           <button
             onClick={zoomOut}
@@ -434,88 +532,136 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
       </div>
 
       {/* Main content area */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '60px 60px 80px',
-          position: 'relative',
-        }}
-        onClick={() => setShowUI((s) => !s)}
-      >
-        {currentPageData && <ComicPageRenderer page={currentPageData} zoom={zoom} fitToContainer />}
-      </div>
+      {readingMode === 'page' ? (
+        <>
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '60px 60px 80px',
+              position: 'relative',
+            }}
+            onClick={() => setShowUI((s) => !s)}
+          >
+            {currentPageData && <ComicPageRenderer page={currentPageData} zoom={zoom} fitToContainer />}
+          </div>
 
-      {/* Navigation click zones */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 60,
-          bottom: 80,
-          left: 0,
-          width: '25%',
-          cursor: currentPage > 0 ? 'pointer' : 'default',
-          zIndex: 50,
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          prevPage();
-        }}
-      >
-        {/* Left navigation indicator */}
-        {showUI && currentPage > 0 && (
+          {/* Navigation click zones */}
           <div
             style={{
               position: 'absolute',
-              top: '50%',
-              left: 16,
-              transform: 'translateY(-50%)',
-              background: 'rgba(0, 0, 0, 0.5)',
-              borderRadius: '50%',
-              padding: 12,
-              color: '#f8fafc',
+              top: 60,
+              bottom: 80,
+              left: 0,
+              width: '25%',
+              cursor: currentPage > 0 ? 'pointer' : 'default',
+              zIndex: 50,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              prevPage();
             }}
           >
-            <ChevronLeft size={24} />
+            {showUI && currentPage > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: 16,
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  borderRadius: '50%',
+                  padding: 12,
+                  color: '#f8fafc',
+                }}
+              >
+                <ChevronLeft size={24} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <div
-        style={{
-          position: 'absolute',
-          top: 60,
-          bottom: 80,
-          right: 0,
-          width: '25%',
-          cursor: currentPage < totalPages - 1 ? 'pointer' : 'default',
-          zIndex: 50,
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          nextPage();
-        }}
-      >
-        {/* Right navigation indicator */}
-        {showUI && currentPage < totalPages - 1 && (
           <div
             style={{
               position: 'absolute',
-              top: '50%',
-              right: 16,
-              transform: 'translateY(-50%)',
-              background: 'rgba(0, 0, 0, 0.5)',
-              borderRadius: '50%',
-              padding: 12,
-              color: '#f8fafc',
+              top: 60,
+              bottom: 80,
+              right: 0,
+              width: '25%',
+              cursor: currentPage < totalPages - 1 ? 'pointer' : 'default',
+              zIndex: 50,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              nextPage();
             }}
           >
-            <ChevronRight size={24} />
+            {showUI && currentPage < totalPages - 1 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  right: 16,
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  borderRadius: '50%',
+                  padding: 12,
+                  color: '#f8fafc',
+                }}
+              >
+                <ChevronRight size={24} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        /* Scroll / Webtoon mode */
+        <div
+          ref={scrollContainerRef}
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingTop: 60,
+            paddingBottom: 40,
+            scrollBehavior: 'smooth',
+          }}
+          onClick={() => setShowUI((s) => !s)}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              maxWidth: Math.min(800 * zoom, window.innerWidth),
+              margin: '0 auto',
+            }}
+          >
+            {comicData.pages.map((page, index) => (
+              <div
+                key={index}
+                ref={(el) => { pageRefs.current[index] = el; }}
+                data-page-index={index}
+                style={{ width: '100%', position: 'relative' }}
+              >
+                <ComicPageRenderer page={page} zoom={zoom} fitToContainer />
+                <div
+                  style={{
+                    textAlign: 'center',
+                    fontSize: 11,
+                    color: '#64748b',
+                    padding: '4px 0',
+                  }}
+                >
+                  {index + 1} / {totalPages}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div
@@ -555,64 +701,75 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
         </div>
 
         {/* Page indicator and navigation */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <button
-            onClick={prevPage}
-            disabled={currentPage === 0}
+        {readingMode === 'page' ? (
+          <div
             style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: 'none',
-              borderRadius: 8,
-              padding: '8px 16px',
-              cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-              color: currentPage === 0 ? '#475569' : '#f8fafc',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              fontSize: 14,
-              opacity: currentPage === 0 ? 0.5 : 1,
+              justifyContent: 'space-between',
             }}
           >
-            <ChevronLeft size={16} />
-            Previous
-          </button>
+            <button
+              onClick={prevPage}
+              disabled={currentPage === 0}
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 16px',
+                cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                color: currentPage === 0 ? '#475569' : '#f8fafc',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 14,
+                opacity: currentPage === 0 ? 0.5 : 1,
+              }}
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </button>
 
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#f8fafc' }}>
+                Page {currentPage + 1} of {totalPages}
+              </div>
+              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                {Math.round(progressPercent)}% complete
+              </div>
+            </div>
+
+            <button
+              onClick={nextPage}
+              disabled={currentPage >= totalPages - 1}
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 16px',
+                cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                color: currentPage >= totalPages - 1 ? '#475569' : '#f8fafc',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 14,
+                opacity: currentPage >= totalPages - 1 ? 0.5 : 1,
+              }}
+            >
+              Next
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        ) : (
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#f8fafc' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>
               Page {currentPage + 1} of {totalPages}
             </div>
             <div style={{ fontSize: 12, color: '#94a3b8' }}>
               {Math.round(progressPercent)}% complete
             </div>
           </div>
-
-          <button
-            onClick={nextPage}
-            disabled={currentPage >= totalPages - 1}
-            style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: 'none',
-              borderRadius: 8,
-              padding: '8px 16px',
-              cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-              color: currentPage >= totalPages - 1 ? '#475569' : '#f8fafc',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 14,
-              opacity: currentPage >= totalPages - 1 ? 0.5 : 1,
-            }}
-          >
-            Next
-            <ChevronRight size={16} />
-          </button>
-        </div>
+        )}
 
         {/* Keyboard hints */}
         <div

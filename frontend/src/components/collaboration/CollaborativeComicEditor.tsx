@@ -23,8 +23,10 @@ import {
   ThoughtDot,
 } from './bubbleShapes';
 import { ArtworkLibraryPanel } from './ArtworkLibraryPanel';
+import { ScriptReferencePanel } from './ScriptReferencePanel';
 import { LineBasedEditor, LINE_TEMPLATES, ORIENTATION_PRESETS, LineTemplate, LineBasedEditorRef } from './lineEditor';
 import { DividerLineData } from './lineEditor/LineRenderer';
+import { computePanelRegions, ComputedPanel, DividerLine as DividerLineForRegion } from '../../utils/regionCalculator';
 import {
   Plus,
   Trash2,
@@ -44,7 +46,9 @@ import {
   ChevronDown,
   Pencil,
   Check,
+  Eye,
 } from 'lucide-react';
+import { CollaborationPreviewReader } from './CollaborationPreviewReader';
 
 interface User {
   id: number;
@@ -334,6 +338,7 @@ export default function CollaborativeComicEditor({
   const [newBubbleStyle, setNewBubbleStyle] = useState<BubbleStyle>('manga');
   const [showTemplates, setShowTemplates] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Issue state
   const [issues, setIssues] = useState<ComicIssueListItem[]>([]);
@@ -377,6 +382,7 @@ export default function CollaborativeComicEditor({
 
   // Artwork library state for drag-and-drop
   const [artworkLibraryExpanded, setArtworkLibraryExpanded] = useState(true);
+  const [scriptPanelExpanded, setScriptPanelExpanded] = useState(true);
   const [draggingArtworkItem, setDraggingArtworkItem] = useState<ArtworkLibraryItem | null>(null);
   const [dropTargetPanelId, setDropTargetPanelId] = useState<string | null>(null);
 
@@ -1440,7 +1446,8 @@ export default function CollaborativeComicEditor({
     setError('');
     try {
       // First, check if we already have a ComicPanel for this region (by bounding box overlap)
-      let targetPanel = currentPage.panels.find((p) => {
+      // Use reduce to find the panel with the HIGHEST overlap, not just the first match
+      let targetPanel = currentPage.panels.reduce((best, p) => {
         const panelBounds = {
           x: p.x_percent,
           y: p.y_percent,
@@ -1448,8 +1455,19 @@ export default function CollaborativeComicEditor({
           height: p.height_percent,
         };
         const overlap = calculateBoundsOverlap(computedPanel.bounds, panelBounds);
-        return overlap > 0.3; // 30% IoU threshold
-      });
+        if (overlap > 0.3) {
+          if (!best) return p;
+          const bestBounds = {
+            x: best.x_percent,
+            y: best.y_percent,
+            width: best.width_percent,
+            height: best.height_percent,
+          };
+          const bestOverlap = calculateBoundsOverlap(computedPanel.bounds, bestBounds);
+          return overlap > bestOverlap ? p : best;
+        }
+        return best;
+      }, null as typeof currentPage.panels[0] | null);
 
       if (!targetPanel) {
         // Create a new ComicPanel for this computed region
@@ -1530,7 +1548,8 @@ export default function CollaborativeComicEditor({
         setError('');
 
         // Find or create ComicPanel for this computed region
-        let targetPanel = currentPage.panels.find((p) => {
+        // Use reduce to find the panel with the HIGHEST overlap, not just the first match
+        let targetPanel = currentPage.panels.reduce((best, p) => {
           const panelBounds = {
             x: p.x_percent,
             y: p.y_percent,
@@ -1538,8 +1557,19 @@ export default function CollaborativeComicEditor({
             height: p.height_percent,
           };
           const overlap = calculateBoundsOverlap(computedPanel.bounds, panelBounds);
-          return overlap > 0.3;
-        });
+          if (overlap > 0.3) {
+            if (!best) return p;
+            const bestBounds = {
+              x: best.x_percent,
+              y: best.y_percent,
+              width: best.width_percent,
+              height: best.height_percent,
+            };
+            const bestOverlap = calculateBoundsOverlap(computedPanel.bounds, bestBounds);
+            return overlap > bestOverlap ? p : best;
+          }
+          return best;
+        }, null as typeof currentPage.panels[0] | null);
 
         // Apply artwork via API
         const result = await collaborationApi.applyArtworkToPanel(data.artworkId, {
@@ -1685,6 +1715,68 @@ export default function CollaborativeComicEditor({
     console.log('[ARTWORK] New map built:', Array.from(newArtworkMap.entries()));
     setPanelArtworkMap(newArtworkMap);
   }, [currentPage?.panels, currentPage?.id, currentPage?.divider_lines, computedPanels]);
+
+  // Compute panels for ALL pages (for thumbnail rendering)
+  // This ensures sidebar thumbnails show correct clipping for all pages, not just the selected one
+  const allPagesComputedData = useMemo(() => {
+    const result: Map<number, { panels: ComputedPanel[]; artworkMap: Map<string, string> }> = new Map();
+
+    for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+      const page = pages[pageIndex];
+
+      // Skip pages without divider lines (legacy layout)
+      if (!page.divider_lines || page.divider_lines.length === 0) {
+        continue;
+      }
+
+      // Convert divider lines to the format expected by computePanelRegions
+      const dividerLines: DividerLineForRegion[] = page.divider_lines.map((line) => ({
+        id: line.id,
+        line_type: line.line_type || 'straight',
+        start_x: line.start_x,
+        start_y: line.start_y,
+        end_x: line.end_x,
+        end_y: line.end_y,
+        control1_x: line.control1_x,
+        control1_y: line.control1_y,
+        control2_x: line.control2_x,
+        control2_y: line.control2_y,
+      }));
+
+      // Compute panels for this page (using percentage coordinates 0-100)
+      const pagePanels = computePanelRegions(dividerLines, 100, 100);
+
+      // Build artwork map for this page by matching database panels to computed panels
+      const pageArtworkMap = new Map<string, string>();
+      for (const panel of page.panels || []) {
+        if (!panel.artwork) continue;
+
+        const panelBounds = {
+          x: parseFloat(String(panel.x_percent)) || 0,
+          y: parseFloat(String(panel.y_percent)) || 0,
+          width: parseFloat(String(panel.width_percent)) || 0,
+          height: parseFloat(String(panel.height_percent)) || 0,
+        };
+
+        // Find best matching computed panel by IoU
+        let bestMatch: { id: string; iou: number } | null = null;
+        for (const computedPanel of pagePanels) {
+          const iou = calculateBoundsOverlap(computedPanel.bounds, panelBounds);
+          if (iou > 0.05 && (!bestMatch || iou > bestMatch.iou)) {
+            bestMatch = { id: computedPanel.id, iou };
+          }
+        }
+
+        if (bestMatch) {
+          pageArtworkMap.set(bestMatch.id, panel.artwork);
+        }
+      }
+
+      result.set(pageIndex, { panels: pagePanels, artworkMap: pageArtworkMap });
+    }
+
+    return result;
+  }, [pages]);
 
   // Speech bubble management
   const handleAddBubble = async (panelId: number) => {
@@ -2282,53 +2374,63 @@ export default function CollaborativeComicEditor({
                       height: '100%',
                     }}
                   >
-                    {/* For current page, render computed panels with artwork using polygon clipping */}
-                    {selectedPageIndex === index && computedPanels.length > 0 && (
-                      <>
-                        {/* Define clip paths for each computed panel */}
-                        <defs>
-                          {computedPanels.map((panel) => (
-                            <clipPath key={`thumb-clip-${panel.id}`} id={`thumb-clip-${panel.id}`}>
-                              <polygon
-                                points={panel.vertices.map(v => `${v.x},${v.y}`).join(' ')}
-                              />
-                            </clipPath>
-                          ))}
-                        </defs>
-                        {/* Render artwork clipped to panel polygons */}
-                        {computedPanels.map((panel) => {
-                          const artworkUrl = panelArtworkMap.get(panel.id);
-                          if (!artworkUrl) return null;
-                          return (
-                            <image
-                              key={`thumb-art-${panel.id}`}
-                              href={artworkUrl}
-                              x={panel.bounds.x}
-                              y={panel.bounds.y}
-                              width={panel.bounds.width}
-                              height={panel.bounds.height}
-                              preserveAspectRatio="xMidYMid slice"
-                              clipPath={`url(#thumb-clip-${panel.id})`}
-                            />
-                          );
-                        })}
-                      </>
-                    )}
-                    {/* For non-current pages, render panel artwork from database */}
-                    {selectedPageIndex !== index && (page.panels || []).map((panel) => {
-                      if (!panel.artwork) return null;
-                      return (
-                        <image
-                          key={`thumb-panel-${panel.id}`}
-                          href={panel.artwork}
-                          x={panel.x_percent}
-                          y={panel.y_percent}
-                          width={panel.width_percent}
-                          height={panel.height_percent}
-                          preserveAspectRatio="xMidYMid slice"
-                        />
-                      );
-                    })}
+                    {/* Render computed panels with artwork using polygon clipping for ALL pages */}
+                    {(() => {
+                      // For current page, use live computed panels; for others, use pre-computed data
+                      const pageData = selectedPageIndex === index
+                        ? { panels: computedPanels, artworkMap: panelArtworkMap }
+                        : allPagesComputedData.get(index);
+
+                      if (pageData && pageData.panels.length > 0) {
+                        return (
+                          <>
+                            {/* Define clip paths for each computed panel */}
+                            <defs>
+                              {pageData.panels.map((panel) => (
+                                <clipPath key={`thumb-clip-${index}-${panel.id}`} id={`thumb-clip-${index}-${panel.id}`}>
+                                  <polygon
+                                    points={panel.vertices.map(v => `${v.x},${v.y}`).join(' ')}
+                                  />
+                                </clipPath>
+                              ))}
+                            </defs>
+                            {/* Render artwork clipped to panel polygons */}
+                            {pageData.panels.map((panel) => {
+                              const artworkUrl = pageData.artworkMap.get(panel.id);
+                              if (!artworkUrl) return null;
+                              return (
+                                <image
+                                  key={`thumb-art-${index}-${panel.id}`}
+                                  href={artworkUrl}
+                                  x={panel.bounds.x}
+                                  y={panel.bounds.y}
+                                  width={panel.bounds.width}
+                                  height={panel.bounds.height}
+                                  preserveAspectRatio="xMidYMid slice"
+                                  clipPath={`url(#thumb-clip-${index}-${panel.id})`}
+                                />
+                              );
+                            })}
+                          </>
+                        );
+                      }
+
+                      // Fallback for pages without computed panels - render rectangular images
+                      return (page.panels || []).map((panel) => {
+                        if (!panel.artwork) return null;
+                        return (
+                          <image
+                            key={`thumb-panel-${panel.id}`}
+                            href={panel.artwork}
+                            x={panel.x_percent}
+                            y={panel.y_percent}
+                            width={panel.width_percent}
+                            height={panel.height_percent}
+                            preserveAspectRatio="xMidYMid slice"
+                          />
+                        );
+                      });
+                    })()}
                     {/* Divider lines on top */}
                     {(page.divider_lines || []).map((line) => (
                       <line
@@ -2511,6 +2613,29 @@ export default function CollaborativeComicEditor({
                 )}
               </>
             )}
+
+            {/* Preview button */}
+            <button
+              onClick={() => setShowPreview(true)}
+              disabled={pages.length === 0}
+              style={{
+                background: 'rgba(245, 158, 11, 0.2)',
+                color: '#f59e0b',
+                border: '1px solid #f59e0b',
+                borderRadius: 6,
+                padding: '6px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: pages.length === 0 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                opacity: pages.length === 0 ? 0.5 : 1,
+              }}
+              title="Preview as reader"
+            >
+              <Eye size={14} /> Preview
+            </button>
 
             {/* Page navigation */}
             <button
@@ -3140,6 +3265,16 @@ export default function CollaborativeComicEditor({
       >
         <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: 12 }}>Properties</span>
 
+        {/* Script Reference Panel - shows current page's script */}
+        {currentPage && (
+          <ScriptReferencePanel
+            scriptData={currentPage.script_data}
+            pageNumber={currentPage.page_number}
+            isExpanded={scriptPanelExpanded}
+            onToggle={() => setScriptPanelExpanded(!scriptPanelExpanded)}
+          />
+        )}
+
         {/* Artwork Library Panel - visible in artwork mode */}
         {mode === 'artwork' && (
           <ArtworkLibraryPanel
@@ -3709,14 +3844,6 @@ export default function CollaborativeComicEditor({
         )}
       </div>
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/gif"
-        style={{ display: 'none' }}
-      />
-
       {/* Templates Modal */}
       {showTemplates && (
         <div
@@ -3843,6 +3970,16 @@ export default function CollaborativeComicEditor({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Preview Reader Modal */}
+      {showPreview && (
+        <CollaborationPreviewReader
+          pages={pages}
+          project={project}
+          initialPage={selectedPageIndex}
+          onClose={() => setShowPreview(false)}
+        />
       )}
     </div>
   );

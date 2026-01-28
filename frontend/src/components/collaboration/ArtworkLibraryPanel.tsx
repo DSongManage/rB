@@ -41,33 +41,61 @@ export function ArtworkLibraryPanel({
     loadArtwork();
   }, [loadArtwork]);
 
-  // Handle file upload
+  // Handle file upload (supports multiple files)
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    // Validate
     const validTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
-      setError('Please upload PNG, JPG, WebP, or GIF');
-      return;
+    const validFiles: File[] = [];
+    const errors: string[] = [];
+
+    // Validate all files first
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!validTypes.includes(file.type)) {
+        errors.push(`${file.name}: invalid type (use PNG, JPG, WebP, or GIF)`);
+      } else if (file.size > 50 * 1024 * 1024) {
+        errors.push(`${file.name}: exceeds 50MB limit`);
+      } else {
+        validFiles.push(file);
+      }
     }
-    if (file.size > 50 * 1024 * 1024) {
-      setError('File size must be under 50MB');
-      return;
+
+    if (errors.length > 0) {
+      setError(errors.join('; '));
     }
+
+    if (validFiles.length === 0) return;
 
     setUploading(true);
-    setError('');
-    try {
-      const newItem = await collaborationApi.uploadArtworkToLibrary(projectId, file);
-      setItems((prev) => [newItem, ...prev]);
-    } catch (err: any) {
-      setError(err.message || 'Upload failed');
-    } finally {
-      setUploading(false);
-      e.target.value = '';
+    if (errors.length === 0) setError('');
+
+    const uploadedItems: ArtworkLibraryItem[] = [];
+    const uploadErrors: string[] = [];
+
+    // Upload files sequentially to avoid overwhelming the server
+    for (const file of validFiles) {
+      try {
+        const newItem = await collaborationApi.uploadArtworkToLibrary(projectId, file);
+        uploadedItems.push(newItem);
+      } catch (err: any) {
+        uploadErrors.push(`${file.name}: ${err.message || 'upload failed'}`);
+      }
     }
+
+    // Add all successful uploads to the list
+    if (uploadedItems.length > 0) {
+      setItems((prev) => [...uploadedItems, ...prev]);
+    }
+
+    // Show errors if any uploads failed
+    if (uploadErrors.length > 0) {
+      setError((prev) => (prev ? prev + '; ' : '') + uploadErrors.join('; '));
+    }
+
+    setUploading(false);
+    e.target.value = '';
   };
 
   // Handle delete
@@ -196,6 +224,7 @@ export function ArtworkLibraryPanel({
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
                 onChange={handleUpload}
                 disabled={uploading}
                 style={{ display: 'none' }}

@@ -53,6 +53,83 @@ logger = logging.getLogger(__name__)
 def home(request):
     return HttpResponse("renaissBlock Backend Running")
 
+
+class HealthCheckView(APIView):
+    """
+    Comprehensive health check endpoint for monitoring.
+
+    Returns:
+        - status: 'healthy' or 'degraded'
+        - version: Application version from git commit
+        - checks: Individual component status
+    """
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = []  # No throttling on health checks
+
+    def get(self, request):
+        import time
+        from django.db import connection
+        from django.core.cache import cache
+        start_time = time.time()
+
+        checks = {}
+        overall_healthy = True
+
+        # Check database connectivity
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            checks['database'] = {'status': 'healthy', 'latency_ms': None}
+        except Exception as e:
+            checks['database'] = {'status': 'unhealthy', 'error': str(e)}
+            overall_healthy = False
+
+        # Check Redis/Celery broker (if configured)
+        try:
+            from django.conf import settings
+            if 'redis' in settings.CELERY_BROKER_URL.lower():
+                import redis
+                r = redis.from_url(settings.CELERY_BROKER_URL)
+                r.ping()
+                checks['redis'] = {'status': 'healthy'}
+            else:
+                checks['redis'] = {'status': 'skipped', 'reason': 'not using redis'}
+        except ImportError:
+            checks['redis'] = {'status': 'skipped', 'reason': 'redis not installed'}
+        except Exception as e:
+            checks['redis'] = {'status': 'unhealthy', 'error': str(e)}
+            # Redis being down is degraded, not critical
+            overall_healthy = overall_healthy  # Don't fail on Redis
+
+        # Check Cloudinary (if configured)
+        try:
+            from django.conf import settings
+            if settings.CLOUDINARY_STORAGE.get('CLOUD_NAME'):
+                checks['storage'] = {'status': 'configured', 'provider': 'cloudinary'}
+            else:
+                checks['storage'] = {'status': 'configured', 'provider': 'filesystem'}
+        except Exception as e:
+            checks['storage'] = {'status': 'unknown', 'error': str(e)}
+
+        # Get version info
+        version = os.getenv('RAILWAY_GIT_COMMIT_SHA', 'development')[:8]
+        environment = getattr(settings, 'ENVIRONMENT', 'unknown')
+
+        # Calculate response time
+        response_time = round((time.time() - start_time) * 1000, 2)
+
+        response_data = {
+            'status': 'healthy' if overall_healthy else 'degraded',
+            'version': version,
+            'environment': environment,
+            'response_time_ms': response_time,
+            'checks': checks,
+        }
+
+        status_code = 200 if overall_healthy else 503
+        return Response(response_data, status=status_code)
+
+
 class AuthStatusView(APIView):
     permission_classes = [permissions.AllowAny]  # Explicit: handles both authenticated and unauthenticated
 
@@ -161,14 +238,8 @@ class ContentListView(generics.ListCreateAPIView):
         status_f = self.request.query_params.get('inventory_status')
         mine = self.request.query_params.get('mine')
 
-        # Default to showing only minted content for public browsing
-        # Allow explicit filtering via query params (e.g., ?inventory_status=draft for profile/studio)
-        if status_f:
-            qs = qs.filter(inventory_status=status_f)
-        else:
-            # If no status filter specified, default to minted for public home page
-            qs = qs.filter(inventory_status='minted')
-
+        # When viewing own content (mine=1), show all statuses unless explicitly filtered
+        # This allows users to see their minted, draft, AND delisted content
         if mine and self.request.user.is_authenticated:
             try:
                 core_user = CoreUser.objects.get(username=self.request.user.username)
@@ -195,8 +266,21 @@ class ContentListView(generics.ListCreateAPIView):
                     Q(creator=core_user) |
                     Q(id__in=collab_content_ids)
                 )
+
+                # Apply status filter only if explicitly requested
+                if status_f:
+                    qs = qs.filter(inventory_status=status_f)
+                # Otherwise show all statuses (minted, draft, delisted) for own content
+
             except CoreUser.DoesNotExist:
                 qs = qs.none()
+        else:
+            # Public browsing: filter by status
+            if status_f:
+                qs = qs.filter(inventory_status=status_f)
+            else:
+                # Default to showing only minted content for public home page
+                qs = qs.filter(inventory_status='minted')
 
         # Apply genre filter if specified
         genre_param = self.request.query_params.get('genre')

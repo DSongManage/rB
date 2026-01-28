@@ -37,6 +37,7 @@ export default function CartPage() {
   const [processingMessage, setProcessingMessage] = useState<string>('');
   const [transactionSignature, setTransactionSignature] = useState<string | null>(null);
   const [balancePaymentData, setBalancePaymentData] = useState<any>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   async function handleRemove(itemId: number) {
     setRemovingId(itemId);
@@ -699,9 +700,54 @@ export default function CartPage() {
             </div>
           )}
 
+          {/* Terms Agreement Checkbox */}
+          <label
+            className="rb-terms-checkbox"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              marginBottom: '16px',
+              padding: '12px',
+              borderRadius: '8px',
+              border: '1px solid var(--border, #334155)',
+              cursor: 'pointer',
+              fontSize: '13px',
+              lineHeight: '1.5',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              style={{
+                width: '18px',
+                height: '18px',
+                marginTop: '2px',
+                flexShrink: 0,
+                accentColor: 'var(--accent, #3b82f6)',
+                cursor: 'pointer',
+              }}
+            />
+            <span style={{ color: 'var(--text-secondary)' }}>
+              I understand that <strong style={{ color: 'var(--text-primary)' }}>all purchases are final</strong>.
+              Payments are processed in USDC (a digital dollar) on the Solana blockchain and are irreversible.
+              By checking this box, I agree to the{' '}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'underline' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                Terms of Service
+              </a>.
+            </span>
+          </label>
+
           <button
             onClick={handleCheckout}
-            disabled={paymentStep !== 'idle'}
+            disabled={!agreedToTerms || paymentStep !== 'idle'}
             data-tour="checkout-button"
             style={{
               width: '100%',
@@ -710,13 +756,13 @@ export default function CartPage() {
               justifyContent: 'center',
               gap: '10px',
               padding: '16px 24px',
-              backgroundColor: paymentStep !== 'idle' ? 'var(--bg-disabled, #475569)' : 'var(--accent, #3b82f6)',
+              backgroundColor: (!agreedToTerms || paymentStep !== 'idle') ? 'var(--bg-disabled, #475569)' : 'var(--accent, #3b82f6)',
               color: 'white',
               border: 'none',
               borderRadius: '10px',
               fontSize: '16px',
               fontWeight: 600,
-              cursor: paymentStep !== 'idle' ? 'not-allowed' : 'pointer',
+              cursor: (!agreedToTerms || paymentStep !== 'idle') ? 'not-allowed' : 'pointer',
               transition: 'background-color 0.2s ease',
             }}
           >
@@ -737,7 +783,7 @@ export default function CartPage() {
           <div style={{
             marginTop: '20px',
             padding: '16px',
-            backgroundColor: 'var(--bg-tertiary, #0f172a)',
+            backgroundColor: 'var(--chip-bg)',
             borderRadius: '10px',
             fontSize: '13px',
           }}>
@@ -747,7 +793,7 @@ export default function CartPage() {
                 Supporting Creators
               </span>
             </div>
-            <p style={{ color: 'var(--text-muted, #94a3b8)', lineHeight: '1.5' }}>
+            <p style={{ color: 'var(--text-muted)', lineHeight: '1.5' }}>
               Creators receive 90% of each item's price. Your purchase directly supports the creators you love.
             </p>
           </div>
@@ -1081,6 +1127,11 @@ export default function CartPage() {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        /* Terms checkbox - theme aware using existing CSS variables */
+        .rb-terms-checkbox {
+          background-color: var(--chip-bg);
         }
 
         /* Cart grid layout - desktop */

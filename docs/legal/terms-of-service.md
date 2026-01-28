@@ -47,9 +47,18 @@ To use certain features, you must create an account. You agree to:
 ### 3.2 Account Responsibility
 You are solely responsible for all activity under your account, whether or not authorized by you. renaissBlock is not liable for any loss or damage arising from unauthorized use of your account.
 
-### 3.3 Digital Wallet
+### 3.3 Digital Wallet and USDC
+
+The Service uses USDC (USD Coin), a regulated stablecoin, for all transactions. USDC is:
+
+- **A digital dollar** pegged 1:1 to the US Dollar
+- **Issued by Circle** and backed by fully reserved assets
+- **Used for all platform transactions** including purchases, creator payments, and balance deposits
+
 The Service includes a digital wallet feature for receiving payments. By using this feature, you acknowledge that:
 
+- Your "renaissBlock Balance" is held in USDC on the Solana blockchain
+- All purchases are made using USDC
 - You are responsible for maintaining access to your wallet
 - Lost wallet credentials may result in permanent loss of funds
 - renaissBlock cannot recover lost wallet access in all circumstances
@@ -143,21 +152,42 @@ All purchases are for digital goods. You acknowledge that:
 - Quality and satisfaction are subjective
 
 ### 6.3 Refund Policy
-Due to the nature of digital goods:
+**ALL SALES ARE FINAL AND NON-REFUNDABLE.**
 
-- All sales are generally final
-- Refunds may be issued at our discretion for:
-  - Technical issues preventing access (after troubleshooting)
-  - Content that is materially different from its description
-  - Duplicate purchases
-- Refund requests must be submitted within 14 days of purchase
-- Refunds are processed to the original payment method
-- Abuse of refund requests may result in account restrictions
+Due to the nature of digital goods and blockchain-based transactions:
+
+- Once you complete a purchase, you receive immediate access to digital content
+- Digital content cannot be "returned" like physical goods
+- Blockchain transactions are recorded permanently and cannot be reversed by the platform
+- **By completing a purchase, you acknowledge and accept that no refunds will be issued**
+
+In extremely limited circumstances, we may consider a refund request at our sole discretion for:
+  - Verified technical issues preventing access that cannot be resolved after troubleshooting
+  - Content that is materially and demonstrably different from its description (not subjective quality complaints)
+  - Verified duplicate purchases made in error
+
+If you believe you qualify for one of these exceptions:
+- Contact support within 7 days of purchase
+- Provide detailed documentation of the issue
+- Understand that approval is not guaranteed
+
+**Any refund issued will be at renaissBlock's sole discretion. Disagreement with content quality, style, or personal preference does not constitute grounds for a refund.**
 
 ### 6.4 Access and Availability
 - We strive to maintain access to purchased content
 - Access may be affected by creator content removal, account termination, or service discontinuation
 - We are not liable for temporary or permanent loss of access due to circumstances beyond our reasonable control
+
+### 6.5 Digital Asset & Blockchain Transactions
+All purchases on renaissBlock involve blockchain-based transactions. **By making a purchase, you acknowledge and agree that:**
+
+- **Blockchain transactions are FINAL and IRREVERSIBLE** - Once a transaction is confirmed on the blockchain, it cannot be undone, reversed, or cancelled
+- **The platform cannot reverse blockchain transactions** - Even if we wanted to issue a refund, we cannot reverse a completed blockchain transaction
+- **This applies regardless of payment method** - Whether you pay via credit card, debit card, Apple Pay, Google Pay, or direct cryptocurrency transfer, the underlying transaction is recorded on the blockchain and is final
+- **Fiat-to-crypto conversions are final** - When you use a card or mobile payment, your payment is converted to cryptocurrency and transferred on-chain; this conversion and transfer cannot be reversed
+- **You assume the risk** - By completing a purchase, you accept full responsibility for your decision and waive any right to dispute the charge based on buyer's remorse or dissatisfaction
+
+**IMPORTANT:** Initiating a chargeback or payment dispute after receiving digital content may constitute fraud and will result in immediate account termination and potential legal action. See Section 7.3 for details.
 
 ---
 
@@ -184,10 +214,27 @@ You agree NOT to:
 - Use bots or automated systems without permission
 
 ### 7.3 Transaction Abuse
-- Engage in payment fraud or chargebacks
+- Engage in payment fraud or unauthorized chargebacks
+- **Initiate a chargeback, payment dispute, or bank reversal after receiving digital content** - This is considered fraudulent activity
 - Artificially inflate sales or revenue
 - Collude with others to manipulate the marketplace
 - Launder money or facilitate illegal transactions
+
+**Chargeback Policy:**
+If you initiate a chargeback or payment dispute with your bank, credit card company, or payment provider after receiving access to purchased content:
+
+1. **Your account will be immediately suspended** pending investigation
+2. **Permanent account termination** will occur upon confirmation of the chargeback
+3. **All purchased content will be revoked** from your account
+4. **We reserve the right to pursue legal action** for fraudulent chargebacks, including recovery of:
+   - The disputed amount
+   - Chargeback fees assessed to us
+   - Legal costs and attorney's fees
+   - Consequential damages
+5. **We may report fraudulent activity** to relevant authorities, fraud prevention databases, and credit bureaus
+6. **Creators affected by fraudulent chargebacks** may also pursue independent legal action
+
+**Exception:** If you have a legitimate dispute (unauthorized account access, identity theft), contact us first at legal@renaissblock.com. We will work with you to investigate and resolve legitimate issues without resorting to chargebacks.
 
 ---
 

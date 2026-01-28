@@ -1,6 +1,6 @@
 import React, { memo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, ChevronUp, ChevronDown, ThumbsUp, BookOpen } from 'lucide-react';
+import { Eye, ChevronUp, ChevronDown, ThumbsUp, BookOpen, Users } from 'lucide-react';
 import { StarRatingDisplay } from './StarRatingDisplay';
 
 type BookChapter = {
@@ -26,6 +26,7 @@ type Props = {
   averageRating: number | null;
   ratingCount: number;
   timeText: string;
+  isCollaborative?: boolean;
 };
 
 // Format count (1.2K, 1.5M, etc.)
@@ -51,6 +52,7 @@ function BookCardComponent({
   averageRating,
   ratingCount,
   timeText,
+  isCollaborative = false,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
@@ -126,6 +128,28 @@ function BookCardComponent({
             color: 'rgba(255,255,255,0.3)',
           }}>
             <BookOpen size={48} />
+          </div>
+        )}
+
+        {/* COLLAB badge - top left */}
+        {isCollaborative && (
+          <div style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            color: '#000',
+            padding: '4px 8px',
+            borderRadius: 6,
+            fontSize: 10,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 2,
+          }}>
+            <Users size={12} />
+            COLLAB
           </div>
         )}
 

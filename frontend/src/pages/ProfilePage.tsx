@@ -534,7 +534,7 @@ export default function ProfilePage() {
                     View Details & Respond
                   </button>
                   <button
-                    onClick={() => navigate(`/collaborations`)}
+                    onClick={() => navigate(`/studio`)}
                     style={{
                       background:'transparent', color:'#94a3b8',
                       border:'1px solid #334155', padding:'10px 16px', borderRadius:8,
@@ -684,7 +684,7 @@ export default function ProfilePage() {
             <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
               <p style={{ marginBottom: 16 }}>View and manage your collaborations</p>
               <Link
-                to="/collaborations"
+                to="/studio"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',

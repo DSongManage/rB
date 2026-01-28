@@ -59,6 +59,7 @@ type BookProject = {
 // Genre filter config - maps display name to content_type value
 const GENRE_FILTERS = [
   { label: 'All', value: 'all' },
+  { label: 'Comics', value: 'comic' },
   { label: 'Books', value: 'book' },
   { label: 'Art', value: 'art' },
   { label: 'Film', value: 'film', comingSoon: true },
@@ -69,7 +70,7 @@ const GENRE_FILTERS = [
 export default function HomePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [selectedFilter, setSelectedFilter] = useState('comic');
 
   useEffect(()=>{
     const abortController = new AbortController();

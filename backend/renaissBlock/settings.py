@@ -115,6 +115,8 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files in production
+    'rb_core.middleware.MaintenanceModeMiddleware',  # Must be early to block all requests
+    'rb_core.middleware.GeoRestrictionMiddleware',  # US-only enforcement
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -588,5 +590,76 @@ CELERY_WORKER_MAX_TASKS_PER_CHILD = 100  # Restart worker after 100 tasks (preve
 
 # Logging
 CELERY_WORKER_HIJACK_ROOT_LOGGER = False  # Use Django logging config
+
+# ============================================================================
+# Sentry Error Monitoring
+# ============================================================================
+# Get DSN from https://sentry.io - create a Django project
+SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.redis import RedisIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(
+                transaction_style="url",
+                middleware_spans=True,
+            ),
+            CeleryIntegration(monitor_beat_tasks=True),
+            RedisIntegration(),
+        ],
+        # Set traces_sample_rate to capture performance data
+        traces_sample_rate=0.1 if not DEBUG else 1.0,
+        # Set profiles_sample_rate to profile performance
+        profiles_sample_rate=0.1 if not DEBUG else 1.0,
+        # Send user info with errors
+        send_default_pii=False,  # GDPR compliant - no PII
+        # Environment tag
+        environment=ENVIRONMENT,
+        # Release version (set via CI/CD)
+        release=os.getenv('RAILWAY_GIT_COMMIT_SHA', 'development'),
+        # Filter out health check transactions
+        before_send_transaction=lambda event, hint: None if event.get('transaction') == '/health/' else event,
+    )
+
+# ============================================================================
+# Slack Webhook for Critical Alerts
+# ============================================================================
+# Set up incoming webhook at https://api.slack.com/messaging/webhooks
+SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL', '')
+
+# ============================================================================
+# Geographic Restrictions (US-Only)
+# ============================================================================
+# Enable geographic restrictions for regulatory compliance
+GEO_RESTRICTION_ENABLED = os.getenv('GEO_RESTRICTION_ENABLED', 'false').lower() in ('true', '1', 'yes')
+# Allowed countries (ISO 3166-1 alpha-2 codes)
+GEO_ALLOWED_COUNTRIES = os.getenv('GEO_ALLOWED_COUNTRIES', 'US').split(',')
+# GeoIP database path (download from MaxMind)
+GEOIP_PATH = os.getenv('GEOIP_PATH', os.path.join(BASE_DIR, 'geoip'))
+
+# ============================================================================
+# OFAC Sanctions Screening
+# ============================================================================
+# Enable OFAC screening for regulatory compliance
+OFAC_SCREENING_ENABLED = os.getenv('OFAC_SCREENING_ENABLED', 'false').lower() in ('true', '1', 'yes')
+# OFAC API provider URL (e.g., ofac-api.com, or custom implementation)
+OFAC_API_URL = os.getenv('OFAC_API_URL', '')
+OFAC_API_KEY = os.getenv('OFAC_API_KEY', '')
+
+# ============================================================================
+# Maintenance Mode
+# ============================================================================
+# Enable to show maintenance page to all users
+MAINTENANCE_MODE = os.getenv('MAINTENANCE_MODE', 'false').lower() in ('true', '1', 'yes')
+# Bypass maintenance mode for these IP addresses (comma-separated)
+MAINTENANCE_BYPASS_IPS = os.getenv('MAINTENANCE_BYPASS_IPS', '').split(',')
+# Custom maintenance message
+MAINTENANCE_MESSAGE = os.getenv('MAINTENANCE_MESSAGE', 'We are currently performing scheduled maintenance. Please try again later.')
 
 ## Duplicate guard: the above variables are defined once; keep this footer clean.

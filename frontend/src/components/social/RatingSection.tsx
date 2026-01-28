@@ -37,7 +37,7 @@ function RatingItem({ rating }: { rating: ContentRating }) {
   return (
     <div style={{
       padding: '16px 0',
-      borderBottom: '1px solid #1e293b',
+      borderBottom: '1px solid var(--dropdown-hover)',
     }}>
       <div style={{ display: 'flex', gap: 12 }}>
         {rating.user_avatar ? (
@@ -81,7 +81,7 @@ function RatingItem({ rating }: { rating: ContentRating }) {
               to={`/profile/${rating.username}`}
               style={{
                 fontWeight: 600,
-                color: '#f1f5f9',
+                color: 'var(--text)',
                 textDecoration: 'none',
                 fontSize: 14,
               }}
@@ -89,13 +89,13 @@ function RatingItem({ rating }: { rating: ContentRating }) {
               @{rating.username}
             </Link>
             <StarRating rating={rating.rating} size="sm" readonly />
-            <span style={{ fontSize: 12, color: '#64748b' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {timeAgo(rating.created_at)}
             </span>
           </div>
           {rating.review_text && (
             <p style={{
-              color: '#cbd5e1',
+              color: 'var(--text-dim)',
               fontSize: 14,
               lineHeight: 1.6,
               margin: 0,
@@ -154,15 +154,15 @@ export function RatingSection({
 
   return (
     <div style={{
-      background: '#0f172a',
+      background: 'var(--dropdown-bg)',
       borderRadius: 16,
-      border: '1px solid #1e293b',
+      border: '1px solid var(--dropdown-hover)',
       overflow: 'hidden',
     }}>
       {/* Header */}
       <div style={{
         padding: '20px 24px',
-        borderBottom: '1px solid #1e293b',
+        borderBottom: '1px solid var(--dropdown-hover)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -173,7 +173,7 @@ export function RatingSection({
             margin: 0,
             fontSize: 18,
             fontWeight: 700,
-            color: '#f1f5f9',
+            color: 'var(--text)',
           }}>
             Ratings & Reviews
           </h3>
@@ -198,7 +198,7 @@ export function RatingSection({
             }}>
               {averageRating.toFixed(1)}
             </span>
-            <span style={{ color: '#64748b', fontSize: 13 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
               ({totalCount})
             </span>
           </div>
@@ -212,7 +212,7 @@ export function RatingSection({
           <div style={{ marginBottom: 24 }}>
             {showForm ? (
               <div style={{
-                background: '#1e293b',
+                background: 'var(--dropdown-hover)',
                 borderRadius: 12,
                 padding: 20,
               }}>
@@ -228,7 +228,7 @@ export function RatingSection({
                       margin: 0,
                       fontSize: 16,
                       fontWeight: 600,
-                      color: '#f1f5f9',
+                      color: 'var(--text)',
                     }}>
                       Write a Review
                     </h4>
@@ -238,7 +238,7 @@ export function RatingSection({
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       fontSize: 13,
                       cursor: 'pointer',
                     }}
@@ -258,9 +258,9 @@ export function RatingSection({
                   width: '100%',
                   padding: '14px 20px',
                   background: 'transparent',
-                  border: '2px dashed #334155',
+                  border: '2px dashed var(--border)',
                   borderRadius: 12,
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   fontSize: 14,
                   fontWeight: 500,
                   cursor: 'pointer',
@@ -275,12 +275,12 @@ export function RatingSection({
                   e.currentTarget.style.color = '#a78bfa';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#334155';
-                  e.currentTarget.style.color = '#94a3b8';
+                  e.currentTarget.style.borderColor = 'var(--border)';
+                  e.currentTarget.style.color = 'var(--text-muted)';
                 }}
               >
                 <Star size={18} />
-                Rate this content
+                Rate this comic
               </button>
             )}
           </div>
@@ -338,7 +338,7 @@ export function RatingSection({
           <div style={{
             textAlign: 'center',
             padding: '32px 0',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             Loading ratings...
@@ -347,7 +347,7 @@ export function RatingSection({
           <div style={{
             textAlign: 'center',
             padding: '32px 0',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             No ratings yet. Be the first to rate!

@@ -271,240 +271,246 @@ export default function OverviewTab({
         </div>
       </div>
 
-      {/* Revenue Split Chart - Left side */}
-      <div style={{
-        gridColumn: 'span 6',
-        background: 'var(--panel)',
-        border: '1px solid var(--panel-border)',
-        borderRadius: 12,
-        padding: 24,
-      }}>
-        <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
-          Revenue Split
-        </h3>
-        {project.collaborators && project.collaborators.length > 0 ? (
-          <RevenueSplitChart
-            collaborators={project.collaborators.map(c => ({
-              id: c.id,
-              username: c.username,
-              role: c.role,
-              revenue_percentage: c.revenue_percentage,
-            }))}
-            size={180}
-          />
-        ) : (
-          <div style={{ color: '#64748b', fontSize: 14 }}>
-            No collaborators yet.
-          </div>
-        )}
+      {/* Revenue Split Chart - Left side (hidden for solo projects) */}
+      {!project.is_solo && (
+        <div style={{
+          gridColumn: 'span 6',
+          background: 'var(--panel)',
+          border: '1px solid var(--panel-border)',
+          borderRadius: 12,
+          padding: 24,
+        }}>
+          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
+            Revenue Split
+          </h3>
+          {project.collaborators && project.collaborators.length > 0 ? (
+            <RevenueSplitChart
+              collaborators={project.collaborators.map(c => ({
+                id: c.id,
+                username: c.username,
+                role: c.role,
+                revenue_percentage: c.revenue_percentage,
+              }))}
+              size={180}
+            />
+          ) : (
+            <div style={{ color: '#64748b', fontSize: 14 }}>
+              No collaborators yet.
+            </div>
+          )}
 
-        {/* Total check */}
-        {project.collaborators && (
-          <div style={{
-            marginTop: 20,
-            padding: 12,
-            background: 'var(--bg)',
-            borderRadius: 8,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-            <span style={{ fontSize: 13, color: '#94a3b8' }}>Total</span>
-            <span style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: project.collaborators.reduce((sum, c) => sum + Number(c.revenue_percentage), 0) === 100
-                ? '#10b981'
-                : '#ef4444',
-            }}>
-              {project.collaborators.reduce((sum, c) => sum + Number(c.revenue_percentage), 0).toFixed(2)}%
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Approval Progress - Right side */}
-      <div style={{
-        gridColumn: 'span 6',
-        background: 'var(--panel)',
-        border: '1px solid var(--panel-border)',
-        borderRadius: 12,
-        padding: 24,
-      }}>
-        <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
-          Approval Progress
-        </h3>
-
-        {/* Progress bar */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginBottom: 8,
-          }}>
-            <span style={{ fontSize: 13, color: '#94a3b8' }}>
-              {totalApproved} of {acceptedCollaborators.length} approved
-            </span>
-            <span style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: project.is_fully_approved ? '#10b981' : '#f59e0b',
-            }}>
-              {acceptedCollaborators.length > 0
-                ? Math.round((totalApproved / acceptedCollaborators.length) * 100)
-                : 0}%
-            </span>
-          </div>
-          <div style={{
-            height: 8,
-            background: 'var(--bg)',
-            borderRadius: 4,
-            overflow: 'hidden',
-          }}>
+          {/* Total check */}
+          {project.collaborators && (
             <div style={{
-              height: '100%',
-              width: acceptedCollaborators.length > 0
-                ? `${(totalApproved / acceptedCollaborators.length) * 100}%`
-                : '0%',
-              background: project.is_fully_approved
-                ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
-                : 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)',
-              borderRadius: 4,
-              transition: 'width 0.3s ease',
-            }} />
-          </div>
+              marginTop: 20,
+              padding: 12,
+              background: 'var(--bg)',
+              borderRadius: 8,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 13, color: '#94a3b8' }}>Total</span>
+              <span style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: project.collaborators.reduce((sum, c) => sum + Number(c.revenue_percentage), 0) === 100
+                  ? '#10b981'
+                  : '#ef4444',
+              }}>
+                {project.collaborators.reduce((sum, c) => sum + Number(c.revenue_percentage), 0).toFixed(2)}%
+              </span>
+            </div>
+          )}
         </div>
+      )}
 
-        {/* Collaborator approval status */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {acceptedCollaborators.map(collab => {
-            const hasApproved = isCollaboratorReady(collab);
-            return (
-              <div
-                key={collab.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 12px',
-                  background: hasApproved ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg)',
-                  border: `1px solid ${hasApproved ? 'rgba(16, 185, 129, 0.2)' : 'var(--panel-border)'}`,
-                  borderRadius: 8,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: hasApproved
-                      ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                      : 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+      {/* Approval Progress - Right side (hidden for solo projects) */}
+      {!project.is_solo && (
+        <div style={{
+          gridColumn: 'span 6',
+          background: 'var(--panel)',
+          border: '1px solid var(--panel-border)',
+          borderRadius: 12,
+          padding: 24,
+        }}>
+          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
+            Approval Progress
+          </h3>
+
+          {/* Progress bar */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+            }}>
+              <span style={{ fontSize: 13, color: '#94a3b8' }}>
+                {totalApproved} of {acceptedCollaborators.length} approved
+              </span>
+              <span style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: project.is_fully_approved ? '#10b981' : '#f59e0b',
+              }}>
+                {acceptedCollaborators.length > 0
+                  ? Math.round((totalApproved / acceptedCollaborators.length) * 100)
+                  : 0}%
+              </span>
+            </div>
+            <div style={{
+              height: 8,
+              background: 'var(--bg)',
+              borderRadius: 4,
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                height: '100%',
+                width: acceptedCollaborators.length > 0
+                  ? `${(totalApproved / acceptedCollaborators.length) * 100}%`
+                  : '0%',
+                background: project.is_fully_approved
+                  ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
+                  : 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)',
+                borderRadius: 4,
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+          </div>
+
+          {/* Collaborator approval status */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {acceptedCollaborators.map(collab => {
+              const hasApproved = isCollaboratorReady(collab);
+              return (
+                <div
+                  key={collab.id}
+                  style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: 12,
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    background: hasApproved ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg)',
+                    border: `1px solid ${hasApproved ? 'rgba(16, 185, 129, 0.2)' : 'var(--panel-border)'}`,
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      background: hasApproved
+                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                        : 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}>
+                      {hasApproved ? '✓' : collab.username.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                        @{collab.username}
+                        {collab.user === currentUser.id && (
+                          <span style={{ color: '#94a3b8', fontWeight: 400 }}> (you)</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                        {collab.role}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: 11,
                     fontWeight: 600,
+                    color: hasApproved ? '#10b981' : '#f59e0b',
+                    background: hasApproved ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                    padding: '4px 8px',
+                    borderRadius: 4,
                   }}>
-                    {hasApproved ? '✓' : collab.username.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                      @{collab.username}
-                      {collab.user === currentUser.id && (
-                        <span style={{ color: '#94a3b8', fontWeight: 400 }}> (you)</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                      {collab.role}
-                    </div>
+                    {hasApproved ? 'Approved' : 'Pending'}
                   </div>
                 </div>
-                <div style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: hasApproved ? '#10b981' : '#f59e0b',
-                  background: hasApproved ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                }}>
-                  {hasApproved ? 'Approved' : 'Pending'}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Mint readiness badge */}
-        {canMint ? (
-          <div style={{
-            marginTop: 16,
-            padding: 12,
-            background: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid #10b981',
-            borderRadius: 8,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-          }}>
-            <span style={{ fontSize: 18 }}>&#10003;</span>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>
-              Fully Approved - Ready to Mint!
-            </span>
+              );
+            })}
           </div>
-        ) : mintBlockers.length > 0 && (
-          <div style={{
-            marginTop: 16,
-            padding: 12,
-            background: 'rgba(245, 158, 11, 0.1)',
-            border: '1px solid #f59e0b',
-            borderRadius: 8,
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>
-              Not ready to mint:
+
+          {/* Mint readiness badge */}
+          {canMint ? (
+            <div style={{
+              marginTop: 16,
+              padding: 12,
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid #10b981',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}>
+              <span style={{ fontSize: 18 }}>&#10003;</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>
+                Fully Approved - Ready to Mint!
+              </span>
             </div>
-            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: '#94a3b8' }}>
-              {mintBlockers.slice(0, 3).map((blocker, i) => (
-                <li key={i}>{blocker}</li>
-              ))}
-              {mintBlockers.length > 3 && (
-                <li>...and {mintBlockers.length - 3} more</li>
-              )}
-            </ul>
-          </div>
-        )}
-      </div>
+          ) : mintBlockers.length > 0 && (
+            <div style={{
+              marginTop: 16,
+              padding: 12,
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid #f59e0b',
+              borderRadius: 8,
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>
+                Not ready to mint:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: '#94a3b8' }}>
+                {mintBlockers.slice(0, 3).map((blocker, i) => (
+                  <li key={i}>{blocker}</li>
+                ))}
+                {mintBlockers.length > 3 && (
+                  <li>...and {mintBlockers.length - 3} more</li>
+                )}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Quick Stats - Full width */}
-      <div style={{
-        gridColumn: 'span 12',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 16,
-      }}>
-        <StatCard
-          label="Sections"
-          value={project.sections?.length || 0}
-          icon={<FileText size={20} />}
-        />
-        <StatCard
-          label="Comments"
-          value={project.recent_comments?.length || 0}
-          icon={<MessageSquare size={20} />}
-        />
-        <StatCard
-          label="Team Members"
-          value={project.collaborators?.length || 0}
-          icon={<Users size={20} />}
-        />
-        <StatCard
-          label="Progress"
-          value={`${project.progress_percentage || 0}%`}
-          icon={<Rocket size={20} />}
-        />
-      </div>
+      {/* Quick Stats - Full width (hidden for solo projects) */}
+      {!project.is_solo && (
+        <div style={{
+          gridColumn: 'span 12',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 16,
+        }}>
+          <StatCard
+            label="Sections"
+            value={project.sections?.length || 0}
+            icon={<FileText size={20} />}
+          />
+          <StatCard
+            label="Comments"
+            value={project.recent_comments?.length || 0}
+            icon={<MessageSquare size={20} />}
+          />
+          <StatCard
+            label="Team Members"
+            value={project.collaborators?.length || 0}
+            icon={<Users size={20} />}
+          />
+          <StatCard
+            label="Progress"
+            value={`${project.progress_percentage || 0}%`}
+            icon={<Rocket size={20} />}
+          />
+        </div>
+      )}
     </div>
   );
 }

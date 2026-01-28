@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { CollaborativeProject, collaborationApi } from '../../../services/collaborationApi';
+import { CollaborativeProject, ComicPage, collaborationApi } from '../../../services/collaborationApi';
 import CopyrightPreview from '../../BookEditor/CopyrightPreview';
-import { Check, Clock, PartyPopper, AlertCircle, Eye, DollarSign, PenLine, Lock, Unlock } from 'lucide-react';
+import { Check, Clock, PartyPopper, AlertCircle, Eye, DollarSign, PenLine, Lock, Unlock, BookOpen } from 'lucide-react';
+import { CollaborationPreviewReader } from '../CollaborationPreviewReader';
 
 interface User {
   id: number;
@@ -34,6 +35,11 @@ export default function PublishTab({
   const [editions, setEditions] = useState(project.editions || 1);
   const [authorsNote, setAuthorsNote] = useState(project.authors_note || '');
 
+  // Comic preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [comicPages, setComicPages] = useState<ComicPage[]>([]);
+  const [loadingPages, setLoadingPages] = useState(false);
+
   const collaborators = project.collaborators || [];
   const acceptedCollaborators = collaborators.filter(c => c.status === 'accepted');
   const sections = project.sections || [];
@@ -57,7 +63,11 @@ export default function PublishTab({
     !project.title.startsWith('Collaboration Invite')
   );
 
-  const hasContentSections = sections.length > 0;
+  // For comics: check comicPages instead of sections
+  // (comic pages are loaded separately and stored in comicPages state)
+  const hasContentSections = project.content_type === 'comic'
+    ? comicPages.length > 0
+    : sections.length > 0;
 
   // For books: check text content has at least 50 characters
   const textSections = sections.filter(s => s.section_type === 'text');
@@ -93,41 +103,52 @@ export default function PublishTab({
   );
 
   // Check if all requirements are met
-  const checklistItems = [
+  // Items marked soloRelevant: true are shown for solo projects
+  // Items marked soloRelevant: false are hidden for solo projects (collaboration-specific)
+  const allChecklistItems = [
     {
       id: 'title',
       label: 'Valid project title',
       checked: titleValid,
       hint: !titleValid ? 'Set a title (min 3 characters, not a placeholder)' : undefined,
+      soloRelevant: true,
     },
     {
       id: 'content',
       label: project.content_type === 'book'
         ? 'Book has text content (min 50 characters)'
-        : `${project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} has media files`,
-      checked: hasContentSections && (project.content_type === 'book' ? hasValidTextContent : hasValidMediaContent),
+        : project.content_type === 'comic'
+          ? 'Comic has pages with artwork'
+          : `${project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} has media files`,
+      checked: project.content_type === 'comic'
+        ? hasContentSections  // For comics: just check that pages exist
+        : hasContentSections && (project.content_type === 'book' ? hasValidTextContent : hasValidMediaContent),
       hint: !hasContentSections
-        ? 'Add at least one section'
+        ? (project.content_type === 'comic' ? 'Add at least one page to your comic' : 'Add at least one section')
         : (project.content_type === 'book' && !hasValidTextContent)
           ? 'Add at least 50 characters of text'
           : undefined,
+      soloRelevant: true,
     },
     {
       id: 'price',
       label: 'Price set (greater than $0)',
       checked: priceValid,
       hint: !priceValid ? 'Set a price for your NFT' : undefined,
+      soloRelevant: true,
     },
     {
       id: 'editions',
       label: 'Edition count set',
       checked: editionsValid,
       hint: !editionsValid ? 'Set at least 1 edition' : undefined,
+      soloRelevant: true,
     },
     {
       id: 'splits',
       label: 'Revenue splits total 100%',
       checked: Math.abs(collaborators.reduce((sum, c) => sum + parseFloat(String(c.revenue_percentage)), 0) - 100) < 0.01,
+      soloRelevant: false, // Solo projects always have 100% to the creator
     },
     {
       id: 'tasks',
@@ -136,47 +157,95 @@ export default function PublishTab({
       hint: !allTasksSignedOff
         ? `${incompleteTaskCount} task${incompleteTaskCount === 1 ? '' : 's'} still need sign-off`
         : undefined,
+      soloRelevant: false, // Solo projects don't have contract tasks
     },
     {
       id: 'invited',
       label: 'All collaborators responded',
       checked: collaborators.every(c => c.status === 'accepted' || c.status === 'declined'),
+      soloRelevant: false, // Solo projects don't have collaborator invitations
     },
     {
       id: 'approved',
       label: 'All collaborators approved',
       checked: project.is_fully_approved,
+      soloRelevant: false, // Solo projects don't need team approval
     },
     {
       id: 'no_disputes',
       label: 'No active disputes',
       checked: !project.has_active_dispute,
       hint: project.has_active_dispute ? 'Resolve all disputes before minting' : undefined,
+      soloRelevant: false, // Solo projects don't have disputes
     },
     {
       id: 'no_breaches',
       label: 'No uncured breaches',
       checked: !hasUncuredBreach,
       hint: hasUncuredBreach ? 'All breaches must be cured or resolved' : undefined,
+      soloRelevant: false, // Solo projects don't have breach tracking
     },
     {
       id: 'warranty',
       label: 'All collaborators acknowledged warranty of originality',
       checked: allWarrantiesAcknowledged,
       hint: !allWarrantiesAcknowledged ? 'All collaborators must acknowledge their work is original' : undefined,
+      soloRelevant: false, // Solo projects don't need team warranty acknowledgment
     },
   ];
+
+  // Filter checklist based on whether this is a solo project
+  const checklistItems = allChecklistItems.filter(item =>
+    project.is_solo ? item.soloRelevant : true
+  );
 
   const allChecked = checklistItems.every(item => item.checked);
 
   // Determine current step based on project state
+  // Only auto-navigate to 'share' step when already minted/unpublished
+  // Don't auto-jump to 'mint' - let users navigate through steps manually
   useEffect(() => {
-    if (project.status === 'minted') {
+    if (project.status === 'minted' || project.status === 'unpublished') {
       setStep('share');
-    } else if (project.is_fully_approved) {
-      setStep('mint');
     }
-  }, [project.status, project.is_fully_approved]);
+    // Removed: auto-jump to 'mint' when is_fully_approved
+    // Users should go through customize -> approve -> mint flow
+  }, [project.status]);
+
+  // Fetch comic pages for preview (if this is a comic project)
+  // Pages are associated with issues, not directly with projects,
+  // so we need to first get issues, then get pages for each issue
+  useEffect(() => {
+    if (project.content_type === 'comic') {
+      setLoadingPages(true);
+
+      // First get all issues for this project
+      collaborationApi.getComicIssues({ project: project.id })
+        .then(async (issues) => {
+          if (issues.length === 0) {
+            setComicPages([]);
+            return;
+          }
+
+          // Get pages for each issue and combine them
+          const allPagesPromises = issues.map(issue =>
+            collaborationApi.getComicIssuePages(issue.id)
+          );
+          const pagesArrays = await Promise.all(allPagesPromises);
+          const allPages = pagesArrays.flat();
+
+          // Sort by issue number then page number for consistent ordering
+          allPages.sort((a, b) => {
+            if (a.issue !== b.issue) return (a.issue || 0) - (b.issue || 0);
+            return a.page_number - b.page_number;
+          });
+
+          setComicPages(allPages);
+        })
+        .catch(err => console.error('Failed to load comic pages for preview:', err))
+        .finally(() => setLoadingPages(false));
+    }
+  }, [project.id, project.content_type]);
 
   const handleSaveCustomization = async () => {
     if (!isProjectLead) return;
@@ -346,7 +415,56 @@ export default function PublishTab({
 
       {/* Step Content */}
       {step === 'customize' && (
-        <CustomizeStep
+        <>
+          {/* Preview as Reader button for comics */}
+          {project.content_type === 'comic' && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: 12,
+              padding: 20,
+              marginBottom: 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <BookOpen size={20} style={{ color: '#f59e0b' }} />
+                    Preview Your Comic
+                  </h3>
+                  <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                    See exactly how readers will experience your comic before publishing.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowPreview(true)}
+                  disabled={loadingPages || comicPages.length === 0}
+                  style={{
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 20px',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: loadingPages || comicPages.length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    opacity: loadingPages || comicPages.length === 0 ? 0.6 : 1,
+                  }}
+                >
+                  <Eye size={16} />
+                  {loadingPages ? 'Loading...' : 'Preview as Reader'}
+                </button>
+              </div>
+              {comicPages.length === 0 && !loadingPages && (
+                <p style={{ margin: '12px 0 0', color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>
+                  Add pages to your comic in the Comic tab to enable preview.
+                </p>
+              )}
+            </div>
+          )}
+          <CustomizeStep
           isProjectLead={isProjectLead}
           teaserPercent={teaserPercent}
           setTeaserPercent={setTeaserPercent}
@@ -362,6 +480,7 @@ export default function PublishTab({
           saving={saving}
           authorName={project.created_by_username || 'Creator'}
         />
+        </>
       )}
 
       {step === 'approve' && (
@@ -377,6 +496,7 @@ export default function PublishTab({
           onApproveVersion={handleApproveVersion}
           onApproveRevenue={handleApproveRevenue}
           onNext={() => setStep('mint')}
+          isSolo={project.is_solo}
         />
       )}
 
@@ -394,7 +514,20 @@ export default function PublishTab({
       )}
 
       {step === 'share' && (
-        <ShareStep project={project} />
+        <ShareStep
+          project={project}
+          isProjectLead={isProjectLead}
+          onProjectUpdate={onProjectUpdate}
+        />
+      )}
+
+      {/* Comic Preview Modal */}
+      {showPreview && project.content_type === 'comic' && (
+        <CollaborationPreviewReader
+          pages={comicPages}
+          project={project}
+          onClose={() => setShowPreview(false)}
+        />
       )}
     </div>
   );
@@ -468,21 +601,24 @@ function CustomizeStep({
     }
   };
 
-  // Editions input handling
-  const [editionsInput, setEditionsInput] = React.useState(editions.toString());
+  // Editions input handling - format with commas for display
+  const [editionsInput, setEditionsInput] = React.useState(editions.toLocaleString('en-US'));
 
   const handleEditionsChange = (value: string) => {
-    setEditionsInput(value);
-    const parsed = parseInt(value);
+    // Strip commas for processing, keep only digits
+    const cleanValue = value.replace(/,/g, '');
+    setEditionsInput(cleanValue);
+    const parsed = parseInt(cleanValue);
     if (!isNaN(parsed) && parsed >= 1) {
       setEditions(parsed);
     }
   };
 
   const handleEditionsBlur = () => {
-    const parsed = parseInt(editionsInput);
+    const cleanValue = editionsInput.replace(/,/g, '');
+    const parsed = parseInt(cleanValue);
     if (!isNaN(parsed) && parsed >= 1) {
-      setEditionsInput(parsed.toString());
+      setEditionsInput(parsed.toLocaleString('en-US'));
       setEditions(parsed);
     } else {
       setEditionsInput('1');
@@ -832,12 +968,12 @@ function CustomizeStep({
                 <div>
                   <div style={{ fontSize: 12, color: '#64748b' }}>Potential earnings (if all sell)</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981', marginTop: 4 }}>
-                    ${netRevenue.toFixed(2)}
+                    ${netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>
-                  <div>Gross: ${grossRevenue.toFixed(2)}</div>
-                  <div>Platform fee (10%): -${platformFee.toFixed(2)}</div>
+                  <div>Gross: ${grossRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div>Platform fee (10%): -${platformFee.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
               </div>
             </div>
@@ -968,6 +1104,7 @@ interface ApproveStepProps {
   onApproveVersion: () => void;
   onApproveRevenue: () => void;
   onNext: () => void;
+  isSolo: boolean;
 }
 
 function ApproveStep({
@@ -982,17 +1119,21 @@ function ApproveStep({
   onApproveVersion,
   onApproveRevenue,
   onNext,
+  isSolo,
 }: ApproveStepProps) {
   const userHasApproved = currentUserRole?.approved_current_version && currentUserRole?.approved_revenue_split;
+
+  // For solo projects, we consider it "approved" when the user has confirmed their settings
+  const isReadyToMint = isSolo ? true : project.is_fully_approved;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Status Banner */}
       <div style={{
-        background: project.is_fully_approved
+        background: isReadyToMint
           ? 'rgba(16, 185, 129, 0.1)'
           : 'rgba(245, 158, 11, 0.1)',
-        border: `1px solid ${project.is_fully_approved ? '#10b981' : '#f59e0b'}`,
+        border: `1px solid ${isReadyToMint ? '#10b981' : '#f59e0b'}`,
         borderRadius: 12,
         padding: 20,
         display: 'flex',
@@ -1003,7 +1144,7 @@ function ApproveStep({
           width: 48,
           height: 48,
           borderRadius: '50%',
-          background: project.is_fully_approved
+          background: isReadyToMint
             ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
             : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
           display: 'flex',
@@ -1011,26 +1152,32 @@ function ApproveStep({
           justifyContent: 'center',
           fontSize: 24,
         }}>
-          {project.is_fully_approved ? <Check size={24} /> : <Clock size={24} />}
+          {isReadyToMint ? <Check size={24} /> : <Clock size={24} />}
         </div>
         <div>
           <div style={{
             fontSize: 18,
             fontWeight: 700,
-            color: project.is_fully_approved ? '#10b981' : '#f59e0b',
+            color: isReadyToMint ? '#10b981' : '#f59e0b',
           }}>
-            {project.is_fully_approved ? 'All Approved!' : 'Awaiting Approvals'}
+            {isSolo
+              ? (isReadyToMint ? 'Ready to Mint!' : 'Review Your Content')
+              : (project.is_fully_approved ? 'All Approved!' : 'Awaiting Approvals')}
           </div>
           <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 4 }}>
-            {project.is_fully_approved
-              ? 'All collaborators have approved. Proceed to mint.'
-              : 'Waiting for all collaborators to approve content and revenue split.'}
+            {isSolo
+              ? (isReadyToMint
+                  ? 'Review and confirm your content before minting.'
+                  : 'Review your content and proceed when ready.')
+              : (project.is_fully_approved
+                  ? 'All collaborators have approved. Proceed to mint.'
+                  : 'Waiting for all collaborators to approve content and revenue split.')}
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        {/* Your Approval Actions */}
+      <div style={{ display: 'grid', gridTemplateColumns: isSolo ? '1fr' : '1fr 1fr', gap: 20 }}>
+        {/* Your Approval Actions (simplified for solo projects) */}
         <div style={{
           background: 'var(--panel)',
           border: '1px solid var(--panel-border)',
@@ -1038,10 +1185,28 @@ function ApproveStep({
           padding: 24,
         }}>
           <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 16 }}>
-            Your Approval
+            {isSolo ? 'Confirm Your Content' : 'Your Approval'}
           </h3>
 
-          {userHasApproved ? (
+          {isSolo ? (
+            // Solo project: simplified confirmation view
+            <div style={{
+              textAlign: 'center',
+              padding: 24,
+              background: 'rgba(16, 185, 129, 0.1)',
+              borderRadius: 8,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+                <Check size={48} style={{ color: '#10b981' }} />
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#10b981' }}>
+                Your content is ready to mint
+              </div>
+              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8 }}>
+                ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x {editions.toLocaleString('en-US')} editions = ${(price * editions * 0.9).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} net (after 10% platform fee)
+              </div>
+            </div>
+          ) : userHasApproved ? (
             <div style={{
               textAlign: 'center',
               padding: 24,
@@ -1090,8 +1255,8 @@ function ApproveStep({
                   Revenue Split Approval
                 </div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
-                  ${price.toFixed(2)} x {editions} editions = ${(price * editions).toFixed(2)} gross.
-                  Your share: {currentUserRole?.revenue_percentage || 0}% = ${userEstimatedEarnings.toFixed(2)} (after 10% platform fee)
+                  ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x {editions.toLocaleString('en-US')} editions = ${(price * editions).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gross.
+                  Your share: {currentUserRole?.revenue_percentage || 0}% = ${userEstimatedEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (after 10% platform fee)
                 </div>
                 <button
                   onClick={onApproveRevenue}
@@ -1117,87 +1282,89 @@ function ApproveStep({
           )}
         </div>
 
-        {/* Approval Progress */}
-        <div style={{
-          background: 'var(--panel)',
-          border: '1px solid var(--panel-border)',
-          borderRadius: 12,
-          padding: 24,
-        }}>
-          <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 16 }}>
-            Team Approval Status
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {acceptedCollaborators.map((collab) => {
-              const hasApproved = collab.approved_current_version && collab.approved_revenue_split;
-              return (
-                <div
-                  key={collab.id}
-                  style={{
-                    padding: 12,
-                    background: hasApproved ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg)',
-                    border: `1px solid ${hasApproved ? '#10b981' : 'var(--panel-border)'}`,
-                    borderRadius: 8,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
-                      background: hasApproved
-                        ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                        : 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+        {/* Team Approval Status (hidden for solo projects) */}
+        {!isSolo && (
+          <div style={{
+            background: 'var(--panel)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: 12,
+            padding: 24,
+          }}>
+            <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 16 }}>
+              Team Approval Status
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {acceptedCollaborators.map((collab) => {
+                const hasApproved = collab.approved_current_version && collab.approved_revenue_split;
+                return (
+                  <div
+                    key={collab.id}
+                    style={{
+                      padding: 12,
+                      background: hasApproved ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg)',
+                      border: `1px solid ${hasApproved ? '#10b981' : 'var(--panel-border)'}`,
+                      borderRadius: 8,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: 12,
-                      fontWeight: 600,
-                    }}>
-                      {hasApproved ? '✓' : collab.username.charAt(0).toUpperCase()}
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: hasApproved
+                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                          : 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}>
+                        {hasApproved ? '✓' : collab.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                          @{collab.username}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                          {collab.role} - {collab.revenue_percentage}%
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                        @{collab.username}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                        {collab.role} - {collab.revenue_percentage}%
-                      </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <span style={{
+                        fontSize: 10,
+                        padding: '3px 6px',
+                        borderRadius: 4,
+                        background: collab.approved_current_version ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                        color: collab.approved_current_version ? '#10b981' : '#64748b',
+                      }}>
+                        {collab.approved_current_version ? '✓' : '○'} Content
+                      </span>
+                      <span style={{
+                        fontSize: 10,
+                        padding: '3px 6px',
+                        borderRadius: 4,
+                        background: collab.approved_revenue_split ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                        color: collab.approved_revenue_split ? '#10b981' : '#64748b',
+                      }}>
+                        {collab.approved_revenue_split ? '✓' : '○'} Revenue
+                      </span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <span style={{
-                      fontSize: 10,
-                      padding: '3px 6px',
-                      borderRadius: 4,
-                      background: collab.approved_current_version ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
-                      color: collab.approved_current_version ? '#10b981' : '#64748b',
-                    }}>
-                      {collab.approved_current_version ? '✓' : '○'} Content
-                    </span>
-                    <span style={{
-                      fontSize: 10,
-                      padding: '3px 6px',
-                      borderRadius: 4,
-                      background: collab.approved_revenue_split ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
-                      color: collab.approved_revenue_split ? '#10b981' : '#64748b',
-                    }}>
-                      {collab.approved_revenue_split ? '✓' : '○'} Revenue
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Next Button */}
-      {project.is_fully_approved && (
+      {/* Next Button - always show for solo projects, show when approved for collaborative */}
+      {(isSolo || project.is_fully_approved) && (
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={onNext}
@@ -1212,7 +1379,7 @@ function ApproveStep({
               cursor: 'pointer',
             }}
           >
-            Next
+            {isSolo ? 'Continue to Mint' : 'Next'}
           </button>
         </div>
       )}
@@ -1314,23 +1481,23 @@ function MintStep({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Price per edition:</span>
-            <span style={{ color: 'var(--text)' }}>${price.toFixed(2)}</span>
+            <span style={{ color: 'var(--text)' }}>${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Editions:</span>
-            <span style={{ color: 'var(--text)' }}>{editions}</span>
+            <span style={{ color: 'var(--text)' }}>{editions.toLocaleString('en-US')}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Gross Revenue (if all sold):</span>
-            <span style={{ color: 'var(--text)' }}>${gross.toFixed(2)}</span>
+            <span style={{ color: 'var(--text)' }}>${gross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Platform Fee (10%):</span>
-            <span style={{ color: '#ef4444' }}>-${platformFee.toFixed(2)}</span>
+            <span style={{ color: '#ef4444' }}>-${platformFee.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--panel-border)', paddingTop: 8 }}>
             <span style={{ fontWeight: 600 }}>Creator Pool:</span>
-            <span style={{ color: '#10b981', fontWeight: 600 }}>${net.toFixed(2)}</span>
+            <span style={{ color: '#10b981', fontWeight: 600 }}>${net.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </div>
         </div>
       </div>
@@ -1402,16 +1569,59 @@ function MintStep({
   );
 }
 
-function ShareStep({ project }: { project: CollaborativeProject }) {
-  // Use /collaborations/ route since collaborative projects don't have a Content entry yet
+interface ShareStepProps {
+  project: CollaborativeProject;
+  isProjectLead: boolean;
+  onProjectUpdate?: (project: CollaborativeProject) => void;
+}
+
+function ShareStep({ project, isProjectLead, onProjectUpdate }: ShareStepProps) {
+  // Use /studio/ route since projects don't have a Content entry yet
   // TODO: Once backend creates Content on mint, switch to /content/${content_id}
-  const projectUrl = `${window.location.origin}/collaborations/${project.id}`;
+  const projectUrl = `${window.location.origin}/studio/${project.id}`;
   const [copied, setCopied] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
+  const [republishing, setRepublishing] = useState(false);
+  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
+  const [showRepublishConfirm, setShowRepublishConfirm] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  const isUnpublished = project.status === 'unpublished';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(projectUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleUnpublish = async () => {
+    setUnpublishing(true);
+    setActionError('');
+    try {
+      await collaborationApi.unpublishProject(project.id);
+      const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+      onProjectUpdate?.(updatedProject);
+      setShowUnpublishConfirm(false);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to unpublish');
+    } finally {
+      setUnpublishing(false);
+    }
+  };
+
+  const handleRepublish = async () => {
+    setRepublishing(true);
+    setActionError('');
+    try {
+      await collaborationApi.republishProject(project.id);
+      const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+      onProjectUpdate?.(updatedProject);
+      setShowRepublishConfirm(false);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to republish');
+    } finally {
+      setRepublishing(false);
+    }
   };
 
   return (
@@ -1423,73 +1633,316 @@ function ShareStep({ project }: { project: CollaborativeProject }) {
       textAlign: 'center',
     }}>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-        <PartyPopper size={64} style={{ color: '#f59e0b' }} />
+        <PartyPopper size={64} style={{ color: isUnpublished ? '#64748b' : '#f59e0b' }} />
       </div>
       <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 24 }}>
-        Successfully Minted!
+        {isUnpublished ? 'Project Unpublished' : 'Successfully Minted!'}
       </h3>
       <p style={{ fontSize: 14, color: '#94a3b8', marginBottom: 24 }}>
-        Your collaborative NFT is now live. Share it with the world!
+        {isUnpublished
+          ? 'This project has been removed from the marketplace. Existing buyers retain access.'
+          : 'Your collaborative NFT is now live. Share it with the world!'}
       </p>
 
-      <div style={{
-        display: 'flex',
-        gap: 8,
-        maxWidth: 500,
-        margin: '0 auto 24px',
-      }}>
-        <input
-          value={projectUrl}
-          readOnly
-          style={{
-            flex: 1,
-            padding: '10px 14px',
-            background: 'var(--bg)',
-            border: '1px solid var(--panel-border)',
-            borderRadius: 8,
-            color: 'var(--text)',
-            fontSize: 13,
-          }}
-        />
-        <button
-          onClick={handleCopy}
-          style={{
-            padding: '10px 20px',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-            border: 'none',
-            borderRadius: 8,
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-            fontSize: 13,
-          }}
-        >
-          {copied ? 'Copied!' : 'Copy Link'}
-        </button>
-      </div>
+      {actionError && (
+        <div style={{
+          padding: 12,
+          background: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid #ef4444',
+          borderRadius: 8,
+          color: '#ef4444',
+          fontSize: 13,
+          marginBottom: 16,
+        }}>
+          {actionError}
+        </div>
+      )}
 
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        gap: 16,
-      }}>
-        <a
-          href={`https://twitter.com/intent/tweet?text=Check out our collaborative NFT!&url=${encodeURIComponent(projectUrl)}`}
-          target="_blank"
-          rel="noreferrer"
+      {!isUnpublished && (
+        <>
+          <div style={{
+            display: 'flex',
+            gap: 8,
+            maxWidth: 500,
+            margin: '0 auto 24px',
+          }}>
+            <input
+              value={projectUrl}
+              readOnly
+              style={{
+                flex: 1,
+                padding: '10px 14px',
+                background: 'var(--bg)',
+                border: '1px solid var(--panel-border)',
+                borderRadius: 8,
+                color: 'var(--text)',
+                fontSize: 13,
+              }}
+            />
+            <button
+              onClick={handleCopy}
+              style={{
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                border: 'none',
+                borderRadius: 8,
+                color: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: 13,
+              }}
+            >
+              {copied ? 'Copied!' : 'Copy Link'}
+            </button>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 16,
+            marginBottom: 32,
+          }}>
+            <a
+              href={`https://twitter.com/intent/tweet?text=Check out our collaborative NFT!&url=${encodeURIComponent(projectUrl)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                padding: '10px 20px',
+                background: '#1DA1F2',
+                borderRadius: 8,
+                color: '#fff',
+                fontWeight: 600,
+                textDecoration: 'none',
+                fontSize: 13,
+              }}
+            >
+              Share on X
+            </a>
+          </div>
+        </>
+      )}
+
+      {/* Unpublish/Republish Actions (Project Lead Only) */}
+      {isProjectLead && (
+        <div style={{
+          borderTop: '1px solid var(--panel-border)',
+          paddingTop: 24,
+          marginTop: isUnpublished ? 0 : 8,
+        }}>
+          {isUnpublished ? (
+            <button
+              onClick={() => setShowRepublishConfirm(true)}
+              disabled={republishing}
+              style={{
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: 'none',
+                borderRadius: 8,
+                color: '#fff',
+                fontWeight: 600,
+                cursor: republishing ? 'wait' : 'pointer',
+                fontSize: 14,
+                opacity: republishing ? 0.7 : 1,
+              }}
+            >
+              {republishing ? 'Republishing...' : 'Re-list on Marketplace'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowUnpublishConfirm(true)}
+              disabled={unpublishing}
+              style={{
+                padding: '10px 20px',
+                background: 'transparent',
+                border: '1px solid #ef4444',
+                borderRadius: 8,
+                color: '#ef4444',
+                fontWeight: 600,
+                cursor: unpublishing ? 'wait' : 'pointer',
+                fontSize: 13,
+                opacity: unpublishing ? 0.7 : 1,
+              }}
+            >
+              {unpublishing ? 'Unpublishing...' : 'Remove from Marketplace'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Unpublish Confirmation Modal */}
+      {showUnpublishConfirm && (
+        <div
           style={{
-            padding: '10px 20px',
-            background: '#1DA1F2',
-            borderRadius: 8,
-            color: '#fff',
-            fontWeight: 600,
-            textDecoration: 'none',
-            fontSize: 13,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
           }}
+          onClick={() => setShowUnpublishConfirm(false)}
         >
-          Share on X
-        </a>
-      </div>
+          <div
+            style={{
+              background: 'var(--panel)',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 400,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 18,
+              fontWeight: 700,
+              color: 'var(--text)',
+            }}>
+              Remove from Marketplace?
+            </h3>
+            <p style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 14,
+              color: '#94a3b8',
+              lineHeight: 1.5,
+            }}>
+              This will remove your content from the marketplace. No new purchases can be made.
+            </p>
+            <p style={{
+              margin: 0,
+              marginBottom: 24,
+              fontSize: 13,
+              color: '#64748b',
+              lineHeight: 1.5,
+            }}>
+              Existing buyers will keep access to their purchased content. You can re-list this content later.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowUnpublishConfirm(false)}
+                disabled={unpublishing}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: 'var(--text)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnpublish}
+                disabled={unpublishing}
+                style={{
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: unpublishing ? 'wait' : 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                {unpublishing ? 'Removing...' : 'Yes, Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Republish Confirmation Modal */}
+      {showRepublishConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowRepublishConfirm(false)}
+        >
+          <div
+            style={{
+              background: 'var(--panel)',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 400,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 18,
+              fontWeight: 700,
+              color: 'var(--text)',
+            }}>
+              Re-list on Marketplace?
+            </h3>
+            <p style={{
+              margin: 0,
+              marginBottom: 24,
+              fontSize: 14,
+              color: '#94a3b8',
+              lineHeight: 1.5,
+            }}>
+              This will make your content available for purchase again on the marketplace.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowRepublishConfirm(false)}
+                disabled={republishing}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: 'var(--text)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRepublish}
+                disabled={republishing}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: republishing ? 'wait' : 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                {republishing ? 'Listing...' : 'Yes, Re-list'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

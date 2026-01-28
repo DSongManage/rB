@@ -187,7 +187,7 @@ export default function SearchPage() {
         </div>
       ) : results.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
-          {query ? `No results found for "${query}"` : 'Browse content using the filters above'}
+          {query ? `No results found for "${query}"` : 'Browse comics using the filters above'}
         </div>
       ) : (
         <div className="yt-grid">

@@ -1,6 +1,6 @@
 # renaissBlock - Development Changelog
 
-A decentralized platform for publishing, reading, and minting books as NFTs on Solana.
+A platform connecting writers and artists to create comics and manga with trustless revenue splits on Solana.
 
 ---
 
@@ -12,17 +12,17 @@ A decentralized platform for publishing, reading, and minting books as NFTs on S
 
 ### ✨ Core Features
 
-**Book Publishing & Reading**
-- Full-featured book editor with chapter management
-- Rich text editing with formatting support
-- Book cover art upload and management
-- Reading interface with text wrapping and navigation
+**Comic Creation & Publishing**
+- Chapter-based editor for visual storytelling
+- Support for writer-artist collaboration
+- Cover art upload and management
+- Reading interface optimized for visual content
 - Progress tracking and library management
-- Book preview before publishing
+- Preview before publishing
 - Published/unpublished status management
 
 **Blockchain Integration**
-- Solana NFT minting for published books (Devnet for beta)
+- Solana NFT minting for published comics (Devnet for beta)
 - Web3Auth integration for wallet-less authentication
 - Platform wallet for fee collection (10% platform fee)
 - Metadata stored on-chain using Metaplex standard
@@ -34,10 +34,10 @@ A decentralized platform for publishing, reading, and minting books as NFTs on S
 - Fiat-to-credit conversion
 - Transaction history and balance tracking
 
-**Collaboration System**
-- Multi-author collaboration on books
+**Writer-Artist Collaboration**
+- Team collaboration on comics
 - Real-time notifications for collaboration events
-- Invite system for adding co-authors
+- Invite system for adding writers and artists
 - Role-based permissions (owner/collaborator)
 - Collaborative NFT minting with profit sharing
 - Comment system with reactions
@@ -121,10 +121,10 @@ A decentralized platform for publishing, reading, and minting books as NFTs on S
 - Mobile app (React Native)
 - Enhanced discovery and recommendation system
 - Reader comments and ratings
-- Author analytics dashboard
+- Creator analytics dashboard
 - Secondary marketplace for NFTs
 - Royalty distribution system
-- IPFS storage for book content
+- IPFS storage for comic content
 
 ---
 

@@ -107,7 +107,7 @@ type SalesAnalytics = {
 type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics' | 'following';
 type ContentFilterType = 'all' | 'book' | 'comic' | 'art';
 // Note: 'music' and 'film' are coming soon - not included in MVP
-type StatusFilterType = 'all' | 'published' | 'draft';
+type StatusFilterType = 'all' | 'published' | 'draft' | 'unpublished';
 
 // Book project with chapters (from /api/book-projects/my-published/)
 interface BookChapter {
@@ -181,7 +181,7 @@ export default function ProfilePageRedesigned() {
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all');
   const [inventory, setInventory] = useState<any[]>([]);
   const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
-  const [soloComicProjects, setSoloComicProjects] = useState<CollaborativeProjectListItem[]>([]);
+  const [soloProjects, setSoloProjects] = useState<CollaborativeProjectListItem[]>([]);
   const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
@@ -513,14 +513,14 @@ export default function ProfilePageRedesigned() {
       })
       .catch(() => setBookProjects([]));
 
-    // Fetch solo comic projects (drafts created in solo studio)
+    // Fetch solo projects (drafts created in solo studio - all content types)
     collaborationApi.getCollaborativeProjects()
       .then(projects => {
-        // Filter to only solo comic projects
-        const soloComics = projects.filter((p: any) => p.is_solo && p.content_type === 'comic');
-        setSoloComicProjects(soloComics);
+        // Filter to only solo projects (1 collaborator or marked as solo)
+        const solo = projects.filter((p: any) => p.is_solo);
+        setSoloProjects(solo);
       })
-      .catch(() => setSoloComicProjects([]));
+      .catch(() => setSoloProjects([]));
   }, [status]);
 
   const onAvatarClick = () => {
@@ -1607,7 +1607,7 @@ export default function ProfilePageRedesigned() {
         <Tab
           icon={<BookOpen size={18} />}
           label="My Content"
-          count={inventory.length + bookProjects.length + soloComicProjects.filter(c => c.status === 'draft').length}
+          count={inventory.length + bookProjects.length + soloProjects.filter(c => c.status === 'draft').length}
           active={activeTab === 'content'}
           onClick={() => setActiveTab('content')}
         />
@@ -1640,7 +1640,7 @@ export default function ProfilePageRedesigned() {
       </div>
 
       {/* Content Type Sub-filters + Create Button */}
-      {activeTab === 'content' && (inventory.length > 0 || bookProjects.length > 0 || soloComicProjects.length > 0) && (
+      {activeTab === 'content' && (inventory.length > 0 || bookProjects.length > 0 || soloProjects.length > 0) && (
         <div style={{
           display: 'flex',
           flexDirection: isPhone ? 'column' : 'row',
@@ -1660,23 +1660,26 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="All"
               count={
-                // inventory includes minted comics, so only count draft comics from soloComicProjects
-                inventory.length + bookProjects.length + soloComicProjects.filter(c => c.status === 'draft').length
+                // inventory + bookProjects + solo projects (draft only, minted shown via inventory)
+                inventory.length + bookProjects.length + soloProjects.filter(p => p.status === 'draft').length
               }
               active={contentFilter === 'all'}
               onClick={() => setContentFilter('all')}
             />
             <FilterChip
               label="Books"
-              count={bookProjects.length}
+              count={
+                bookProjects.length +
+                soloProjects.filter(p => p.content_type === 'book' && p.status === 'draft').length
+              }
               active={contentFilter === 'book'}
               onClick={() => setContentFilter('book')}
             />
             <FilterChip
               label="Comics"
               count={
-                // Drafts from soloComicProjects + published from inventory
-                soloComicProjects.filter(c => c.status === 'draft').length +
+                // Draft comics from soloProjects + published from inventory
+                soloProjects.filter(p => p.content_type === 'comic' && p.status === 'draft').length +
                 inventory.filter(i => i.content_type === 'comic' && i.inventory_status === 'minted').length
               }
               active={contentFilter === 'comic'}
@@ -1684,7 +1687,10 @@ export default function ProfilePageRedesigned() {
             />
             <FilterChip
               label="Art"
-              count={inventory.filter(i => i.content_type === 'art').length}
+              count={
+                inventory.filter(i => i.content_type === 'art').length +
+                soloProjects.filter(p => p.content_type === 'art' && p.status === 'draft').length
+              }
               active={contentFilter === 'art'}
               onClick={() => setContentFilter('art')}
             />
@@ -1693,7 +1699,7 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="Published"
               count={
-                // Published comics are in inventory (Content records), not soloComicProjects
+                // Published comics are in inventory (Content records), not soloProjects
                 inventory.filter(i => i.inventory_status === 'minted').length +
                 bookProjects.filter(b => b.published_chapters > 0 || b.is_published).length
               }
@@ -1703,13 +1709,21 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="Drafts"
               count={
-                // Draft comics are in soloComicProjects, not inventory
-                inventory.filter(i => i.inventory_status === 'draft' && i.content_type !== 'comic').length +
+                // Draft content from inventory (non-solo) + draft book projects + all draft solo projects
+                inventory.filter(i => i.inventory_status === 'draft').length +
                 bookProjects.filter(b => b.published_chapters === 0 && !b.is_published).length +
-                soloComicProjects.filter(c => c.status === 'draft').length
+                soloProjects.filter(p => p.status === 'draft').length
               }
               active={statusFilter === 'draft'}
               onClick={() => setStatusFilter(statusFilter === 'draft' ? 'all' : 'draft')}
+            />
+            <FilterChip
+              label="Unpublished"
+              count={
+                inventory.filter(i => i.inventory_status === 'delisted').length
+              }
+              active={statusFilter === 'unpublished'}
+              onClick={() => setStatusFilter(statusFilter === 'unpublished' ? 'all' : 'unpublished')}
             />
           </div>
           <button
@@ -1747,7 +1761,7 @@ export default function ProfilePageRedesigned() {
       {/* TAB CONTENT */}
       {activeTab === 'content' && (
         <div>
-          {inventory.length === 0 && bookProjects.length === 0 && soloComicProjects.length === 0 ? (
+          {inventory.length === 0 && bookProjects.length === 0 && soloProjects.length === 0 ? (
             <EmptyState
               icon={<FileText size={64} />}
               title="No content yet"
@@ -1759,7 +1773,7 @@ export default function ProfilePageRedesigned() {
             (() => {
               // Filter non-book inventory based on content type filter
               // Note: music and film are coming soon, only book and art available
-              // Comics: drafts shown via soloComicProjects, published shown via inventory
+              // Comics: drafts shown via soloProjects, published shown via inventory
               let filteredInventory = contentFilter === 'all'
                 ? inventory
                 : contentFilter === 'book'
@@ -1773,6 +1787,8 @@ export default function ProfilePageRedesigned() {
                 filteredInventory = filteredInventory.filter(i => i.inventory_status === 'minted');
               } else if (statusFilter === 'draft') {
                 filteredInventory = filteredInventory.filter(i => i.inventory_status === 'draft');
+              } else if (statusFilter === 'unpublished') {
+                filteredInventory = filteredInventory.filter(i => i.inventory_status === 'delisted');
               }
 
               // Filter book projects by content type
@@ -1787,21 +1803,24 @@ export default function ProfilePageRedesigned() {
                 filteredBooks = filteredBooks.filter(b => b.published_chapters === 0 && !b.is_published);
               }
 
-              // Filter solo comic projects by content type
-              // NOTE: Only show DRAFT comics from soloComicProjects.
-              // Published/minted comics are shown via inventory (Content records) to avoid duplication.
-              let filteredComics = contentFilter === 'all' || contentFilter === 'comic'
-                ? soloComicProjects.filter(c => c.status === 'draft')
-                : [];
+              // Filter solo projects by content type
+              // NOTE: Only show DRAFT projects from soloProjects.
+              // Published/minted content is shown via inventory (Content records) to avoid duplication.
+              let filteredSoloProjects = soloProjects.filter(p => p.status === 'draft');
 
-              // Apply status filter to comics (only drafts remain in filteredComics)
-              if (statusFilter === 'published') {
-                // Published comics come from inventory, not soloComicProjects
-                filteredComics = [];
+              // Apply content type filter
+              if (contentFilter !== 'all') {
+                filteredSoloProjects = filteredSoloProjects.filter(p => p.content_type === contentFilter);
+              }
+
+              // Apply status filter to solo projects (only drafts remain)
+              if (statusFilter === 'published' || statusFilter === 'unpublished') {
+                // Published/unpublished content comes from inventory, not soloProjects
+                filteredSoloProjects = [];
               }
               // statusFilter === 'draft' already handled above (only drafts included)
 
-              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0 || filteredComics.length > 0;
+              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0 || filteredSoloProjects.length > 0;
 
               const filterLabel = statusFilter !== 'all'
                 ? `${statusFilter} ${contentFilter}`
@@ -1841,10 +1860,10 @@ export default function ProfilePageRedesigned() {
                       onEditBook={() => navigate(`/studio?editBookProject=${book.id}`)}
                     />
                   ))}
-                  {/* Render solo comic projects */}
-                  {filteredComics.map((comic) => {
+                  {/* Render solo projects (all content types) */}
+                  {filteredSoloProjects.map((project) => {
                     // Format date safely
-                    const dateStr = comic.updated_at || comic.created_at;
+                    const dateStr = project.updated_at || project.created_at;
                     let formattedDate = 'Recently';
                     if (dateStr) {
                       const date = new Date(dateStr);
@@ -1853,9 +1872,25 @@ export default function ProfilePageRedesigned() {
                       }
                     }
 
+                    // Get the appropriate icon for the content type
+                    const getIcon = () => {
+                      switch (project.content_type) {
+                        case 'comic': return <Palette size={48} />;
+                        case 'book': return <BookOpen size={48} />;
+                        case 'art': return <Palette size={48} />;
+                        default: return <FileText size={48} />;
+                      }
+                    };
+
+                    // Get the edit URL - solo projects are CollaborativeProject records
+                    // so they should navigate to the collaboration project page
+                    const getEditUrl = () => {
+                      return `/studio/${project.id}`;
+                    };
+
                     return (
                       <div
-                        key={`comic-${comic.id}`}
+                        key={`solo-${project.id}`}
                         style={{
                           background: 'var(--bg-card)',
                           borderRadius: 12,
@@ -1864,7 +1899,7 @@ export default function ProfilePageRedesigned() {
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                         }}
-                        onClick={() => navigate(`/studio?mode=solo&type=comic&projectId=${comic.id}`)}
+                        onClick={() => navigate(getEditUrl())}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.borderColor = '#f59e0b';
                           e.currentTarget.style.transform = 'translateY(-2px)';
@@ -1874,7 +1909,7 @@ export default function ProfilePageRedesigned() {
                           e.currentTarget.style.transform = 'translateY(0)';
                         }}
                       >
-                        {/* Comic thumbnail - show cover image if available */}
+                        {/* Thumbnail - show cover image if available */}
                         <div style={{
                           height: 160,
                           background: 'var(--bg-card)',
@@ -1884,10 +1919,10 @@ export default function ProfilePageRedesigned() {
                           color: 'var(--subtle)',
                           overflow: 'hidden',
                         }}>
-                          {comic.cover_image ? (
+                          {project.cover_image ? (
                             <img
-                              src={comic.cover_image}
-                              alt={comic.title}
+                              src={project.cover_image}
+                              alt={project.title}
                               style={{
                                 width: '100%',
                                 height: '100%',
@@ -1895,7 +1930,7 @@ export default function ProfilePageRedesigned() {
                               }}
                             />
                           ) : (
-                            <Palette size={48} />
+                            getIcon()
                           )}
                         </div>
                         <div style={{ padding: 16 }}>
@@ -1906,7 +1941,7 @@ export default function ProfilePageRedesigned() {
                             marginBottom: 8,
                           }}>
                             <span style={{
-                              background: comic.status === 'draft' ? 'var(--subtle)' : '#22c55e',
+                              background: project.status === 'draft' ? 'var(--subtle)' : '#22c55e',
                               color: '#fff',
                               fontSize: 10,
                               fontWeight: 700,
@@ -1914,7 +1949,7 @@ export default function ProfilePageRedesigned() {
                               borderRadius: 4,
                               textTransform: 'uppercase',
                             }}>
-                              {comic.status}
+                              {project.status}
                             </span>
                             <span style={{
                               background: '#f59e0b20',
@@ -1923,8 +1958,9 @@ export default function ProfilePageRedesigned() {
                               fontWeight: 700,
                               padding: '2px 6px',
                               borderRadius: 4,
+                              textTransform: 'uppercase',
                             }}>
-                              COMIC
+                              {project.content_type}
                             </span>
                           </div>
                           <h4 style={{
@@ -1934,7 +1970,7 @@ export default function ProfilePageRedesigned() {
                             color: '#e2e8f0',
                             marginBottom: 4,
                           }}>
-                            {comic.title}
+                            {project.title}
                           </h4>
                           <div style={{ fontSize: 12, color: 'var(--subtle)' }}>
                             Updated {formattedDate}
@@ -1952,7 +1988,7 @@ export default function ProfilePageRedesigned() {
                       onEdit={() => {
                         // Comics with a source project should go to the collaborative project editor
                         if (item.content_type === 'comic' && item.source_project_id) {
-                          navigate(`/collaborations/${item.source_project_id}?tab=content`);
+                          navigate(`/studio/${item.source_project_id}?tab=content`);
                         } else {
                           navigate(`/studio?editContent=${item.id}`);
                         }
@@ -2186,7 +2222,7 @@ export default function ProfilePageRedesigned() {
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                     }}
-                    onClick={() => navigate(`/collaborations/${project.id}`)}
+                    onClick={() => navigate(`/studio/${project.id}`)}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <div style={{
@@ -3360,7 +3396,7 @@ function BookProjectCard({
 
             {expanded && (
               <div style={{
-                background: '#0d1117',
+                background: 'var(--bg-input)',
                 borderRadius: 8,
                 padding: 8,
                 marginBottom: 12,
@@ -3376,14 +3412,14 @@ function BookProjectCard({
                       justifyContent: 'space-between',
                       padding: '8px 10px',
                       borderRadius: 6,
-                      background: index % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
+                      background: index % 2 === 0 ? 'transparent' : 'var(--nav-hover-bg)',
                       opacity: chapter.is_published ? 1 : 0.6,
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         fontSize: 13,
-                        color: '#e2e8f0',
+                        color: 'var(--text)',
                         fontWeight: 500,
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
@@ -3489,6 +3525,8 @@ function BookProjectCard({
 // Content Card Component
 function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: () => void; onEdit: () => void; onManage?: () => void }) {
   const isPublished = item.inventory_status === 'minted';
+  const isUnpublished = item.inventory_status === 'delisted';
+  const isDraft = item.inventory_status === 'draft';
   // Published non-book/non-comic content (art, music, film) should show Manage instead of Edit
   // Comics and books need Edit button so creators can add new issues/chapters
   const isPublishedNonBook = isPublished && item.content_type !== 'book' && item.content_type !== 'comic';
@@ -3514,8 +3552,8 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
         e.currentTarget.style.borderColor = 'var(--panel-border-strong)';
       }}
     >
-      {/* Draft Badge */}
-      {!isPublished && (
+      {/* Status Badge */}
+      {isDraft && (
         <div style={{
           position: 'absolute',
           top: 12,
@@ -3533,10 +3571,28 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
           Draft
         </div>
       )}
+      {isUnpublished && (
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          background: 'rgba(245, 158, 11, 0.9)',
+          color: '#000',
+          padding: '4px 10px',
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          zIndex: 1,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          Unpublished
+        </div>
+      )}
 
       {/* Cover Image */}
       <div
-        onClick={isPublished ? onView : onEdit}
+        onClick={isPublished || isUnpublished ? onView : onEdit}
         style={{
           width: '100%',
           paddingTop: '56.25%', // 16:9 ratio
@@ -3544,7 +3600,7 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           position: 'relative',
-          opacity: isPublished ? 1 : 0.7,
+          opacity: isDraft ? 0.7 : 1,
         }}
       >
         {!item.teaser_link && (
@@ -3666,12 +3722,14 @@ function ContentCard({ item, onView, onEdit, onManage }: { item: any; onView: ()
               Edit
             </button>
           )}
-          {isPublished && (
+          {(isPublished || isUnpublished) && (
             <button
               onClick={onView}
               style={{
                 flex: 1,
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                background: isUnpublished
+                  ? 'linear-gradient(135deg, #78716c 0%, #57534e 100%)'
+                  : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                 border: 'none',
                 color: '#fff',
                 padding: '8px 16px',

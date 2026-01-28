@@ -7,13 +7,14 @@ import TeamTab from '../components/collaboration/tabs/TeamTab';
 import ActivityTab from '../components/collaboration/tabs/ActivityTab';
 import PublishTab from '../components/collaboration/tabs/PublishTab';
 import ContentTab from '../components/collaboration/tabs/ContentTab';
+import CollaborativeScriptEditor from '../components/collaboration/CollaborativeScriptEditor';
 import {
   collaborationApi,
   CollaborativeProject,
   ProjectSection,
   ProjectComment,
 } from '../services/collaborationApi';
-import { AlertTriangle, Pencil } from 'lucide-react';
+import { AlertTriangle, Pencil, Trash2 } from 'lucide-react';
 import { useMobile } from '../hooks/useMobile';
 
 // Simple User interface - in real app, get from auth context
@@ -38,6 +39,10 @@ export default function CollaborativeProjectPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const [savingTitle, setSavingTitle] = useState(false);
+
+  // Delete project state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
 
   // Tab state from URL or default to 'overview'
   const activeTab = (searchParams.get('tab') as TabId) || 'overview';
@@ -146,6 +151,21 @@ export default function CollaborativeProjectPage() {
     setEditedTitle('');
   };
 
+  // Handle project deletion
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    setDeletingProject(true);
+    try {
+      await collaborationApi.deleteCollaborativeProject(project.id);
+      navigate('/profile');
+    } catch (error: any) {
+      alert(error.message || 'Failed to delete project');
+    } finally {
+      setDeletingProject(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   // Check if title is a placeholder
   const isPlaceholderTitle = project?.title?.startsWith('Collaboration Invite');
 
@@ -199,7 +219,7 @@ export default function CollaborativeProjectPage() {
               fontSize: 14,
             }}
           >
-            Back to Dashboard
+            Back to Profile
           </button>
         </div>
       </div>
@@ -248,7 +268,7 @@ export default function CollaborativeProjectPage() {
               marginBottom: isMobile ? 8 : 12,
             }}
           >
-            &larr; {isPhone ? 'Back' : 'Back to Dashboard'}
+            &larr; {isPhone ? 'Back' : 'Back to Profile'}
           </button>
           {/* Editable Title */}
           {isEditingTitle ? (
@@ -331,6 +351,23 @@ export default function CollaborativeProjectPage() {
                   <Pencil size={16} />
                 </button>
               )}
+              {project.created_by === currentUser.id &&
+               ['draft', 'active', 'unpublished', 'cancelled'].includes(project.status) && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  title="Delete project"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 4,
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    color: '#ef4444',
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
           )}
 
@@ -399,6 +436,8 @@ export default function CollaborativeProjectPage() {
             team: pendingApprovals,
           }}
           isFullyApproved={project.is_fully_approved}
+          contentType={project.content_type as 'comic' | 'book' | 'art'}
+          isSolo={project.is_solo}
         />
       </div>
 
@@ -406,6 +445,14 @@ export default function CollaborativeProjectPage() {
       <div style={{ minHeight: '60vh' }}>
         {activeTab === 'overview' && (
           <OverviewTab
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={handleProjectUpdate}
+          />
+        )}
+
+        {activeTab === 'script' && (
+          <CollaborativeScriptEditor
             project={project}
             currentUser={currentUser}
             onProjectUpdate={handleProjectUpdate}
@@ -442,6 +489,67 @@ export default function CollaborativeProjectPage() {
           />
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'var(--bg-card, #1e1e2e)',
+            padding: 24,
+            borderRadius: 12,
+            maxWidth: 400,
+            width: '90%',
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text)' }}>Delete Project?</h3>
+            <p style={{ margin: '0 0 16px 0', color: '#94a3b8', fontSize: 14 }}>
+              This action cannot be undone. All project data will be permanently deleted.
+            </p>
+            <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deletingProject}
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  color: 'var(--text)',
+                  cursor: deletingProject ? 'not-allowed' : 'pointer',
+                  opacity: deletingProject ? 0.6 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteProject}
+                disabled={deletingProject}
+                style={{
+                  flex: 1,
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: deletingProject ? 'not-allowed' : 'pointer',
+                  opacity: deletingProject ? 0.6 : 1,
+                }}
+              >
+                {deletingProject ? 'Deleting...' : 'Delete Project'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

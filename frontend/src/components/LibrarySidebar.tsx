@@ -31,6 +31,12 @@ export function LibrarySidebar() {
       setError(null);
       const data = await libraryApi.getLibrary();
       setLibrary(data);
+      // Auto-select first tab with content
+      const tabs: (keyof Library)[] = ['books', 'art'];
+      const firstTabWithContent = tabs.find(tab => data[tab]?.length > 0);
+      if (firstTabWithContent) {
+        setSelectedTab(firstTabWithContent);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load library');
       console.error('Library load error:', err);
@@ -191,6 +197,8 @@ export function LibrarySidebar() {
       >
         {(['books', 'art'] as const).map((tab) => {
           const count = library?.[tab]?.length || 0;
+          // Only show tabs that have content
+          if (count === 0) return null;
           const isActive = selectedTab === tab;
           return (
             <button
@@ -226,40 +234,6 @@ export function LibrarySidebar() {
             </button>
           );
         })}
-        {/* Coming Soon tabs */}
-        {(['film', 'music'] as const).map((tab) => (
-          <button
-            key={tab}
-            disabled
-            style={{
-              background: 'var(--chip-bg)',
-              border: '1px solid var(--panel-border-strong)',
-              color: 'var(--subtle)',
-              padding: '6px 12px',
-              borderRadius: 18,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'not-allowed',
-              whiteSpace: 'nowrap',
-              opacity: 0.5,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            <span style={{
-              fontSize: 8,
-              background: 'var(--accent)',
-              color: '#000',
-              padding: '1px 3px',
-              borderRadius: 2,
-              fontWeight: 700,
-            }}>
-              SOON
-            </span>
-          </button>
-        ))}
       </div>
 
       {/* Content */}

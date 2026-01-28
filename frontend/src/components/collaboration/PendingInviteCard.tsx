@@ -63,7 +63,7 @@ export function PendingInviteCard({
     try {
       await collaborationApi.acceptInvitation(project.id, warrantyAcknowledged);
       onAction();
-      navigate(`/collaborations/${project.id}`);
+      navigate(`/studio/${project.id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to accept');
       setLoading(null);

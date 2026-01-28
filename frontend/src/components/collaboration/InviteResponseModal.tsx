@@ -91,7 +91,7 @@ export function InviteResponseModal({
       setSuccess('Invite accepted! Redirecting to project...');
       setTimeout(() => {
         onClose();
-        navigate(`/collaborations/${projectId}`);
+        navigate(`/studio/${projectId}`);
       }, 1500);
     } catch (err: any) {
       setError(err.message || 'Failed to accept invitation');

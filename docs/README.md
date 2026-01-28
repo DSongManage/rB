@@ -10,8 +10,8 @@ Welcome to the renaissBlock documentation. This directory contains all essential
 
 **[FEATURES.md](./FEATURES.md)**
 - Complete feature documentation
-- Book management system
-- Collaboration features
+- Comic/manga project management
+- Writer-artist collaboration
 - NFT minting workflow
 - Payment and credit system
 - Authentication and security

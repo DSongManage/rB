@@ -719,8 +719,12 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
                     pointerEvents: 'none',
                   }}
                 >
-                  {externalComputedPanels.map((panel) => {
+                  {externalComputedPanels.map((panel, index) => {
                     const isDropTarget = dropTargetPanelId === panel.id;
+                    // Calculate z-index: smaller panels get higher z-index so they're on top
+                    // when bounding boxes overlap (common with non-rectangular panels like triangles)
+                    const maxArea = Math.max(...externalComputedPanels.map(p => p.area || 0));
+                    const zIndex = maxArea > 0 ? Math.round(100 * (1 - (panel.area || 0) / maxArea)) + 1 : index + 1;
                     return (
                       <div
                         key={`drop-${panel.id}`}
@@ -730,6 +734,7 @@ export const LineBasedEditor = forwardRef<LineBasedEditorRef, LineBasedEditorPro
                           top: `${panel.bounds.y}%`,
                           width: `${panel.bounds.width}%`,
                           height: `${panel.bounds.height}%`,
+                          zIndex,
                           // Only enable pointer events when actively dragging - otherwise clicks pass through to lines
                           pointerEvents: isDraggingOver ? 'auto' : 'none',
                           background: isDropTarget ? 'rgba(34, 197, 94, 0.15)' : 'transparent',

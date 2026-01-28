@@ -39,7 +39,7 @@ def create_notification(
         title=title,
         message=message,
         project=project,
-        action_url=action_url or (f'/collaborations/{project.id}' if project else '')
+        action_url=action_url or (f'/studio/{project.id}' if project else '')
     )
 
 
@@ -68,7 +68,7 @@ def notify_collaboration_invitation(
         title=f'Collaboration Invitation: {project.title}',
         message=f'{inviter.username} invited you to join "{project.title}" as {role}',
         project=project,
-        action_url=f'/collaborations/{project.id}'
+        action_url=f'/studio/{project.id}'
     )
 
 
@@ -257,7 +257,7 @@ def notify_approval_status_change(
                 recipient=recipient,
                 from_user=approver,  # Last approver gets credit
                 notification_type='mint_ready',
-                title=f'Project Ready for Minting!',
+                title=f'Comic Ready for Minting!',
                 message=f'"{project.title}" has been fully approved and is ready to mint',
                 project=project
             )
@@ -335,7 +335,7 @@ def notify_counter_proposal(
         title=f'Counter Proposal: {project.title}',
         message=f'{proposer.username} proposed {proposed_percentage}% revenue: "{message_preview}"',
         project=project,
-        action_url=f'/collaborations/{project.id}'
+        action_url=f'/studio/{project.id}'
     )
 
 

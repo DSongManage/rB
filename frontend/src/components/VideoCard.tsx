@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { ThumbsUp, Eye } from 'lucide-react';
+import { ThumbsUp, Eye, Users } from 'lucide-react';
 import { OwnedBadge } from './OwnedBadge';
 import { StarRatingDisplay } from './StarRatingDisplay';
 
@@ -138,6 +138,27 @@ function VideoCardComponent({ id, title, author = 'Creator', likeCount = 0, view
             left: 8,
           }}>
             <OwnedBadge owned={owned} />
+          </div>
+        )}
+        {/* COLLAB badge - show when collaborative AND not owned (owned takes priority for top-left) */}
+        {isCollaborative && !owned && (
+          <div style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+            color: '#000',
+            padding: '4px 8px',
+            borderRadius: 6,
+            fontSize: 10,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 2,
+          }}>
+            <Users size={12} />
+            COLLAB
           </div>
         )}
         {/* Chapter count badge for aggregated books - bottom left */}

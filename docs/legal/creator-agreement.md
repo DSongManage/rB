@@ -101,19 +101,31 @@ Fees are subject to change with 30 days' notice.
 - Funds are available for withdrawal after a clearing period
 - Minimum withdrawal thresholds may apply
 
-### 4.4 Payouts
+### 4.4 Payment Currency (USDC)
+
+All payments on renaissBlock are processed in USDC (USD Coin):
+
+- **What is USDC?** A regulated stablecoin issued by Circle, always worth $1 USD. Unlike volatile cryptocurrencies, USDC maintains a stable value.
+- **Creator earnings** are paid in USDC to your connected Solana wallet automatically upon each sale
+- **Revenue splits** for collaborative works are distributed instantly in USDC at the time of purchase
+- **Conversion to USD** is available via our payout partners (Bridge.xyz) with direct bank deposit
+- **No currency volatility** - Your earnings maintain their value and can be converted to regular USD anytime
+
+By publishing content on renaissBlock, you acknowledge and agree that your earnings will be paid in USDC.
+
+### 4.5 Payouts
 - Payouts are made to your designated payment method
 - You are responsible for providing accurate payment information
 - Failed payouts due to incorrect information may incur fees
 - We reserve the right to hold payouts pending investigation of suspicious activity
 
-### 4.5 Taxes
+### 4.6 Taxes
 - You are responsible for all taxes on your earnings
 - We may collect tax information and issue tax documents as required by law
 - We may withhold taxes as required by applicable law
 - You should consult a tax professional regarding your obligations
 
-### 4.6 Refunds and Chargebacks
+### 4.7 Refunds and Chargebacks
 - Refunds issued under our policy may be deducted from your balance
 - Chargebacks and payment disputes may result in fund recovery
 - Excessive refunds or chargebacks may result in account review

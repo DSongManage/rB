@@ -59,6 +59,12 @@ export function MobileLibrary() {
       setError(null);
       const data = await libraryApi.getLibrary();
       setLibrary(data);
+      // Auto-select first tab with content
+      const tabs: ('books' | 'art' | 'comics')[] = ['books', 'art', 'comics'];
+      const firstTabWithContent = tabs.find(tab => data[tab]?.length > 0);
+      if (firstTabWithContent) {
+        setSelectedTab(firstTabWithContent);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load library');
       console.error('Library load error:', err);
@@ -278,9 +284,11 @@ export function MobileLibrary() {
           msOverflowStyle: 'none',
         }}
       >
-        {/* Active content tabs */}
+        {/* Only show tabs that have content */}
         {(['books', 'art', 'comics'] as const).map((tab) => {
           const count = library?.[tab]?.length || 0;
+          // Only show tabs that have content
+          if (count === 0) return null;
           const isActive = selectedTab === tab;
           const Icon = TAB_ICONS[tab];
 
@@ -317,45 +325,6 @@ export function MobileLibrary() {
                 }}
               >
                 {count}
-              </span>
-            </button>
-          );
-        })}
-        {/* Coming Soon tabs */}
-        {(['film', 'music'] as const).map((tab) => {
-          const Icon = TAB_ICONS[tab];
-          return (
-            <button
-              key={tab}
-              disabled
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: '#111827',
-                border: '1px solid #2a3444',
-                color: '#64748b',
-                padding: '10px 16px',
-                borderRadius: 20,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'not-allowed',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-                opacity: 0.6,
-              }}
-            >
-              <Icon size={16} />
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              <span
-                style={{
-                  background: '#2a3444',
-                  padding: '2px 6px',
-                  borderRadius: 10,
-                  fontSize: 10,
-                }}
-              >
-                Soon
               </span>
             </button>
           );

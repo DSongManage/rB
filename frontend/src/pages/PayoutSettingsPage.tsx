@@ -254,6 +254,40 @@ export const PayoutSettingsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* USDC Info Banner */}
+        <div style={{
+          background: colors.successBg,
+          border: `1px solid ${colors.success}40`,
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 14,
+        }}>
+          <div style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            background: `${colors.success}20`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Banknote size={20} style={{ color: colors.success }} />
+          </div>
+          <div>
+            <div style={{ color: colors.text, fontWeight: 600, fontSize: 15, marginBottom: 4 }}>
+              Your earnings are paid in USDC
+            </div>
+            <p style={{ color: colors.textSecondary, margin: 0, fontSize: 13, lineHeight: 1.5 }}>
+              USDC is a digital dollar — always worth exactly $1 USD. Set up bank deposits below
+              to automatically convert to regular dollars, or keep your balance for purchases on renaissBlock.
+            </p>
+          </div>
+        </div>
+
         {/* Error Alert */}
         {error && (
           <div style={{
