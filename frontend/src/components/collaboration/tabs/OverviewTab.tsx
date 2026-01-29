@@ -97,9 +97,9 @@ export default function OverviewTab({
       gridTemplateColumns: 'repeat(12, 1fr)',
       gap: 20,
     }}>
-      {/* Cover Art - Full width */}
+      {/* Cover Art */}
       <div style={{
-        gridColumn: 'span 12',
+        gridColumn: 'span 6',
         background: 'var(--panel)',
         border: '1px solid var(--panel-border)',
         borderRadius: 12,
@@ -139,7 +139,7 @@ export default function OverviewTab({
                     border: '1px solid var(--panel-border)',
                     borderRadius: 6,
                     padding: '6px 14px',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     cursor: uploadingCover ? 'wait' : 'pointer',
                     fontSize: 13,
                   }}
@@ -173,7 +173,7 @@ export default function OverviewTab({
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               gap: 12,
-              padding: 40,
+              padding: 20,
               border: '2px dashed var(--panel-border)',
               borderRadius: 8,
               cursor: isProjectLead ? 'pointer' : 'default',
@@ -181,15 +181,15 @@ export default function OverviewTab({
             }}
           >
             {uploadingCover ? (
-              <Loader2 size={32} style={{ color: '#64748b', animation: 'spin 1s linear infinite' }} />
+              <Loader2 size={32} style={{ color: 'var(--subtle)', animation: 'spin 1s linear infinite' }} />
             ) : (
-              <ImageIcon size={32} style={{ color: '#64748b' }} />
+              <ImageIcon size={32} style={{ color: 'var(--subtle)' }} />
             )}
-            <span style={{ fontSize: 14, color: '#64748b' }}>
+            <span style={{ fontSize: 14, color: 'var(--subtle)' }}>
               {isProjectLead ? 'Click to upload cover art' : 'No cover art uploaded'}
             </span>
             {isProjectLead && (
-              <span style={{ fontSize: 11, color: '#475569' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                 PNG, JPEG, or WebP
               </span>
             )}
@@ -291,7 +291,7 @@ export default function OverviewTab({
           </div>
         ) : (
           <p style={{
-            color: project.description ? '#94a3b8' : '#64748b',
+            color: project.description ? '#94a3b8' : 'var(--subtle)',
             fontSize: 14,
             margin: 0,
             lineHeight: 1.7,
@@ -309,13 +309,13 @@ export default function OverviewTab({
           borderTop: '1px solid var(--panel-border)',
         }}>
           <div>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Created by</div>
+            <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Created by</div>
             <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
               @{project.created_by_username}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Created on</div>
+            <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Created on</div>
             <div style={{ fontSize: 13, color: 'var(--text)' }}>
               {new Date(project.created_at).toLocaleDateString('en-US', {
                 year: 'numeric',
@@ -325,7 +325,7 @@ export default function OverviewTab({
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Content Type</div>
+            <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Content Type</div>
             <div style={{ fontSize: 13, color: 'var(--text)' }}>
               {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)}
             </div>
@@ -334,7 +334,7 @@ export default function OverviewTab({
           {/* Reading Direction - only for comic projects */}
           {project.content_type === 'comic' && (
             <div>
-              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Reading Direction</div>
+              <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Reading Direction</div>
               {isProjectLead ? (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button
@@ -423,7 +423,7 @@ export default function OverviewTab({
               size={180}
             />
           ) : (
-            <div style={{ color: '#64748b', fontSize: 14 }}>
+            <div style={{ color: 'var(--subtle)', fontSize: 14 }}>
               No collaborators yet.
             </div>
           )}
@@ -531,7 +531,7 @@ export default function OverviewTab({
                       borderRadius: '50%',
                       background: hasApproved
                         ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                        : 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                        : 'linear-gradient(135deg, var(--subtle) 0%, var(--text-dim) 100%)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

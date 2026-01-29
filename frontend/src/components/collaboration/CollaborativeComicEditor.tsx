@@ -2084,7 +2084,7 @@ export default function CollaborativeComicEditor({
           alignItems: 'center',
           justifyContent: 'center',
           height: 400,
-          color: '#64748b',
+          color: 'var(--subtle)',
         }}
       >
         <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
@@ -2101,7 +2101,7 @@ export default function CollaborativeComicEditor({
           width: 160,
           minWidth: 160,
           flexShrink: 0,
-          background: '#1e293b',
+          background: 'var(--bg-secondary)',
           borderRadius: 12,
           padding: 12,
           display: 'flex',
@@ -2115,11 +2115,11 @@ export default function CollaborativeComicEditor({
             onClick={() => setShowIssueDropdown(!showIssueDropdown)}
             style={{
               width: '100%',
-              background: '#0f172a',
+              background: 'var(--dropdown-bg)',
               border: '1px solid #334155',
               borderRadius: 6,
               padding: '8px 10px',
-              color: '#f8fafc',
+              color: 'var(--text)',
               fontSize: 11,
               fontWeight: 600,
               cursor: 'pointer',
@@ -2133,7 +2133,7 @@ export default function CollaborativeComicEditor({
               <BookOpen size={14} style={{ color: '#f59e0b' }} />
               {currentIssue ? currentIssue.title : 'Select Issue'}
             </span>
-            <ChevronDown size={14} style={{ color: '#64748b' }} />
+            <ChevronDown size={14} style={{ color: 'var(--subtle)' }} />
           </button>
 
           {/* Issue Dropdown */}
@@ -2144,7 +2144,7 @@ export default function CollaborativeComicEditor({
                 top: '100%',
                 left: 0,
                 right: 0,
-                background: '#0f172a',
+                background: 'var(--dropdown-bg)',
                 border: '1px solid #334155',
                 borderRadius: 6,
                 marginTop: 4,
@@ -2177,11 +2177,11 @@ export default function CollaborativeComicEditor({
                         autoFocus
                         style={{
                           flex: 1,
-                          background: '#1e293b',
+                          background: 'var(--bg-secondary)',
                           border: '1px solid #f59e0b',
                           borderRadius: 4,
                           padding: '4px 6px',
-                          color: '#f8fafc',
+                          color: 'var(--text)',
                           fontSize: 11,
                           outline: 'none',
                         }}
@@ -2211,7 +2211,7 @@ export default function CollaborativeComicEditor({
                           background: 'transparent',
                           border: 'none',
                           padding: '2px 0',
-                          color: issue.id === selectedIssueId ? '#f59e0b' : '#f8fafc',
+                          color: issue.id === selectedIssueId ? '#f59e0b' : 'var(--text)',
                           fontSize: 11,
                           cursor: 'pointer',
                           textAlign: 'left',
@@ -2221,10 +2221,10 @@ export default function CollaborativeComicEditor({
                         }}
                       >
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ color: '#64748b', fontSize: 10, minWidth: 18 }}>#{issue.issue_number}</span>
+                          <span style={{ color: 'var(--subtle)', fontSize: 10, minWidth: 18 }}>#{issue.issue_number}</span>
                           <span>{issue.title}</span>
                         </span>
-                        <span style={{ color: '#64748b', fontSize: 10 }}>{issue.page_count} pg</span>
+                        <span style={{ color: 'var(--subtle)', fontSize: 10 }}>{issue.page_count} pg</span>
                       </button>
                       {canEditPanels && (
                         <button
@@ -2237,7 +2237,7 @@ export default function CollaborativeComicEditor({
                             border: 'none',
                             padding: 4,
                             cursor: 'pointer',
-                            color: '#64748b',
+                            color: 'var(--subtle)',
                             display: 'flex',
                             alignItems: 'center',
                           }}
@@ -2256,7 +2256,7 @@ export default function CollaborativeComicEditor({
                   disabled={creatingIssue}
                   style={{
                     width: '100%',
-                    background: '#1e293b',
+                    background: 'var(--bg-secondary)',
                     border: 'none',
                     padding: '8px 10px',
                     color: '#22c55e',
@@ -2286,7 +2286,7 @@ export default function CollaborativeComicEditor({
             borderBottom: '1px solid #334155',
           }}
         >
-          <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: 12 }}>
+          <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: 12 }}>
             Pages ({pages.length})
           </span>
           {canEditPanels && (
@@ -2340,9 +2340,9 @@ export default function CollaborativeComicEditor({
               onClick={() => setSelectedPageIndex(index)}
               style={{
                 background:
-                  selectedPageIndex === index ? 'rgba(245, 158, 11, 0.15)' : '#0f172a',
+                  selectedPageIndex === index ? 'rgba(245, 158, 11, 0.15)' : 'var(--dropdown-bg)',
                 border: `2px solid ${
-                  selectedPageIndex === index ? '#f59e0b' : '#334155'
+                  selectedPageIndex === index ? '#f59e0b' : 'var(--border)'
                 }`,
                 borderRadius: 8,
                 padding: 8,
@@ -2497,7 +2497,7 @@ export default function CollaborativeComicEditor({
               </div>
               <span
                 style={{
-                  color: selectedPageIndex === index ? '#f59e0b' : '#94a3b8',
+                  color: selectedPageIndex === index ? '#f59e0b' : 'var(--text-muted)',
                   fontSize: 11,
                   fontWeight: 600,
                 }}
@@ -2537,7 +2537,7 @@ export default function CollaborativeComicEditor({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 8,
             padding: '8px 12px',
           }}
@@ -2555,7 +2555,7 @@ export default function CollaborativeComicEditor({
                 disabled={!enabled}
                 style={{
                   background: mode === m ? '#f59e0b' : 'transparent',
-                  color: mode === m ? '#000' : enabled ? '#f8fafc' : '#475569',
+                  color: mode === m ? '#000' : enabled ? 'var(--text)' : 'var(--text-dim)',
                   border: 'none',
                   borderRadius: 6,
                   padding: '6px 12px',
@@ -2581,7 +2581,7 @@ export default function CollaborativeComicEditor({
                   onClick={handleSave}
                   disabled={saving}
                   style={{
-                    background: saving ? '#475569' : '#10b981',
+                    background: saving ? 'var(--text-dim)' : '#10b981',
                     color: '#fff',
                     border: 'none',
                     borderRadius: 6,
@@ -2607,7 +2607,7 @@ export default function CollaborativeComicEditor({
                   )}
                 </button>
                 {lastSaved && (
-                  <span style={{ color: '#64748b', fontSize: 10 }}>
+                  <span style={{ color: 'var(--subtle)', fontSize: 10 }}>
                     Saved {lastSaved.toLocaleTimeString()}
                   </span>
                 )}
@@ -2646,14 +2646,14 @@ export default function CollaborativeComicEditor({
                 border: '1px solid #334155',
                 borderRadius: 4,
                 padding: 4,
-                color: '#f8fafc',
+                color: 'var(--text)',
                 cursor: selectedPageIndex === 0 ? 'not-allowed' : 'pointer',
                 opacity: selectedPageIndex === 0 ? 0.5 : 1,
               }}
             >
               <ChevronLeft size={16} />
             </button>
-            <span style={{ color: '#94a3b8', fontSize: 12 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
               {selectedPageIndex + 1} / {pages.length}
             </span>
             <button
@@ -2666,7 +2666,7 @@ export default function CollaborativeComicEditor({
                 border: '1px solid #334155',
                 borderRadius: 4,
                 padding: 4,
-                color: '#f8fafc',
+                color: 'var(--text)',
                 cursor: selectedPageIndex === pages.length - 1 ? 'not-allowed' : 'pointer',
                 opacity: selectedPageIndex === pages.length - 1 ? 0.5 : 1,
               }}
@@ -2692,11 +2692,11 @@ export default function CollaborativeComicEditor({
                     }
                   }}
                   style={{
-                    background: '#0f172a',
+                    background: 'var(--dropdown-bg)',
                     border: '1px solid #334155',
                     borderRadius: 6,
                     padding: '6px 8px',
-                    color: '#f8fafc',
+                    color: 'var(--text)',
                     fontSize: 12,
                   }}
                 >
@@ -2711,11 +2711,11 @@ export default function CollaborativeComicEditor({
                   value={newBubbleType}
                   onChange={(e) => setNewBubbleType(e.target.value as BubbleType)}
                   style={{
-                    background: '#0f172a',
+                    background: 'var(--dropdown-bg)',
                     border: '1px solid #334155',
                     borderRadius: 6,
                     padding: '6px 8px',
-                    color: '#f8fafc',
+                    color: 'var(--text)',
                     fontSize: 12,
                   }}
                 >
@@ -2790,7 +2790,7 @@ export default function CollaborativeComicEditor({
             alignItems: 'center',
             justifyContent: 'center',
             padding: 16,
-            background: '#0f172a',
+            background: 'var(--dropdown-bg)',
             borderRadius: 8,
             overflow: 'hidden',
             minWidth: 0, // Allow flex item to shrink below content size
@@ -3233,7 +3233,7 @@ export default function CollaborativeComicEditor({
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
                     textAlign: 'center',
-                    color: '#64748b',
+                    color: 'var(--subtle)',
                   }}
                 >
                   <Layout size={48} style={{ marginBottom: 8, opacity: 0.5 }} />
@@ -3255,7 +3255,7 @@ export default function CollaborativeComicEditor({
           width: 200,
           minWidth: 200,
           flexShrink: 0,
-          background: '#1e293b',
+          background: 'var(--bg-secondary)',
           borderRadius: 12,
           padding: 12,
           display: 'flex',
@@ -3263,7 +3263,7 @@ export default function CollaborativeComicEditor({
           gap: 12,
         }}
       >
-        <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: 12 }}>Properties</span>
+        <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: 12 }}>Properties</span>
 
         {/* Script Reference Panel - shows current page's script */}
         {currentPage && (
@@ -3297,7 +3297,7 @@ export default function CollaborativeComicEditor({
             return (
               <>
                 <div style={{
-                  background: '#0f172a',
+                  background: 'var(--dropdown-bg)',
                   borderRadius: 8,
                   padding: 12,
                   border: '1px solid #334155',
@@ -3322,13 +3322,13 @@ export default function CollaborativeComicEditor({
                     }}>
                       {displayIndex}
                     </div>
-                    <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>
                       Panel {displayIndex}
                     </span>
                   </div>
 
                   {selectedPanel && (
-                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                    <div style={{ fontSize: 11, color: 'var(--subtle)' }}>
                       Size: {Math.round(selectedPanel.bounds.width)}% × {Math.round(selectedPanel.bounds.height)}%
                     </div>
                   )}
@@ -3356,7 +3356,7 @@ export default function CollaborativeComicEditor({
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 8,
-                        background: hasArtwork ? '#334155' : '#22c55e',
+                        background: hasArtwork ? 'var(--border)' : '#22c55e',
                         color: '#fff',
                         padding: '10px 12px',
                         borderRadius: 6,
@@ -3383,8 +3383,8 @@ export default function CollaborativeComicEditor({
                 )}
 
                 {mode === 'layout' && (
-                  <p style={{ color: '#64748b', fontSize: 11, margin: 0 }}>
-                    Switch to <strong style={{ color: '#94a3b8' }}>Artwork</strong> mode to upload images.
+                  <p style={{ color: 'var(--subtle)', fontSize: 11, margin: 0 }}>
+                    Switch to <strong style={{ color: 'var(--text-muted)' }}>Artwork</strong> mode to upload images.
                   </p>
                 )}
 
@@ -3405,7 +3405,7 @@ export default function CollaborativeComicEditor({
                       {/* Bubble type selector */}
                       {/* Style selector */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600 }}>
                           Style
                         </span>
                         <div style={{ display: 'flex', gap: 4 }}>
@@ -3427,8 +3427,8 @@ export default function CollaborativeComicEditor({
                                 fontWeight: 600,
                                 cursor: 'pointer',
                                 border: newBubbleStyle === style.value ? '1px solid #3b82f6' : '1px solid #334155',
-                                background: newBubbleStyle === style.value ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
-                                color: newBubbleStyle === style.value ? '#3b82f6' : '#94a3b8',
+                                background: newBubbleStyle === style.value ? 'rgba(59, 130, 246, 0.2)' : 'var(--dropdown-bg)',
+                                color: newBubbleStyle === style.value ? '#3b82f6' : 'var(--text-muted)',
                               }}
                             >
                               {style.label}
@@ -3438,7 +3438,7 @@ export default function CollaborativeComicEditor({
                       </div>
                       {/* Bubble type selector (cascaded based on style) */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600 }}>
                           Bubble Type
                         </span>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -3453,8 +3453,8 @@ export default function CollaborativeComicEditor({
                                 fontWeight: 500,
                                 cursor: 'pointer',
                                 border: newBubbleType === bt.value ? '1px solid #3b82f6' : '1px solid #334155',
-                                background: newBubbleType === bt.value ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
-                                color: newBubbleType === bt.value ? '#3b82f6' : '#94a3b8',
+                                background: newBubbleType === bt.value ? 'rgba(59, 130, 246, 0.2)' : 'var(--dropdown-bg)',
+                                color: newBubbleType === bt.value ? '#3b82f6' : 'var(--text-muted)',
                               }}
                             >
                               {bt.label}
@@ -3558,7 +3558,7 @@ export default function CollaborativeComicEditor({
                       {/* List existing bubbles */}
                       {matchingComicPanel?.speech_bubbles && matchingComicPanel.speech_bubbles.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 600 }}>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600 }}>
                             Bubbles ({matchingComicPanel.speech_bubbles.length})
                           </span>
                           {matchingComicPanel.speech_bubbles.map((bubble, i) => (
@@ -3566,12 +3566,12 @@ export default function CollaborativeComicEditor({
                               key={bubble.id}
                               onClick={() => setSelectedBubbleId(bubble.id)}
                               style={{
-                                background: selectedBubbleId === bubble.id ? 'rgba(59, 130, 246, 0.2)' : '#0f172a',
-                                border: `1px solid ${selectedBubbleId === bubble.id ? '#3b82f6' : '#334155'}`,
+                                background: selectedBubbleId === bubble.id ? 'rgba(59, 130, 246, 0.2)' : 'var(--dropdown-bg)',
+                                border: `1px solid ${selectedBubbleId === bubble.id ? '#3b82f6' : 'var(--border)'}`,
                                 borderRadius: 4,
                                 padding: 6,
                                 fontSize: 10,
-                                color: '#94a3b8',
+                                color: 'var(--text-muted)',
                                 cursor: 'pointer',
                                 display: 'flex',
                                 justifyContent: 'space-between',
@@ -3599,7 +3599,7 @@ export default function CollaborativeComicEditor({
                         </div>
                       )}
 
-                      <p style={{ color: '#64748b', fontSize: 10, margin: 0 }}>
+                      <p style={{ color: 'var(--subtle)', fontSize: 10, margin: 0 }}>
                         Bubbles will appear in the page preview. Full visual editing coming soon.
                       </p>
                     </div>
@@ -3610,7 +3610,7 @@ export default function CollaborativeComicEditor({
           })()
         ) : selectedPanelId ? (
           <>
-            <div style={{ color: '#94a3b8', fontSize: 11 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
               Panel #{currentPage?.panels.findIndex((p) => p.id === selectedPanelId)! + 1}
             </div>
 
@@ -3689,13 +3689,13 @@ export default function CollaborativeComicEditor({
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
-                  <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: 11, borderTop: '1px solid #334155', paddingTop: 12 }}>
+                  <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: 11, borderTop: '1px solid #334155', paddingTop: 12 }}>
                     Panel Styling
                   </span>
 
                   {/* Border Width */}
                   <div>
-                    <label style={{ color: '#94a3b8', fontSize: 10, display: 'block', marginBottom: 4 }}>
+                    <label style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', marginBottom: 4 }}>
                       Border Width: {selectedPanel.border_width}px
                     </label>
                     <input
@@ -3710,7 +3710,7 @@ export default function CollaborativeComicEditor({
 
                   {/* Border Color */}
                   <div>
-                    <label style={{ color: '#94a3b8', fontSize: 10, display: 'block', marginBottom: 4 }}>
+                    <label style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', marginBottom: 4 }}>
                       Border Color
                     </label>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -3736,7 +3736,7 @@ export default function CollaborativeComicEditor({
 
                   {/* Skew X */}
                   <div>
-                    <label style={{ color: '#94a3b8', fontSize: 10, display: 'block', marginBottom: 4 }}>
+                    <label style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', marginBottom: 4 }}>
                       Skew X: {selectedPanel.skew_x ?? 0}°
                     </label>
                     <input
@@ -3751,7 +3751,7 @@ export default function CollaborativeComicEditor({
 
                   {/* Skew Y */}
                   <div>
-                    <label style={{ color: '#94a3b8', fontSize: 10, display: 'block', marginBottom: 4 }}>
+                    <label style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', marginBottom: 4 }}>
                       Skew Y: {selectedPanel.skew_y ?? 0}°
                     </label>
                     <input
@@ -3766,7 +3766,7 @@ export default function CollaborativeComicEditor({
 
                   {/* Rotation */}
                   <div>
-                    <label style={{ color: '#94a3b8', fontSize: 10, display: 'block', marginBottom: 4 }}>
+                    <label style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block', marginBottom: 4 }}>
                       Rotation: {selectedPanel.rotation ?? 0}°
                     </label>
                     <input
@@ -3785,7 +3785,7 @@ export default function CollaborativeComicEditor({
             {/* Bubble list */}
             {mode === 'text' && (
               <div style={{ marginTop: 12 }}>
-                <span style={{ color: '#f8fafc', fontWeight: 600, fontSize: 11 }}>
+                <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: 11 }}>
                   Speech Bubbles
                 </span>
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -3799,9 +3799,9 @@ export default function CollaborativeComicEditor({
                           background:
                             selectedBubbleId === bubble.id
                               ? 'rgba(59, 130, 246, 0.2)'
-                              : '#0f172a',
+                              : 'var(--dropdown-bg)',
                           border: `1px solid ${
-                            selectedBubbleId === bubble.id ? '#3b82f6' : '#334155'
+                            selectedBubbleId === bubble.id ? '#3b82f6' : 'var(--border)'
                           }`,
                           borderRadius: 6,
                           padding: 8,
@@ -3811,7 +3811,7 @@ export default function CollaborativeComicEditor({
                           alignItems: 'center',
                         }}
                       >
-                        <span style={{ color: '#f8fafc', fontSize: 11 }}>
+                        <span style={{ color: 'var(--text)', fontSize: 11 }}>
                           {bubble.bubble_type} #{i + 1}
                         </span>
                         {canEditText && (
@@ -3838,7 +3838,7 @@ export default function CollaborativeComicEditor({
             )}
           </>
         ) : (
-          <div style={{ color: '#64748b', fontSize: 11 }}>
+          <div style={{ color: 'var(--subtle)', fontSize: 11 }}>
             Select a panel to view properties
           </div>
         )}
@@ -3863,7 +3863,7 @@ export default function CollaborativeComicEditor({
         >
           <div
             style={{
-              background: '#1e293b',
+              background: 'var(--bg-secondary)',
               borderRadius: 12,
               padding: 24,
               maxWidth: 600,
@@ -3881,7 +3881,7 @@ export default function CollaborativeComicEditor({
                 marginBottom: 20,
               }}
             >
-              <h3 style={{ color: '#f8fafc', margin: 0, fontSize: 18, fontWeight: 600 }}>
+              <h3 style={{ color: 'var(--text)', margin: 0, fontSize: 18, fontWeight: 600 }}>
                 Choose a Layout Template
               </h3>
               <button
@@ -3889,7 +3889,7 @@ export default function CollaborativeComicEditor({
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer',
                   padding: 4,
                 }}
@@ -3911,7 +3911,7 @@ export default function CollaborativeComicEditor({
                   onClick={() => applyTemplate(template)}
                   disabled={saving}
                   style={{
-                    background: '#0f172a',
+                    background: 'var(--dropdown-bg)',
                     border: '2px solid #334155',
                     borderRadius: 8,
                     padding: 12,
@@ -3923,7 +3923,7 @@ export default function CollaborativeComicEditor({
                     e.currentTarget.style.transform = 'scale(1.02)';
                   }}
                   onMouseOut={(e) => {
-                    e.currentTarget.style.borderColor = '#334155';
+                    e.currentTarget.style.borderColor = 'var(--border)';
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
@@ -3958,7 +3958,7 @@ export default function CollaborativeComicEditor({
                   </div>
                   <span
                     style={{
-                      color: '#f8fafc',
+                      color: 'var(--text)',
                       fontSize: 11,
                       fontWeight: 600,
                     }}
@@ -4163,7 +4163,7 @@ function PanelComponent({
               left: '50%',
               transform: 'translate(-50%, -50%)',
               textAlign: 'center',
-              color: '#64748b',
+              color: 'var(--subtle)',
               pointerEvents: 'none',
             }}
           >

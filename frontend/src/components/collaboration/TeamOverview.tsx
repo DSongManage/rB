@@ -106,8 +106,8 @@ export function TeamOverview({
     return {
       icon: <FileText size={14} />,
       text: 'No sections assigned',
-      color: '#64748b',
-      bg: '#64748b20',
+      color: 'var(--text-muted)',
+      bg: 'var(--bg-secondary)',
     };
   };
 
@@ -115,8 +115,8 @@ export function TeamOverview({
     <div
       data-tour="approval-workflow"
       style={{
-        background: '#0f172a',
-        border: '1px solid #1e293b',
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
         borderRadius: 12,
         padding: 20,
       }}
@@ -130,13 +130,13 @@ export function TeamOverview({
         }}
       >
         <Users size={20} style={{ color: '#8b5cf6' }} />
-        <h3 style={{ margin: 0, color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>
+        <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
           Team Overview
         </h3>
         <span
           style={{
-            background: '#334155',
-            color: '#94a3b8',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-muted)',
             padding: '2px 10px',
             borderRadius: 12,
             fontSize: 12,
@@ -164,7 +164,7 @@ export function TeamOverview({
                   alignItems: 'center',
                   gap: 12,
                   padding: 12,
-                  background: '#1e293b',
+                  background: 'var(--bg-secondary)',
                   borderRadius: 10,
                   borderLeft: `3px solid ${statusBadge.color}`,
                 }}
@@ -195,7 +195,7 @@ export function TeamOverview({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span
                       style={{
-                        color: '#f8fafc',
+                        color: 'var(--text)',
                         fontWeight: 600,
                         fontSize: 14,
                       }}
@@ -233,7 +233,7 @@ export function TeamOverview({
                   </div>
                   <div
                     style={{
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       fontSize: 12,
                       marginTop: 2,
                       display: 'flex',
@@ -242,7 +242,7 @@ export function TeamOverview({
                     }}
                   >
                     <span>{collaborator.role}</span>
-                    <span style={{ color: '#64748b' }}>•</span>
+                    <span style={{ color: 'var(--subtle)' }}>•</span>
                     <span style={{ color: '#10b981' }}>
                       {collaborator.revenue_percentage}%
                     </span>
@@ -255,7 +255,7 @@ export function TeamOverview({
                     <div
                       style={{
                         height: 6,
-                        background: '#334155',
+                        background: 'var(--border)',
                         borderRadius: 3,
                         overflow: 'hidden',
                       }}
@@ -312,10 +312,10 @@ export function TeamOverview({
                       borderRadius: 4,
                       background: collaborator.approved_current_version
                         ? '#10b98120'
-                        : '#64748b20',
+                        : 'var(--bg-secondary)',
                       color: collaborator.approved_current_version
                         ? '#10b981'
-                        : '#64748b',
+                        : 'var(--text-muted)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -331,10 +331,10 @@ export function TeamOverview({
                       borderRadius: 4,
                       background: collaborator.approved_revenue_split
                         ? '#10b98120'
-                        : '#64748b20',
+                        : 'var(--bg-secondary)',
                       color: collaborator.approved_revenue_split
                         ? '#10b981'
-                        : '#64748b',
+                        : 'var(--text-muted)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -353,12 +353,12 @@ export function TeamOverview({
           <>
             <div
               style={{
-                borderTop: '1px solid #334155',
+                borderTop: '1px solid var(--border)',
                 margin: '8px 0',
                 paddingTop: 12,
               }}
             >
-              <span style={{ color: '#64748b', fontSize: 12, fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
                 PENDING INVITES
               </span>
             </div>
@@ -372,7 +372,7 @@ export function TeamOverview({
                     alignItems: 'center',
                     gap: 12,
                     padding: 12,
-                    background: '#1e293b',
+                    background: 'var(--bg-secondary)',
                     borderRadius: 10,
                     borderLeft: '3px solid #f59e0b',
                     opacity: 0.7,
@@ -383,11 +383,11 @@ export function TeamOverview({
                       width: 40,
                       height: 40,
                       borderRadius: '50%',
-                      background: '#334155',
+                      background: 'var(--border)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       fontWeight: 700,
                       fontSize: 14,
                       flexShrink: 0,
@@ -396,10 +396,10 @@ export function TeamOverview({
                     {collaborator.username.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ color: '#94a3b8', fontWeight: 500, fontSize: 14 }}>
+                    <div style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>
                       @{collaborator.username}
                     </div>
-                    <div style={{ color: '#64748b', fontSize: 12 }}>
+                    <div style={{ color: 'var(--subtle)', fontSize: 12 }}>
                       {collaborator.role} • {collaborator.revenue_percentage}%
                     </div>
                   </div>
@@ -426,19 +426,19 @@ export function TeamOverview({
         style={{
           marginTop: 16,
           paddingTop: 16,
-          borderTop: '1px solid #334155',
+          borderTop: '1px solid var(--border)',
           display: 'flex',
           gap: 16,
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <Check size={14} style={{ color: '#10b981' }} /> Content Approved
         </div>
-        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <DollarSign size={14} style={{ color: '#10b981' }} /> Revenue Approved
         </div>
-        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <span>○</span> Pending
         </div>
       </div>

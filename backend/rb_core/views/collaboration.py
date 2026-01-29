@@ -1914,6 +1914,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         # Re-list the Content record
         if project.published_content:
             project.published_content.inventory_status = 'minted'
+            if project.cover_image:
+                project.published_content.teaser_link = project.cover_image.url
             project.published_content.save()
 
         return Response({

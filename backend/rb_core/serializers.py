@@ -94,7 +94,7 @@ class ContentSerializer(serializers.ModelSerializer):
         try:
             if hasattr(obj, 'source_collaborative_project') and obj.source_collaborative_project.exists():
                 collab_project = obj.source_collaborative_project.first()
-                if collab_project and not collab_project.is_solo:
+                if collab_project and collab_project.collaborators.filter(status='accepted').count() > 1:
                     return True
         except Exception:
             pass
