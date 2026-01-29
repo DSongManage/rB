@@ -15,7 +15,7 @@ from .views.bridge import (
     ListLiquidationAddressesView, CreateLiquidationAddressView, SetPrimaryLiquidationAddressView,
     ListPayoutsView, GetPayoutPreferencesView, UpdatePayoutPreferencesView
 )
-from .views.purchases import UserPurchasesView, PurchaseStatusView, BatchPurchaseStatusView
+from .views.purchases import UserPurchasesView, PurchaseStatusView, BatchPurchaseStatusView, OwnedIssuesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView, ComicPreviewView, ComicReaderDataView
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
@@ -95,6 +95,7 @@ urlpatterns = [
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
     path('api/purchases/<int:purchase_id>/status/', PurchaseStatusView.as_view(), name='purchase_status'),
     path('api/batch-purchases/<int:batch_id>/status/', BatchPurchaseStatusView.as_view(), name='batch_purchase_status'),
+    path('api/purchases/owned-issues/', OwnedIssuesView.as_view(), name='owned_issues'),
     # Shopping cart endpoints
     path('api/cart/', CartView.as_view(), name='cart'),
     path('api/cart/add/', AddToCartView.as_view(), name='cart_add'),

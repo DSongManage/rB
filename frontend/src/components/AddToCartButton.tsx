@@ -12,6 +12,7 @@ import { useCart } from '../contexts/CartContext';
 interface AddToCartButtonProps {
   chapterId?: number;
   contentId?: number;
+  comicIssueId?: number;
   price: string;
   alreadyOwned?: boolean;
   compact?: boolean;
@@ -22,6 +23,7 @@ interface AddToCartButtonProps {
 export default function AddToCartButton({
   chapterId,
   contentId,
+  comicIssueId,
   price,
   alreadyOwned = false,
   compact = false,
@@ -33,8 +35,8 @@ export default function AddToCartButton({
   const [localError, setLocalError] = useState<string | null>(null);
   const [justAdded, setJustAdded] = useState(false);
 
-  const type = chapterId ? 'chapter' : 'content';
-  const itemId = chapterId || contentId || 0;
+  const type = chapterId ? 'chapter' : comicIssueId ? 'comic_issue' : 'content';
+  const itemId = chapterId || comicIssueId || contentId || 0;
   const inCart = isInCart(itemId, type);
   const cartFull = !!(cart && cart.item_count >= cart.max_items);
 
@@ -44,7 +46,7 @@ export default function AddToCartButton({
     setLoading(true);
     setLocalError(null);
 
-    const success = await addToCart(chapterId, contentId);
+    const success = await addToCart(chapterId, contentId, comicIssueId);
 
     if (success) {
       setJustAdded(true);

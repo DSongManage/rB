@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from ..models import Purchase, BatchPurchase
+from ..models import Purchase, BatchPurchase, ComicIssue, Content
 from ..serializers import PurchaseSerializer
 
 
@@ -126,3 +126,39 @@ class BatchPurchaseStatusView(APIView):
             'created_at': batch.created_at.isoformat() if batch.created_at else None,
             'items': items,
         })
+
+
+class OwnedIssuesView(APIView):
+    """Return IDs of comic issues owned by the authenticated user for a given content."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        content_id = request.query_params.get('content_id')
+        if not content_id:
+            return Response({'owned_issue_ids': []})
+
+        # Find all comic issues linked to this content's project
+        try:
+            content = Content.objects.get(id=content_id)
+        except Content.DoesNotExist:
+            return Response({'owned_issue_ids': []})
+
+        # Get issues from the source project
+        project = content.source_collaborative_project.first()
+        if not project:
+            return Response({'owned_issue_ids': []})
+
+        issue_ids = list(
+            ComicIssue.objects.filter(project=project).values_list('id', flat=True)
+        )
+
+        owned_ids = list(
+            Purchase.objects.filter(
+                user=request.user,
+                comic_issue_id__in=issue_ids,
+                status__in=['completed', 'payment_completed', 'minting']
+            ).values_list('comic_issue_id', flat=True)
+        )
+
+        return Response({'owned_issue_ids': owned_ids})

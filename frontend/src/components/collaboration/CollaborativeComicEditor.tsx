@@ -2211,22 +2211,36 @@ export default function CollaborativeComicEditor({
                           background: 'transparent',
                           border: 'none',
                           padding: '2px 0',
-                          color: issue.id === selectedIssueId ? '#f59e0b' : 'var(--text)',
+                          color: issue.is_published ? '#64748b' : (issue.id === selectedIssueId ? '#f59e0b' : 'var(--text)'),
                           fontSize: 11,
                           cursor: 'pointer',
                           textAlign: 'left',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
+                          opacity: issue.is_published ? 0.7 : 1,
                         }}
                       >
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span style={{ color: 'var(--subtle)', fontSize: 10, minWidth: 18 }}>#{issue.issue_number}</span>
                           <span>{issue.title}</span>
+                          {issue.is_published && (
+                            <span style={{
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981',
+                              fontSize: 9,
+                              fontWeight: 700,
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              letterSpacing: 0.5,
+                            }}>
+                              Minted
+                            </span>
+                          )}
                         </span>
                         <span style={{ color: 'var(--subtle)', fontSize: 10 }}>{issue.page_count} pg</span>
                       </button>
-                      {canEditPanels && (
+                      {canEditPanels && !issue.is_published && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

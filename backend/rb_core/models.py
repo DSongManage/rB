@@ -1199,6 +1199,7 @@ class Purchase(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
     content = models.ForeignKey(Content, on_delete=models.PROTECT, related_name='purchases', null=True, blank=True)
     chapter = models.ForeignKey('Chapter', on_delete=models.PROTECT, related_name='purchases', null=True, blank=True)
+    comic_issue = models.ForeignKey('ComicIssue', on_delete=models.PROTECT, related_name='purchases', null=True, blank=True)
 
     # Batch purchase reference (for cart checkout)
     batch_purchase = models.ForeignKey(
@@ -4788,6 +4789,13 @@ class CartItem(models.Model):
         blank=True,
         related_name='cart_items'
     )
+    comic_issue = models.ForeignKey(
+        'ComicIssue',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='cart_items'
+    )
 
     # Price snapshot (at time of add)
     unit_price = models.DecimalField(
@@ -4809,26 +4817,32 @@ class CartItem(models.Model):
         unique_together = [
             ('cart', 'chapter'),
             ('cart', 'content'),
+            ('cart', 'comic_issue'),
         ]
         ordering = ['added_at']
         indexes = [
             models.Index(fields=['cart', 'chapter']),
             models.Index(fields=['cart', 'content']),
+            models.Index(fields=['cart', 'comic_issue']),
         ]
 
     def __str__(self):
-        item = self.chapter or self.content
+        item = self.chapter or self.content or self.comic_issue
         return f"{item.title} - ${self.unit_price}"
 
     @property
     def item(self):
-        """Return the purchasable item (Chapter or Content)."""
-        return self.chapter or self.content
+        """Return the purchasable item (Chapter, Content, or ComicIssue)."""
+        return self.chapter or self.content or self.comic_issue
 
     @property
     def item_type(self):
-        """Return 'chapter' or 'content'."""
-        return 'chapter' if self.chapter else 'content'
+        """Return 'chapter', 'content', or 'comic_issue'."""
+        if self.chapter:
+            return 'chapter'
+        if self.comic_issue:
+            return 'comic_issue'
+        return 'content'
 
 
 class BatchPurchase(models.Model):
@@ -5339,6 +5353,13 @@ class PurchaseIntent(models.Model):
     )
     content = models.ForeignKey(
         Content,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='purchase_intents'
+    )
+    comic_issue = models.ForeignKey(
+        'ComicIssue',
         on_delete=models.CASCADE,
         null=True,
         blank=True,

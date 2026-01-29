@@ -823,6 +823,113 @@ class ComicIssueViewSet(viewsets.ModelViewSet):
             'content_id': issue.published_content.id
         })
 
+    @action(detail=False, methods=['post'], url_path='prepare-series')
+    def prepare_series(self, request):
+        """Prepare all unpublished issues in a project for minting."""
+        project_id = request.data.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        project = get_object_or_404(CollaborativeProject, id=project_id)
+
+        # Verify access
+        user_role = project.collaborators.filter(
+            user=request.user, status='accepted'
+        ).first()
+        if not user_role and project.created_by != request.user:
+            return Response(
+                {'error': 'You do not have access to this project'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        issues = ComicIssue.objects.filter(project=project, is_published=False)
+        if not issues.exists():
+            return Response(
+                {'error': 'No unpublished issues found'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        prepared = []
+        for issue in issues:
+            # Get or create Content record
+            if not issue.published_content:
+                teaser_link = None
+                first_page = issue.issue_pages.order_by('page_number').first()
+                if first_page:
+                    first_panel = first_page.panels.order_by('z_index').first()
+                    if first_panel and first_panel.artwork:
+                        teaser_link = first_panel.artwork.url
+
+                creator = issue.series.creator if issue.series else (
+                    issue.project.created_by if issue.project else request.user
+                )
+
+                content = Content.objects.create(
+                    creator=creator,
+                    title=f"{issue.series.title} - {issue.title}" if issue.series else issue.title,
+                    teaser_link=teaser_link,
+                    content_type='comic',
+                    genre='other',
+                    inventory_status='draft',
+                    price_usd=issue.price,
+                )
+                issue.published_content = content
+                issue.save()
+
+            prepared.append({
+                'issue_id': issue.id,
+                'content_id': issue.published_content.id,
+                'title': issue.title,
+            })
+
+        return Response({
+            'prepared': prepared,
+            'message': f'{len(prepared)} issues prepared for minting'
+        })
+
+    @action(detail=False, methods=['post'], url_path='publish-series')
+    def publish_series(self, request):
+        """Publish all prepared (but unpublished) issues in a project."""
+        project_id = request.data.get('project_id')
+        if not project_id:
+            return Response(
+                {'error': 'project_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        project = get_object_or_404(CollaborativeProject, id=project_id)
+
+        user_role = project.collaborators.filter(
+            user=request.user, status='accepted'
+        ).first()
+        if not user_role and project.created_by != request.user:
+            return Response(
+                {'error': 'You do not have access to this project'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        issues = ComicIssue.objects.filter(
+            project=project, is_published=False, published_content__isnull=False
+        )
+
+        published = []
+        for issue in issues:
+            issue.is_published = True
+            issue.save(update_fields=['is_published'])
+            published.append({
+                'issue_id': issue.id,
+                'content_id': issue.published_content.id,
+                'title': issue.title,
+            })
+
+        return Response({
+            'published': published,
+            'message': f'{len(published)} issues published'
+        })
+
 
 class DividerLineViewSet(viewsets.ModelViewSet):
     """ViewSet for managing divider lines on comic pages.

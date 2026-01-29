@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 
-from ..models import Content, Chapter, Purchase
+from ..models import Content, Chapter, Purchase, ComicIssue
 from ..utils import calculate_fees
 from ..payment_utils import calculate_payment_breakdown
 
@@ -33,12 +33,13 @@ class CreateCheckoutSessionView(APIView):
     def post(self, request):
         content_id = request.data.get('content_id')
         chapter_id = request.data.get('chapter_id')
+        comic_issue_id = request.data.get('comic_issue_id')
 
-        logger.debug(f'[Checkout] Request received: chapter_id={chapter_id}, content_id={content_id}')
+        logger.debug(f'[Checkout] Request received: chapter_id={chapter_id}, content_id={content_id}, comic_issue_id={comic_issue_id}')
 
-        if not content_id and not chapter_id:
+        if not content_id and not chapter_id and not comic_issue_id:
             return Response(
-                {'error': 'Either content_id or chapter_id is required', 'code': 'MISSING_ID'},
+                {'error': 'Either content_id, chapter_id, or comic_issue_id is required', 'code': 'MISSING_ID'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -126,6 +127,48 @@ class CreateCheckoutSessionView(APIView):
                     )
                     cancel_url = f"{settings.FRONTEND_URL}/content/{content.id}"
 
+                # Handle comic issue purchase
+                elif comic_issue_id:
+                    try:
+                        comic_issue = ComicIssue.objects.select_related(
+                            'series__creator', 'project__created_by'
+                        ).get(id=comic_issue_id)
+                    except ComicIssue.DoesNotExist:
+                        return Response(
+                            {'error': 'Comic issue not found', 'code': 'ISSUE_NOT_FOUND'},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+
+                    if not comic_issue.is_published:
+                        return Response(
+                            {'error': 'Issue not available for purchase', 'code': 'NOT_PUBLISHED'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    if Purchase.objects.filter(
+                        user=request.user, comic_issue=comic_issue,
+                        status__in=['completed', 'payment_completed', 'minting']
+                    ).exists():
+                        return Response(
+                            {'error': 'You already own this issue', 'code': 'ALREADY_OWNED'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    issue_price = comic_issue.price
+                    breakdown = calculate_payment_breakdown(issue_price)
+                    price = breakdown['buyer_total']
+                    series_title = comic_issue.series.title if comic_issue.series else ''
+                    item_title = f'{series_title} - {comic_issue.title}'.strip(' - ')
+                    creator = comic_issue.series.creator if comic_issue.series else (
+                        comic_issue.project.created_by if comic_issue.project else request.user
+                    )
+                    item_description = (
+                        f'By {creator.username} | '
+                        f'Price: ${breakdown["chapter_price"]:.2f} + '
+                        f'CC Fee: ${breakdown["credit_card_fee"]:.2f}'
+                    )
+                    cancel_url = f"{settings.FRONTEND_URL}/comics/{comic_issue_id}"
+
                 # Validate minimum charge amount for Stripe
                 if Decimal(str(price)) < STRIPE_MINIMUM_CHARGE:
                     return Response(
@@ -148,6 +191,7 @@ class CreateCheckoutSessionView(APIView):
                 session_metadata = {
                     'chapter_id': str(chapter_id) if chapter_id else '',
                     'content_id': str(content_id) if content_id else '',
+                    'comic_issue_id': str(comic_issue_id) if comic_issue_id else '',
                     'user_id': str(request.user.id),
                     'item_price': str(breakdown['chapter_price']),
                     'credit_card_fee': str(breakdown['credit_card_fee']),
@@ -180,6 +224,7 @@ class CreateCheckoutSessionView(APIView):
                         'user': request.user,
                         'content': content if content_id else None,
                         'chapter': chapter if chapter_id else None,
+                        'comic_issue': comic_issue if comic_issue_id else None,
                         'purchase_price_usd': price,
                         'gross_amount': price,
                         'stripe_checkout_session_id': checkout_session.id,

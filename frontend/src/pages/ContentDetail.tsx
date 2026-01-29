@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Play, ChevronDown, ChevronUp, User, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Play, ChevronDown, ChevronUp, User, AlertCircle, ShoppingCart, Check } from 'lucide-react';
 import PreviewModal from '../components/PreviewModal';
 import AddToCartButton from '../components/AddToCartButton';
 import CopyrightNotice from '../components/CopyrightNotice';
@@ -8,6 +8,7 @@ import { API_URL } from '../config';
 import { RatingSection } from '../components/social/RatingSection';
 import { useMobile } from '../hooks/useMobile';
 import { useBalance } from '../contexts/BalanceContext';
+import { useCart } from '../contexts/CartContext';
 
 // Format genre for display
 function formatGenre(genre: string): string {
@@ -42,7 +43,10 @@ export default function ContentDetail(){
   const [modalOpen, setModalOpen] = useState(false); // Start closed so user sees page first
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [collaboratorsExpanded, setCollaboratorsExpanded] = useState(false);
+  const [comicIssues, setComicIssues] = useState<any[]>([]);
+  const [ownedIssueIds, setOwnedIssueIds] = useState<Set<number>>(new Set());
   const ratingSectionRef = useRef<HTMLDivElement>(null);
+  const { addToCart, isInCart } = useCart();
 
   // Check if user just completed reading this content
   const searchParams = new URLSearchParams(location.search);
@@ -91,6 +95,30 @@ export default function ContentDetail(){
       }, 500);
     }
   }, [justCompleted, data]);
+
+  // Fetch per-issue data for comics
+  useEffect(() => {
+    if (!data || data.content_type !== 'comic' || !data.source_project_id) return;
+    fetch(`${API_URL}/api/comic-issues/?project=${data.source_project_id}`, {
+      credentials: 'include',
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then((issues: any[]) => {
+        const published = issues.filter((i: any) => i.is_published);
+        setComicIssues(published);
+      })
+      .catch(() => {});
+
+    // Check which issues user owns
+    if (isAuthenticated) {
+      fetch(`${API_URL}/api/purchases/owned-issues/?content_id=${id}`, {
+        credentials: 'include',
+      })
+        .then(r => r.ok ? r.json() : { owned_issue_ids: [] })
+        .then((resp: any) => setOwnedIssueIds(new Set(resp.owned_issue_ids || [])))
+        .catch(() => {});
+    }
+  }, [data, isAuthenticated, id]);
 
   const handleCloseModal = () => {
     setModalOpen(false);
@@ -461,6 +489,84 @@ export default function ContentDetail(){
               </div>
             )}
           </div>
+
+          {/* Per-Issue Purchase List for Comics */}
+          {data?.content_type === 'comic' && comicIssues.length > 0 && isAuthenticated && (
+            <div style={{
+              background: 'rgba(139, 92, 246, 0.06)',
+              border: '1px solid rgba(139, 92, 246, 0.15)',
+              borderRadius: 10,
+              padding: 16,
+              marginBottom: 16,
+            }}>
+              <div style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#a78bfa',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: 12,
+              }}>
+                Issues
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {comicIssues.map((issue: any) => {
+                  const owned = ownedIssueIds.has(issue.id);
+                  const inCart = isInCart(issue.id, 'comic_issue');
+                  return (
+                    <div
+                      key={issue.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: owned ? 'rgba(16, 185, 129, 0.08)' : '#0f172a',
+                        border: owned ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid #1e293b',
+                        borderRadius: 8,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>
+                          <span style={{ color: '#64748b', marginRight: 6 }}>#{issue.issue_number}</span>
+                          {issue.title}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                          {issue.page_count} pages
+                        </div>
+                      </div>
+                      <div>
+                        {owned ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            background: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
+                            padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                          }}>
+                            <Check size={14} /> Owned
+                          </span>
+                        ) : (
+                          <AddToCartButton
+                            comicIssueId={issue.id}
+                            price={parseFloat(issue.price).toFixed(2)}
+                            compact
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {comicIssues.length > 1 && !data?.preview?.owned && (
+                <div style={{ marginTop: 12, textAlign: 'center' }}>
+                  <AddToCartButton
+                    contentId={parseInt(id!)}
+                    price={priceNum.toFixed(2)}
+                    alreadyOwned={data?.preview?.owned}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Synopsis/Description for Books */}
           {data?.content_type === 'book' && data?.description && (

@@ -2008,6 +2008,40 @@ export const collaborationApi = {
   },
 
   /**
+   * Prepare all unpublished issues in a project for minting
+   */
+  async prepareAllComicIssues(projectId: number): Promise<{ prepared: { issue_id: number; content_id: number; title: string }[]; message: string }> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/prepare-series/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ project_id: projectId }),
+    });
+    return handleResponse(response);
+  },
+
+  /**
+   * Publish all prepared issues in a project
+   */
+  async publishAllComicIssues(projectId: number): Promise<{ published: { issue_id: number; content_id: number; title: string }[]; message: string }> {
+    const response = await fetch(`${API_BASE}/api/comic-issues/publish-series/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ project_id: projectId }),
+    });
+    return handleResponse(response);
+  },
+
+  /**
    * Get pages for a specific issue
    */
   async getComicIssuePages(issueId: number): Promise<ComicPage[]> {

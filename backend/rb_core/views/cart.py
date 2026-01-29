@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from ..models import Cart, CartItem, Chapter, Content, Purchase, BatchPurchase
+from ..models import Cart, CartItem, Chapter, Content, Purchase, BatchPurchase, ComicIssue
 from ..payment_utils import calculate_cart_breakdown
 
 logger = logging.getLogger(__name__)
@@ -77,12 +77,14 @@ class CartView(APIView):
         for item in cart.items.select_related(
             'chapter__book_project__creator__profile',
             'content__creator__profile',
+            'comic_issue__series',
+            'comic_issue__project',
             'creator__profile'
         ).prefetch_related(
             'content__source_collaborative_project',
             'content__source_book_project'
         ).all():
-            purchasable = item.chapter or item.content
+            purchasable = item.chapter or item.content or item.comic_issue
 
             # Get cover URL - chapters use book's cover, content checks multiple sources
             cover_url = None
@@ -109,6 +111,10 @@ class CartView(APIView):
                     if teaser and any(teaser.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
                         cover_url = teaser
 
+            elif item.comic_issue:
+                if item.comic_issue.cover_image:
+                    cover_url = item.comic_issue.cover_image.url
+
             items.append({
                 'id': item.id,
                 'type': item.item_type,
@@ -120,6 +126,9 @@ class CartView(APIView):
                 # Chapter-specific
                 'book_title': item.chapter.book_project.title if item.chapter else None,
                 'chapter_order': item.chapter.order if item.chapter else None,
+                # Comic issue-specific
+                'series_title': item.comic_issue.series.title if item.comic_issue and item.comic_issue.series else None,
+                'issue_number': item.comic_issue.issue_number if item.comic_issue else None,
                 # Cover art
                 'cover_url': cover_url,
             })
@@ -156,10 +165,11 @@ class AddToCartView(APIView):
     def post(self, request):
         chapter_id = request.data.get('chapter_id')
         content_id = request.data.get('content_id')
+        comic_issue_id = request.data.get('comic_issue_id')
 
-        if not chapter_id and not content_id:
+        if not chapter_id and not content_id and not comic_issue_id:
             return Response(
-                {'error': 'chapter_id or content_id required'},
+                {'error': 'chapter_id, content_id, or comic_issue_id required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -240,6 +250,45 @@ class AddToCartView(APIView):
                         creator=content.creator
                     )
 
+                elif comic_issue_id:
+                    comic_issue = ComicIssue.objects.select_related(
+                        'series__creator', 'project__created_by'
+                    ).get(id=comic_issue_id)
+
+                    if not comic_issue.is_published:
+                        return Response(
+                            {'error': 'This issue is not available for purchase', 'code': 'NOT_PUBLISHED'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    # Check if already owned
+                    if Purchase.objects.filter(
+                        user=request.user,
+                        comic_issue=comic_issue,
+                        status__in=['completed', 'payment_completed', 'minting']
+                    ).exists():
+                        return Response(
+                            {'error': 'You already own this issue', 'code': 'ALREADY_OWNED'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    if CartItem.objects.filter(cart=cart, comic_issue=comic_issue).exists():
+                        return Response(
+                            {'error': 'Item already in cart', 'code': 'ALREADY_IN_CART'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    creator = comic_issue.series.creator if comic_issue.series else (
+                        comic_issue.project.created_by if comic_issue.project else request.user
+                    )
+
+                    CartItem.objects.create(
+                        cart=cart,
+                        comic_issue=comic_issue,
+                        unit_price=comic_issue.price,
+                        creator=creator
+                    )
+
                 # Recalculate totals
                 breakdown = cart.calculate_totals()
 
@@ -258,6 +307,11 @@ class AddToCartView(APIView):
         except Content.DoesNotExist:
             return Response(
                 {'error': 'Content not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except ComicIssue.DoesNotExist:
+            return Response(
+                {'error': 'Comic issue not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -345,7 +399,9 @@ class CartCheckoutView(APIView):
         try:
             cart = Cart.objects.prefetch_related(
                 'items__chapter__book_project__creator',
-                'items__content__creator'
+                'items__content__creator',
+                'items__comic_issue__series__creator',
+                'items__comic_issue__project__created_by',
             ).get(user=request.user)
 
             if cart.status == 'checkout':

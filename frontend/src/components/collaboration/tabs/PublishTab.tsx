@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CollaborativeProject, ComicPage, collaborationApi } from '../../../services/collaborationApi';
+import { CollaborativeProject, ComicPage, ComicIssueListItem, collaborationApi } from '../../../services/collaborationApi';
 import CopyrightPreview from '../../BookEditor/CopyrightPreview';
 import { Check, Clock, PartyPopper, AlertCircle, Eye, DollarSign, PenLine, Lock, Unlock, BookOpen } from 'lucide-react';
 import { CollaborationPreviewReader } from '../CollaborationPreviewReader';
@@ -40,6 +40,12 @@ export default function PublishTab({
   const [comicPages, setComicPages] = useState<ComicPage[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
 
+  // Per-issue mint state (comics only)
+  const [comicIssues, setComicIssues] = useState<ComicIssueListItem[]>([]);
+  const [mintMode, setMintMode] = useState<'issue' | 'series'>('issue');
+  const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
+  const [issuePrices, setIssuePrices] = useState<Record<number, number>>({});
+
   const collaborators = project.collaborators || [];
   const acceptedCollaborators = collaborators.filter(c => c.status === 'accepted');
   const sections = project.sections || [];
@@ -64,9 +70,11 @@ export default function PublishTab({
   );
 
   // For comics: check comicPages instead of sections
-  // (comic pages are loaded separately and stored in comicPages state)
+  // When minting single issue, validate that the selected issue has pages
   const hasContentSections = project.content_type === 'comic'
-    ? comicPages.length > 0
+    ? (mintMode === 'issue' && selectedIssueId
+        ? (comicIssues.find(i => i.id === selectedIssueId)?.page_count ?? 0) > 0
+        : comicPages.length > 0)
     : sections.length > 0;
 
   // For books: check text content has at least 50 characters
@@ -212,6 +220,26 @@ export default function PublishTab({
     // Users should go through customize -> approve -> mint flow
   }, [project.status]);
 
+  // Fetch comic issues for per-issue minting
+  useEffect(() => {
+    if (project.content_type === 'comic') {
+      collaborationApi.getComicIssues({ project: project.id })
+        .then((issues) => {
+          setComicIssues(issues);
+          // Initialize prices from issue data
+          const prices: Record<number, number> = {};
+          issues.forEach(issue => {
+            prices[issue.id] = issue.price || 1;
+          });
+          setIssuePrices(prices);
+          // Auto-select first unminted issue
+          const firstUnminted = issues.find(i => !i.is_published);
+          if (firstUnminted) setSelectedIssueId(firstUnminted.id);
+        })
+        .catch(err => console.error('Failed to load comic issues:', err));
+    }
+  }, [project.id, project.content_type]);
+
   // Fetch comic pages for preview (if this is a comic project)
   // Pages are associated with issues, not directly with projects,
   // so we need to first get issues, then get pages for each issue
@@ -298,7 +326,30 @@ export default function PublishTab({
     setError('');
 
     try {
-      const result = await collaborationApi.mintProject(project.id);
+      if (project.content_type === 'comic') {
+        if (mintMode === 'issue' && selectedIssueId) {
+          // Mint single issue
+          await collaborationApi.prepareComicIssue(selectedIssueId);
+          await collaborationApi.publishComicIssue(selectedIssueId);
+          // Refresh issues list
+          const updatedIssues = await collaborationApi.getComicIssues({ project: project.id });
+          setComicIssues(updatedIssues);
+          // Select next unminted issue
+          const nextUnminted = updatedIssues.find(i => !i.is_published);
+          setSelectedIssueId(nextUnminted?.id ?? null);
+        } else if (mintMode === 'series') {
+          // Mint entire series
+          await collaborationApi.prepareAllComicIssues(project.id);
+          await collaborationApi.publishAllComicIssues(project.id);
+          const updatedIssues = await collaborationApi.getComicIssues({ project: project.id });
+          setComicIssues(updatedIssues);
+          setSelectedIssueId(null);
+        }
+        // Also mint the project-level NFT
+        await collaborationApi.mintProject(project.id);
+      } else {
+        await collaborationApi.mintProject(project.id);
+      }
       const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
       onProjectUpdate?.(updatedProject);
       setStep('share');
@@ -464,6 +515,154 @@ export default function PublishTab({
               )}
             </div>
           )}
+          {/* Comic Per-Issue Mint Selector */}
+          {project.content_type === 'comic' && comicIssues.length > 0 && (
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--panel-border)',
+              borderRadius: 16,
+              overflow: 'hidden',
+              marginBottom: 20,
+            }}>
+              <div style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid var(--panel-border)',
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, transparent 100%)',
+              }}>
+                <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <BookOpen size={20} style={{ color: '#8b5cf6' }} />
+                  Mint Mode
+                </h3>
+                <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                  Choose to mint individual issues or the entire series
+                </p>
+              </div>
+
+              <div style={{ padding: 24 }}>
+                {/* Mint mode radio */}
+                <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+                  {[
+                    { value: 'issue' as const, label: 'Mint Single Issue', desc: 'Mint one issue at a time' },
+                    { value: 'series' as const, label: 'Mint Entire Series', desc: 'Mint all unpublished issues' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => isProjectLead && setMintMode(opt.value)}
+                      disabled={!isProjectLead}
+                      style={{
+                        flex: 1,
+                        padding: '14px 16px',
+                        background: mintMode === opt.value
+                          ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.05) 100%)'
+                          : 'var(--bg)',
+                        border: mintMode === opt.value
+                          ? '2px solid #8b5cf6'
+                          : '1px solid var(--panel-border)',
+                        borderRadius: 12,
+                        cursor: isProjectLead ? 'pointer' : 'not-allowed',
+                        textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 600, color: mintMode === opt.value ? '#8b5cf6' : 'var(--text)' }}>
+                        {opt.label}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Issue list */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {comicIssues.map(issue => {
+                    const isMinted = issue.is_published;
+                    const isSelected = mintMode === 'issue' && selectedIssueId === issue.id;
+                    return (
+                      <div
+                        key={issue.id}
+                        onClick={() => {
+                          if (!isMinted && mintMode === 'issue' && isProjectLead) {
+                            setSelectedIssueId(issue.id);
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 16px',
+                          background: isSelected
+                            ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)'
+                            : isMinted ? 'rgba(100, 116, 139, 0.05)' : 'var(--bg)',
+                          border: isSelected
+                            ? '2px solid #f59e0b'
+                            : '1px solid var(--panel-border)',
+                          borderRadius: 10,
+                          cursor: isMinted || mintMode !== 'issue' || !isProjectLead ? 'default' : 'pointer',
+                          opacity: isMinted ? 0.6 : 1,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {mintMode === 'issue' && (
+                            <div style={{
+                              width: 18, height: 18, borderRadius: 9,
+                              border: isSelected ? '2px solid #f59e0b' : '2px solid var(--panel-border)',
+                              background: isSelected ? '#f59e0b' : 'transparent',
+                              display: 'grid', placeItems: 'center',
+                            }}>
+                              {isSelected && <div style={{ width: 8, height: 8, borderRadius: 4, background: '#fff' }} />}
+                            </div>
+                          )}
+                          <div>
+                            <div style={{
+                              fontSize: 14, fontWeight: 500,
+                              color: isMinted ? '#64748b' : 'var(--text)',
+                            }}>
+                              <span style={{ color: '#64748b', marginRight: 6 }}>#{issue.issue_number}</span>
+                              {issue.title}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                              {issue.page_count} pages
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {isMinted ? (
+                            <span style={{
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: '#10b981',
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                            }}>
+                              Minted
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>
+                              ${(issuePrices[issue.id] || issue.price || 1).toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Summary */}
+                {mintMode === 'series' && (
+                  <div style={{
+                    marginTop: 16, padding: 12, background: 'rgba(139, 92, 246, 0.08)',
+                    borderRadius: 8, fontSize: 13, color: '#94a3b8',
+                  }}>
+                    {comicIssues.filter(i => !i.is_published).length} issue(s) will be minted.
+                    {comicIssues.filter(i => i.is_published).length > 0 && (
+                      <span> ({comicIssues.filter(i => i.is_published).length} already minted)</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <CustomizeStep
           isProjectLead={isProjectLead}
           teaserPercent={teaserPercent}
@@ -510,6 +709,11 @@ export default function PublishTab({
           editions={editions}
           minting={minting}
           onMint={handleMint}
+          mintMode={project.content_type === 'comic' ? mintMode : undefined}
+          selectedIssue={project.content_type === 'comic' && mintMode === 'issue'
+            ? comicIssues.find(i => i.id === selectedIssueId) : undefined}
+          unmintedCount={project.content_type === 'comic'
+            ? comicIssues.filter(i => !i.is_published).length : undefined}
         />
       )}
 
@@ -1396,6 +1600,9 @@ interface MintStepProps {
   editions: number;
   minting: boolean;
   onMint: () => void;
+  mintMode?: 'issue' | 'series';
+  selectedIssue?: ComicIssueListItem;
+  unmintedCount?: number;
 }
 
 function MintStep({
@@ -1407,6 +1614,9 @@ function MintStep({
   editions,
   minting,
   onMint,
+  mintMode,
+  selectedIssue,
+  unmintedCount,
 }: MintStepProps) {
   const [agree, setAgree] = useState(false);
 
@@ -1424,6 +1634,25 @@ function MintStep({
       <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18 }}>
         Review & Mint
       </h3>
+
+      {/* Comic mint target info */}
+      {mintMode && (
+        <div style={{
+          padding: 12,
+          background: 'rgba(139, 92, 246, 0.08)',
+          border: '1px solid rgba(139, 92, 246, 0.2)',
+          borderRadius: 8,
+          marginBottom: 20,
+          fontSize: 13,
+          color: '#94a3b8',
+        }}>
+          {mintMode === 'issue' && selectedIssue ? (
+            <span>Minting: <strong style={{ color: 'var(--text)' }}>Issue #{selectedIssue.issue_number} - {selectedIssue.title}</strong></span>
+          ) : mintMode === 'series' ? (
+            <span>Minting: <strong style={{ color: 'var(--text)' }}>{unmintedCount} issue(s)</strong> (entire series)</span>
+          ) : null}
+        </div>
+      )}
 
       {/* Checklist */}
       <div style={{ marginBottom: 24 }}>
@@ -1547,7 +1776,7 @@ function MintStep({
             opacity: allChecked && agree ? 1 : 0.5,
           }}
         >
-          {minting ? 'Minting...' : 'Mint & Publish NFT'}
+          {minting ? 'Minting...' : mintMode === 'issue' ? 'Mint Issue' : mintMode === 'series' ? 'Mint All Issues' : 'Mint & Publish NFT'}
         </button>
       ) : (
         <div style={{

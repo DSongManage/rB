@@ -10,7 +10,7 @@ import { API_URL } from '../config';
 
 interface CartItem {
   id: number;
-  type: 'chapter' | 'content';
+  type: 'chapter' | 'content' | 'comic_issue';
   item_id: number;
   title: string;
   creator_username: string;
@@ -18,6 +18,8 @@ interface CartItem {
   added_at: string;
   book_title?: string;
   chapter_order?: number;
+  series_title?: string;
+  issue_number?: number;
   cover_url?: string;
 }
 
@@ -46,12 +48,12 @@ interface CartContextType {
   cart: Cart | null;
   loading: boolean;
   error: string | null;
-  addToCart: (chapterId?: number, contentId?: number) => Promise<boolean>;
+  addToCart: (chapterId?: number, contentId?: number, comicIssueId?: number) => Promise<boolean>;
   removeFromCart: (itemId: number) => Promise<boolean>;
   clearCart: () => Promise<void>;
   checkout: () => Promise<string | null>;
   refreshCart: () => Promise<void>;
-  isInCart: (itemId: number, type: 'chapter' | 'content') => boolean;
+  isInCart: (itemId: number, type: 'chapter' | 'content' | 'comic_issue') => boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -93,7 +95,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     refreshCart();
   }, [refreshCart]);
 
-  const addToCart = async (chapterId?: number, contentId?: number): Promise<boolean> => {
+  const addToCart = async (chapterId?: number, contentId?: number, comicIssueId?: number): Promise<boolean> => {
     setError(null);
     try {
       const csrfToken = await getCSRFToken();
@@ -104,7 +106,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           'X-CSRFToken': csrfToken,
         },
         credentials: 'include',
-        body: JSON.stringify({ chapter_id: chapterId, content_id: contentId }),
+        body: JSON.stringify({ chapter_id: chapterId, content_id: contentId, comic_issue_id: comicIssueId }),
       });
 
       const data = await res.json();
@@ -184,7 +186,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isInCart = (itemId: number, type: 'chapter' | 'content'): boolean => {
+  const isInCart = (itemId: number, type: 'chapter' | 'content' | 'comic_issue'): boolean => {
     if (!cart) return false;
     return cart.items.some(
       item => item.item_id === itemId && item.type === type
