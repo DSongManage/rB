@@ -1463,6 +1463,15 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
+
+            # Solo: single creator gets 100%
+            creator_splits = [{
+                'user_id': creator.id,
+                'username': creator.username,
+                'wallet_address': creator.profile.wallet_address,
+                'percentage': 100.0,
+                'role': 'Creator'
+            }]
         else:
             # ========== COLLABORATIVE PROJECT CHECKS ==========
 
@@ -1529,27 +1538,27 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-        # Prepare creator splits for smart contract
-        creator_splits = []
-        for collab in collaborators:
-            creator_splits.append({
-                'user_id': collab.user.id,
-                'username': collab.user.username,
-                'wallet_address': collab.user.profile.wallet_address,
-                'percentage': float(collab.revenue_percentage),
-                'role': collab.role
-            })
+            # Prepare creator splits for smart contract
+            creator_splits = []
+            for collab in collaborators:
+                creator_splits.append({
+                    'user_id': collab.user.id,
+                    'username': collab.user.username,
+                    'wallet_address': collab.user.profile.wallet_address,
+                    'percentage': float(collab.revenue_percentage),
+                    'role': collab.role
+                })
 
-        # Validate splits total 100%
-        total_percentage = sum(split['percentage'] for split in creator_splits)
-        if abs(total_percentage - 100.0) > 0.01:
-            return Response(
-                {
-                    'error': f'Revenue splits must total 100%, got {total_percentage}%',
-                    'creator_splits': creator_splits
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Validate splits total 100%
+            total_percentage = sum(split['percentage'] for split in creator_splits)
+            if abs(total_percentage - 100.0) > 0.01:
+                return Response(
+                    {
+                        'error': f'Revenue splits must total 100%, got {total_percentage}%',
+                        'creator_splits': creator_splits
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Get sale price from project
         sale_amount_usd = project.price_usd

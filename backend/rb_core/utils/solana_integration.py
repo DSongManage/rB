@@ -60,10 +60,16 @@ def validate_creator_splits(creator_splits: List[Dict]) -> None:
                 f"Invalid percentage type for user {split.get('user_id')}"
             )
 
-        if percentage <= 0 or percentage >= 100:
-            raise InvalidCreatorSplitsError(
-                f"Creator percentage must be between 1 and 99, got {percentage}"
-            )
+        if len(creator_splits) == 1:
+            if percentage <= 0 or percentage > 100:
+                raise InvalidCreatorSplitsError(
+                    f"Creator percentage must be between 1 and 100, got {percentage}"
+                )
+        else:
+            if percentage <= 0 or percentage >= 100:
+                raise InvalidCreatorSplitsError(
+                    f"Creator percentage must be between 1 and 99, got {percentage}"
+                )
 
     # Validate total percentage
     total_percentage = sum(
