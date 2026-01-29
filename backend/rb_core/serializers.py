@@ -90,11 +90,12 @@ class ContentSerializer(serializers.ModelSerializer):
         return False
 
     def get_is_collaborative(self, obj):
-        """Check if this content comes from a collaborative project."""
+        """Check if this content comes from a collaborative (non-solo) project."""
         try:
-            # Check if content has a source_collaborative_project
             if hasattr(obj, 'source_collaborative_project') and obj.source_collaborative_project.exists():
-                return True
+                collab_project = obj.source_collaborative_project.first()
+                if collab_project and not collab_project.is_solo:
+                    return True
         except Exception:
             pass
         return False

@@ -1601,8 +1601,11 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 copyright_year=datetime.now().year,
                 copyright_holder=author_name,
             )
-            # Set teaser link to the content's teaser endpoint
-            content.teaser_link = f'/api/content/{content.id}/teaser/'
+            # Set teaser link: prefer project cover art, fall back to teaser endpoint
+            if project.cover_image:
+                content.teaser_link = project.cover_image.url
+            else:
+                content.teaser_link = f'/api/content/{content.id}/teaser/'
 
             # Build teaser_html from project sections (for book content)
             if project.content_type == 'book':
@@ -1787,9 +1790,11 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Get teaser image from first panel with artwork
+        # Get teaser image: prefer project cover art, fall back to first panel artwork
         teaser_link = ''
-        if first_panel_with_art and first_panel_with_art.artwork:
+        if project.cover_image:
+            teaser_link = project.cover_image.url
+        elif first_panel_with_art and first_panel_with_art.artwork:
             teaser_link = first_panel_with_art.artwork.url
 
         # Check if Content already exists for this project
