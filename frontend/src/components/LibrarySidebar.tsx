@@ -32,7 +32,7 @@ export function LibrarySidebar() {
       const data = await libraryApi.getLibrary();
       setLibrary(data);
       // Auto-select first tab with content
-      const tabs: (keyof Library)[] = ['books', 'art'];
+      const tabs: (keyof Library)[] = ['books', 'art', 'comics'];
       const firstTabWithContent = tabs.find(tab => data[tab]?.length > 0);
       if (firstTabWithContent) {
         setSelectedTab(firstTabWithContent);
@@ -195,7 +195,7 @@ export function LibrarySidebar() {
           overflowX: 'auto',
         }}
       >
-        {(['books', 'art'] as const).map((tab) => {
+        {(['books', 'art', 'comics'] as const).map((tab) => {
           const count = library?.[tab]?.length || 0;
           // Only show tabs that have content
           if (count === 0) return null;
