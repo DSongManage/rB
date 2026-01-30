@@ -4,11 +4,10 @@
  * Shows real-time status updates for purchases going through the Bridge conversion flow.
  * Displays progress: Payment -> Converting -> Minting -> Complete
  *
- * The Bridge on-ramp flow:
- * 1. Stripe processes credit card payment
- * 2. Bridge converts USD -> USDC (5-30 minutes)
- * 3. Smart contract mints NFT and distributes USDC
- * 4. Purchase complete!
+ * The purchase flow:
+ * 1. Coinbase on-ramp converts fiat -> USDC (or user pays with existing balance)
+ * 2. Smart contract mints NFT and distributes USDC
+ * 3. Purchase complete!
  */
 
 import React, { useState, useEffect, useCallback } from 'react';

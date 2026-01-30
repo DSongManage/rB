@@ -2,12 +2,11 @@
 Shopping Cart API Views
 
 Endpoints for managing shopping cart and batch checkout.
-Supports adding/removing items, calculating fees, and creating Stripe checkout sessions.
+Purchases are paid with USDC from the user's Web3Auth wallet.
 """
 
 import json
 import logging
-import stripe
 from decimal import Decimal
 
 from django.conf import settings
@@ -21,10 +20,6 @@ from ..models import Cart, CartItem, Chapter, Content, Purchase, BatchPurchase, 
 from ..payment_utils import calculate_cart_breakdown
 
 logger = logging.getLogger(__name__)
-stripe.api_key = settings.STRIPE_SECRET_KEY
-
-# Stripe minimum charge is $0.50 USD
-STRIPE_MINIMUM_CHARGE = Decimal('0.50')
 
 
 class CartView(APIView):
@@ -42,20 +37,17 @@ class CartView(APIView):
             defaults={'status': 'active'}
         )
 
-        # If cart was in checkout but user came back, check if we should reset
-        if cart.status == 'checkout' and cart.stripe_checkout_session_id:
-            # Check if there's a pending/processing batch purchase for this session
+        # If cart was in checkout, check if we should reset
+        if cart.status == 'checkout':
             pending_batch = BatchPurchase.objects.filter(
-                stripe_checkout_session_id=cart.stripe_checkout_session_id,
+                user=request.user,
                 status__in=['payment_pending', 'payment_completed', 'processing']
-            ).first()
+            ).order_by('-created_at').first()
 
             if pending_batch:
-                # Batch purchase in progress - return empty cart to frontend
-                # (items are preserved in DB for batch processing, but hidden from user)
                 return Response({
                     'id': cart.id,
-                    'status': 'processing',  # Special status for frontend
+                    'status': 'processing',
                     'item_count': 0,
                     'max_items': Cart.MAX_ITEMS,
                     'items': [],
@@ -63,10 +55,8 @@ class CartView(APIView):
                     'batch_status': pending_batch.status,
                 })
             else:
-                # User cancelled checkout or session expired - safe to reset
                 cart.status = 'active'
-                cart.stripe_checkout_session_id = ''
-                cart.save(update_fields=['status', 'stripe_checkout_session_id'])
+                cart.save(update_fields=['status'])
 
         # Recalculate totals
         breakdown = None
@@ -86,15 +76,11 @@ class CartView(APIView):
         ).all():
             purchasable = item.chapter or item.content or item.comic_issue
 
-            # Get cover URL - chapters use book's cover, content checks multiple sources
+            # Get cover URL
             cover_url = None
             if item.chapter and item.chapter.book_project.cover_image:
                 cover_url = item.chapter.book_project.cover_image.url
             elif item.content:
-                # For content, check multiple sources for cover image:
-                # 1. Source collaborative project's cover_image
-                # 2. Source book project's cover_image
-                # 3. Content's teaser_link (if it's an image)
                 if hasattr(item.content, 'source_collaborative_project'):
                     collab_project = item.content.source_collaborative_project.first()
                     if collab_project and collab_project.cover_image:
@@ -106,7 +92,6 @@ class CartView(APIView):
                         cover_url = book_project.cover_image.url
 
                 if not cover_url and item.content.teaser_link:
-                    # For art/film/music content, teaser_link might be an image
                     teaser = item.content.teaser_link
                     if teaser and any(teaser.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']):
                         cover_url = teaser
@@ -123,13 +108,10 @@ class CartView(APIView):
                 'creator_username': item.creator.username,
                 'unit_price': str(item.unit_price),
                 'added_at': item.added_at.isoformat(),
-                # Chapter-specific
                 'book_title': item.chapter.book_project.title if item.chapter else None,
                 'chapter_order': item.chapter.order if item.chapter else None,
-                # Comic issue-specific
                 'series_title': item.comic_issue.series.title if item.comic_issue and item.comic_issue.series else None,
                 'issue_number': item.comic_issue.issue_number if item.comic_issue else None,
-                # Cover art
                 'cover_url': cover_url,
             })
 
@@ -144,9 +126,7 @@ class CartView(APIView):
         if breakdown:
             response_data.update({
                 'subtotal': str(cart.subtotal),
-                'credit_card_fee': str(cart.credit_card_fee),
-                'total': str(cart.total),
-                'savings_vs_individual': str(breakdown.get('savings_vs_individual', '0.00')),
+                'total': str(cart.subtotal),  # No processing fee — buyer pays subtotal
                 'breakdown_display': breakdown['breakdown_display'],
             })
 
@@ -155,10 +135,10 @@ class CartView(APIView):
 
 class AddToCartView(APIView):
     """
-    Add chapter or content to cart.
+    Add chapter, content, or comic issue to cart.
 
     POST /api/cart/add/
-    Body: { chapter_id: int } OR { content_id: int }
+    Body: { chapter_id: int } OR { content_id: int } OR { comic_issue_id: int }
     """
     permission_classes = [IsAuthenticated]
 
@@ -188,8 +168,7 @@ class AddToCartView(APIView):
         # Reset cart if it was in checkout
         if cart.status == 'checkout':
             cart.status = 'active'
-            cart.stripe_checkout_session_id = ''
-            cart.save(update_fields=['status', 'stripe_checkout_session_id'])
+            cart.save(update_fields=['status'])
 
         # Check cart limit
         if not cart.can_add_item():
@@ -203,7 +182,6 @@ class AddToCartView(APIView):
                 if chapter_id:
                     chapter = Chapter.objects.select_related('book_project__creator').get(id=chapter_id)
 
-                    # Check if already owned
                     if Purchase.objects.filter(
                         user=request.user,
                         chapter=chapter,
@@ -214,7 +192,6 @@ class AddToCartView(APIView):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-                    # Check if already in cart
                     if CartItem.objects.filter(cart=cart, chapter=chapter).exists():
                         return Response(
                             {'error': 'Item already in cart', 'code': 'ALREADY_IN_CART'},
@@ -261,7 +238,6 @@ class AddToCartView(APIView):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-                    # Check if already owned
                     if Purchase.objects.filter(
                         user=request.user,
                         comic_issue=comic_issue,
@@ -295,7 +271,7 @@ class AddToCartView(APIView):
                 return Response({
                     'success': True,
                     'item_count': cart.items.count(),
-                    'total': str(cart.total),
+                    'total': str(cart.subtotal),
                     'breakdown': breakdown['breakdown_display']
                 })
 
@@ -328,7 +304,6 @@ class RemoveFromCartView(APIView):
         try:
             cart = Cart.objects.get(user=request.user)
 
-            # Don't allow removal during active checkout
             if cart.status == 'checkout':
                 return Response(
                     {'error': 'Cart is locked during checkout', 'code': 'CART_LOCKED'},
@@ -338,13 +313,12 @@ class RemoveFromCartView(APIView):
             item = CartItem.objects.get(id=item_id, cart=cart)
             item.delete()
 
-            # Recalculate totals
             if cart.items.exists():
                 breakdown = cart.calculate_totals()
                 return Response({
                     'success': True,
                     'item_count': cart.items.count(),
-                    'total': str(cart.total),
+                    'total': str(cart.subtotal),
                     'breakdown': breakdown['breakdown_display']
                 })
             else:
@@ -373,7 +347,6 @@ class ClearCartView(APIView):
         try:
             cart = Cart.objects.get(user=request.user)
 
-            # Don't allow clearing during active checkout
             if cart.status == 'checkout':
                 return Response(
                     {'error': 'Cart is locked during checkout', 'code': 'CART_LOCKED'},
@@ -388,10 +361,10 @@ class ClearCartView(APIView):
 
 class CartCheckoutView(APIView):
     """
-    Create Stripe checkout session for cart purchase.
+    Initiate checkout for cart — pays with USDC from user's wallet.
 
     POST /api/cart/checkout/
-    Returns checkout_url for redirect to Stripe.
+    Creates a BatchPurchase and triggers atomic minting for each item.
     """
     permission_classes = [IsAuthenticated]
 
@@ -416,7 +389,6 @@ class CartCheckoutView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Verify wallet
             if not request.user.wallet_address:
                 return Response(
                     {'error': 'Web3Auth wallet required', 'code': 'NO_WALLET'},
@@ -424,108 +396,27 @@ class CartCheckoutView(APIView):
                 )
 
             with transaction.atomic():
-                # Lock cart during checkout
                 cart.status = 'checkout'
                 cart.save(update_fields=['status'])
 
-                # Calculate final totals
                 breakdown = cart.calculate_totals()
-
-                # Validate minimum charge amount for Stripe
-                if cart.total < STRIPE_MINIMUM_CHARGE:
-                    cart.status = 'active'
-                    cart.save(update_fields=['status'])
-                    return Response(
-                        {
-                            'error': f'Minimum purchase amount is ${STRIPE_MINIMUM_CHARGE}. Please add more items to your cart.',
-                            'code': 'BELOW_MINIMUM',
-                            'minimum': str(STRIPE_MINIMUM_CHARGE),
-                            'current_total': str(cart.total)
-                        },
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                # Build Stripe line items
-                line_items = []
-                item_metadata = []
-
-                for i, item in enumerate(cart.items.all()):
-                    purchasable = item.chapter or item.content
-                    creator = item.creator
-
-                    # Each item gets its proportional share of the CC fee
-                    if cart.subtotal > 0:
-                        item_share = item.unit_price / cart.subtotal
-                    else:
-                        item_share = Decimal('1')
-                    item_cc_fee = (cart.credit_card_fee * item_share).quantize(Decimal('0.01'))
-                    item_total = item.unit_price + item_cc_fee
-
-                    line_items.append({
-                        'price_data': {
-                            'currency': 'usd',
-                            'product_data': {
-                                'name': purchasable.title,
-                                'description': f'By {creator.username}',
-                            },
-                            'unit_amount': int(item_total * 100),  # Convert to cents
-                        },
-                        'quantity': 1,
-                    })
-
-                    item_metadata.append({
-                        'index': i,
-                        'type': item.item_type,
-                        'item_id': purchasable.id,
-                        'price': str(item.unit_price),
-                        'creator_id': creator.id,
-                    })
 
                 # Create batch purchase record
                 batch = BatchPurchase.objects.create(
                     user=request.user,
-                    stripe_checkout_session_id='pending',  # Updated after session creation
                     total_items=cart.items.count(),
                     subtotal=cart.subtotal,
-                    credit_card_fee=cart.credit_card_fee,
-                    total_charged=cart.total,
+                    credit_card_fee=Decimal('0'),  # No processing fee
+                    total_charged=cart.subtotal,    # Buyer pays subtotal
                     status='payment_pending'
                 )
 
-                # Get frontend URL for success/cancel redirects
-                frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
-
-                # Create Stripe session with aggregated line items
-                checkout_session = stripe.checkout.Session.create(
-                    payment_method_types=['card'],
-                    line_items=line_items,
-                    mode='payment',
-                    success_url=f"{frontend_url}/cart/success?session_id={{CHECKOUT_SESSION_ID}}",
-                    cancel_url=f"{frontend_url}/cart",
-                    metadata={
-                        'batch_purchase_id': str(batch.id),
-                        'user_id': str(request.user.id),
-                        'item_count': str(cart.items.count()),
-                        'items': json.dumps(item_metadata),
-                    },
-                )
-
-                # Update records with session ID
-                batch.stripe_checkout_session_id = checkout_session.id
-                batch.save(update_fields=['stripe_checkout_session_id'])
-
-                cart.stripe_checkout_session_id = checkout_session.id
-                cart.save(update_fields=['stripe_checkout_session_id'])
-
-                logger.info(f"[Cart Checkout] Created batch purchase {batch.id} with {cart.items.count()} items")
+                logger.info(f"[Cart Checkout] Created batch purchase {batch.id} with {cart.items.count()} items, total: ${cart.subtotal}")
 
                 return Response({
-                    'checkout_url': checkout_session.url,
-                    'session_id': checkout_session.id,
                     'batch_purchase_id': batch.id,
                     'item_count': cart.items.count(),
-                    'total': str(cart.total),
-                    'savings': str(breakdown['savings_vs_individual']),
+                    'total': str(cart.subtotal),
                 })
 
         except Cart.DoesNotExist:
@@ -533,21 +424,8 @@ class CartCheckoutView(APIView):
                 {'error': 'No active cart found'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except stripe.StripeError as e:
-            logger.error(f"[Cart Checkout] Stripe error: {e}")
-            # Unlock cart on error
-            try:
-                cart.status = 'active'
-                cart.save(update_fields=['status'])
-            except Exception:
-                pass
-            return Response(
-                {'error': 'Payment service error', 'code': 'STRIPE_ERROR'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
         except Exception as e:
             logger.error(f"[Cart Checkout] Error: {e}")
-            # Unlock cart on error
             try:
                 cart.status = 'active'
                 cart.save(update_fields=['status'])
@@ -561,7 +439,7 @@ class CartBreakdownView(APIView):
     Get fee breakdown for current cart.
 
     GET /api/cart/breakdown/
-    Returns detailed fee calculation including savings.
+    Returns detailed fee calculation.
     """
     permission_classes = [IsAuthenticated]
 
@@ -577,9 +455,7 @@ class CartBreakdownView(APIView):
 
             return Response({
                 'subtotal': str(breakdown['subtotal']),
-                'credit_card_fee': str(breakdown['credit_card_fee']),
                 'buyer_total': str(breakdown['buyer_total']),
-                'savings_vs_individual': str(breakdown['savings_vs_individual']),
                 'item_count': breakdown['num_items'],
                 'breakdown_display': breakdown['breakdown_display'],
             })

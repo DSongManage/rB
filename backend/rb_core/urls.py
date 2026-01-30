@@ -2,12 +2,12 @@ from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
 from .views import home, HealthCheckView, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, UnpublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicBookProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView, SeriesListCreateView, SeriesDetailView, AddBookToSeriesView, RemoveBookFromSeriesView
-from .views.checkout import CreateCheckoutSessionView, DevProcessPurchaseView, FeeBreakdownView
+from .views.checkout import DevProcessPurchaseView, FeeBreakdownView
 from .views.cart import (
     CartView, AddToCartView, RemoveFromCartView, ClearCartView,
     CartCheckoutView, CartBreakdownView
 )
-from .views.webhook import stripe_webhook, bridge_webhook
+from .views.webhook import bridge_webhook
 from .views.bridge import (
     BridgeOnboardingStatusView, CreateBridgeCustomerView, GetKYCLinkView, GetKYCStatusView,
     ListExternalAccountsView, LinkBankAccountPlaidView, LinkBankAccountManualView,
@@ -53,6 +53,7 @@ from .views.direct_crypto import (
     InitiateDirectCryptoPaymentView, DirectCryptoPaymentStatusView,
     CancelDirectCryptoPaymentView
 )
+from .views.tiers import MyTierProgressView, FoundingStatusView, CreatorTierView
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -86,12 +87,8 @@ urlpatterns = [
     path('api/content/<int:pk>/unpublish/', ContentUnpublishView.as_view(), name='content_unpublish'),
     path('api/content/<int:content_id>/like/', ContentLikeView.as_view(), name='content_like'),
     path('api/content/detail/<int:pk>/', ContentDetailView.as_view(), name='content_detail_view'),
-    # Stripe checkout and payment processing
-    path('api/checkout/create/', CreateCheckoutSessionView.as_view(), name='checkout_create'),
-    path('api/checkout/session/', CreateCheckoutSessionView.as_view(), name='checkout_session'),  # Legacy alias
+    # Fee breakdown (used by frontend price display)
     path('api/checkout/fee-breakdown/', FeeBreakdownView.as_view(), name='fee_breakdown'),
-    path('api/webhooks/stripe/', stripe_webhook, name='stripe_webhook'),
-    path('api/checkout/webhook/', stripe_webhook, name='stripe_webhook_legacy'),  # Legacy alias
     path('api/purchases/', UserPurchasesView.as_view(), name='user_purchases'),
     path('api/purchases/<int:purchase_id>/status/', PurchaseStatusView.as_view(), name='purchase_status'),
     path('api/batch-purchases/<int:batch_id>/status/', BatchPurchaseStatusView.as_view(), name='batch_purchase_status'),
@@ -267,6 +264,11 @@ urlpatterns = [
     path('api/coinbase/status/<int:transaction_id>/', CoinbaseTransactionStatusView.as_view(), name='coinbase_status'),
     path('api/coinbase/complete/<int:transaction_id>/', CoinbaseOnrampCompleteView.as_view(), name='coinbase_complete'),
     path('api/webhooks/coinbase/', CoinbaseWebhookView.as_view(), name='coinbase_webhook'),
+
+    # Creator Tier System
+    path('api/tiers/my-progress/', MyTierProgressView.as_view(), name='tier_my_progress'),
+    path('api/tiers/founding-status/', FoundingStatusView.as_view(), name='tier_founding_status'),
+    path('api/tiers/creator/<str:username>/', CreatorTierView.as_view(), name='tier_creator'),
 
     # Direct Crypto Payment
     path('api/direct-crypto/initiate/<int:intent_id>/', InitiateDirectCryptoPaymentView.as_view(), name='direct_crypto_initiate'),

@@ -149,116 +149,15 @@ except ImportError:
 @shared_task
 def mint_and_distribute(purchase_id):
     """
-    Celery task: Mint NFT and calculate distribution with ACTUAL fees.
+    DEPRECATED: Legacy mock minting task.
 
-    Steps:
-    1. Mint NFT (get ACTUAL gas cost from blockchain)
-    2. Calculate distribution with ACTUAL Stripe + gas fees
-    3. Update purchase record with final amounts
-    4. Update creator sales tracking
-    5. Queue creator payout (future)
-
-    Args:
-        purchase_id: Purchase ID to process
-
-    Returns:
-        dict: Result with success status and distribution details
+    Superseded by process_atomic_purchase() which performs real atomic
+    on-chain minting + USDC distribution. This stub remains only to
+    prevent Celery errors if old messages are still in the queue.
     """
-    from .models import Purchase, UserProfile, CoreUser
-    from .views.payment_utils import calculate_distribution, get_solana_transaction_fee
-
-    try:
-        purchase = Purchase.objects.get(id=purchase_id)
-        purchase.status = 'minting'
-        purchase.save()
-
-        logger.info(f'[Task] Minting NFT for purchase {purchase_id}')
-
-        # 1. MINT NFT
-        # For MVP, we simulate the mint. In production, call actual Solana program
-        mint_result = {
-            'mint_address': f'mock_mint_{purchase_id}',
-            'transaction_signature': f'mock_tx_{purchase_id}',
-        }
-
-        # 2. Get ACTUAL gas cost from blockchain
-        # For MVP, use estimated cost
-        # In production: actual_gas_cost = get_solana_transaction_fee(mint_result['transaction_signature'])
-        actual_gas_cost = Decimal('0.026')  # ~$0.026 typical Solana tx
-
-        logger.info(f'[Task] NFT minted. Gas cost: ${actual_gas_cost}')
-
-        # 3. Update purchase with mint data
-        purchase.nft_mint_address = mint_result['mint_address']
-        purchase.transaction_signature = mint_result['transaction_signature']
-        purchase.mint_cost = actual_gas_cost
-        purchase.nft_minted = True
-
-        # 4. Calculate distribution with ACTUAL fees
-        distribution = calculate_distribution(purchase)
-
-        # 5. Update purchase with final amounts
-        purchase.net_after_costs = distribution['net_after_costs']
-        purchase.platform_fee = distribution['platform_fee']
-        purchase.creator_amount = distribution['creator_amount']
-        purchase.status = 'completed'
-        purchase.save()
-
-        logger.info(
-            f'[Task] Purchase {purchase_id} completed: '
-            f'gross=${distribution["gross"]}, '
-            f'stripe_fee=${distribution["stripe_fee"]}, '
-            f'gas=${distribution["mint_cost"]}, '
-            f'creator=${distribution["creator_amount"]} (90%), '
-            f'platform=${distribution["platform_fee"]} (10%)'
-        )
-
-        # 6. Update creator sales tracking
-        try:
-            creator = purchase.content.creator
-            core_user, _ = CoreUser.objects.get_or_create(username=creator.username)
-            profile, _ = UserProfile.objects.get_or_create(
-                user=core_user,
-                defaults={'username': creator.username}
-            )
-
-            # Add creator earnings to total sales
-            if purchase.creator_amount:
-                profile.total_sales_usd = (profile.total_sales_usd or 0) + float(purchase.creator_amount)
-                profile.save(update_fields=['total_sales_usd'])
-                logger.info(
-                    f'[Task] Updated creator {creator.username} total_sales_usd to ${profile.total_sales_usd}'
-                )
-        except Exception as e:
-            logger.error(f'[Task] Error updating creator sales for purchase {purchase_id}: {e}')
-
-        # 7. TODO: Queue creator payout via Stripe Connect
-        # schedule_creator_payout.delay(purchase.id)
-
-        return {
-            'success': True,
-            'purchase_id': purchase.id,
-            'distribution': {
-                k: str(v) for k, v in distribution.items()  # Convert Decimals to strings for JSON
-            }
-        }
-
-    except Purchase.DoesNotExist:
-        logger.error(f'[Task] Purchase {purchase_id} not found')
-        return {'success': False, 'error': 'Purchase not found'}
-
-    except Exception as e:
-        logger.error(f'[Task] Error processing purchase {purchase_id}: {e}', exc_info=True)
-
-        # Mark purchase as failed
-        try:
-            purchase = Purchase.objects.get(id=purchase_id)
-            purchase.status = 'failed'
-            purchase.save()
-        except Exception as db_error:
-            logger.error(f'[Task] Failed to mark purchase {purchase_id} as failed: {db_error}')
-
-        return {'success': False, 'error': str(e)}
+    raise NotImplementedError(
+        "mint_and_distribute is deprecated — use process_atomic_purchase instead"
+    )
 
 
 @shared_task
@@ -347,7 +246,7 @@ def process_atomic_purchase(self, purchase_id):
         # Get purchase
         purchase = Purchase.objects.get(id=purchase_id)
 
-        # Determine if chapter or content purchase
+        # Determine purchase type (chapter, content, or comic_issue)
         if purchase.chapter:
             item = purchase.chapter
             item_type = 'chapter'
@@ -356,8 +255,12 @@ def process_atomic_purchase(self, purchase_id):
             item = purchase.content
             item_type = 'content'
             logger.info(f'[Atomic Purchase] Processing content purchase {purchase.id} for content "{item.title}"')
+        elif purchase.comic_issue:
+            item = purchase.comic_issue
+            item_type = 'comic_issue'
+            logger.info(f'[Atomic Purchase] Processing comic issue purchase {purchase.id} for issue "{item.title}"')
         else:
-            raise ValueError(f'Purchase {purchase.id} has neither chapter nor content')
+            raise ValueError(f'Purchase {purchase.id} has no chapter, content, or comic_issue')
 
         # Calculate fees - Check if using new fee structure (chapter_price field stores item price)
         if purchase.chapter_price is not None:
@@ -436,9 +339,11 @@ def process_atomic_purchase(self, purchase_id):
             raise ValueError(f'No collaborators found for {item_type} {item.id}')
 
         # Calculate USDC amounts for each collaborator
-        # Platform ALWAYS gets 10%, collaborators split the remaining 90%
-        PLATFORM_PERCENTAGE = Decimal('10')
-        CREATOR_POOL_PERCENTAGE = Decimal('90')
+        # Platform fee is dynamic based on best collaborator tier
+        from .tier_service import get_project_fee_rate
+        dynamic_fee_rate = get_project_fee_rate(item)
+        PLATFORM_PERCENTAGE = (dynamic_fee_rate * Decimal('100')).quantize(Decimal('1'))
+        CREATOR_POOL_PERCENTAGE = Decimal('100') - PLATFORM_PERCENTAGE
 
         # First pass: calculate total collaborator percentage to determine mode
         total_collaborator_percentage = sum(Decimal(str(c['percentage'])) for c in collaborators)
@@ -695,6 +600,16 @@ def process_atomic_purchase(self, purchase_id):
             except Exception as e:
                 logger.error(f'[Atomic Purchase] ⚠️ Error updating sales for creator {creator_username}: {e}')
 
+        # ═══════════════════════════════════════════════════════════════════
+        # UPDATE CREATOR TIERS (lifetime project sales + founding checks)
+        # ═══════════════════════════════════════════════════════════════════
+        try:
+            from .tier_service import process_sale_for_tiers
+            process_sale_for_tiers(purchase, item, amount_to_distribute)
+            logger.info(f'[Atomic Purchase] ✅ Tier processing completed')
+        except Exception as e:
+            logger.error(f'[Atomic Purchase] ⚠️ Tier processing failed (non-fatal): {e}')
+
         logger.info(f'[Atomic Purchase] ✅ Purchase {purchase.id} completed successfully!')
         logger.info(f'[Atomic Purchase] ✅ All {len(collaborator_payments)} creators paid instantly via smart contract')
 
@@ -940,8 +855,6 @@ def process_batch_purchase(self, batch_purchase_id):
     from .payment_utils import calculate_payment_breakdown
     from blockchain.solana_service import mint_and_distribute_collaborative_nft
 
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
     try:
         batch = BatchPurchase.objects.get(id=batch_purchase_id)
         batch.status = 'processing'
@@ -970,7 +883,7 @@ def process_batch_purchase(self, batch_purchase_id):
         failed_items = []
 
         for cart_item in cart.items.all():
-            item = cart_item.chapter or cart_item.content
+            item = cart_item.chapter or cart_item.content or cart_item.comic_issue
             item_type = cart_item.item_type
 
             logger.info(f"[Batch Purchase] Processing {item_type} {item.id}: {item.title}")
@@ -982,12 +895,12 @@ def process_batch_purchase(self, batch_purchase_id):
                     user=batch.user,
                     chapter=cart_item.chapter,
                     content=cart_item.content,
+                    comic_issue=cart_item.comic_issue,
                     batch_purchase=batch,
                     purchase_price_usd=cart_item.unit_price,
                     chapter_price=cart_item.unit_price,  # Used for fee calculation
                     status='payment_completed',
-                    payment_provider='stripe',
-                    stripe_checkout_session_id=batch.stripe_checkout_session_id,
+                    payment_provider='coinbase',
                 )
 
                 # Calculate per-item distribution
@@ -1100,8 +1013,10 @@ def process_batch_purchase(self, batch_purchase_id):
                         total_usdc_amount=float(amount_to_distribute)
                     )
                 except Exception as mint_error:
-                    # If real minting fails, use mock for development
-                    logger.warning(f"[Batch Purchase] Minting failed, using mock: {mint_error}")
+                    if not settings.DEBUG:
+                        raise RuntimeError(f"[Batch Purchase] Minting failed in production: {mint_error}") from mint_error
+                    # Mock fallback for development only
+                    logger.warning(f"[Batch Purchase] Minting failed, using mock (development only): {mint_error}")
                     result = {
                         'nft_mint_address': f'mock_batch_{batch.id}_{item.id}',
                         'transaction_signature': f'mock_tx_batch_{batch.id}_{item.id}',
@@ -1296,79 +1211,38 @@ def process_batch_purchase(self, batch_purchase_id):
 
 def _process_batch_refunds(batch, failed_items):
     """
-    Issue Stripe partial refunds for failed mint items.
+    Handle refunds for failed mint items.
 
-    Args:
-        batch: BatchPurchase object
-        failed_items: List of dicts with item details and prices
+    Since purchases are paid with USDC from user wallets, refunds mean
+    returning USDC to the buyer. The platform treasury still holds the USDC
+    for failed items (the atomic tx failed, so no USDC was distributed).
 
-    Returns:
-        Decimal: Total amount refunded
+    TODO: Implement USDC refund transfer back to buyer wallet.
+    For now, log the failure for manual resolution.
     """
-    import stripe
-    from django.conf import settings
     from django.utils import timezone
-
-    stripe.api_key = settings.STRIPE_SECRET_KEY
 
     if not failed_items:
         return Decimal('0')
 
-    # Calculate refund amount (proportional share including CC fee)
     total_refund = Decimal('0')
-
     for item in failed_items:
-        item_price = Decimal(str(item['price']))
-        # Item's proportional share of the total
-        item_share = item_price / batch.subtotal if batch.subtotal > 0 else Decimal('1')
-        # Include proportional CC fee
-        item_refund = (item_share * batch.total_charged).quantize(Decimal('0.01'))
-        total_refund += item_refund
+        total_refund += Decimal(str(item['price']))
 
-    try:
-        # Get payment intent from checkout session
-        session = stripe.checkout.Session.retrieve(batch.stripe_checkout_session_id)
-        payment_intent_id = session.payment_intent
+    logger.warning(
+        f"[Batch Refund] {len(failed_items)} items failed in batch {batch.id}. "
+        f"Total ${total_refund} USDC needs manual refund to buyer."
+    )
 
-        if not payment_intent_id:
-            logger.error(f"[Partial Refund] No payment intent found for session {batch.stripe_checkout_session_id}")
-            return Decimal('0')
+    batch.processing_log.append({
+        'type': 'refund_needed',
+        'amount': float(total_refund),
+        'failed_items': len(failed_items),
+        'timestamp': timezone.now().isoformat()
+    })
+    batch.save(update_fields=['processing_log'])
 
-        # Create partial refund
-        refund = stripe.Refund.create(
-            payment_intent=payment_intent_id,
-            amount=int(total_refund * 100),  # Convert to cents
-            reason='requested_by_customer',
-            metadata={
-                'batch_purchase_id': str(batch.id),
-                'failed_items': str(len(failed_items)),
-                'reason': 'NFT minting failed for some items'
-            }
-        )
-
-        logger.info(f"[Partial Refund] Created refund {refund.id} for ${total_refund}")
-
-        batch.processing_log.append({
-            'type': 'refund',
-            'refund_id': refund.id,
-            'amount': float(total_refund),
-            'failed_items': len(failed_items),
-            'timestamp': timezone.now().isoformat()
-        })
-        batch.save(update_fields=['processing_log'])
-
-        return total_refund
-
-    except stripe.error.StripeError as e:
-        logger.error(f"[Partial Refund] Failed to create refund: {e}")
-        batch.processing_log.append({
-            'type': 'refund_failed',
-            'error': str(e),
-            'attempted_amount': float(total_refund),
-            'timestamp': timezone.now().isoformat()
-        })
-        batch.save(update_fields=['processing_log'])
-        return Decimal('0')
+    return total_refund
 
 
 # =============================================================================
@@ -1488,7 +1362,7 @@ def initiate_bridge_onramp(self, purchase_id=None, batch_purchase_id=None):
         except Exception:
             # Max retries exceeded - trigger Stripe refund
             logger.error(f"[Bridge On-Ramp] Max retries exceeded, initiating refund")
-            _initiate_stripe_refund(purchase_id, batch_purchase_id, "Bridge conversion failed")
+            _initiate_refund(purchase_id, batch_purchase_id, "Bridge conversion failed")
             return {'success': False, 'error': str(e), 'refund_initiated': True}
 
     except Exception as e:
@@ -1575,7 +1449,7 @@ def check_stale_onramp_transfers():
                 onramp.batch_purchase.save(update_fields=['status'])
 
             # Initiate refund
-            _initiate_stripe_refund(
+            _initiate_refund(
                 onramp.purchase.id if onramp.purchase else None,
                 onramp.batch_purchase.id if onramp.batch_purchase else None,
                 "Bridge conversion timed out"
@@ -1624,7 +1498,7 @@ def check_stale_onramp_transfers():
 
                     elif new_state in ['failed', 'returned']:
                         onramp.failure_reason = transfer_status.get('failure_reason', 'Transfer failed')
-                        _initiate_stripe_refund(
+                        _initiate_refund(
                             onramp.purchase.id if onramp.purchase else None,
                             onramp.batch_purchase.id if onramp.batch_purchase else None,
                             onramp.failure_reason
@@ -1641,62 +1515,29 @@ def check_stale_onramp_transfers():
     return results
 
 
-def _initiate_stripe_refund(purchase_id, batch_purchase_id, reason):
+def _initiate_refund(purchase_id, batch_purchase_id, reason):
     """
-    Helper to initiate Stripe refund for failed Bridge transfers.
+    Handle refund for failed purchases.
 
-    Args:
-        purchase_id: Single purchase ID or None
-        batch_purchase_id: Batch purchase ID or None
-        reason: Reason for refund
+    Since purchases are USDC-based, refunds mean returning USDC to the buyer.
+    TODO: Implement automated USDC refund transfer.
+    For now, log for manual resolution.
     """
-    import stripe
     from .models import Purchase, BatchPurchase
-
-    stripe.api_key = settings.STRIPE_SECRET_KEY
 
     try:
         if purchase_id:
             purchase = Purchase.objects.get(id=purchase_id)
-            payment_intent_id = purchase.stripe_payment_intent_id
-            amount = purchase.gross_amount or purchase.purchase_price_usd
-            metadata_key = 'purchase_id'
-            metadata_value = str(purchase_id)
+            logger.warning(f"[Refund] Purchase {purchase_id} needs USDC refund of ${purchase.purchase_price_usd}: {reason}")
+            Purchase.objects.filter(id=purchase_id).update(status='refunded')
         elif batch_purchase_id:
             batch = BatchPurchase.objects.get(id=batch_purchase_id)
-            payment_intent_id = batch.stripe_payment_intent_id
-            amount = batch.total_charged
-            metadata_key = 'batch_purchase_id'
-            metadata_value = str(batch_purchase_id)
-        else:
-            logger.error("[Stripe Refund] No purchase_id or batch_purchase_id provided")
-            return
-
-        if not payment_intent_id:
-            logger.error(f"[Stripe Refund] No payment_intent_id found for {metadata_key}={metadata_value}")
-            return
-
-        refund = stripe.Refund.create(
-            payment_intent=payment_intent_id,
-            reason='requested_by_customer',
-            metadata={
-                metadata_key: metadata_value,
-                'refund_reason': reason,
-            }
-        )
-
-        logger.info(f"[Stripe Refund] Created refund {refund.id} for ${amount}: {reason}")
-
-        # Update status
-        if purchase_id:
-            Purchase.objects.filter(id=purchase_id).update(status='refunded')
-        if batch_purchase_id:
+            logger.warning(f"[Refund] Batch {batch_purchase_id} needs USDC refund of ${batch.total_charged}: {reason}")
             BatchPurchase.objects.filter(id=batch_purchase_id).update(status='refunded')
-
-    except stripe.error.StripeError as e:
-        logger.error(f"[Stripe Refund] Failed to create refund: {e}")
+        else:
+            logger.error("[Refund] No purchase_id or batch_purchase_id provided")
     except Exception as e:
-        logger.error(f"[Stripe Refund] Unexpected error: {e}")
+        logger.error(f"[Refund] Error processing refund: {e}")
 
 
 # =============================================================================

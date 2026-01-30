@@ -2,8 +2,40 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL } from '../config';
 import InviteModal from '../components/InviteModal';
-import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen, ChevronLeft, ChevronRight, Zap, TrendingUp, Crown } from 'lucide-react';
 import { useMobile } from '../hooks/useMobile';
+
+// Tier display config
+const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  founding: { label: 'Founding Creator', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)' },
+  level_5: { label: 'Level 5', color: '#a855f7', bg: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.4)' },
+  level_4: { label: 'Level 4', color: '#6366f1', bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.4)' },
+  level_3: { label: 'Level 3', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)' },
+  level_2: { label: 'Level 2', color: '#14b8a6', bg: 'rgba(20,184,166,0.15)', border: 'rgba(20,184,166,0.4)' },
+  level_1: { label: 'Level 1', color: '#22c55e', bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.4)' },
+  standard: { label: 'Standard', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)' },
+};
+
+const TIER_OPTIONS = [
+  { key: 'founding', label: 'Founding Creator', color: '#f59e0b' },
+  { key: 'level_5', label: 'Level 5', color: '#a855f7' },
+  { key: 'level_4', label: 'Level 4', color: '#6366f1' },
+  { key: 'level_3', label: 'Level 3', color: '#3b82f6' },
+  { key: 'level_2', label: 'Level 2', color: '#14b8a6' },
+  { key: 'level_1', label: 'Level 1', color: '#22c55e' },
+  { key: 'standard', label: 'Standard', color: '#94a3b8' },
+];
+
+interface FeaturedCreator {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  tier: string;
+  fee_percent: string;
+  roles: string[];
+  lifetime_project_sales: number;
+}
 
 export default function CollaboratorsPage() {
   const navigate = useNavigate();
@@ -13,7 +45,10 @@ export default function CollaboratorsPage() {
   const [genre, setGenre] = useState('');
   const [location, setLocation] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [tierFilters, setTierFilters] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState('');
   const [results, setResults] = useState<any[]>([]);
+  const [featuredCreators, setFeaturedCreators] = useState<FeaturedCreator[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<any>(null);
@@ -25,6 +60,12 @@ export default function CollaboratorsPage() {
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
 
+  const toggleTierFilter = (tier: string) => {
+    setTierFilters(prev =>
+      prev.includes(tier) ? prev.filter(t => t !== tier) : [...prev, tier]
+    );
+  };
+
   // Reset to page 1 when filters change
   const filterString = useMemo(()=>{
     const params = new URLSearchParams();
@@ -33,8 +74,10 @@ export default function CollaboratorsPage() {
     if (genre) params.set('genre', genre);
     if (location) params.set('location', location);
     if (statusFilter) params.set('status', statusFilter);
+    if (tierFilters.length > 0) params.set('tier', tierFilters.join(','));
+    if (sortBy) params.set('sort', sortBy);
     return params.toString();
-  }, [q, role, genre, location, statusFilter]);
+  }, [q, role, genre, location, statusFilter, tierFilters, sortBy]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -59,6 +102,7 @@ export default function CollaboratorsPage() {
           setTotalCount(data.total_count || 0);
           setHasNext(data.has_next || false);
           setHasPrev(data.has_prev || false);
+          setFeaturedCreators(data.featured_creators || []);
         })
         .finally(()=> setLoading(false));
     }, 300);
@@ -81,11 +125,41 @@ export default function CollaboratorsPage() {
     return gradients[index];
   };
 
+  const renderTierBadge = (tier: string, feePercent?: string) => {
+    if (!tier || tier === 'standard') return null;
+    const tc = TIER_CONFIG[tier] || TIER_CONFIG.standard;
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        fontSize: 12,
+        color: tc.color,
+        fontWeight: 600,
+        padding: '6px 12px',
+        background: tc.bg,
+        borderRadius: 8,
+        border: `1px solid ${tc.border}`,
+        marginBottom: 16,
+      }}>
+        {tier === 'founding' ? <Star size={14} fill={tc.color} color={tc.color} /> : <Zap size={14} />}
+        {tc.label}
+        {feePercent && (
+          <span style={{ marginLeft: 4, opacity: 0.8, fontWeight: 700 }}>
+            ({feePercent} fee)
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{width: '100%', padding: isMobile ? '0 8px' : 0}}>
+      {/* Search & Filters */}
       <div style={{background:'var(--bg-card)', border:'1px solid var(--panel-border-strong)', borderRadius: isMobile ? 8 : 12, padding: isMobile ? 12 : 20, marginBottom: isMobile ? 16 : 24, boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}}>
         <h2 style={{margin:0, marginBottom: isMobile ? 12 : 16, color:'var(--text)', fontSize: isMobile ? 20 : 24, fontWeight:700}}>Find Collaborators</h2>
-        <div style={{display:'grid', gridTemplateColumns: isPhone ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap:12}}>
+        <div style={{display:'grid', gridTemplateColumns: isPhone ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap:12, marginBottom: 16}}>
           <input value={q} onChange={(e)=>setQ(e.target.value)} placeholder="Search by name or @handle" style={{padding:'10px 14px'}} />
           <input value={role} onChange={(e)=>setRole(e.target.value)} placeholder="Role (e.g., author, artist)" style={{padding:'10px 14px'}} />
           <input value={genre} onChange={(e)=>setGenre(e.target.value)} placeholder="Genre (e.g., fantasy)" style={{padding:'10px 14px'}} />
@@ -100,16 +174,201 @@ export default function CollaboratorsPage() {
             <option value="yellow">Selective - May consider offers</option>
             <option value="red">Unavailable - Not taking projects</option>
           </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            style={{padding:'10px 14px', cursor: 'pointer'}}
+          >
+            <option value="">Sort: Default</option>
+            <option value="tier">Sort: Best Tier First</option>
+          </select>
+        </div>
+
+        {/* Tier Filter Chips */}
+        <div>
+          <div style={{
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            marginBottom: 8,
+          }}>
+            Filter by Tier
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {TIER_OPTIONS.map(opt => {
+              const isActive = tierFilters.includes(opt.key);
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => toggleTierFilter(opt.key)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    border: `1.5px solid ${isActive ? opt.color : 'var(--panel-border-strong)'}`,
+                    background: isActive ? (TIER_CONFIG[opt.key]?.bg || 'transparent') : 'transparent',
+                    color: isActive ? opt.color : 'var(--text-muted)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {opt.key === 'founding' && <Star size={12} fill={isActive ? opt.color : 'none'} color={isActive ? opt.color : 'var(--text-muted)'} />}
+                  {opt.label}
+                </button>
+              );
+            })}
+            {tierFilters.length > 0 && (
+              <button
+                onClick={() => setTierFilters([])}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 20,
+                  border: '1.5px solid var(--panel-border-strong)',
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Featured Creators Section */}
+      {featuredCreators.length > 0 && tierFilters.length === 0 && (
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--panel-border-strong)',
+          borderRadius: isMobile ? 8 : 12,
+          padding: isMobile ? 12 : 20,
+          marginBottom: isMobile ? 16 : 24,
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 16,
+          }}>
+            <Crown size={20} style={{ color: '#f59e0b' }} />
+            <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 18, fontWeight: 700 }}>
+              Top Tier Creators
+            </h3>
+            <span style={{
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              fontWeight: 500,
+              marginLeft: 4,
+            }}>
+              Lower platform fees when they're on your project
+            </span>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isPhone ? 'repeat(2, 1fr)' : `repeat(auto-fill, minmax(180px, 1fr))`,
+            gap: 12,
+          }}>
+            {featuredCreators.map(fc => {
+              const tc = TIER_CONFIG[fc.tier] || TIER_CONFIG.standard;
+              return (
+                <div
+                  key={fc.id}
+                  onClick={() => navigate(`/profile/${fc.username}`)}
+                  style={{
+                    background: tc.bg,
+                    border: `1px solid ${tc.border}`,
+                    borderRadius: 12,
+                    padding: 16,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'center',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = `0 8px 16px ${tc.border}`;
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  {/* Avatar */}
+                  <div style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: '50%',
+                    background: fc.avatar_url ? `url(${fc.avatar_url}) center/cover` : '#374151',
+                    border: `2px solid ${tc.color}`,
+                    margin: '0 auto 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: tc.color,
+                  }}>
+                    {!fc.avatar_url && (fc.username || '?').slice(0, 1).toUpperCase()}
+                  </div>
+
+                  {/* Name */}
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>
+                    @{fc.username}
+                  </div>
+                  {fc.display_name && (
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                      {fc.display_name}
+                    </div>
+                  )}
+
+                  {/* Tier + Fee */}
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '3px 10px',
+                    borderRadius: 12,
+                    background: 'rgba(0,0,0,0.15)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: tc.color,
+                    marginBottom: 6,
+                  }}>
+                    {fc.tier === 'founding' ? <Star size={10} fill={tc.color} color={tc.color} /> : <Zap size={10} />}
+                    {tc.label} — {fc.fee_percent}
+                  </div>
+
+                  {/* Roles */}
+                  {fc.roles.length > 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                      {fc.roles.slice(0, 2).join(' · ')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Results Grid */}
       <div style={{
         display:'grid',
         gridTemplateColumns: isPhone ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))',
         gap: isMobile ? 16 : 24,
         marginBottom: isMobile ? 20 : 32
       }}>
-        {loading && <div style={{color:'var(--text-muted)', fontSize:14}}>Searching…</div>}
+        {loading && <div style={{color:'var(--text-muted)', fontSize:14}}>Searching...</div>}
         {!loading && results.length === 0 && (
           <div style={{color:'var(--text-muted)', fontSize:14}}>No collaborators found. Try broadening your filters.</div>
         )}
@@ -170,6 +429,35 @@ export default function CollaboratorsPage() {
                     {p.status}
                   </div>
                 )}
+
+                {/* Tier badge on banner - top left */}
+                {p.tier && p.tier !== 'standard' && (() => {
+                  const tc = TIER_CONFIG[p.tier] || TIER_CONFIG.standard;
+                  return (
+                    <div style={{
+                      position: 'absolute',
+                      top: 12,
+                      left: 12,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 10px',
+                      borderRadius: 12,
+                      background: 'rgba(0,0,0,0.65)',
+                      backdropFilter: 'blur(8px)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: tc.color,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    }}>
+                      {p.tier === 'founding' ? <Star size={11} fill={tc.color} color={tc.color} /> : <Zap size={11} />}
+                      {tc.label}
+                      <span style={{ opacity: 0.7, marginLeft: 2 }}>
+                        {p.fee_percent}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Card Content */}
@@ -334,27 +622,8 @@ export default function CollaboratorsPage() {
                   </div>
                 </div>
 
-                {/* Tier Badge */}
-                {p.tier && p.tier !== 'Basic' && (
-                  <div style={{
-                    fontSize:12,
-                    color:'#c084fc',
-                    fontWeight:600,
-                    textAlign:'center',
-                    padding:'6px 12px',
-                    background:'rgba(168,85,247,0.1)',
-                    borderRadius:8,
-                    border:'1px solid rgba(168,85,247,0.3)',
-                    marginBottom: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6
-                  }}>
-                    <Award size={14} />
-                    {p.tier} Tier
-                  </div>
-                )}
+                {/* Tier + Fee Rate Badge */}
+                {renderTierBadge(p.tier, p.fee_percent)}
 
                 {/* Action Button */}
                 <button

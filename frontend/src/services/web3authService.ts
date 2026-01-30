@@ -75,7 +75,7 @@ export async function initWeb3Auth(): Promise<Web3Auth> {
     clientId: WEB3AUTH_CLIENT_ID,
     chainConfig,
     privateKeyProvider,
-    web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
+    web3AuthNetwork: SOLANA_NETWORK === 'mainnet-beta' ? WEB3AUTH_NETWORK.SAPPHIRE_MAINNET : WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
     uiConfig: {
       appName: 'RenaissBlock',
       mode: 'dark',

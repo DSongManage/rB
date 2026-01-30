@@ -24,10 +24,11 @@ export default function SignupForm() {
         return;
       }
       
+      const solanaNetwork = import.meta.env.VITE_SOLANA_NETWORK || 'devnet';
       const chainConfig = {
         chainNamespace: CHAIN_NAMESPACES.SOLANA,
-        chainId: "0x3", // Solana devnet
-        rpcTarget: "https://api.devnet.solana.com",
+        chainId: solanaNetwork === 'mainnet-beta' ? '0x1' : '0x3',
+        rpcTarget: import.meta.env.VITE_SOLANA_RPC_URL || (solanaNetwork === 'mainnet-beta' ? 'https://api.mainnet-beta.solana.com' : 'https://api.devnet.solana.com'),
       };
       
       const privateKeyProvider = new SolanaPrivateKeyProvider({

@@ -382,15 +382,21 @@ def mint_and_distribute_sync(purchase_id):
         # For MVP, we'll use the existing MintView logic
         # In production, this would call a dedicated minting service
 
-        # Simulate mint (replace with actual Solana mint call)
+        # Mint NFT via Solana service
+        if not settings.DEBUG:
+            raise RuntimeError(
+                "mint_and_distribute_sync is deprecated — "
+                "use process_atomic_purchase for production minting"
+            )
+
+        # Mock mint for development only
+        logger.warning(f'[MintSync] Using mock mint (development only) for purchase {purchase_id}')
         mint_result = {
             'mint_address': f'mock_mint_{purchase_id}',
             'transaction_signature': f'mock_tx_{purchase_id}',
         }
 
-        # Get ACTUAL gas cost
-        # For now, use estimated cost. In production, call get_solana_transaction_fee()
-        actual_gas_cost = Decimal('0.026')  # ~$0.026 typical
+        actual_gas_cost = Decimal('0.026')
 
         # 2. Update purchase with mint data
         purchase.nft_mint_address = mint_result['mint_address']

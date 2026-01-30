@@ -58,8 +58,11 @@ def upload_to_ipfs(file_data: BytesIO) -> str:
         except Exception as e:
             logger.error(f'[IPFS] Upload error: {e}')
 
-            # Fallback: Mock upload for development/testing
-            # Generate a mock IPFS hash based on content
+            from django.conf import settings
+            if not settings.DEBUG:
+                raise RuntimeError(f"IPFS upload failed — cannot generate mock CID in production: {e}") from e
+
+            # Mock upload for development/testing only
             import hashlib
             file_data.seek(0)
             content_hash = hashlib.sha256(file_data.read()).hexdigest()

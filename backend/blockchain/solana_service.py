@@ -277,7 +277,9 @@ def mint_and_distribute_atomic(
         }
     """
     if not SOLANA_AVAILABLE:
-        logger.warning("Solana SDK not available - using mock")
+        if not settings.DEBUG:
+            raise RuntimeError("Solana SDK not installed — cannot mint in production")
+        logger.warning("Solana SDK not available - using mock (development only)")
         return _mock_mint_and_distribute(
             buyer_wallet_address, metadata_uri, collaborator_payments,
             platform_usdc_amount, total_usdc_amount
@@ -594,6 +596,8 @@ def _mock_mint_and_distribute(
 def get_platform_usdc_balance() -> float:
     """Get platform treasury USDC balance."""
     if not SOLANA_AVAILABLE:
+        if not settings.DEBUG:
+            raise RuntimeError("Solana SDK not available — cannot check balance in production")
         return 5000.00
 
     try:
@@ -608,6 +612,8 @@ def get_platform_usdc_balance() -> float:
 
     except Exception as e:
         logger.error(f"Error getting balance: {e}")
+        if not settings.DEBUG:
+            raise RuntimeError(f"Failed to get platform USDC balance: {e}") from e
         return 5000.00
 
 

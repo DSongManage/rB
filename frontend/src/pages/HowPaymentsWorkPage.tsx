@@ -363,7 +363,7 @@ export default function HowPaymentsWorkPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <CheckCircle size={18} style={{ color: colors.info }} />
               <span style={{ color: colors.textSecondary, fontSize: 14 }}>
-                Used by major companies including Visa, Mastercard, and Stripe
+                Used by major companies including Coinbase and Solana
               </span>
             </div>
           </div>

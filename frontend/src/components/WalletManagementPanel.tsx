@@ -72,10 +72,12 @@ export function WalletManagementPanel({
         throw new Error('Web3Auth client ID not configured');
       }
 
+      const solanaNetwork = import.meta.env.VITE_SOLANA_NETWORK || 'devnet';
+      const web3AuthNet = solanaNetwork === 'mainnet-beta' ? 'sapphire_mainnet' : 'sapphire_devnet';
       const chainConfig = {
         chainNamespace: CHAIN_NAMESPACES.SOLANA,
-        chainId: "0x3", // Solana devnet
-        rpcTarget: "https://api.devnet.solana.com",
+        chainId: solanaNetwork === 'mainnet-beta' ? '0x1' : '0x3',
+        rpcTarget: import.meta.env.VITE_SOLANA_RPC_URL || (solanaNetwork === 'mainnet-beta' ? 'https://api.mainnet-beta.solana.com' : 'https://api.devnet.solana.com'),
       };
 
       const privateKeyProvider = new SolanaPrivateKeyProvider({
@@ -86,7 +88,7 @@ export function WalletManagementPanel({
         clientId,
         chainConfig,
         privateKeyProvider,
-        web3AuthNetwork: 'sapphire_devnet',
+        web3AuthNetwork: web3AuthNet as any,
         uiConfig: {
           appName: "RenaissBlock",
           mode: "dark",

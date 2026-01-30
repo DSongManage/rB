@@ -396,16 +396,16 @@ export default function PublicProfilePage() {
             {/* Stats & CTA */}
             <div style={{ minWidth: 280 }}>
               {/* Tier Badge */}
-              {p.tier && p.tier !== 'Basic' && (
+              {p.tier && p.tier !== 'standard' && (
                 <div style={{
                   fontSize: 14,
-                  color: '#c084fc',
+                  color: p.tier === 'founding' ? '#f59e0b' : '#c084fc',
                   fontWeight: 600,
                   textAlign: 'center',
                   padding: '10px 16px',
-                  background: 'rgba(168,85,247,0.1)',
+                  background: p.tier === 'founding' ? 'rgba(245,158,11,0.1)' : 'rgba(168,85,247,0.1)',
                   borderRadius: 12,
-                  border: '1px solid rgba(168,85,247,0.3)',
+                  border: `1px solid ${p.tier === 'founding' ? 'rgba(245,158,11,0.3)' : 'rgba(168,85,247,0.3)'}`,
                   marginBottom: 16,
                   display: 'flex',
                   alignItems: 'center',
@@ -413,7 +413,7 @@ export default function PublicProfilePage() {
                   gap: 8
                 }}>
                   <Award size={18} />
-                  {p.tier} Tier Creator
+                  {p.tier === 'founding' ? 'Founding Creator' : `${p.tier.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())} Creator`}
                 </div>
               )}
 

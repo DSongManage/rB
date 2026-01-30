@@ -98,7 +98,7 @@ export default function PrivacyPolicyPage() {
       <h3>3.2 With Service Providers</h3>
       <p>We share information with third parties who help us operate the Service:</p>
       <ul>
-        <li><strong>Payment processors</strong> (Stripe) — to process transactions</li>
+        <li><strong>Payment processors</strong> (Coinbase, Bridge.xyz) — to process transactions</li>
         <li><strong>Cloud hosting</strong> — to store and serve content</li>
         <li><strong>Analytics providers</strong> — to understand usage</li>
         <li><strong>Email services</strong> — to send communications</li>

@@ -16,6 +16,7 @@ import ArtManageModal from '../components/ArtManageModal';
 import { getFollowing, unfollowUser, FollowUser } from '../services/socialApi';
 import { BridgeOnboardingBanner } from '../components/bridge';
 import { useMobile } from '../hooks/useMobile';
+import TierProgressCard from '../components/TierProgressCard';
 
 interface ExternalPortfolioItem {
   id: number;
@@ -2503,6 +2504,9 @@ export default function ProfilePageRedesigned() {
 
       {activeTab === 'analytics' && (
         <div>
+          {/* Creator Tier Progress */}
+          <TierProgressCard />
+          <div style={{ height: 24 }} />
           {/* Sales Overview Card */}
           <div style={{
             background: 'var(--bg-card)',

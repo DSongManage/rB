@@ -23,16 +23,12 @@ export const useBetaMode = () => {
   const betaModeFlag = import.meta.env.VITE_BETA_MODE === 'true';
   const testModeFlag = import.meta.env.VITE_TEST_MODE === 'true';
 
-  // Check if Stripe is in test mode (publishable key contains 'test')
-  const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
-  const isStripeTestMode = stripeKey.includes('pk_test');
-
   // Check if Solana is using devnet
   const solanaNetwork = import.meta.env.VITE_SOLANA_NETWORK || 'devnet';
   const isSolanaDevnet = solanaNetwork === 'devnet';
 
   // Overall test mode is true if any test indicator is present
-  const isTestMode = testModeFlag || isStripeTestMode || isSolanaDevnet;
+  const isTestMode = testModeFlag || isSolanaDevnet;
 
   // Show beta badge if in beta mode OR if explicitly enabled
   const shouldShowBetaBadge = isBeta || betaModeFlag || isDevelopment;
@@ -46,7 +42,6 @@ export const useBetaMode = () => {
 
     // Test mode indicators
     isTestMode,
-    isStripeTestMode,
     isSolanaDevnet,
 
     // UI display flags

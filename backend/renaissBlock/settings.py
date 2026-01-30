@@ -73,9 +73,6 @@ if not DEBUG:
         if host not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.append(host)
 
-    # Stripe test mode flag
-    STRIPE_TEST_MODE = True
-
     # Email backend for beta (SMTP for real emails)
     if os.getenv('EMAIL_BACKEND'):
         EMAIL_BACKEND = os.getenv('EMAIL_BACKEND')
@@ -421,7 +418,7 @@ SOLANA_RPC_URL = os.getenv('SOLANA_RPC_URL', 'https://api.devnet.solana.com')
 PLATFORM_WALLET_PUBKEY = os.getenv('PLATFORM_WALLET_PUBKEY', '')
 # Optional: dev-only keypair path for platform wallet signer on devnet
 PLATFORM_WALLET_KEYPAIR_PATH = os.getenv('PLATFORM_WALLET_KEYPAIR_PATH', '')
-# Optional: JSON byte array format for platform wallet keypair (e.g., "[137,37,199,...]")
+# Optional: JSON byte array format for platform wallet keypair (e.g., "[1,2,3,...]")
 # This is the format used by Railway and other cloud providers
 PLATFORM_WALLET_KEYPAIR = os.getenv('PLATFORM_WALLET_KEYPAIR', '')
 
@@ -431,11 +428,6 @@ SOLANA_PLATFORM_WALLET = os.getenv('SOLANA_PLATFORM_WALLET', PLATFORM_WALLET_PUB
 SOL_PRICE_USD = os.getenv('SOL_PRICE_USD', '100.00')
 # Enable collaborative minting feature
 FEATURE_COLLABORATIVE_MINTING = os.getenv('FEATURE_COLLABORATIVE_MINTING', 'true').lower() in ('1', 'true', 'yes', 'on')
-
-# Stripe Payment Configuration
-STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
-STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
-STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
 
 # Bridge.xyz Configuration (USDC -> USD Off-ramp)
 # API key for Bridge.xyz - get from https://dashboard.bridge.xyz
@@ -580,7 +572,7 @@ CELERY_TASK_SOFT_TIME_LIMIT = 240  # 4 minutes soft limit
 
 # Task routing (future: separate queues for different task types)
 CELERY_TASK_ROUTES = {
-    'rb_core.tasks.mint_and_distribute': {'queue': 'minting'},
+    'rb_core.tasks.process_atomic_purchase': {'queue': 'minting'},
     'rb_core.tasks.schedule_creator_payout': {'queue': 'payouts'},
 }
 

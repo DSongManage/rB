@@ -124,7 +124,7 @@ export default function CheckoutButton({ contentId, price, editions }: Props) {
           textAlign: 'center',
           border: '1px solid #fbbf24',
         }}>
-          🧪 <strong>Test Mode:</strong> Use test card 4242 4242 4242 4242 - No real charges
+          Test Mode: Solana devnet - No real transactions
         </div>
       )}
     </div>

@@ -26,12 +26,10 @@ from rb_core.models import Purchase, BatchPurchase
 from rb_core.tasks import process_atomic_purchase, process_batch_purchase
 from rb_core.payment_utils import calculate_payment_breakdown
 from decimal import Decimal
-import stripe
 import time
 import logging
 
 logger = logging.getLogger(__name__)
-stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class Command(BaseCommand):

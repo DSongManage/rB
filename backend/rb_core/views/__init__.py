@@ -1673,6 +1673,14 @@ class CsrfTokenView(APIView):
         return response
 
 class UserSearchView(APIView):
+    FEE_PERCENT_MAP = {
+        'founding': '1%', 'level_5': '5%', 'level_4': '6%',
+        'level_3': '7%', 'level_2': '8%', 'level_1': '9%', 'standard': '10%',
+    }
+
+    def _get_fee_percent(self, tier):
+        return self.FEE_PERCENT_MAP.get(tier or 'standard', '10%')
+
     def get(self, request):
         q = (request.query_params.get('q') or '').strip()
         role = (request.query_params.get('role') or '').strip()
@@ -1680,6 +1688,8 @@ class UserSearchView(APIView):
         loc = (request.query_params.get('location') or '').strip()
         status_param = (request.query_params.get('status') or '').strip().lower()
         exact_username = (request.query_params.get('exact_username') or '').strip()
+        tier_filter = (request.query_params.get('tier') or '').strip()
+        sort_param = (request.query_params.get('sort') or '').strip()
         if q.startswith('@'):
             q = q[1:]
         if exact_username.startswith('@'):
@@ -1714,13 +1724,32 @@ class UserSearchView(APIView):
                 st = red_statuses
             if st:
                 qs = qs.filter(status__in=st)
+        # Tier filter: comma-separated list of tier names
+        if tier_filter:
+            valid_tiers = {'founding', 'level_5', 'level_4', 'level_3', 'level_2', 'level_1', 'standard'}
+            tiers = [t.strip() for t in tier_filter.split(',') if t.strip() in valid_tiers]
+            if tiers:
+                qs = qs.filter(tier__in=tiers)
         # Exclude current logged-in user if authenticated
         try:
             if request.user and request.user.is_authenticated:
                 qs = qs.exclude(username=request.user.username)
         except Exception:
             pass
-        qs = qs.order_by('username')
+
+        # Sorting
+        TIER_PRIORITY_ORDER = ['founding', 'level_5', 'level_4', 'level_3', 'level_2', 'level_1', 'standard']
+        if sort_param == 'tier':
+            # Order by tier priority (best first) using CASE/WHEN
+            from django.db.models import Case, When, IntegerField
+            tier_ordering = Case(
+                *[When(tier=t, then=i) for i, t in enumerate(TIER_PRIORITY_ORDER)],
+                default=len(TIER_PRIORITY_ORDER),
+                output_field=IntegerField(),
+            )
+            qs = qs.annotate(tier_rank=tier_ordering).order_by('tier_rank', 'username')
+        else:
+            qs = qs.order_by('username')
 
         # Pagination
         page = int(request.query_params.get('page', 1))
@@ -1783,7 +1812,8 @@ class UserSearchView(APIView):
                 'content_count': p.content_count,
                 'total_sales_usd': float(p.total_sales_usd) if p.total_sales_usd else 0.0,
                 'successful_collabs': successful_collabs,
-                'tier': p.tier if hasattr(p, 'tier') else 'Basic',
+                'tier': p.tier or 'standard',
+                'fee_percent': self._get_fee_percent(p.tier),
                 # Status
                 'status': p.status or '',
                 'status_category': status_category,  # 'green', 'yellow', 'red' for UI
@@ -1798,7 +1828,7 @@ class UserSearchView(APIView):
                 'average_rating': float(p.average_review_rating) if p.average_review_rating else None,
             })
 
-        return Response({
+        response_data = {
             'results': results,
             'page': page,
             'page_size': page_size,
@@ -1806,7 +1836,38 @@ class UserSearchView(APIView):
             'total_pages': total_pages,
             'has_next': page < total_pages,
             'has_prev': page > 1,
-        })
+        }
+
+        # Featured creators: on page 1 with no tier filter, include top-tier creators
+        if page == 1 and not tier_filter and not exact_username:
+            featured_qs = UserProfile.objects.filter(
+                is_private=False,
+                tier__in=['founding', 'level_5'],
+            ).select_related('user').order_by('-lifetime_project_sales')[:6]
+            try:
+                if request.user and request.user.is_authenticated:
+                    featured_qs = featured_qs.exclude(username=request.user.username)
+            except Exception:
+                pass
+            featured = []
+            for p in featured_qs:
+                avatar_url = p.resolved_avatar_url
+                if avatar_url and avatar_url.startswith('/'):
+                    avatar_url = request.build_absolute_uri(avatar_url)
+                featured.append({
+                    'id': p.user.id,
+                    'username': p.username,
+                    'display_name': p.display_name,
+                    'avatar_url': avatar_url,
+                    'tier': p.tier or 'standard',
+                    'fee_percent': self._get_fee_percent(p.tier),
+                    'roles': p.roles or [],
+                    'lifetime_project_sales': float(p.lifetime_project_sales or 0),
+                })
+            if featured:
+                response_data['featured_creators'] = featured
+
+        return Response(response_data)
 
 
 class NotificationsView(APIView):

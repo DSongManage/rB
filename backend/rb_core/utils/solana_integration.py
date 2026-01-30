@@ -200,17 +200,19 @@ def mint_collaborative_nft(
             f"{len(creator_splits)} creators, {lamports} lamports"
         )
 
-        # TODO: Integrate with Solana program
-        # This is a placeholder that logs the transaction details
-        # In production, this should call the actual Solana program using
-        # anchorpy or solana-py
+        # In production, use the atomic minting service (blockchain.solana_service)
+        if not settings.DEBUG:
+            raise SolanaIntegrationError(
+                "mint_collaborative_nft is not implemented for production — "
+                "use blockchain.solana_service.mint_and_distribute_atomic instead"
+            )
 
-        # Simulated response for development
+        # Mock response for development only
         transaction_signature = f"mock_tx_{project_id}_collaborative"
         mint_address = f"mock_mint_{project_id}"
 
-        logger.info(
-            f"✅ Collaborative NFT minted successfully: "
+        logger.warning(
+            f"[MOCK] Collaborative NFT minted (development only): "
             f"tx={transaction_signature}, mint={mint_address}"
         )
 

@@ -348,8 +348,25 @@ class UserProfile(models.Model):
     # Per-user stats and tiering
     content_count = models.PositiveIntegerField(default=0)
     total_sales_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    tier = models.CharField(max_length=16, choices=[('Basic', 'Basic'), ('Pro', 'Pro'), ('Elite', 'Elite')], default='Basic')
+    TIER_CHOICES = [
+        ('founding', 'Founding Creator'),
+        ('level_5', 'Level 5'),
+        ('level_4', 'Level 4'),
+        ('level_3', 'Level 3'),
+        ('level_2', 'Level 2'),
+        ('level_1', 'Level 1'),
+        ('standard', 'Standard'),
+    ]
+    tier = models.CharField(max_length=16, choices=TIER_CHOICES, default='standard')
     fee_bps = models.PositiveIntegerField(default=1000)  # default 10%
+    lifetime_project_sales = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text="Cumulative full sale amount credited for ALL projects this creator participates in"
+    )
+    tier_qualified_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the creator last qualified for a tier upgrade"
+    )
 
     # Creator review aggregates (from CreatorReview model)
     average_review_rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True, db_index=True)
@@ -1883,6 +1900,16 @@ class CollaborativeProject(models.Model):
         choices=READING_DIRECTION_CHOICES,
         default='ltr',
         help_text="Reading direction for comic pages"
+    )
+
+    # Tier system: cumulative sales tracking
+    total_sales = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal('0'),
+        help_text="Cumulative sales revenue for this project"
+    )
+    founding_qualification_triggered = models.BooleanField(
+        default=False,
+        help_text="Whether this project has already triggered founding creator checks"
     )
 
     # Dispute/freeze status
@@ -5728,3 +5755,72 @@ class DirectCryptoTransaction(models.Model):
     @property
     def is_expired(self):
         return timezone.now() > self.expires_at and self.status == 'awaiting_payment'
+
+
+# =============================================================================
+# Creator Tier System
+# =============================================================================
+
+class TierConfiguration(models.Model):
+    """Singleton configuration for the creator tier system.
+
+    Stores thresholds, fee rates, and founding slot counts.
+    Only one row should exist (pk=1).
+    """
+    founding_slots_total = models.PositiveIntegerField(default=50)
+    founding_slots_claimed = models.PositiveIntegerField(default=0)
+    founding_threshold = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('100.00'),
+        help_text="Project cumulative sales threshold to trigger founding qualification"
+    )
+    level_thresholds = models.JSONField(
+        default=dict,
+        help_text="Mapping of level name to lifetime_project_sales threshold, e.g. {'level_1': 500}"
+    )
+    fee_rates = models.JSONField(
+        default=dict,
+        help_text="Mapping of tier name to fee rate as string decimal, e.g. {'founding': '0.01'}"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Tier Configuration'
+        verbose_name_plural = 'Tier Configuration'
+
+    def __str__(self):
+        return f"TierConfig (slots: {self.founding_slots_claimed}/{self.founding_slots_total})"
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1, defaults={
+            'level_thresholds': {
+                'level_1': 500, 'level_2': 1000, 'level_3': 2500,
+                'level_4': 5000, 'level_5': 10000,
+            },
+            'fee_rates': {
+                'founding': '0.01', 'level_5': '0.05', 'level_4': '0.06',
+                'level_3': '0.07', 'level_2': '0.08', 'level_1': '0.09',
+                'standard': '0.10',
+            },
+        })
+        return obj
+
+
+class FoundingCreatorSlot(models.Model):
+    """Records each founding creator claim."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='founding_slots')
+    project = models.ForeignKey(CollaborativeProject, on_delete=models.CASCADE, related_name='founding_slots')
+    claimed_at = models.DateTimeField(auto_now_add=True)
+    qualifying_sale_amount = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        unique_together = ['user', 'project']
+
+    def __str__(self):
+        return f"Founding slot: {self.user.username} via {self.project.title}"

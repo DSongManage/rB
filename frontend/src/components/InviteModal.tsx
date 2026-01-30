@@ -6,6 +6,7 @@ import {
   Scissors, PlayCircle, Briefcase, LayoutGrid, Type, PenTool
 } from 'lucide-react';
 import { API_URL } from '../config';
+import { getCreatorTier, CreatorTierPublic } from '../services/tierApi';
 
 // Helper to render role icon based on icon string
 const RoleIcon = ({ icon, size = 20 }: { icon: string; size?: number }) => {
@@ -157,6 +158,9 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   const [loadingRoles, setLoadingRoles] = useState(false);
   const [showCustomRole, setShowCustomRole] = useState(false);
 
+  // Collaborator tier info
+  const [recipientTier, setRecipientTier] = useState<CreatorTierPublic | null>(null);
+
   // Contract tasks
   const [tasks, setTasks] = useState<ContractTask[]>([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -168,6 +172,11 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   const [canEditVideo, setCanEditVideo] = useState(false);
 
   // Fetch role definitions when project type changes
+  useEffect(() => {
+    if (!open || !recipient?.username) return;
+    getCreatorTier(recipient.username).then(setRecipientTier).catch(() => {});
+  }, [open, recipient?.username]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -510,6 +519,16 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             </div>
             {recipient.display_name && (
               <div style={{ color: '#cbd5e1', fontSize: 14, marginBottom: 8 }}>{recipient.display_name}</div>
+            )}
+            {recipientTier && recipientTier.tier !== 'standard' && (
+              <div style={{
+                fontSize: 11,
+                color: recipientTier.tier === 'founding' ? '#f59e0b' : '#a78bfa',
+                fontWeight: 600,
+                marginBottom: 4,
+              }}>
+                {recipientTier.tier === 'founding' ? 'Founding Creator' : recipientTier.tier.replace('_', ' ').toUpperCase()} — {recipientTier.fee_percent} platform fee
+              </div>
             )}
             {projectTitle && (
               <div style={{ color: '#f59e0b', fontSize: 12, fontWeight: 600 }}>

@@ -185,7 +185,9 @@ def upload_metadata_to_ipfs(metadata: Dict[str, Any]) -> str:
     pinata_secret = getattr(settings, 'PINATA_API_SECRET', None)
 
     if not (pinata_jwt or (pinata_api_key and pinata_secret)):
-        logger.warning("Pinata credentials not configured, using mock URI")
+        if not settings.DEBUG:
+            raise RuntimeError("Pinata credentials not configured — cannot upload metadata in production")
+        logger.warning("Pinata credentials not configured - using mock URI (development only)")
         return _generate_mock_uri(metadata)
 
     try:
@@ -240,6 +242,8 @@ def upload_metadata_to_ipfs(metadata: Dict[str, Any]) -> str:
 
     except Exception as e:
         logger.error(f"Failed to upload to Pinata: {e}")
+        if not settings.DEBUG:
+            raise
         return _generate_mock_uri(metadata)
 
 

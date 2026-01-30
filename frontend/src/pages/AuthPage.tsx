@@ -302,12 +302,14 @@ export default function AuthPage() {
       console.log('[Web3Auth Debug] Client ID loaded:', clientId ? 'YES (length: ' + clientId.length + ')' : 'NO');
       if (!clientId) { setWalletStatus('Error: Missing Web3Auth client ID. Please contact support.'); return; }
       
+      const solanaNetwork = import.meta.env.VITE_SOLANA_NETWORK || 'devnet';
+      const web3AuthNet = solanaNetwork === 'mainnet-beta' ? 'sapphire_mainnet' : 'sapphire_devnet';
       const chainConfig = {
         chainNamespace: CHAIN_NAMESPACES.SOLANA,
-        chainId: "0x3", // Solana devnet
-        rpcTarget: "https://api.devnet.solana.com",
+        chainId: solanaNetwork === 'mainnet-beta' ? '0x1' : '0x3',
+        rpcTarget: import.meta.env.VITE_SOLANA_RPC_URL || (solanaNetwork === 'mainnet-beta' ? 'https://api.mainnet-beta.solana.com' : 'https://api.devnet.solana.com'),
       };
-      
+
       const privateKeyProvider = new SolanaPrivateKeyProvider({
         config: { chainConfig },
       });
@@ -315,7 +317,7 @@ export default function AuthPage() {
       setWalletStatus('Connecting to Web3Auth...');
       const web3auth = new Web3Auth({
         clientId,
-        web3AuthNetwork: 'sapphire_devnet',
+        web3AuthNetwork: web3AuthNet as any,
         chainConfig,
         privateKeyProvider,
         uiConfig: {
@@ -326,12 +328,12 @@ export default function AuthPage() {
           },
         },
       });
-      
+
       // Configure and add OpenLogin adapter
       const openloginAdapter = new OpenloginAdapter({
         privateKeyProvider,
         adapterSettings: {
-          network: 'sapphire_devnet',
+          network: web3AuthNet,
           clientId,
         },
       });
@@ -407,20 +409,22 @@ export default function AuthPage() {
       const clientId = import.meta.env.VITE_WEB3AUTH_CLIENT_ID || '';
       if (!clientId) { setWalletStatus('Error: Missing Web3Auth client ID'); return; }
 
+      const solanaNetwork2 = import.meta.env.VITE_SOLANA_NETWORK || 'devnet';
+      const web3AuthNet2 = solanaNetwork2 === 'mainnet-beta' ? 'sapphire_mainnet' : 'sapphire_devnet';
       const chainConfig = {
         chainNamespace: CHAIN_NAMESPACES.SOLANA,
-        chainId: "0x3",
-        rpcTarget: "https://api.devnet.solana.com",
+        chainId: solanaNetwork2 === 'mainnet-beta' ? '0x1' : '0x3',
+        rpcTarget: import.meta.env.VITE_SOLANA_RPC_URL || (solanaNetwork2 === 'mainnet-beta' ? 'https://api.mainnet-beta.solana.com' : 'https://api.devnet.solana.com'),
       };
       const privateKeyProvider = new SolanaPrivateKeyProvider({
         config: { chainConfig },
       });
-      
+
       setWalletStatus('Connecting to Web3Auth...');
-      const web3auth = new Web3Auth({ 
+      const web3auth = new Web3Auth({
         clientId,
-        web3AuthNetwork: 'sapphire_devnet',
-        chainConfig, 
+        web3AuthNetwork: web3AuthNet2 as any,
+        chainConfig,
         privateKeyProvider,
         uiConfig: {
           appName: 'renaissBlock',
@@ -435,7 +439,7 @@ export default function AuthPage() {
       const openloginAdapter = new OpenloginAdapter({
         privateKeyProvider,
         adapterSettings: {
-          network: 'sapphire_devnet',
+          network: web3AuthNet2,
           clientId,
         },
       });
