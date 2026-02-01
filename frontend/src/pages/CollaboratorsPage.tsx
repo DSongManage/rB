@@ -392,7 +392,9 @@ export default function CollaboratorsPage() {
                 boxShadow: '0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)',
                 transition: 'all 0.3s ease',
                 cursor: 'pointer',
-                position: 'relative'
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column' as const
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-4px)';
@@ -461,7 +463,7 @@ export default function CollaboratorsPage() {
               </div>
 
               {/* Card Content */}
-              <div style={{padding: '0 20px 20px', position: 'relative'}}>
+              <div style={{padding: '0 20px 20px', position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' as const}}>
                 {/* Large Avatar - Overlapping Banner */}
                 <div style={{
                   width: 96,
@@ -582,7 +584,8 @@ export default function CollaboratorsPage() {
                   padding: '16px 0',
                   borderTop: '1px solid var(--panel-border-strong)',
                   borderBottom: '1px solid var(--panel-border-strong)',
-                  marginBottom: 16
+                  marginBottom: 16,
+                  marginTop: 'auto'
                 }}>
                   <div style={{textAlign: 'center'}}>
                     <div style={{fontSize:18, fontWeight:700, color:'var(--text)', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
