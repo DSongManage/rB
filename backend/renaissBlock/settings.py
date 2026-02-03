@@ -261,6 +261,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Railway (and most platforms) terminates SSL at load balancer level
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Trust X-Forwarded-Proto header
 SECURE_SSL_REDIRECT = not DEBUG  # Redirect HTTP to HTTPS in production
+SECURE_REDIRECT_EXEMPT = [r'^health/$']  # Allow HTTP healthchecks from Railway load balancer
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0  # 1 year HSTS in production
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG  # Apply HSTS to all subdomains in production
 SECURE_HSTS_PRELOAD = not DEBUG  # Enable HSTS preload list in production
