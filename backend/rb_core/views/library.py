@@ -245,9 +245,17 @@ class ComicPreviewView(APIView):
             )
 
         # Get the linked CollaborativeProject
+        # First try whole-project publishing (CollaborativeProject.published_content -> Content)
         project = content.source_collaborative_project.filter(
             content_type='comic'
         ).first()
+
+        # Fallback: per-issue publishing (ComicIssue.published_content -> Content)
+        if not project:
+            from ..models import ComicIssue
+            issue = ComicIssue.objects.filter(published_content=content).select_related('project').first()
+            if issue and issue.project:
+                project = issue.project
 
         if not project:
             return Response(
@@ -338,6 +346,13 @@ class ComicReaderDataView(APIView):
         project = content.source_collaborative_project.filter(
             content_type='comic'
         ).first()
+
+        # Fallback: per-issue publishing (ComicIssue.published_content -> Content)
+        if not project:
+            from ..models import ComicIssue
+            issue = ComicIssue.objects.filter(published_content=content).select_related('project').first()
+            if issue and issue.project:
+                project = issue.project
 
         if not project:
             return Response(

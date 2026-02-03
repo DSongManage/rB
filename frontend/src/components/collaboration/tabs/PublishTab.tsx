@@ -234,7 +234,14 @@ export default function PublishTab({
           setIssuePrices(prices);
           // Auto-select first unminted issue
           const firstUnminted = issues.find(i => !i.is_published);
-          if (firstUnminted) setSelectedIssueId(firstUnminted.id);
+          if (firstUnminted) {
+            setSelectedIssueId(firstUnminted.id);
+            // If project is already minted but there are unminted issues,
+            // reset to customize step so user can publish the next issue
+            if (project.status === 'minted' || project.status === 'unpublished') {
+              setStep('customize');
+            }
+          }
         })
         .catch(err => console.error('Failed to load comic issues:', err));
     }
@@ -638,7 +645,7 @@ export default function PublishTab({
                             </span>
                           ) : (
                             <span style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>
-                              ${(issuePrices[issue.id] || issue.price || 1).toFixed(2)}
+                              ${Number(issuePrices[issue.id] || issue.price || 1).toFixed(2)}
                             </span>
                           )}
                         </div>

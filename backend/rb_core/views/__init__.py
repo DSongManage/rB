@@ -2474,6 +2474,84 @@ class MyPublishedBooksView(APIView):
         return Response(result)
 
 
+class MyComicProjectsView(APIView):
+    """Get user's comic projects for display on the profile page.
+
+    Returns all comic projects (both published and draft) with their issues
+    grouped by project rather than individual issues.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from ..models import ComicIssue
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+
+        projects = CollaborativeProject.objects.filter(
+            content_type='comic',
+            created_by=core_user
+        ).prefetch_related(
+            'comic_issues',
+            'comic_issues__published_content',
+            'published_content',
+        ).order_by('-updated_at')
+
+        result = []
+        for project in projects:
+            issues_data = []
+            total_views = 0
+            total_price = 0
+            published_count = 0
+
+            for issue in project.comic_issues.all().order_by('issue_number'):
+                content = issue.published_content if issue.is_published else None
+                issue_data = {
+                    'id': issue.id,
+                    'title': issue.title,
+                    'issue_number': issue.issue_number,
+                    'is_published': issue.is_published,
+                    'content_id': content.id if content else None,
+                    'price_usd': float(content.price_usd) if content else 0,
+                    'view_count': content.view_count if content else 0,
+                }
+                issues_data.append(issue_data)
+                if issue.is_published and content:
+                    published_count += 1
+                    total_views += content.view_count or 0
+                    total_price += float(content.price_usd or 0)
+
+            # Build cover image URL with fallbacks
+            cover_url = None
+            if project.cover_image:
+                cover_url = request.build_absolute_uri(project.cover_image.url)
+            elif project.published_content and project.published_content.teaser_link:
+                cover_url = project.published_content.teaser_link
+            else:
+                first_published = project.comic_issues.filter(
+                    is_published=True,
+                    published_content__isnull=False
+                ).order_by('issue_number').first()
+                if first_published and first_published.published_content:
+                    cover_url = first_published.published_content.teaser_link
+
+            # Check if the project itself is published (whole-comic flow)
+            is_published = project.published_content is not None
+
+            result.append({
+                'id': project.id,
+                'title': project.title,
+                'cover_image_url': cover_url,
+                'total_issues': len(issues_data),
+                'published_issues': published_count,
+                'is_published': is_published,
+                'issues': issues_data,
+                'total_views': total_views,
+                'total_price': round(total_price, 2),
+                'updated_at': project.updated_at.isoformat(),
+            })
+
+        return Response(result)
+
+
 class PublicBookProjectsView(APIView):
     """Get all published book projects for public discovery on home page.
 
@@ -2630,6 +2708,161 @@ class PublicBookProjectsView(APIView):
                 ).count()
             result.sort(key=lambda x: x.get('purchase_count', 0), reverse=True)
         # else: 'newest' - already sorted by created_at (latest_published_at)
+
+        return Response(result)
+
+
+class PublicComicProjectsView(APIView):
+    """Get all published comic projects for public discovery on home page.
+
+    Returns aggregated comic projects (only those with at least one published issue
+    OR projects published as a whole comic) with their issues grouped by project.
+    """
+    permission_classes = []  # Public endpoint
+
+    def get(self, request):
+        from django.db.models import Q
+        from ..models import ComicIssue, Purchase
+
+        # Get all comic projects that either:
+        # 1. Have at least one published issue (issue-by-issue flow)
+        # 2. Are published as a whole comic (whole-project flow)
+        projects = CollaborativeProject.objects.filter(
+            Q(content_type='comic') & (
+                Q(comic_issues__is_published=True, comic_issues__published_content__isnull=False) |
+                Q(published_content__isnull=False)
+            )
+        ).distinct().prefetch_related(
+            'comic_issues',
+            'comic_issues__published_content',
+            'collaborators',
+            'created_by__profile',
+            'published_content',
+        ).select_related('created_by').order_by('-updated_at')
+
+        # Apply genre filter if specified
+        genre_param = request.query_params.get('genre')
+        if genre_param and genre_param != 'all':
+            projects = projects.filter(
+                Q(comic_issues__published_content__genre=genre_param) |
+                Q(published_content__genre=genre_param)
+            ).distinct()
+
+        result = []
+        for project in projects:
+            issues_data = []
+            total_views = 0
+            total_price = 0
+            total_likes = 0
+            total_rating_sum = 0
+            total_rating_count = 0
+            published_count = 0
+            latest_published_at = None
+
+            for issue in project.comic_issues.all().order_by('issue_number'):
+                if not issue.is_published or not issue.published_content:
+                    continue
+
+                content = issue.published_content
+                issue_data = {
+                    'id': issue.id,
+                    'title': issue.title,
+                    'issue_number': issue.issue_number,
+                    'content_id': content.id,
+                    'price_usd': float(content.price_usd) if content.price_usd else 0,
+                    'view_count': content.view_count or 0,
+                    'editions': content.editions,
+                }
+                issues_data.append(issue_data)
+                published_count += 1
+                total_views += content.view_count or 0
+                total_price += float(content.price_usd or 0)
+                total_likes += content.like_count or 0
+                if content.average_rating and content.rating_count:
+                    total_rating_sum += float(content.average_rating) * content.rating_count
+                    total_rating_count += content.rating_count
+
+                if latest_published_at is None or content.created_at > latest_published_at:
+                    latest_published_at = content.created_at
+
+            # Handle whole-comic publishing (project.published_content without individual issues)
+            if published_count == 0 and project.published_content:
+                content = project.published_content
+                issues_data = [{
+                    'id': 0,
+                    'title': project.title,
+                    'issue_number': 1,
+                    'content_id': content.id,
+                    'price_usd': float(content.price_usd) if content.price_usd else 0,
+                    'view_count': content.view_count or 0,
+                    'editions': content.editions,
+                }]
+                published_count = 1
+                total_views = content.view_count or 0
+                total_price = float(content.price_usd or 0)
+                total_likes = content.like_count or 0
+                if content.average_rating and content.rating_count:
+                    total_rating_sum = float(content.average_rating) * content.rating_count
+                    total_rating_count = content.rating_count
+                latest_published_at = content.created_at
+            elif published_count == 0:
+                continue
+
+            # Build cover image URL with fallbacks
+            cover_url = None
+            if project.cover_image:
+                cover_url = request.build_absolute_uri(project.cover_image.url)
+            elif project.published_content and project.published_content.teaser_link:
+                cover_url = project.published_content.teaser_link
+            elif issues_data:
+                first_issue = project.comic_issues.filter(
+                    is_published=True,
+                    published_content__isnull=False
+                ).order_by('issue_number').first()
+                if first_issue and first_issue.published_content:
+                    cover_url = first_issue.published_content.teaser_link
+
+            avg_rating = None
+            if total_rating_count > 0:
+                avg_rating = round(total_rating_sum / total_rating_count, 2)
+
+            first_issue_content_id = issues_data[0]['content_id'] if issues_data else None
+
+            # Check if this is a collaborative project
+            is_collaborative = project.collaborators.filter(status='accepted').count() > 1
+
+            result.append({
+                'id': project.id,
+                'title': project.title,
+                'cover_image_url': cover_url,
+                'creator_username': project.created_by.username,
+                'published_issues': published_count,
+                'issues': issues_data,
+                'total_views': total_views,
+                'total_price': round(total_price, 2),
+                'total_likes': total_likes,
+                'average_rating': avg_rating,
+                'rating_count': total_rating_count,
+                'first_issue_content_id': first_issue_content_id,
+                'created_at': latest_published_at.isoformat() if latest_published_at else project.created_at.isoformat(),
+                'content_type': 'comic',
+                'is_collaborative': is_collaborative,
+            })
+
+        # Apply sorting
+        sort_param = request.query_params.get('sort', 'newest')
+
+        if sort_param == 'popular':
+            result.sort(key=lambda x: x['total_views'], reverse=True)
+        elif sort_param == 'rated':
+            result.sort(key=lambda x: (x['average_rating'] or 0, x['rating_count']), reverse=True)
+        elif sort_param == 'bestsellers':
+            for item in result:
+                item['purchase_count'] = Purchase.objects.filter(
+                    content__source_comic_issue__project_id=item['id'],
+                    status='completed'
+                ).count()
+            result.sort(key=lambda x: x.get('purchase_count', 0), reverse=True)
 
         return Response(result)
 

@@ -1,7 +1,7 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, HealthCheckView, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, UnpublishBookView, BookProjectByContentView, MyPublishedBooksView, PublicBookProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView, SeriesListCreateView, SeriesDetailView, AddBookToSeriesView, RemoveBookFromSeriesView
+from .views import home, HealthCheckView, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, UnpublishBookView, BookProjectByContentView, MyPublishedBooksView, MyComicProjectsView, PublicBookProjectsView, PublicComicProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView, SeriesListCreateView, SeriesDetailView, AddBookToSeriesView, RemoveBookFromSeriesView
 from .views.checkout import DevProcessPurchaseView, FeeBreakdownView
 from .views.cart import (
     CartView, AddToCartView, RemoveFromCartView, ClearCartView,
@@ -155,6 +155,8 @@ urlpatterns = [
     path('api/book-projects/', BookProjectListCreateView.as_view(), name='book_projects'),
     path('api/book-projects/my-published/', MyPublishedBooksView.as_view(), name='my_published_books'),
     path('api/book-projects/public/', PublicBookProjectsView.as_view(), name='public_book_projects'),
+    path('api/comic-projects/my-published/', MyComicProjectsView.as_view(), name='my_comic_projects'),
+    path('api/comic-projects/public/', PublicComicProjectsView.as_view(), name='public_comic_projects'),
     path('api/book-projects/<int:pk>/', BookProjectDetailView.as_view(), name='book_project_detail'),
     path('api/book-projects/<int:project_id>/chapters/', ChapterListCreateView.as_view(), name='chapters'),
     path('api/book-projects/by-content/<int:content_id>/', BookProjectByContentView.as_view(), name='book_project_by_content'),

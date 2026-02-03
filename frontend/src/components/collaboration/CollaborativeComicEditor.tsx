@@ -508,7 +508,7 @@ export default function CollaborativeComicEditor({
 
   // Create new issue
   const handleCreateIssue = async () => {
-    if (!canEditPanels || creatingIssue) return;
+    if (!hasImagePermission || creatingIssue) return;
     setCreatingIssue(true);
     try {
       const nextIssueNumber = issues.length + 1;
@@ -2264,7 +2264,7 @@ export default function CollaborativeComicEditor({
                   )}
                 </div>
               ))}
-              {canEditPanels && (
+              {hasImagePermission && (
                 <button
                   onClick={handleCreateIssue}
                   disabled={creatingIssue}

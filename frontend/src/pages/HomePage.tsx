@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '../config';
 import { VideoCard } from '../components/VideoCard';
 import { BookCard } from '../components/BookCard';
+import { ComicCard } from '../components/ComicCard';
 
 type Collaborator = {
   username: string;
@@ -56,6 +57,35 @@ type BookProject = {
   content_type: 'book';
 };
 
+// Comic project from aggregated endpoint
+type ComicIssue = {
+  id: number;
+  title: string;
+  issue_number: number;
+  content_id: number;
+  price_usd: number;
+  view_count: number;
+  editions?: number;
+};
+
+type ComicProject = {
+  id: number;
+  title: string;
+  cover_image_url: string | null;
+  creator_username: string;
+  published_issues: number;
+  issues: ComicIssue[];
+  total_views: number;
+  total_price: number;
+  total_likes: number;
+  average_rating: number | null;
+  rating_count: number;
+  first_issue_content_id: number | null;
+  created_at: string;
+  content_type: 'comic';
+  is_collaborative?: boolean;
+};
+
 // Genre filter config - maps display name to content_type value
 const GENRE_FILTERS = [
   { label: 'All', value: 'all' },
@@ -70,6 +100,7 @@ const GENRE_FILTERS = [
 export default function HomePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
+  const [comicProjects, setComicProjects] = useState<ComicProject[]>([]);
   const [selectedFilter, setSelectedFilter] = useState('comic');
 
   useEffect(()=>{
@@ -84,10 +115,10 @@ export default function HomePage() {
       .then(data => {
         // Handle paginated response from DRF
         if (data && Array.isArray(data.results)) {
-          // Filter out book content - we'll show aggregated books instead
-          return data.results.filter((item: Item) => item.content_type !== 'book');
+          // Filter out book and comic content - we'll show aggregated versions instead
+          return data.results.filter((item: Item) => item.content_type !== 'book' && item.content_type !== 'comic');
         } else if (Array.isArray(data)) {
-          return data.filter((item: Item) => item.content_type !== 'book');
+          return data.filter((item: Item) => item.content_type !== 'book' && item.content_type !== 'comic');
         }
         return [];
       });
@@ -100,16 +131,26 @@ export default function HomePage() {
       .then(r=>r.json())
       .then(data => Array.isArray(data) ? data : []);
 
-    // Wait for both requests
-    Promise.all([contentPromise, booksPromise])
-      .then(([contentItems, books]) => {
+    // Fetch aggregated comic projects
+    const comicsPromise = fetch(`${API_URL}/api/comic-projects/public/`, {
+      credentials: 'include',
+      signal: abortController.signal,
+    })
+      .then(r=>r.json())
+      .then(data => Array.isArray(data) ? data : []);
+
+    // Wait for all requests
+    Promise.all([contentPromise, booksPromise, comicsPromise])
+      .then(([contentItems, books, comics]) => {
         setItems(contentItems);
         setBookProjects(books);
+        setComicProjects(comics);
       })
       .catch((err)=>{
         if (err.name !== 'AbortError') {
           setItems([]);
           setBookProjects([]);
+          setComicProjects([]);
         }
       });
 
@@ -132,15 +173,14 @@ export default function HomePage() {
 
   // Create unified list with sorting info
   type DisplayItem = {
-    type: 'content' | 'book';
-    sortKey: number; // timestamp for sorting
-    data: Item | BookProject;
+    type: 'content' | 'book' | 'comic';
+    sortKey: number;
+    data: Item | BookProject | ComicProject;
   };
 
   const allItems: DisplayItem[] = useMemo(() => {
     const result: DisplayItem[] = [];
 
-    // Add regular content items
     items.forEach(it => {
       result.push({
         type: 'content',
@@ -149,7 +189,6 @@ export default function HomePage() {
       });
     });
 
-    // Add book projects
     bookProjects.forEach(book => {
       result.push({
         type: 'book',
@@ -158,22 +197,27 @@ export default function HomePage() {
       });
     });
 
-    // Sort by most recent first
+    comicProjects.forEach(comic => {
+      result.push({
+        type: 'comic',
+        sortKey: comic.created_at ? new Date(comic.created_at).getTime() : 0,
+        data: comic,
+      });
+    });
+
     result.sort((a, b) => b.sortKey - a.sortKey);
 
     return result;
-  }, [items, bookProjects]);
+  }, [items, bookProjects, comicProjects]);
 
   // Apply filter
   const filtered = useMemo(()=>{
     if (selectedFilter === 'all') return allItems;
 
     return allItems.filter(item => {
-      if (item.type === 'book') {
-        return selectedFilter === 'book';
-      } else {
-        return (item.data as Item).content_type === selectedFilter;
-      }
+      if (item.type === 'book') return selectedFilter === 'book';
+      if (item.type === 'comic') return selectedFilter === 'comic';
+      return (item.data as Item).content_type === selectedFilter;
     });
   },[allItems, selectedFilter]);
 
@@ -228,6 +272,26 @@ export default function HomePage() {
                   averageRating={book.average_rating}
                   ratingCount={book.rating_count}
                   timeText={getTimeAgo(book.created_at)}
+                />
+              );
+            } else if (item.type === 'comic') {
+              const comic = item.data as ComicProject;
+              return (
+                <ComicCard
+                  key={`comic-${comic.id}`}
+                  id={comic.id}
+                  title={comic.title}
+                  coverImageUrl={comic.cover_image_url || ''}
+                  author={comic.creator_username}
+                  issues={comic.issues}
+                  publishedIssues={comic.published_issues}
+                  totalViews={comic.total_views}
+                  totalLikes={comic.total_likes}
+                  totalPrice={comic.total_price}
+                  averageRating={comic.average_rating}
+                  ratingCount={comic.rating_count}
+                  timeText={getTimeAgo(comic.created_at)}
+                  isCollaborative={comic.is_collaborative}
                 />
               );
             } else {

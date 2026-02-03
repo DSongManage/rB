@@ -759,6 +759,17 @@ class ComicIssueViewSet(viewsets.ModelViewSet):
                 if first_panel and first_panel.artwork:
                     teaser_link = first_panel.artwork.url
 
+            # Fallback to issue cover, project cover, or placeholder
+            if not teaser_link:
+                if issue.cover_image:
+                    teaser_link = issue.cover_image.url
+                elif issue.project and issue.project.cover_image:
+                    teaser_link = issue.project.cover_image.url
+                elif issue.series and issue.series.cover_image:
+                    teaser_link = issue.series.cover_image.url
+                else:
+                    teaser_link = '/media/defaults/placeholder.png'
+
             creator = issue.series.creator if issue.series else (
                 issue.project.created_by if issue.project else request.user
             )

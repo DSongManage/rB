@@ -134,6 +134,29 @@ interface BookProject {
   updated_at: string;
 }
 
+interface ComicIssueItem {
+  id: number;
+  title: string;
+  issue_number: number;
+  is_published: boolean;
+  content_id: number | null;
+  price_usd: number;
+  view_count: number;
+}
+
+interface ComicProject {
+  id: number;
+  title: string;
+  cover_image_url: string | null;
+  total_issues: number;
+  published_issues: number;
+  is_published: boolean;
+  issues: ComicIssueItem[];
+  total_views: number;
+  total_price: number;
+  updated_at: string;
+}
+
 export default function ProfilePageRedesigned() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -184,6 +207,8 @@ export default function ProfilePageRedesigned() {
   const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
   const [soloProjects, setSoloProjects] = useState<CollaborativeProjectListItem[]>([]);
   const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
+  const [comicProjects, setComicProjects] = useState<ComicProject[]>([]);
+  const [expandedComics, setExpandedComics] = useState<Set<number>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
 
@@ -498,7 +523,7 @@ export default function ProfilePageRedesigned() {
         }
         // Filter out solo book content - these are fetched separately as book projects
         // BUT keep collaborative book content (is_collaborative=true) since those aren't in bookProjects
-        setInventory(items.filter(item => item.content_type !== 'book' || item.is_collaborative));
+        setInventory(items.filter(item => (item.content_type !== 'book' && item.content_type !== 'comic') || item.is_collaborative));
       })
       .catch(() => setInventory([]));
 
@@ -513,6 +538,12 @@ export default function ProfilePageRedesigned() {
         }
       })
       .catch(() => setBookProjects([]));
+
+    // Fetch comic projects (grouped by project, not individual issues)
+    fetch(`${API_URL}/api/comic-projects/my-published/`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setComicProjects(Array.isArray(data) ? data : []))
+      .catch(() => setComicProjects([]));
 
     // Fetch solo projects (drafts created in solo studio - all content types)
     collaborationApi.getCollaborativeProjects()
@@ -1661,8 +1692,8 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="All"
               count={
-                // inventory + bookProjects + solo projects (draft only, minted shown via inventory)
-                inventory.length + bookProjects.length + soloProjects.filter(p => p.status === 'draft').length
+                // inventory + bookProjects + comicProjects + solo projects (draft only, minted shown via inventory)
+                inventory.length + bookProjects.length + comicProjects.length + soloProjects.filter(p => p.status === 'draft').length
               }
               active={contentFilter === 'all'}
               onClick={() => setContentFilter('all')}
@@ -1679,9 +1710,8 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="Comics"
               count={
-                // Draft comics from soloProjects + published from inventory
-                soloProjects.filter(p => p.content_type === 'comic' && p.status === 'draft').length +
-                inventory.filter(i => i.content_type === 'comic' && i.inventory_status === 'minted').length
+                comicProjects.length +
+                soloProjects.filter(p => p.content_type === 'comic' && p.status === 'draft').length
               }
               active={contentFilter === 'comic'}
               onClick={() => setContentFilter('comic')}
@@ -1700,9 +1730,9 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="Published"
               count={
-                // Published comics are in inventory (Content records), not soloProjects
                 inventory.filter(i => i.inventory_status === 'minted').length +
-                bookProjects.filter(b => b.published_chapters > 0 || b.is_published).length
+                bookProjects.filter(b => b.published_chapters > 0 || b.is_published).length +
+                comicProjects.filter(c => c.published_issues > 0 || c.is_published).length
               }
               active={statusFilter === 'published'}
               onClick={() => setStatusFilter(statusFilter === 'published' ? 'all' : 'published')}
@@ -1710,9 +1740,9 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="Drafts"
               count={
-                // Draft content from inventory (non-solo) + draft book projects + all draft solo projects
                 inventory.filter(i => i.inventory_status === 'draft').length +
                 bookProjects.filter(b => b.published_chapters === 0 && !b.is_published).length +
+                comicProjects.filter(c => c.published_issues === 0 && !c.is_published).length +
                 soloProjects.filter(p => p.status === 'draft').length
               }
               active={statusFilter === 'draft'}
@@ -1762,7 +1792,7 @@ export default function ProfilePageRedesigned() {
       {/* TAB CONTENT */}
       {activeTab === 'content' && (
         <div>
-          {inventory.length === 0 && bookProjects.length === 0 && soloProjects.length === 0 ? (
+          {inventory.length === 0 && bookProjects.length === 0 && comicProjects.length === 0 && soloProjects.length === 0 ? (
             <EmptyState
               icon={<FileText size={64} />}
               title="No content yet"
@@ -1774,13 +1804,12 @@ export default function ProfilePageRedesigned() {
             (() => {
               // Filter non-book inventory based on content type filter
               // Note: music and film are coming soon, only book and art available
-              // Comics: drafts shown via soloProjects, published shown via inventory
               let filteredInventory = contentFilter === 'all'
                 ? inventory
                 : contentFilter === 'book'
                   ? [] // Books shown via bookProjects
                   : contentFilter === 'comic'
-                    ? inventory.filter(i => i.content_type === 'comic') // Published comics from inventory
+                    ? [] // Comics shown via comicProjects
                     : inventory.filter(i => i.content_type === contentFilter);
 
               // Apply status filter to inventory
@@ -1804,6 +1833,20 @@ export default function ProfilePageRedesigned() {
                 filteredBooks = filteredBooks.filter(b => b.published_chapters === 0 && !b.is_published);
               }
 
+              // Filter comic projects by content type
+              let filteredComicProjects = contentFilter === 'all' || contentFilter === 'comic'
+                ? comicProjects
+                : [];
+
+              // Apply status filter to comics
+              if (statusFilter === 'published') {
+                filteredComicProjects = filteredComicProjects.filter(c => c.published_issues > 0 || c.is_published);
+              } else if (statusFilter === 'draft') {
+                filteredComicProjects = filteredComicProjects.filter(c => c.published_issues === 0 && !c.is_published);
+              } else if (statusFilter === 'unpublished') {
+                filteredComicProjects = [];
+              }
+
               // Filter solo projects by content type
               // NOTE: Only show DRAFT projects from soloProjects.
               // Published/minted content is shown via inventory (Content records) to avoid duplication.
@@ -1821,7 +1864,7 @@ export default function ProfilePageRedesigned() {
               }
               // statusFilter === 'draft' already handled above (only drafts included)
 
-              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0 || filteredSoloProjects.length > 0;
+              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0 || filteredComicProjects.length > 0 || filteredSoloProjects.length > 0;
 
               const filterLabel = statusFilter !== 'all'
                 ? `${statusFilter} ${contentFilter}`
@@ -1859,6 +1902,27 @@ export default function ProfilePageRedesigned() {
                       }}
                       onViewChapter={(contentId) => openReader(contentId)}
                       onEditBook={() => navigate(`/studio?editBookProject=${book.id}`)}
+                    />
+                  ))}
+                  {/* Render comic projects as grouped cards */}
+                  {filteredComicProjects.map((comic) => (
+                    <ComicProjectCard
+                      key={`comic-${comic.id}`}
+                      comic={comic}
+                      expanded={expandedComics.has(comic.id)}
+                      onToggleExpand={() => {
+                        setExpandedComics(prev => {
+                          const newSet = new Set(prev);
+                          if (newSet.has(comic.id)) {
+                            newSet.delete(comic.id);
+                          } else {
+                            newSet.add(comic.id);
+                          }
+                          return newSet;
+                        });
+                      }}
+                      onViewIssue={(contentId) => openReader(contentId)}
+                      onEditComic={() => navigate(`/studio/${comic.id}`)}
                     />
                   ))}
                   {/* Render solo projects (all content types) */}
@@ -3504,6 +3568,286 @@ function BookProjectCard({
           {hasPublishedChapters && firstPublishedChapter && (
             <button
               onClick={() => onViewChapter(firstPublishedChapter.content_id!)}
+              style={{
+                flex: 1,
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                border: 'none',
+                borderRadius: 10,
+                padding: '10px 16px',
+                color: '#000',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              View
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Comic Project Card Component - displays a comic with its issues grouped
+function ComicProjectCard({
+  comic,
+  expanded,
+  onToggleExpand,
+  onViewIssue,
+  onEditComic,
+}: {
+  comic: ComicProject;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onViewIssue: (contentId: number) => void;
+  onEditComic: () => void;
+}) {
+  const hasPublishedIssues = comic.published_issues > 0 || comic.is_published;
+  const firstPublishedIssue = comic.issues.find(i => i.is_published && i.content_id);
+
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--panel-border-strong)',
+      borderRadius: 16,
+      overflow: 'hidden',
+      transition: 'all 0.2s',
+      position: 'relative',
+    }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-4px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      {/* Cover Image */}
+      <div
+        onClick={onToggleExpand}
+        style={{
+          width: '100%',
+          paddingTop: '56.25%',
+          background: comic.cover_image_url ? `url(${comic.cover_image_url})` : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
+          cursor: 'pointer',
+          opacity: hasPublishedIssues ? 1 : 0.7,
+        }}
+      >
+        {!comic.cover_image_url && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            placeItems: 'center',
+            color: 'rgba(255,255,255,0.3)',
+          }}>
+            <Palette size={48} />
+          </div>
+        )}
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          background: hasPublishedIssues ? 'rgba(0,0,0,0.75)' : 'rgba(100, 116, 139, 0.9)',
+          color: 'var(--text)',
+          padding: '4px 10px',
+          borderRadius: hasPublishedIssues ? 12 : 6,
+          fontSize: hasPublishedIssues ? 12 : 11,
+          fontWeight: 600,
+          backdropFilter: 'blur(4px)',
+          textTransform: hasPublishedIssues ? 'none' : 'uppercase',
+          letterSpacing: hasPublishedIssues ? 'normal' : '0.5px',
+        }}>
+          {hasPublishedIssues
+            ? `${comic.published_issues} issue${comic.published_issues !== 1 ? 's' : ''}`
+            : 'Draft'
+          }
+        </div>
+      </div>
+
+      {/* Card Content */}
+      <div style={{ padding: 16 }}>
+        <div style={{
+          fontSize: 16,
+          fontWeight: 600,
+          color: 'var(--text)',
+          marginBottom: 8,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          lineHeight: 1.4,
+        }}>
+          {comic.title}
+        </div>
+
+        <div style={{
+          fontSize: 13,
+          color: 'var(--text-muted)',
+          marginBottom: 12,
+        }}>
+          {hasPublishedIssues
+            ? `comic \u2022 ${comic.published_issues} of ${comic.total_issues} issue${comic.total_issues !== 1 ? 's' : ''} published`
+            : `comic \u2022 ${comic.total_issues} issue${comic.total_issues !== 1 ? 's' : ''} (unpublished)`
+          }
+        </div>
+
+        {hasPublishedIssues && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            fontSize: 13,
+            color: 'var(--text-muted)',
+            marginBottom: 12,
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Eye size={14} /> {comic.total_views}
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <DollarSign size={14} /> ${comic.total_price.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {/* Expandable issue list */}
+        {comic.total_issues > 0 && (
+          <>
+            <button
+              onClick={onToggleExpand}
+              style={{
+                width: '100%',
+                background: 'var(--bg-card)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '8px 12px',
+                color: 'var(--text-muted)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: expanded ? 8 : 12,
+              }}
+            >
+              <span>Issues</span>
+              {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {expanded && (
+              <div style={{
+                background: 'var(--bg-input)',
+                borderRadius: 8,
+                padding: 8,
+                marginBottom: 12,
+                maxHeight: 200,
+                overflowY: 'auto',
+              }}>
+                {comic.issues.map((issue, index) => (
+                  <div
+                    key={issue.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      background: index % 2 === 0 ? 'transparent' : 'var(--nav-hover-bg)',
+                      opacity: issue.is_published ? 1 : 0.6,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 13,
+                        color: 'var(--text)',
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}>
+                        Issue #{issue.issue_number}: {issue.title}
+                        {!issue.is_published && (
+                          <span style={{
+                            fontSize: 9,
+                            background: 'rgba(100, 116, 139, 0.5)',
+                            color: 'var(--text-muted)',
+                            padding: '2px 5px',
+                            borderRadius: 3,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.3px',
+                          }}>
+                            Draft
+                          </span>
+                        )}
+                      </div>
+                      {issue.is_published && (
+                        <div style={{ fontSize: 11, color: 'var(--subtle)' }}>
+                          ${issue.price_usd.toFixed(2)} &bull; {issue.view_count} views
+                        </div>
+                      )}
+                    </div>
+                    {issue.is_published && issue.content_id && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewIssue(issue.content_id!);
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--panel-border-strong)',
+                          borderRadius: 6,
+                          padding: '4px 10px',
+                          color: 'var(--text-muted)',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          marginLeft: 8,
+                          flexShrink: 0,
+                        }}
+                      >
+                        View
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={onEditComic}
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: '1px solid var(--panel-border-strong)',
+              borderRadius: 10,
+              padding: '10px 16px',
+              color: 'var(--text-muted)',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            Edit
+          </button>
+          {hasPublishedIssues && firstPublishedIssue && (
+            <button
+              onClick={() => onViewIssue(firstPublishedIssue.content_id!)}
               style={{
                 flex: 1,
                 background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
