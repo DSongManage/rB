@@ -5,6 +5,23 @@ set -e
 
 echo "Starting deployment process..."
 
+# Wait for database to be ready (handles Railway sleep/wake)
+echo "Waiting for database..."
+MAX_RETRIES=10
+RETRY_DELAY=5
+for i in $(seq 1 $MAX_RETRIES); do
+  python -c "
+import django, os
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'renaissBlock.settings')
+django.setup()
+from django.db import connection
+connection.ensure_connection()
+print('Database is ready!')
+" && break
+  echo "Database not ready (attempt $i/$MAX_RETRIES). Retrying in ${RETRY_DELAY}s..."
+  sleep $RETRY_DELAY
+done
+
 # Run database migrations
 echo "Running database migrations..."
 python manage.py migrate --noinput
