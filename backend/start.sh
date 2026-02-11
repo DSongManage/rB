@@ -7,17 +7,19 @@ echo "Starting deployment process..."
 
 # Wait for database to be ready (handles Railway sleep/wake)
 echo "Waiting for database..."
-MAX_RETRIES=10
-RETRY_DELAY=5
+MAX_RETRIES=15
+RETRY_DELAY=10
 for i in $(seq 1 $MAX_RETRIES); do
   python -c "
-import django, os
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'renaissBlock.settings')
-django.setup()
-from django.db import connection
-connection.ensure_connection()
+import psycopg2, os, dj_database_url
+db = dj_database_url.parse(os.environ.get('DATABASE_URL', ''))
+psycopg2.connect(
+    dbname=db['NAME'], user=db['USER'], password=db['PASSWORD'],
+    host=db['HOST'], port=db['PORT'],
+    connect_timeout=5
+)
 print('Database is ready!')
-" && break
+" 2>/dev/null && break
   echo "Database not ready (attempt $i/$MAX_RETRIES). Retrying in ${RETRY_DELAY}s..."
   sleep $RETRY_DELAY
 done
