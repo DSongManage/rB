@@ -424,7 +424,7 @@ PLATFORM_WALLET_KEYPAIR_PATH = os.getenv('PLATFORM_WALLET_KEYPAIR_PATH', '')
 PLATFORM_WALLET_KEYPAIR = os.getenv('PLATFORM_WALLET_KEYPAIR', '')
 
 # Collaborative NFT Minting Configuration
-SOLANA_PLATFORM_WALLET = os.getenv('SOLANA_PLATFORM_WALLET', PLATFORM_WALLET_PUBKEY or 'DawrJxixCJ2zbTCn83YRB5kZJC6zM6N36FYqGZUzNHDA')
+SOLANA_PLATFORM_WALLET = os.getenv('SOLANA_PLATFORM_WALLET', PLATFORM_WALLET_PUBKEY or 'C2WmvJjJgEWR84876nHCchUvAdC3Co3RMY42a7nAq3Rk')
 # SOL/USD price for converting USD amounts to lamports (should use oracle in production)
 SOL_PRICE_USD = os.getenv('SOL_PRICE_USD', '100.00')
 # Enable collaborative minting feature

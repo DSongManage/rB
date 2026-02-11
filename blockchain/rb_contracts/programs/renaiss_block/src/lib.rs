@@ -6,7 +6,7 @@ declare_id!("9ZACvfz6GNqa7fvtXTbsWUKjgzHUeJwxg4qiG8oRB7eH");
 /// Platform wallet address - receives 10% fee on all mints
 /// SECURITY: This MUST match the deployed platform treasury wallet
 /// Update this constant when deploying to mainnet with production wallet
-pub const PLATFORM_WALLET: Pubkey = pubkey!("DawrJxixCJ2zbTCn83YRB5kZJC6zM6N36FYqGZUzNHDA");
+pub const PLATFORM_WALLET: Pubkey = pubkey!("C2WmvJjJgEWR84876nHCchUvAdC3Co3RMY42a7nAq3Rk");
 
 pub mod math {
     /// Returns (fee_amount, net_amount) given gross cents and basis points fee
