@@ -2136,20 +2136,22 @@ class PublicProfileView(APIView):
         ).order_by('order', '-created_at')
 
         # Get collaboration history - only show minted (completed) collaborations
-        # Exclude placeholder invite titles for a cleaner public profile
+        # Exclude solo projects and placeholder invite titles for a cleaner public profile
         collaborations = CollaborativeProject.objects.filter(
             collaborators__user=user,
             collaborators__status='accepted',
-            status='minted'  # Only show completed collaborations
+            status='minted',  # Only show completed collaborations
+            is_solo=False,  # Exclude solo projects — not real collaborations
         ).exclude(
             title__startswith='Collaboration Invite'  # Filter out placeholder titles
         ).distinct().order_by('-created_at')[:10]
 
-        # Count successful (minted) collaborations
+        # Count successful (minted) collaborations (exclude solo)
         successful_collabs_count = CollaborativeProject.objects.filter(
             collaborators__user=user,
             collaborators__status='accepted',
-            status='minted'
+            status='minted',
+            is_solo=False,
         ).distinct().count()
 
         # Get testimonials (public feedback from ratings)

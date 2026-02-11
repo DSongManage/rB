@@ -454,7 +454,7 @@ export default function ContentDetail(){
               <AlertCircle size={16} />
               <span>
                 Your balance ({displayBalance || '$0.00'}) is insufficient.{' '}
-                <Link to="/wallet" style={{ color: '#60a5fa', fontWeight: 500 }}>Add funds</Link>
+                <Link to="/wallet-info" style={{ color: '#60a5fa', fontWeight: 500 }}>Add funds</Link>
               </span>
             </div>
           )}

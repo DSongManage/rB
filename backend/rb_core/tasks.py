@@ -279,7 +279,7 @@ def process_atomic_purchase(self, purchase_id):
             logger.info(
                 f'[Atomic Purchase] FEE PASS-THROUGH breakdown: '
                 f'Item Price=${item_price}, '
-                f'CC Fee=${breakdown["credit_card_fee"]}, '
+                f'CC Fee=${breakdown.get("credit_card_fee", 0)}, '
                 f'Buyer Paid=${breakdown["buyer_total"]}, '
                 f'Stripe Fee=${stripe_fee}, '
                 f'Platform Receives=${net_amount}, '

@@ -4767,7 +4767,7 @@ class Cart(models.Model):
         breakdown = calculate_cart_breakdown(item_prices)
 
         self.subtotal = breakdown['subtotal']
-        self.credit_card_fee = breakdown['credit_card_fee']
+        self.credit_card_fee = breakdown.get('credit_card_fee', Decimal('0'))
         self.total = breakdown['buyer_total']
         self.save(update_fields=['subtotal', 'credit_card_fee', 'total'])
 
