@@ -127,7 +127,8 @@ export function CoinbaseOnrampWidget({
             defaultExperience: 'buy' as const,
             handlingRequestedUrls: widget_config.handlingRequestedUrls,
             partnerUserId: widget_config.partnerUserId,
-          },
+            ...(widget_config.sessionToken && { sessionToken: widget_config.sessionToken }),
+          } as Record<string, unknown>,
           onSuccess: () => {
             setStatus('processing');
             startPolling(config.transaction_id);

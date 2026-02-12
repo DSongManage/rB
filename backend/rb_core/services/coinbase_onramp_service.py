@@ -9,10 +9,12 @@ import hashlib
 import hmac
 import json
 import logging
+import time
 import uuid
 from decimal import Decimal
 from typing import Dict, Any, Optional
 
+import jwt
 import requests
 from django.conf import settings
 from django.utils import timezone
@@ -38,6 +40,76 @@ class CoinbaseOnrampService:
         self.app_id = getattr(settings, 'COINBASE_ONRAMP_APP_ID', '')
         self.webhook_secret = getattr(settings, 'COINBASE_WEBHOOK_SECRET', '')
         self.api_base = 'https://api.coinbase.com'
+        self.cdp_api_key_name = getattr(settings, 'COINBASE_CDP_API_KEY_NAME', '')
+        self.cdp_api_key_secret = getattr(settings, 'COINBASE_CDP_API_KEY_SECRET', '')
+        self._ec_private_key = None
+
+    def _get_ec_key(self):
+        """Lazy-load EC private key from PEM string."""
+        if self._ec_private_key is None:
+            from cryptography.hazmat.primitives.serialization import load_pem_private_key
+            self._ec_private_key = load_pem_private_key(
+                self.cdp_api_key_secret.encode('utf-8'), password=None
+            )
+        return self._ec_private_key
+
+    def _generate_cdp_jwt(self) -> str:
+        """Generate ES256 JWT for CDP API authentication."""
+        now = int(time.time())
+        payload = {
+            'sub': self.cdp_api_key_name,
+            'iss': 'coinbase-cloud',
+            'aud': ['cdp_service'],
+            'nbf': now,
+            'exp': now + 120,
+        }
+        headers = {
+            'kid': self.cdp_api_key_name,
+            'typ': 'JWT',
+        }
+        return jwt.encode(payload, self._get_ec_key(), algorithm='ES256', headers=headers)
+
+    def _get_session_token(
+        self,
+        destination_wallet: str,
+        blockchains: list = None,
+        assets: list = None,
+    ) -> Optional[str]:
+        """
+        Get a one-time session token from the CDP Onramp API.
+
+        Returns the token string, or None if CDP keys aren't configured.
+        """
+        if not self.cdp_api_key_name or not self.cdp_api_key_secret:
+            logger.debug("CDP API keys not configured, skipping session token")
+            return None
+
+        try:
+            token = self._generate_cdp_jwt()
+            response = requests.post(
+                'https://api.developer.coinbase.com/onramp/v1/token',
+                json={
+                    'destination_wallets': [
+                        {
+                            'address': destination_wallet,
+                            'blockchains': blockchains or ['solana'],
+                            'assets': assets or ['USDC'],
+                        }
+                    ],
+                },
+                headers={
+                    'Authorization': f'Bearer {token}',
+                    'Content-Type': 'application/json',
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+            session_token = response.json().get('token')
+            logger.info("CDP session token generated successfully")
+            return session_token
+        except Exception as e:
+            logger.error(f"Failed to get CDP session token: {e}")
+            return None
 
     def get_widget_config(
         self,
@@ -93,6 +165,11 @@ class CoinbaseOnrampService:
             config['metadata'] = {
                 'purchase_intent_id': str(purchase_intent_id),
             }
+
+        # Generate CDP session token for secure initialization
+        session_token = self._get_session_token(destination_wallet)
+        if session_token:
+            config['sessionToken'] = session_token
 
         return {
             'widget_config': config,

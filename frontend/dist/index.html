@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" type="image/png" href="/favicon-32.png" />
@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <title>renaissBlock</title>
-    <script type="module" crossorigin src="/assets/index-Dc1vRtyQ.js"></script>
+    <script type="module" crossorigin src="/assets/index-Clb-55uW.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-Cfs_Iq82.js">
     <link rel="modulepreload" crossorigin href="/assets/router-cVcvJ1e3.js">
     <link rel="modulepreload" crossorigin href="/assets/web3auth-BkZxjmxM.js">
@@ -20,6 +20,14 @@
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
+    <script>
+      // Apply saved theme before React mounts to prevent flash
+      (function() {
+        var t = localStorage.getItem('rb_theme_preference');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+        else if (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) document.documentElement.dataset.theme = 'light';
+      })();
+    </script>
     <div id="root"></div>
     <!-- Vite entry point -->
   </body>

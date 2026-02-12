@@ -447,6 +447,9 @@ COINBASE_ONRAMP_APP_ID = os.getenv('COINBASE_ONRAMP_APP_ID', '')
 COINBASE_WEBHOOK_SECRET = os.getenv('COINBASE_WEBHOOK_SECRET', '')
 # Minimum amount for Coinbase Onramp ($5 is Coinbase's minimum)
 COINBASE_MINIMUM_ONRAMP = Decimal(os.getenv('COINBASE_MINIMUM_ONRAMP', '5.00'))
+# CDP API key for generating secure session tokens (Secure Initialization)
+COINBASE_CDP_API_KEY_NAME = os.getenv('COINBASE_CDP_API_KEY_NAME', '')
+COINBASE_CDP_API_KEY_SECRET = os.getenv('COINBASE_CDP_API_KEY_SECRET', '').replace('\\n', '\n')
 
 # Platform USDC wallet address for treasury operations
 # This is the Solana wallet that holds USDC treasury and fronts payments

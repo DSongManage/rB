@@ -131,6 +131,7 @@ export interface CoinbaseWidgetConfig {
   handlingRequestedUrls: boolean;
   partnerUserId: string;
   sessionId: string;
+  sessionToken?: string;
   metadata?: Record<string, string>;
 }
 
