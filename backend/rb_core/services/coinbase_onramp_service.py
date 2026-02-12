@@ -90,7 +90,7 @@ class CoinbaseOnrampService:
             response = requests.post(
                 'https://api.developer.coinbase.com/onramp/v1/token',
                 json={
-                    'destination_wallets': [
+                    'destinationWallets': [
                         {
                             'address': destination_wallet,
                             'blockchains': blockchains or ['solana'],
