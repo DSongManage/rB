@@ -90,13 +90,13 @@ class CoinbaseOnrampService:
             response = requests.post(
                 'https://api.developer.coinbase.com/onramp/v1/token',
                 json={
-                    'destinationWallets': [
+                    'addresses': [
                         {
                             'address': destination_wallet,
                             'blockchains': blockchains or ['solana'],
-                            'assets': assets or ['USDC'],
                         }
                     ],
+                    'assets': assets or ['USDC'],
                 },
                 headers={
                     'Authorization': f'Bearer {token}',
@@ -108,6 +108,9 @@ class CoinbaseOnrampService:
             session_token = response.json().get('token')
             logger.info("CDP session token generated successfully")
             return session_token
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"Failed to get CDP session token: {e} - {e.response.text}")
+            return None
         except Exception as e:
             logger.error(f"Failed to get CDP session token: {e}")
             return None
