@@ -132,9 +132,11 @@ class CoinbaseOnrampService:
         Handle Coinbase webhook event.
 
         Events:
+        - charge:pending - Payment detected, awaiting confirmation
         - charge:confirmed - Payment confirmed, USDC delivered
+        - charge:resolved - Previously unresolved charge is now resolved
+        - charge:delayed - Payment delayed (blockchain congestion)
         - charge:failed - Payment failed
-        - charge:expired - Payment session expired
 
         Args:
             event_type: Type of webhook event
@@ -157,10 +159,14 @@ class CoinbaseOnrampService:
 
         if event_type == 'charge:confirmed':
             return self._handle_charge_confirmed(transaction, event_data)
+        elif event_type == 'charge:resolved':
+            return self._handle_charge_confirmed(transaction, event_data)
+        elif event_type == 'charge:pending':
+            return self._handle_charge_pending(transaction, event_data)
+        elif event_type == 'charge:delayed':
+            return self._handle_charge_delayed(transaction, event_data)
         elif event_type == 'charge:failed':
             return self._handle_charge_failed(transaction, event_data)
-        elif event_type == 'charge:expired':
-            return self._handle_charge_expired(transaction, event_data)
         else:
             logger.info(f"Unhandled Coinbase event type: {event_type}")
             return {'status': 'ignored', 'event_type': event_type}
@@ -218,17 +224,34 @@ class CoinbaseOnrampService:
             'reason': transaction.failure_reason,
         }
 
-    def _handle_charge_expired(
+    def _handle_charge_pending(
         self,
         transaction: 'CoinbaseTransaction',
         event_data: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Handle expired charge."""
-        transaction.status = 'expired'
-        transaction.save()
+        """Handle pending charge - payment detected, awaiting confirmation."""
+        if transaction.status not in ('completed',):
+            transaction.status = 'pending'
+            transaction.save()
 
         return {
-            'status': 'expired',
+            'status': 'pending',
+            'transaction_id': transaction.id,
+        }
+
+    def _handle_charge_delayed(
+        self,
+        transaction: 'CoinbaseTransaction',
+        event_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Handle delayed charge - payment delayed due to blockchain congestion."""
+        if transaction.status not in ('completed',):
+            transaction.status = 'delayed'
+            transaction.save()
+            logger.warning(f"Coinbase charge delayed: {transaction.coinbase_charge_id}")
+
+        return {
+            'status': 'delayed',
             'transaction_id': transaction.id,
         }
 

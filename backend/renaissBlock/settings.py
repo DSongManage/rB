@@ -482,6 +482,9 @@ BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8000')
 
 # DRF throttling for public endpoints
 REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ] + (['rest_framework.renderers.BrowsableAPIRenderer'] if DEBUG else []),
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
     ],

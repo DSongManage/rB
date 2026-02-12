@@ -5598,6 +5598,7 @@ class CoinbaseTransaction(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('processing', 'Processing'),
+        ('delayed', 'Delayed'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('expired', 'Expired'),
