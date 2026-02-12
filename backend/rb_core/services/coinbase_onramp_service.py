@@ -53,19 +53,20 @@ class CoinbaseOnrampService:
             )
         return self._ec_private_key
 
-    def _generate_cdp_jwt(self) -> str:
+    def _generate_cdp_jwt(self, method: str, path: str) -> str:
         """Generate ES256 JWT for CDP API authentication."""
         now = int(time.time())
         payload = {
             'sub': self.cdp_api_key_name,
             'iss': 'coinbase-cloud',
-            'aud': ['cdp_service'],
             'nbf': now,
             'exp': now + 120,
+            'uri': f'{method} api.developer.coinbase.com{path}',
         }
         headers = {
             'kid': self.cdp_api_key_name,
             'typ': 'JWT',
+            'nonce': uuid.uuid4().hex,
         }
         return jwt.encode(payload, self._get_ec_key(), algorithm='ES256', headers=headers)
 
@@ -85,7 +86,7 @@ class CoinbaseOnrampService:
             return None
 
         try:
-            token = self._generate_cdp_jwt()
+            token = self._generate_cdp_jwt('POST', '/onramp/v1/token')
             response = requests.post(
                 'https://api.developer.coinbase.com/onramp/v1/token',
                 json={
