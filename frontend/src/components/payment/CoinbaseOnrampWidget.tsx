@@ -9,39 +9,10 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { initOnRamp } from '@coinbase/cbpay-js';
 import { X, CreditCard, Loader2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { paymentApi, CoinbaseWidgetConfig } from '../../services/paymentApi';
 import { useBalance } from '../../contexts/BalanceContext';
-
-// Coinbase Onramp SDK types
-declare global {
-  interface Window {
-    CBPay?: {
-      create: (config: {
-        appId: string;
-        widgetParameters: {
-          destinationWallets: Array<{
-            address: string;
-            blockchains: string[];
-            assets: string[];
-          }>;
-          presetCryptoAmount?: number;
-          defaultAsset?: string;
-          defaultNetwork?: string;
-          defaultExperience?: string;
-          handlingRequestedUrls?: boolean;
-          partnerUserId?: string;
-        };
-        onSuccess: () => void;
-        onExit: (event?: { reason?: string }) => void;
-        onEvent: (event: { eventName: string; eventData?: Record<string, unknown> }) => void;
-      }) => {
-        open: () => void;
-        destroy: () => void;
-      };
-    };
-  }
-}
 
 interface CoinbaseOnrampWidgetProps {
   intentId: number;
@@ -67,23 +38,8 @@ export function CoinbaseOnrampWidget({
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-  const widgetRef = useRef<{ open: () => void; destroy: () => void } | null>(null);
+  const instanceRef = useRef<{ open: () => void; destroy: () => void } | null>(null);
   const { forceSync } = useBalance();
-
-  // Load Coinbase SDK script
-  useEffect(() => {
-    if (document.getElementById('coinbase-onramp-sdk')) return;
-
-    const script = document.createElement('script');
-    script.id = 'coinbase-onramp-sdk';
-    script.src = 'https://pay.coinbase.com/sdk/v1/cbpay.js';
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      // Don't remove the script on unmount - it may be needed by other components
-    };
-  }, []);
 
   // Initialize widget config from backend
   useEffect(() => {
@@ -144,16 +100,16 @@ export function CoinbaseOnrampWidget({
       if (pollingInterval) {
         clearInterval(pollingInterval);
       }
-      if (widgetRef.current) {
-        widgetRef.current.destroy();
+      if (instanceRef.current) {
+        instanceRef.current.destroy();
       }
     };
   }, [pollingInterval]);
 
   // Open Coinbase widget
   const openWidget = useCallback(() => {
-    if (!config || !window.CBPay) {
-      setErrorMessage('Payment widget not ready');
+    if (!config) {
+      setErrorMessage('Payment config not ready');
       setStatus('error');
       return;
     }
@@ -161,39 +117,51 @@ export function CoinbaseOnrampWidget({
     const { widget_config } = config;
 
     try {
-      widgetRef.current = window.CBPay.create({
-        appId: widget_config.appId,
-        widgetParameters: {
-          destinationWallets: widget_config.destinationWallets,
-          presetCryptoAmount: widget_config.presetCryptoAmount,
-          defaultAsset: widget_config.defaultAsset,
-          defaultNetwork: widget_config.defaultNetwork,
-          defaultExperience: widget_config.defaultExperience,
-          handlingRequestedUrls: widget_config.handlingRequestedUrls,
-          partnerUserId: widget_config.partnerUserId,
-        },
-        onSuccess: () => {
-          setStatus('processing');
-          startPolling(config.transaction_id);
-        },
-        onExit: (event) => {
-          if (event?.reason === 'user_exit' || status === 'ready') {
-            // User closed without completing
-            onCancel();
-          }
-        },
-        onEvent: (event) => {
-          console.log('Coinbase event:', event.eventName, event.eventData);
+      initOnRamp(
+        {
+          appId: widget_config.appId,
+          widgetParameters: {
+            destinationWallets: widget_config.destinationWallets,
+            presetCryptoAmount: widget_config.presetCryptoAmount,
+            defaultNetwork: widget_config.defaultNetwork,
+            defaultExperience: 'buy' as const,
+            handlingRequestedUrls: widget_config.handlingRequestedUrls,
+            partnerUserId: widget_config.partnerUserId,
+          },
+          onSuccess: () => {
+            setStatus('processing');
+            startPolling(config.transaction_id);
+          },
+          onExit: (error) => {
+            if (!error) {
+              // User closed without completing
+              onCancel();
+            }
+          },
+          onEvent: (event) => {
+            console.log('Coinbase event:', event.eventName);
 
-          if (event.eventName === 'error') {
-            const errorData = event.eventData as { message?: string } | undefined;
-            setErrorMessage(errorData?.message || 'Payment error occurred');
+            if (event.eventName === 'error') {
+              const errorEvent = event as { error?: { message?: string } };
+              setErrorMessage(errorEvent.error?.message || 'Payment error occurred');
+              setStatus('error');
+            }
+          },
+          experienceLoggedIn: 'popup',
+        },
+        (error, instance) => {
+          if (error) {
+            console.error('Coinbase initOnRamp error:', error);
+            setErrorMessage(error.message || 'Failed to initialize payment widget');
             setStatus('error');
+            return;
+          }
+          if (instance) {
+            instanceRef.current = instance;
+            instance.open();
           }
         },
-      });
-
-      widgetRef.current.open();
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to open payment widget';
       setErrorMessage(message);
@@ -203,14 +171,13 @@ export function CoinbaseOnrampWidget({
 
   // Auto-open widget when ready
   useEffect(() => {
-    if (status === 'ready' && window.CBPay) {
-      // Small delay to ensure SDK is fully initialized
+    if (status === 'ready' && config) {
       const timer = setTimeout(() => {
         openWidget();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [status, openWidget]);
+  }, [status, openWidget, config]);
 
   return (
     <div
