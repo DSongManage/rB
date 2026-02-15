@@ -21,7 +21,7 @@ interface CoinbaseOnrampWidgetProps {
   onError: (error: string) => void;
 }
 
-type WidgetStatus = 'loading' | 'ready' | 'processing' | 'success' | 'error';
+type WidgetStatus = 'loading' | 'ready' | 'processing' | 'checking' | 'success' | 'error';
 
 export function CoinbaseOnrampWidget({
   intentId,
@@ -39,7 +39,14 @@ export function CoinbaseOnrampWidget({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const instanceRef = useRef<{ open: () => void; destroy: () => void } | null>(null);
-  const { forceSync } = useBalance();
+  const widgetOpenedRef = useRef(false);
+  const statusRef = useRef<WidgetStatus>('loading');
+  const { forceSync, getBalanceNumber } = useBalance();
+
+  // Keep statusRef in sync
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
 
   // Initialize widget config from backend
   useEffect(() => {
@@ -60,31 +67,60 @@ export function CoinbaseOnrampWidget({
     initializeWidget();
   }, [intentId, onError]);
 
-  // Poll for transaction completion
-  const startPolling = useCallback((transactionId: number) => {
+  // Handle successful completion (shared by polling and balance check)
+  const handleCompletion = useCallback(async (transactionId: number) => {
+    setStatus('success');
+    await forceSync();
+    await paymentApi.completeCoinbaseOnramp(transactionId);
+    setTimeout(() => {
+      onSuccess();
+    }, 1500);
+  }, [forceSync, onSuccess]);
+
+  // Poll for transaction completion via backend status + balance check
+  const startPolling = useCallback((transactionId: number, maxAttempts?: number) => {
+    let attempts = 0;
+    const limit = maxAttempts || 0; // 0 = unlimited
+    const initialBalance = getBalanceNumber();
+
     const interval = setInterval(async () => {
+      attempts++;
+
+      // Check attempt limit for exit-triggered polling
+      if (limit > 0 && attempts > limit) {
+        clearInterval(interval);
+        setPollingInterval(null);
+        // No payment detected after checking - cancel
+        onCancel();
+        return;
+      }
+
       try {
-        const status = await paymentApi.getCoinbaseStatus(transactionId);
+        // Check 1: Backend transaction status (updated by webhook)
+        const txStatus = await paymentApi.getCoinbaseStatus(transactionId);
 
-        if (status.status === 'completed') {
+        if (txStatus.status === 'completed') {
           clearInterval(interval);
           setPollingInterval(null);
-          setStatus('success');
-
-          // Sync balance and notify success
-          await forceSync();
-
-          // Complete the onramp to trigger purchase
-          await paymentApi.completeCoinbaseOnramp(transactionId);
-
-          setTimeout(() => {
-            onSuccess();
-          }, 1500);
-        } else if (status.status === 'failed') {
+          await handleCompletion(transactionId);
+          return;
+        } else if (txStatus.status === 'failed') {
           clearInterval(interval);
           setPollingInterval(null);
-          setErrorMessage(status.failure_reason || 'Payment failed');
+          setErrorMessage(txStatus.failure_reason || 'Payment failed');
           setStatus('error');
+          return;
+        }
+
+        // Check 2: Balance increase (catches cases where webhook is delayed)
+        const syncResult = await forceSync();
+        const currentBalance = getBalanceNumber();
+        if (currentBalance > initialBalance + 0.01) {
+          // Balance increased - funds arrived!
+          clearInterval(interval);
+          setPollingInterval(null);
+          await handleCompletion(transactionId);
+          return;
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -92,7 +128,7 @@ export function CoinbaseOnrampWidget({
     }, 3000);
 
     setPollingInterval(interval);
-  }, [forceSync, onSuccess]);
+  }, [forceSync, getBalanceNumber, handleCompletion, onCancel]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -130,17 +166,35 @@ export function CoinbaseOnrampWidget({
             ...(widget_config.sessionToken && { sessionToken: widget_config.sessionToken }),
           } as Record<string, unknown>,
           onSuccess: () => {
+            // Coinbase SDK confirms payment completed
             setStatus('processing');
             startPolling(config.transaction_id);
           },
-          onExit: (error) => {
-            if (!error) {
-              // User closed without completing
+          onExit: () => {
+            // User closed the Coinbase popup.
+            // If already processing (onSuccess fired first), keep polling.
+            // Otherwise, check if payment may have completed before closing.
+            const currentStatus = statusRef.current;
+            if (currentStatus === 'processing' || currentStatus === 'success') {
+              return; // Already handling completion
+            }
+
+            if (widgetOpenedRef.current) {
+              // Widget was opened - user may have completed payment then closed popup.
+              // Poll briefly to check before canceling.
+              setStatus('checking');
+              startPolling(config.transaction_id, 8); // Check for ~24 seconds
+            } else {
               onCancel();
             }
           },
           onEvent: (event) => {
             console.log('Coinbase event:', event.eventName);
+
+            // Track that the widget was actually opened/interacted with
+            if (event.eventName === 'transition_view' || event.eventName === 'request_open_url') {
+              widgetOpenedRef.current = true;
+            }
 
             if (event.eventName === 'error') {
               const errorEvent = event as { error?: { message?: string } };
@@ -159,6 +213,7 @@ export function CoinbaseOnrampWidget({
           }
           if (instance) {
             instanceRef.current = instance;
+            widgetOpenedRef.current = true;
             instance.open();
           }
         },
@@ -168,7 +223,7 @@ export function CoinbaseOnrampWidget({
       setErrorMessage(message);
       setStatus('error');
     }
-  }, [config, onCancel, startPolling, status]);
+  }, [config, onCancel, startPolling]);
 
   // Auto-open widget when ready
   useEffect(() => {
@@ -223,7 +278,7 @@ export function CoinbaseOnrampWidget({
           >
             Add Funds
           </h2>
-          {status !== 'processing' && status !== 'success' && (
+          {status !== 'processing' && status !== 'checking' && status !== 'success' && (
             <button
               onClick={onCancel}
               style={{
@@ -318,7 +373,7 @@ export function CoinbaseOnrampWidget({
             </>
           )}
 
-          {status === 'processing' && (
+          {(status === 'processing' || status === 'checking') && (
             <>
               <Loader2
                 size={48}
@@ -335,10 +390,12 @@ export function CoinbaseOnrampWidget({
                   margin: '0 0 8px',
                 }}
               >
-                Processing Payment
+                {status === 'checking' ? 'Checking for Payment' : 'Processing Payment'}
               </h3>
               <p style={{ color: 'var(--text-secondary, #cbd5e1)', margin: 0 }}>
-                Your funds are being added to your account...
+                {status === 'checking'
+                  ? 'Verifying your funds arrived...'
+                  : 'Your funds are being added to your account...'}
               </p>
               <p
                 style={{

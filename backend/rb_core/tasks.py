@@ -555,50 +555,53 @@ def process_atomic_purchase(self, purchase_id):
 
         # ═══════════════════════════════════════════════════════════════════
         # UPDATE CREATOR SALES TRACKING (add USDC earnings to profile)
-        # Batch fetch users/profiles to avoid N+1 queries
+        # Skip for balance payments - already handled in process_balance_purchase_task
         # ═══════════════════════════════════════════════════════════════════
         from .models import User as CoreUser, UserProfile
 
-        # Collect all creator usernames for batch lookup
-        creator_usernames = [dist['user'] for dist in result['distributions']]
+        if purchase.payment_provider == 'balance':
+            logger.info(f'[Atomic Purchase] Skipping profile earnings update for balance payment (already recorded)')
+        else:
+            # Collect all creator usernames for batch lookup
+            creator_usernames = [dist['user'] for dist in result['distributions']]
 
-        # Batch fetch existing users and profiles (2 queries instead of 2N)
-        existing_users = {u.username: u for u in CoreUser.objects.filter(username__in=creator_usernames)}
-        existing_profiles = {p.user.username: p for p in UserProfile.objects.filter(
-            user__username__in=creator_usernames
-        ).select_related('user')}
+            # Batch fetch existing users and profiles (2 queries instead of 2N)
+            existing_users = {u.username: u for u in CoreUser.objects.filter(username__in=creator_usernames)}
+            existing_profiles = {p.user.username: p for p in UserProfile.objects.filter(
+                user__username__in=creator_usernames
+            ).select_related('user')}
 
-        for dist in result['distributions']:
-            try:
-                creator_username = dist['user']
-                usdc_earned = Decimal(str(dist['amount']))
+            for dist in result['distributions']:
+                try:
+                    creator_username = dist['user']
+                    usdc_earned = Decimal(str(dist['amount']))
 
-                # Get or create user (create only if needed)
-                core_user = existing_users.get(creator_username)
-                if not core_user:
-                    core_user, _ = CoreUser.objects.get_or_create(username=creator_username)
-                    existing_users[creator_username] = core_user
+                    # Get or create user (create only if needed)
+                    core_user = existing_users.get(creator_username)
+                    if not core_user:
+                        core_user, _ = CoreUser.objects.get_or_create(username=creator_username)
+                        existing_users[creator_username] = core_user
 
-                # Get or create profile (create only if needed)
-                profile = existing_profiles.get(creator_username)
-                if not profile:
-                    profile, _ = UserProfile.objects.get_or_create(
-                        user=core_user,
-                        defaults={'username': creator_username}
+                    # Get or create profile (create only if needed)
+                    profile = existing_profiles.get(creator_username)
+                    if not profile:
+                        profile, _ = UserProfile.objects.get_or_create(
+                            user=core_user,
+                            defaults={'username': creator_username}
+                        )
+                        existing_profiles[creator_username] = profile
+
+                    # Add to total_sales_usd (USDC earnings tracked here)
+                    # Note: Field is named total_sales_usd but tracks USDC amounts
+                    profile.total_sales_usd = (profile.total_sales_usd or Decimal('0')) + usdc_earned
+                    profile.save(update_fields=['total_sales_usd'])
+
+                    logger.info(
+                        f'[Atomic Purchase] ✅ Updated creator {creator_username} total_sales_usd '
+                        f'(USDC earnings) to ${profile.total_sales_usd}'
                     )
-                    existing_profiles[creator_username] = profile
-
-                # Add to total_sales_usd (USDC earnings tracked here)
-                # Note: Field is named total_sales_usd but tracks USDC amounts
-                profile.total_sales_usd = (profile.total_sales_usd or Decimal('0')) + usdc_earned
-                profile.save(update_fields=['total_sales_usd'])
-
-                logger.info(
-                    f'[Atomic Purchase] ✅ Updated creator {creator_username} total_sales_usd '
-                    f'(USDC earnings) to ${profile.total_sales_usd}'
-                )
-            except Exception as e:
-                logger.error(f'[Atomic Purchase] ⚠️ Error updating sales for creator {creator_username}: {e}')
+                except Exception as e:
+                    logger.error(f'[Atomic Purchase] ⚠️ Error updating sales for creator {creator_username}: {e}')
 
         # ═══════════════════════════════════════════════════════════════════
         # UPDATE CREATOR TIERS (lifetime project sales + founding checks)
@@ -1586,6 +1589,7 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
     4. Trigger NFT minting for each purchase
     5. Update user balance cache
     """
+    from django.utils import timezone
     from .models import PurchaseIntent, Purchase, UserBalance, Cart, Content, Chapter
     from .services import get_solana_service
 
@@ -1619,7 +1623,7 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
                 if chapter_id:
                     try:
                         chapter = Chapter.objects.get(id=chapter_id)
-                        content = chapter.content
+                        content = chapter.published_content
                     except Chapter.DoesNotExist:
                         logger.warning(f"[Balance Purchase] Chapter {chapter_id} not found")
                 elif content_id:
@@ -1689,6 +1693,114 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
 
         # Sync user balance (runs async to update cached balance)
         sync_user_balance_task.delay(intent.user.id)
+
+        # ═══════════════════════════════════════════════════════════════════
+        # CREATE COLLABORATOR PAYMENT RECORDS (for analytics/earnings tracking)
+        # These are created HERE because the USDC transfer already happened
+        # in the user-signed transaction. process_atomic_purchase handles NFT
+        # minting separately, but CollaboratorPayment records must exist
+        # immediately so creator analytics are accurate.
+        # ═══════════════════════════════════════════════════════════════════
+        from .models import CollaboratorPayment, User as CoreUser, UserProfile
+        from .tier_service import get_project_fee_rate
+
+        for purchase in purchases:
+            try:
+                item = purchase.chapter or purchase.content
+                if not item or not hasattr(item, 'get_collaborators_with_wallets'):
+                    logger.warning(f"[Balance Purchase] No item or collaborators method for purchase {purchase.id}")
+                    continue
+
+                collaborators = item.get_collaborators_with_wallets()
+                if not collaborators:
+                    logger.warning(f"[Balance Purchase] No collaborators for purchase {purchase.id}")
+                    continue
+
+                item_price = purchase.chapter_price or purchase.purchase_price_usd
+                dynamic_fee_rate = get_project_fee_rate(item)
+                platform_percentage = (dynamic_fee_rate * Decimal('100')).quantize(Decimal('1'))
+                platform_fee = (item_price * dynamic_fee_rate).quantize(Decimal('0.000001'))
+                creator_pool = item_price - platform_fee
+
+                total_collab_pct = sum(Decimal(str(c['percentage'])) for c in collaborators)
+                is_collaborative = total_collab_pct > Decimal('95')
+
+                for collab in collaborators:
+                    collab_pct = Decimal(str(collab['percentage']))
+                    if is_collaborative:
+                        usdc_amount = (creator_pool * collab_pct / 100).quantize(Decimal('0.000001'))
+                    else:
+                        usdc_amount = (item_price * collab_pct / 100).quantize(Decimal('0.000001'))
+
+                    CollaboratorPayment.objects.update_or_create(
+                        purchase=purchase,
+                        collaborator=collab['user'],
+                        defaults={
+                            'collaborator_wallet': collab['wallet'],
+                            'amount_usdc': usdc_amount,
+                            'percentage': int(collab_pct),
+                            'role': collab.get('role', 'creator'),
+                            'transaction_signature': transaction_signature,
+                        }
+                    )
+                    logger.info(
+                        f"[Balance Purchase] CollaboratorPayment: {collab['user'].username} "
+                        f"earned ${usdc_amount} ({collab_pct}%) for purchase {purchase.id}"
+                    )
+
+                    # Update creator profile earnings
+                    try:
+                        profile, _ = UserProfile.objects.get_or_create(
+                            user=collab['user'],
+                            defaults={'username': collab['user'].username}
+                        )
+                        profile.total_sales_usd = (profile.total_sales_usd or Decimal('0')) + usdc_amount
+                        profile.save(update_fields=['total_sales_usd'])
+                    except Exception as e:
+                        logger.error(f"[Balance Purchase] Failed to update profile for {collab['user'].username}: {e}")
+
+                # Send purchase notifications to creators
+                try:
+                    from .notifications_utils import notify_content_purchase
+                    content_title = (purchase.chapter.title if purchase.chapter
+                                     else (purchase.content.title if purchase.content else 'Content'))
+                    for collab in collaborators:
+                        if collab['user'] != purchase.user:  # Don't notify self-purchases
+                            collab_pct = Decimal(str(collab['percentage']))
+                            if is_collaborative:
+                                notif_amount = (creator_pool * collab_pct / 100).quantize(Decimal('0.000001'))
+                            else:
+                                notif_amount = (item_price * collab_pct / 100).quantize(Decimal('0.000001'))
+                            notify_content_purchase(
+                                recipient=collab['user'],
+                                buyer=purchase.user,
+                                content_title=content_title,
+                                amount_usdc=notif_amount,
+                                role=collab.get('role'),
+                            )
+                    logger.info(f"[Balance Purchase] Sent purchase notifications for purchase {purchase.id}")
+                except Exception as e:
+                    logger.error(f"[Balance Purchase] Failed to send notifications for purchase {purchase.id}: {e}")
+
+                # Update purchase with distribution info
+                purchase.usdc_distribution_status = 'completed'
+                purchase.usdc_distributed_at = timezone.now()
+                purchase.usdc_distribution_transaction = transaction_signature
+                purchase.platform_usdc_earned = platform_fee
+                purchase.save(update_fields=[
+                    'usdc_distribution_status', 'usdc_distributed_at',
+                    'usdc_distribution_transaction', 'platform_usdc_earned',
+                ])
+
+                # Update creator tiers
+                try:
+                    from .tier_service import process_sale_for_tiers
+                    process_sale_for_tiers(purchase, item, item_price)
+                except Exception as e:
+                    logger.error(f"[Balance Purchase] Tier processing failed for purchase {purchase.id}: {e}")
+
+            except Exception as e:
+                logger.error(f"[Balance Purchase] Failed to create CollaboratorPayment for purchase {purchase.id}: {e}")
 
         # Trigger NFT minting for each purchase
         for purchase in purchases:
