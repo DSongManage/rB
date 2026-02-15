@@ -61,7 +61,7 @@ export default function BetaLanding() {
       <section className="hero-section">
         <div className="hero-content">
           <div className="hero-logo">
-            <img src="/rb-logo.png" alt="renaissBlock" />
+            <img src="/rb-logo.png" alt="renaissBlock - Comic Book Collaboration Platform" />
           </div>
 
           <div className="beta-badge">
@@ -70,11 +70,12 @@ export default function BetaLanding() {
           </div>
 
           <h1 className="hero-title">
-            Stories Need Art. Art Needs Stories.
+            Comic Book Collaboration Platform for Writers & Artists
           </h1>
 
           <p className="hero-subtitle">
-            A marketplace for comic collaborations. You focus on your craft - we handle payments, splits, and publishing.
+            The marketplace where comic writers find artists and artists find writers.
+            Automatic revenue splits, instant payments, and chapter-by-chapter publishing for indie comics.
           </p>
 
           <div className="hero-form">
@@ -100,7 +101,7 @@ export default function BetaLanding() {
               {message && <div className={`form-message ${message.includes('Thanks') ? 'success' : 'error'}`}>{message}</div>}
             </form>
             <p className="hero-proof">
-              Join writers and artists already creating together
+              Join comic writers and artists already collaborating on indie comics
             </p>
             <p className="signin-link">
               Already have access?{' '}
@@ -115,7 +116,7 @@ export default function BetaLanding() {
       {/* 2. COMPARISON SECTION */}
       <section className="comparison-section">
         <div className="container">
-          <h2 className="section-title">Create on Your Terms</h2>
+          <h2 className="section-title">Comic Collaboration on Your Terms</h2>
 
           <div className="comparison-table-wrapper">
             <table className="comparison-table">
@@ -165,31 +166,31 @@ export default function BetaLanding() {
       {/* 3. VALUE PROPS */}
       <section className="benefits-section">
         <div className="container">
-          <h2 className="section-title">Built for Comics That Take Two</h2>
+          <h2 className="section-title">Built for Indie Comic Creators Who Collaborate</h2>
 
           <div className="benefits-grid">
             <div className="benefit-card">
               <div className="benefit-icon">
                 <Pen size={48} />
               </div>
-              <h3>Your Script or Your Art</h3>
-              <p>Bring what you've got. Post your project, set your terms, find the missing piece.</p>
+              <h3>Post Your Comic Script or Art Portfolio</h3>
+              <p>Writers post scripts seeking artists. Artists showcase portfolios seeking writers. Set your terms and find your creative partner.</p>
             </div>
 
             <div className="benefit-card">
               <div className="benefit-icon">
                 <Users size={48} />
               </div>
-              <h3>Find Your Collaborator</h3>
-              <p>Browse writers looking for artists. Browse artists looking for scripts. Message, discuss, team up.</p>
+              <h3>Find a Comic Artist or Writer</h3>
+              <p>Browse the marketplace to find your ideal collaborator. Connect with comic artists and writers who share your vision.</p>
             </div>
 
             <div className="benefit-card">
               <div className="benefit-icon">
                 <Heart size={48} />
               </div>
-              <h3>Fair Splits, Zero Drama</h3>
-              <p>Revenue splits happen automatically every sale. No invoices, no chasing, no awkward conversations.</p>
+              <h3>Automatic Revenue Splits</h3>
+              <p>Set your revenue split upfront. Every sale automatically pays both creators instantly. No invoices, no chasing payments.</p>
             </div>
           </div>
         </div>
@@ -198,13 +199,13 @@ export default function BetaLanding() {
       {/* 4. HOW IT WORKS */}
       <section className="how-it-works-section">
         <div className="container">
-          <h2 className="section-title">How It Works</h2>
+          <h2 className="section-title">How Comic Collaboration Works</h2>
 
           <div className="timeline">
             <div className="timeline-step">
               <div className="step-number">1</div>
-              <h3>Post</h3>
-              <p>Writers post scripts. Artists post portfolios. Describe what you're looking for.</p>
+              <h3>Post Your Project</h3>
+              <p>Comic writers post scripts. Comic artists post portfolios. Describe your project and what collaborator you're seeking.</p>
             </div>
 
             <div className="timeline-connector">
@@ -213,8 +214,8 @@ export default function BetaLanding() {
 
             <div className="timeline-step">
               <div className="step-number">2</div>
-              <h3>Team Up</h3>
-              <p>Find your match. Agree on a split. Start your first chapter.</p>
+              <h3>Find Your Partner</h3>
+              <p>Connect with your ideal collaborator. Agree on revenue splits. Start creating your first chapter together.</p>
             </div>
 
             <div className="timeline-connector">
@@ -223,8 +224,8 @@ export default function BetaLanding() {
 
             <div className="timeline-step">
               <div className="step-number">3</div>
-              <h3>Publish & Earn</h3>
-              <p>Release chapter by chapter. Every sale pays both of you instantly.</p>
+              <h3>Publish Comics & Get Paid</h3>
+              <p>Publish your comic chapter by chapter. Every sale automatically splits revenue and pays both creators instantly in USDC.</p>
             </div>
           </div>
         </div>
@@ -233,7 +234,7 @@ export default function BetaLanding() {
       {/* 5. SOCIAL PROOF */}
       <section className="testimonial-section">
         <div className="container">
-          <h2 className="section-title">Creators Already Here</h2>
+          <h2 className="section-title">Comic Creators Already Collaborating</h2>
 
           <div className="testimonials-grid">
             <div className="testimonial-card">
@@ -266,10 +267,10 @@ export default function BetaLanding() {
             <div className="payment-icon">
               <DollarSign size={28} />
             </div>
-            <h4>Instant, Stable Payments</h4>
+            <h4>Instant Payments for Comic Creators</h4>
             <p>
-              Earnings are paid in <strong>digital dollars</strong> (USDC) — always worth exactly $1.
-              Withdraw to your bank anytime, or keep your balance for future purchases.
+              Earnings from your comic sales are paid in <strong>USDC stablecoin</strong> — always worth exactly $1.
+              Withdraw to your bank anytime, or keep your balance for purchasing other comics on the platform.
             </p>
             <Link to="/how-payments-work" className="payment-learn-link">
               Learn how it works <ArrowRight size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
@@ -282,9 +283,9 @@ export default function BetaLanding() {
       <section className="final-cta-section">
         <div className="container">
           <div className="final-cta-card">
-            <h2>Your Comic Is Waiting</h2>
+            <h2>Start Your Comic Collaboration Today</h2>
             <p className="cta-subtext">
-              Whether you write or draw, someone's looking for you.
+              Whether you're a comic writer seeking an artist or an artist looking for scripts, your creative partner is here.
             </p>
 
             <form onSubmit={handleSubmit} className="final-cta-form">

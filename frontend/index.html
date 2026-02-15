@@ -4,14 +4,144 @@
     <meta charset="utf-8" />
     <link rel="icon" type="image/png" href="/favicon-32.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="renaissBlock - Create, collaborate, and mint on Solana" />
+    <meta name="theme-color" content="#f59e0b" />
+
+    <!-- Primary SEO Meta Tags -->
+    <title>renaissBlock - Comic Book Collaboration Platform for Writers & Artists</title>
+    <meta name="title" content="renaissBlock - Comic Book Collaboration Platform for Writers & Artists" />
+    <meta name="description" content="The marketplace for comic book collaboration. Writers find artists. Artists find writers. Automatic revenue splits, instant payments in USDC, and chapter-by-chapter publishing. Create your indie comic together." />
+    <meta name="keywords" content="comic book collaboration, find comic artist, find comic writer, indie comics, webcomic platform, comic revenue split, comic creator marketplace, writer artist collaboration, publish comics online, digital comics, comic publishing platform, comic book creator, webcomic monetization" />
+    <meta name="author" content="renaissBlock" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://renaissblock.com/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://renaissblock.com/" />
+    <meta property="og:title" content="renaissBlock - Comic Book Collaboration Platform" />
+    <meta property="og:description" content="The marketplace where comic writers find artists and artists find writers. Automatic revenue splits, instant payments, chapter-by-chapter publishing. Create your indie comic together." />
+    <meta property="og:image" content="https://renaissblock.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="renaissBlock" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://renaissblock.com/" />
+    <meta name="twitter:title" content="renaissBlock - Comic Book Collaboration Platform" />
+    <meta name="twitter:description" content="Writers find artists. Artists find writers. Automatic revenue splits, instant payments, chapter-by-chapter publishing. Create your indie comic together." />
+    <meta name="twitter:image" content="https://renaissblock.com/og-image.png" />
+
+    <!-- Additional Meta Tags -->
+    <meta name="application-name" content="renaissBlock" />
+    <meta name="apple-mobile-web-app-title" content="renaissBlock" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Favicon and Icons -->
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <title>renaissBlock</title>
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://renaissblock.com/#organization",
+          "name": "renaissBlock",
+          "url": "https://renaissblock.com",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://renaissblock.com/rb-logo.png"
+          },
+          "description": "Comic book collaboration platform connecting writers and artists with automatic revenue splits and instant payments.",
+          "foundingDate": "2024",
+          "sameAs": []
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://renaissblock.com/#website",
+          "url": "https://renaissblock.com",
+          "name": "renaissBlock",
+          "description": "Comic Book Collaboration Platform for Writers & Artists",
+          "publisher": {
+            "@id": "https://renaissblock.com/#organization"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://renaissblock.com/#app",
+          "name": "renaissBlock",
+          "applicationCategory": "CreativeWork",
+          "operatingSystem": "Web",
+          "description": "A marketplace platform for comic book collaboration where writers find artists and artists find writers. Features automatic revenue splits, instant USDC payments, and chapter-by-chapter publishing.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "Free to create and publish. Platform takes a small fee on sales."
+          },
+          "featureList": [
+            "Find comic book collaborators (writers and artists)",
+            "Automatic revenue split on every sale",
+            "Instant payments in USDC stablecoin",
+            "Chapter-by-chapter publishing",
+            "Built-in comic editor",
+            "Marketplace for indie comics"
+          ],
+          "screenshot": "https://renaissblock.com/og-image.png"
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://renaissblock.com/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "How do I find an artist for my comic book?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "On renaissBlock, writers can browse portfolios of artists looking for projects. Post your script, describe your vision, and connect directly with artists whose style matches your story."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How do revenue splits work for comic collaborations?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "When you team up on renaissBlock, you set the revenue split upfront (e.g., 50/50 or 60/40). Every time someone purchases your comic, payments are automatically divided and sent instantly to both collaborators in USDC."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can I publish my comic chapter by chapter?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes! renaissBlock supports serialized publishing. Release your comic chapter by chapter, build an audience over time, and earn from each chapter individually. Perfect for testing collaborations before committing to a full series."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What payment methods does renaissBlock support?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Creators receive payments in USDC, a stablecoin always worth $1. You can withdraw to your bank account anytime or use your balance to purchase other comics on the platform."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
