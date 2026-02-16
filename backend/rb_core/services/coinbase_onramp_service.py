@@ -180,25 +180,24 @@ class CoinbaseOnrampService:
                 'purchase_intent_id': str(purchase_intent_id),
             }
 
+        # Always include destinationWallets — the SDK needs it to initialize.
+        config['destinationWallets'] = [
+            {
+                'address': destination_wallet,
+                'blockchains': ['solana'],
+                'assets': ['USDC'],
+            }
+        ]
+
         # Generate CDP session token for secure initialization.
-        # The session token encodes the destination wallet address,
-        # so we don't expose it as a URL query parameter.
+        # The session token encodes the destination wallet address
+        # so it isn't exposed as a plain URL query parameter.
         session_token = self._get_session_token(
             destination_wallet,
             client_ip=client_ip,
         )
         if session_token:
             config['sessionToken'] = session_token
-        else:
-            # Fallback: include destinationWallets only if session token
-            # is unavailable (CDP keys not configured)
-            config['destinationWallets'] = [
-                {
-                    'address': destination_wallet,
-                    'blockchains': ['solana'],
-                    'assets': ['USDC'],
-                }
-            ]
 
         return {
             'widget_config': config,

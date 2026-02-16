@@ -119,7 +119,7 @@ export interface SponsoredPaymentSubmitResponse {
 
 export interface CoinbaseWidgetConfig {
   appId: string;
-  destinationWallets?: Array<{
+  destinationWallets: Array<{
     address: string;
     blockchains: string[];
     assets: string[];

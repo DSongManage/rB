@@ -157,7 +157,7 @@ export function CoinbaseOnrampWidget({
         {
           appId: widget_config.appId,
           widgetParameters: {
-            ...(widget_config.destinationWallets && { destinationWallets: widget_config.destinationWallets }),
+            destinationWallets: widget_config.destinationWallets,
             presetCryptoAmount: widget_config.presetCryptoAmount,
             defaultNetwork: widget_config.defaultNetwork,
             defaultExperience: 'buy' as const,
