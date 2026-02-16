@@ -130,6 +130,12 @@ class CreateBridgeCustomerView(APIView):
                 'error': 'Failed to create Bridge customer',
                 'detail': str(e)
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as e:
+            logger.exception(f"Unexpected error creating Bridge customer for user {user.id}: {e}")
+            return Response({
+                'error': 'Failed to create Bridge customer',
+                'detail': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class GetKYCLinkView(APIView):
