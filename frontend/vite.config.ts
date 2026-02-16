@@ -6,8 +6,14 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Build version — change to bust CDN cache after stale deployments
+const BUILD_VERSION = '2026-02-16a'
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __BUILD_VERSION__: JSON.stringify(BUILD_VERSION),
+  },
   plugins: [
     react(),
     nodePolyfills({

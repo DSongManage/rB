@@ -1,3 +1,4 @@
+declare const __BUILD_VERSION__: string;
 import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { Route, Routes, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import './App.css';
@@ -268,6 +269,10 @@ export default function App() {
   const location = useLocation();
   const { isAuthenticated, loading } = useAuth();
   const { isMobile } = useMobile();
+
+  if (typeof __BUILD_VERSION__ !== 'undefined') {
+    (window as any).__RB_BUILD__ = __BUILD_VERSION__;
+  }
 
   // Legacy CreatorSidebar removed - functionality now in navbar and page tabs
   const showCreatorSidebar = false;
