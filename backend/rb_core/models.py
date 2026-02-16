@@ -4973,7 +4973,7 @@ class BridgeCustomer(models.Model):
         ('incomplete', 'Incomplete'),
     ]
     kyc_status = models.CharField(max_length=32, choices=KYC_STATUS_CHOICES, default='not_started')
-    kyc_link = models.URLField(blank=True, help_text="KYC verification URL from Bridge")
+    kyc_link = models.URLField(max_length=500, blank=True, help_text="KYC verification URL from Bridge")
     kyc_completed_at = models.DateTimeField(null=True, blank=True)
 
     # Metadata

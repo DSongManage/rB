@@ -97,23 +97,41 @@ class CreateBridgeCustomerView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Create customer in Bridge
             bridge_service = BridgeService()
-            bridge_response = bridge_service.create_customer(
-                user_id=user.id,
-                email=email,
-                first_name=getattr(user, 'first_name', None),
-                last_name=getattr(user, 'last_name', None),
-            )
+
+            # Try to create customer in Bridge
+            try:
+                bridge_response = bridge_service.create_customer(
+                    user_id=user.id,
+                    email=email,
+                    first_name=getattr(user, 'first_name', None),
+                    last_name=getattr(user, 'last_name', None),
+                )
+                customer_id = bridge_response['id']
+            except BridgeAPIError as e:
+                # If customer already exists on Bridge, look them up
+                if e.error_code == 'invalid_parameters' and 'already exists' in str(e):
+                    logger.info(f"Bridge customer already exists for email {email}, looking up...")
+                    customers = bridge_service._request('GET', '/customers')
+                    customer_id = None
+                    for c in customers.get('data', []):
+                        if c.get('email') == email:
+                            customer_id = c['id']
+                            break
+                    if not customer_id:
+                        raise BridgeAPIError(message="Customer exists on Bridge but could not be found")
+                    bridge_response = bridge_service.get_customer(customer_id)
+                else:
+                    raise
 
             # Get KYC link
-            kyc_response = bridge_service.get_kyc_link(bridge_response['id'])
+            kyc_response = bridge_service.get_kyc_link(customer_id)
 
             # Create local record
             bridge_customer = BridgeCustomer.objects.create(
                 user=user,
-                bridge_customer_id=bridge_response['id'],
-                kyc_status=bridge_response.get('kyc_status', 'not_started'),
+                bridge_customer_id=customer_id,
+                kyc_status=bridge_response.get('kyc_status') or 'not_started',
                 kyc_link=kyc_response.get('url', ''),
             )
 
