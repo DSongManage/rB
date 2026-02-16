@@ -85,6 +85,12 @@ class InitiateCoinbaseOnrampView(APIView):
         # Calculate amount to add (respects $5 minimum)
         amount_to_add = intent.coinbase_minimum_add or Decimal('5.00')
 
+        # Extract client IP for CDP session token security
+        client_ip = (
+            request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+            or request.META.get('REMOTE_ADDR')
+        )
+
         # Get Coinbase widget configuration
         coinbase_service = get_coinbase_service()
         try:
@@ -93,6 +99,7 @@ class InitiateCoinbaseOnrampView(APIView):
                 amount_usd=amount_to_add,
                 destination_wallet=wallet_address,
                 purchase_intent_id=intent.id,
+                client_ip=client_ip,
             )
         except Exception as e:
             logger.error(f"Failed to get Coinbase widget config: {e}")

@@ -75,9 +75,19 @@ class CoinbaseOnrampService:
         destination_wallet: str,
         blockchains: list = None,
         assets: list = None,
+        client_ip: str = None,
     ) -> Optional[str]:
         """
         Get a one-time session token from the CDP Onramp API.
+
+        The session token encodes the destination wallet address securely,
+        so it doesn't need to be passed as a URL query parameter.
+
+        Args:
+            destination_wallet: User's wallet address (encoded in token)
+            blockchains: Target blockchains (default: ['solana'])
+            assets: Target assets (default: ['USDC'])
+            client_ip: Client IP for security validation
 
         Returns the token string, or None if CDP keys aren't configured.
         """
@@ -87,17 +97,22 @@ class CoinbaseOnrampService:
 
         try:
             token = self._generate_cdp_jwt('POST', '/onramp/v1/token')
+            request_body = {
+                'addresses': [
+                    {
+                        'address': destination_wallet,
+                        'blockchains': blockchains or ['solana'],
+                    }
+                ],
+                'assets': assets or ['USDC'],
+            }
+
+            if client_ip:
+                request_body['clientIp'] = client_ip
+
             response = requests.post(
                 'https://api.developer.coinbase.com/onramp/v1/token',
-                json={
-                    'addresses': [
-                        {
-                            'address': destination_wallet,
-                            'blockchains': blockchains or ['solana'],
-                        }
-                    ],
-                    'assets': assets or ['USDC'],
-                },
+                json=request_body,
                 headers={
                     'Authorization': f'Bearer {token}',
                     'Content-Type': 'application/json',
@@ -120,7 +135,8 @@ class CoinbaseOnrampService:
         user,
         amount_usd: Decimal,
         destination_wallet: str,
-        purchase_intent_id: Optional[int] = None
+        purchase_intent_id: Optional[int] = None,
+        client_ip: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Generate Coinbase Onramp widget configuration.
@@ -133,6 +149,7 @@ class CoinbaseOnrampService:
             amount_usd: Amount in USD to convert
             destination_wallet: User's Solana wallet address
             purchase_intent_id: Optional linked purchase intent
+            client_ip: Client IP address for session token security
 
         Returns:
             Dict with widget configuration for frontend
@@ -147,13 +164,6 @@ class CoinbaseOnrampService:
         # See: https://docs.cdp.coinbase.com/onramp/docs/api-initializing
         config = {
             'appId': self.app_id,
-            'destinationWallets': [
-                {
-                    'address': destination_wallet,
-                    'blockchains': ['solana'],
-                    'assets': ['USDC'],
-                }
-            ],
             'defaultAsset': 'USDC',
             'defaultNetwork': 'solana',
             'presetCryptoAmount': float(amount_usd),
@@ -170,10 +180,25 @@ class CoinbaseOnrampService:
                 'purchase_intent_id': str(purchase_intent_id),
             }
 
-        # Generate CDP session token for secure initialization
-        session_token = self._get_session_token(destination_wallet)
+        # Generate CDP session token for secure initialization.
+        # The session token encodes the destination wallet address,
+        # so we don't expose it as a URL query parameter.
+        session_token = self._get_session_token(
+            destination_wallet,
+            client_ip=client_ip,
+        )
         if session_token:
             config['sessionToken'] = session_token
+        else:
+            # Fallback: include destinationWallets only if session token
+            # is unavailable (CDP keys not configured)
+            config['destinationWallets'] = [
+                {
+                    'address': destination_wallet,
+                    'blockchains': ['solana'],
+                    'assets': ['USDC'],
+                }
+            ]
 
         return {
             'widget_config': config,
