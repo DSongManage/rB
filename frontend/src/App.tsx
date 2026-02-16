@@ -62,6 +62,12 @@ const CreatorAgreementPage = lazy(() => import('./pages/legal/CreatorAgreementPa
 const HowPaymentsWorkPage = lazy(() => import('./pages/HowPaymentsWorkPage'));
 const PayoutSettingsPage = lazy(() => import('./pages/PayoutSettingsPage'));
 
+// Marketing pages
+const MarketingHome = lazy(() => import('./pages/marketing/MarketingHome'));
+const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorks'));
+const PricingPage = lazy(() => import('./pages/marketing/Pricing'));
+const AboutPage = lazy(() => import('./pages/marketing/About'));
+
 // Loading fallback component
 const PageLoader = () => (
   <div style={{
@@ -285,8 +291,12 @@ export default function App() {
   const showFooter = !showLibrarySidebar;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/', '/legal', '/how-payments-work'];
+  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/', '/legal', '/how-payments-work', '/content/'];
   const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
+
+  // Marketing pages (accessible to everyone, rendered without app chrome)
+  const marketingPaths = ['/how-it-works', '/pricing', '/about'];
+  const isMarketingRoute = marketingPaths.includes(location.pathname);
 
   // Show loading state while checking authentication
   if (loading) {
@@ -306,13 +316,25 @@ export default function App() {
     );
   }
 
-  // Show beta landing page for unauthenticated users (except on public routes)
+  // Marketing pages — full-page layout without app chrome (accessible to both auth states)
+  if (isMarketingRoute) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/about" element={<AboutPage />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  // Show marketing homepage for unauthenticated users (except on public routes)
   if (!isAuthenticated && !isPublicRoute) {
     return (
-      <div className="rb-app">
-        <BetaLanding />
-        <NotificationToastContainer />
-      </div>
+      <Suspense fallback={<PageLoader />}>
+        <MarketingHome />
+      </Suspense>
     );
   }
 
