@@ -20,7 +20,7 @@ from django.utils import timezone
 from rb_core.models import (
     Content, BookProject, Chapter, Purchase,
     CollaboratorPayment, PurchaseIntent, UserProfile,
-    Notification,
+    Notification, CollaborativeProject, CollaboratorRole,
 )
 
 User = get_user_model()
@@ -367,3 +367,186 @@ class BalancePurchaseSingleItemTest(TestCase):
         # Verify creator earnings updated
         creator_profile = UserProfile.objects.get(user=self.creator)
         self.assertEqual(creator_profile.total_sales_usd, Decimal('4.500000'))
+
+
+class SalesAnalyticsSoloVsCollabTest(TestCase):
+    """Test that SalesAnalyticsView correctly classifies solo vs collaborative content."""
+
+    def setUp(self):
+        from rb_core.models import CollaborativeProject, CollaboratorRole
+
+        self.buyer = User.objects.create_user(username='analytics_buyer', password='test123')
+        UserProfile.objects.get_or_create(
+            user=self.buyer,
+            defaults={'username': 'analytics_buyer', 'wallet_address': 'BuyerWallet'}
+        )
+
+        self.creator = User.objects.create_user(username='analytics_creator', password='test123')
+        self.creator_profile, _ = UserProfile.objects.get_or_create(
+            user=self.creator,
+            defaults={'username': 'analytics_creator', 'wallet_address': 'CreatorWallet'}
+        )
+        if not self.creator_profile.wallet_address:
+            self.creator_profile.wallet_address = 'CreatorWallet'
+            self.creator_profile.save()
+
+        # Create solo content (no CollaborativeProject link)
+        self.solo_content = Content.objects.create(
+            creator=self.creator,
+            title='Pure Solo Content',
+            content_type='art',
+            price_usd=Decimal('2.00'),
+            editions=10,
+            teaser_link='https://example.com/solo',
+        )
+
+        # Create content from a solo CollaborativeProject (is_solo=True)
+        self.solo_project_content = Content.objects.create(
+            creator=self.creator,
+            title='Solo Project Content',
+            content_type='comic',
+            price_usd=Decimal('3.00'),
+            editions=10,
+            teaser_link='https://example.com/solo-project',
+        )
+        self.solo_project = CollaborativeProject.objects.create(
+            title='Solo Project',
+            content_type='comic',
+            created_by=self.creator,
+            published_content=self.solo_project_content,
+            is_solo=True,
+            status='published',
+        )
+        CollaboratorRole.objects.create(
+            project=self.solo_project,
+            user=self.creator,
+            role='Project Lead',
+            revenue_percentage=100,
+            status='accepted',
+        )
+
+        # Create content from a real collaborative project (is_solo=False)
+        self.collab_content = Content.objects.create(
+            creator=self.creator,
+            title='Collab Content',
+            content_type='comic',
+            price_usd=Decimal('4.00'),
+            editions=10,
+            teaser_link='https://example.com/collab',
+        )
+        self.collab2 = User.objects.create_user(username='collab_user', password='test123')
+        UserProfile.objects.get_or_create(
+            user=self.collab2,
+            defaults={'username': 'collab_user', 'wallet_address': 'Collab2Wallet'}
+        )
+        self.collab_project = CollaborativeProject.objects.create(
+            title='Collab Project',
+            content_type='comic',
+            created_by=self.creator,
+            published_content=self.collab_content,
+            is_solo=False,
+            status='published',
+        )
+        CollaboratorRole.objects.create(
+            project=self.collab_project,
+            user=self.creator,
+            role='Project Lead',
+            revenue_percentage=60,
+            status='accepted',
+        )
+        CollaboratorRole.objects.create(
+            project=self.collab_project,
+            user=self.collab2,
+            role='Artist',
+            revenue_percentage=40,
+            status='accepted',
+        )
+
+    def _create_purchase_with_payment(self, content, amount, role='creator', percentage=90):
+        """Helper to create a Purchase + CollaboratorPayment."""
+        purchase = Purchase.objects.create(
+            user=self.buyer,
+            content=content,
+            purchase_price_usd=content.price_usd,
+            payment_provider='balance',
+            transaction_signature='TxSig_' + content.title.replace(' ', '_'),
+        )
+        CollaboratorPayment.objects.create(
+            purchase=purchase,
+            collaborator=self.creator,
+            collaborator_wallet='CreatorWallet',
+            amount_usdc=amount,
+            percentage=percentage,
+            role=role,
+            transaction_signature='TxSig_' + content.title.replace(' ', '_'),
+        )
+        return purchase
+
+    def test_pure_solo_content_classified_as_solo(self):
+        """Content with no CollaborativeProject should be classified as solo."""
+        self._create_purchase_with_payment(self.solo_content, Decimal('1.80'))
+
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.creator)
+        response = client.get('/api/sales-analytics/')
+        data = response.json()
+
+        self.assertEqual(len(data['content_sales']), 1)
+        self.assertEqual(len(data['collaboration_sales']), 0)
+        self.assertEqual(data['content_sales'][0]['title'], 'Pure Solo Content')
+
+    def test_solo_project_content_classified_as_solo(self):
+        """Content from a solo CollaborativeProject (is_solo=True) should be classified as solo."""
+        self._create_purchase_with_payment(
+            self.solo_project_content, Decimal('2.70'), role='Project Lead', percentage=100
+        )
+
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.creator)
+        response = client.get('/api/sales-analytics/')
+        data = response.json()
+
+        self.assertEqual(len(data['content_sales']), 1, f"Expected 1 solo item, got: {data['content_sales']}")
+        self.assertEqual(len(data['collaboration_sales']), 0, f"Expected 0 collab items, got: {data['collaboration_sales']}")
+        self.assertEqual(data['content_sales'][0]['title'], 'Solo Project Content')
+
+    def test_collab_project_content_classified_as_collab(self):
+        """Content from a real collaborative project should be classified as collab."""
+        purchase = Purchase.objects.create(
+            user=self.buyer,
+            content=self.collab_content,
+            purchase_price_usd=self.collab_content.price_usd,
+            payment_provider='balance',
+            transaction_signature='TxSig_Collab',
+        )
+        # Two collaborators received payment
+        CollaboratorPayment.objects.create(
+            purchase=purchase,
+            collaborator=self.creator,
+            collaborator_wallet='CreatorWallet',
+            amount_usdc=Decimal('2.16'),
+            percentage=60,
+            role='Project Lead',
+            transaction_signature='TxSig_Collab_1',
+        )
+        CollaboratorPayment.objects.create(
+            purchase=purchase,
+            collaborator=self.collab2,
+            collaborator_wallet='Collab2Wallet',
+            amount_usdc=Decimal('1.44'),
+            percentage=40,
+            role='Artist',
+            transaction_signature='TxSig_Collab_2',
+        )
+
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.creator)
+        response = client.get('/api/sales-analytics/')
+        data = response.json()
+
+        self.assertEqual(len(data['content_sales']), 0)
+        self.assertEqual(len(data['collaboration_sales']), 1)
+        self.assertEqual(data['collaboration_sales'][0]['title'], 'Collab Content')

@@ -1319,9 +1319,11 @@ class SalesAnalyticsView(APIView):
                 content_type = content_obj.content_type
                 content_price = float(content_obj.price_usd)
                 content_editions = content_obj.editions
-                # Check if this is from a collaborative project
-                is_from_collab_project = hasattr(content_obj, 'source_collaborative_project') and \
-                                         content_obj.source_collaborative_project.exists()
+                # Check if this is from a collaborative project (not a solo project)
+                is_from_collab_project = False
+                if hasattr(content_obj, 'source_collaborative_project') and content_obj.source_collaborative_project.exists():
+                    collab_proj = content_obj.source_collaborative_project.first()
+                    is_from_collab_project = collab_proj is not None and not collab_proj.is_solo
             elif payment.purchase.chapter:
                 content_key = f"chapter_{payment.purchase.chapter.id}"
                 content_title = payment.purchase.chapter.title

@@ -48,7 +48,6 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
   // Determine banner content based on status
   const getBannerContent = () => {
     if (!status?.has_bridge_customer) {
-      // Step 1: Not started
       return {
         title: 'Get paid directly to your bank account',
         description: 'Set up automatic USDC to USD conversion and receive your earnings as direct deposits.',
@@ -59,7 +58,6 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
     }
 
     if (status.kyc_status === 'pending') {
-      // Step 2: KYC pending
       return {
         title: 'Verification in progress',
         description: 'Your identity verification is being reviewed. This usually takes a few minutes.',
@@ -70,7 +68,6 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
     }
 
     if (status.kyc_status === 'approved' && !status.has_bank_account) {
-      // Step 3: Need bank account
       return {
         title: 'Almost there! Link your bank account',
         description: 'Your identity is verified. Now link a bank account to receive payouts.',
@@ -81,7 +78,6 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
     }
 
     if (status.has_bank_account && !status.has_liquidation_address) {
-      // Step 4: Need liquidation address
       return {
         title: 'Final step: Create payout address',
         description: 'Create a payment address to start receiving automatic bank deposits.',
@@ -91,7 +87,6 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
       };
     }
 
-    // Default: not started
     return {
       title: 'Enable direct bank deposits',
       description: 'Convert your USDC earnings to USD automatically.',
@@ -104,43 +99,99 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
   const content = getBannerContent();
   const Icon = content.icon;
 
-  const variantStyles = {
-    primary: 'bg-blue-50 border-blue-200 text-blue-900',
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-900',
-    success: 'bg-green-50 border-green-200 text-green-900',
+  const accentColors = {
+    primary: '#3b82f6',
+    warning: '#f59e0b',
+    success: '#10b981',
   };
 
-  const buttonStyles = {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
-    warning: 'bg-yellow-600 hover:bg-yellow-700 text-white',
-    success: 'bg-green-600 hover:bg-green-700 text-white',
-  };
+  const accent = accentColors[content.variant];
 
   return (
     <div
-      className={`rounded-lg border p-4 ${variantStyles[content.variant]} ${className}`}
+      className={className}
+      style={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--panel-border-strong)',
+        borderRadius: 12,
+        padding: '16px 20px',
+        borderLeft: `3px solid ${accent}`,
+      }}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0">
-            <Icon className="h-6 w-6" />
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+          <div style={{
+            flexShrink: 0,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            background: `${accent}20`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Icon size={18} style={{ color: accent }} />
           </div>
-          <div>
-            <h3 className="font-semibold">{content.title}</h3>
-            <p className="mt-1 text-sm opacity-80">{content.description}</p>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--text)',
+              margin: 0,
+            }}>
+              {content.title}
+            </h3>
+            <p style={{
+              fontSize: 12,
+              color: 'var(--text-muted)',
+              margin: '2px 0 0 0',
+            }}>
+              {content.description}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 ml-4">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Link
             to="/payout-settings"
-            className={`inline-flex items-center gap-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${buttonStyles[content.variant]}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 16px',
+              background: accent,
+              borderRadius: 8,
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 600,
+              textDecoration: 'none',
+              transition: 'opacity 0.2s',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
           >
             {content.actionText}
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight size={14} />
           </Link>
           <button
             onClick={() => setDismissed(true)}
-            className="text-sm opacity-60 hover:opacity-100 px-2"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-muted)',
+              fontSize: 12,
+              cursor: 'pointer',
+              padding: '6px 8px',
+              borderRadius: 6,
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
             aria-label="Dismiss"
           >
             Dismiss

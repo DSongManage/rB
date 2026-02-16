@@ -59,6 +59,7 @@ const CreatorAgreementPage = lazy(() => import('./pages/legal/CreatorAgreementPa
 
 // Info pages
 const HowPaymentsWorkPage = lazy(() => import('./pages/HowPaymentsWorkPage'));
+const PayoutSettingsPage = lazy(() => import('./pages/PayoutSettingsPage'));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -389,6 +390,7 @@ export default function App() {
                 <Route path="/cart/success" element={<ProtectedRoute><CartSuccessPage /></ProtectedRoute>} />
                 <Route path="/studio/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+                <Route path="/payout-settings" element={<ProtectedRoute><PayoutSettingsPage /></ProtectedRoute>} />
                 <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />
               </Routes>
             </Suspense>
