@@ -293,6 +293,30 @@ class CoinbaseWidgetConfigTest(TestCase):
         )
         self.assertEqual(config['minimum_amount'], '5.00')
 
+    def test_no_destination_wallets_when_session_token_present(self):
+        """When CDP session token is generated, destinationWallets must NOT be in config."""
+        with patch.object(self.service, '_get_session_token', return_value='mock_session_token'):
+            config = self.service.get_widget_config(
+                user=self.user,
+                amount_usd=Decimal('5.00'),
+                destination_wallet='TestWallet123',
+            )
+        wc = config['widget_config']
+        self.assertEqual(wc['sessionToken'], 'mock_session_token')
+        self.assertNotIn('destinationWallets', wc)
+
+    def test_destination_wallets_present_when_no_session_token(self):
+        """When no CDP session token, destinationWallets must be in config as fallback."""
+        with patch.object(self.service, '_get_session_token', return_value=None):
+            config = self.service.get_widget_config(
+                user=self.user,
+                amount_usd=Decimal('5.00'),
+                destination_wallet='TestWallet123',
+            )
+        wc = config['widget_config']
+        self.assertNotIn('sessionToken', wc)
+        self.assertEqual(wc['destinationWallets'][0]['address'], 'TestWallet123')
+
 
 class DRFRendererConfigTest(TestCase):
     """Test that DRF browsable API is properly disabled in production."""
