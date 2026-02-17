@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { initOnRamp } from '@coinbase/cbpay-js';
+import { initOnRamp, generateOnRampURL, onBroadcastedPostMessage } from '@coinbase/cbpay-js';
 import { X, CreditCard, Loader2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { paymentApi, CoinbaseWidgetConfig } from '../../services/paymentApi';
 import { useBalance } from '../../contexts/BalanceContext';
@@ -39,6 +39,8 @@ export function CoinbaseOnrampWidget({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
   const instanceRef = useRef<{ open: () => void; destroy: () => void } | null>(null);
+  const popupRef = useRef<Window | null>(null);
+  const popupCloseCheckRef = useRef<NodeJS.Timeout | null>(null);
   const widgetOpenedRef = useRef(false);
   const statusRef = useRef<WidgetStatus>('loading');
   const { forceSync, getBalanceNumber } = useBalance();
@@ -130,7 +132,7 @@ export function CoinbaseOnrampWidget({
     setPollingInterval(interval);
   }, [forceSync, getBalanceNumber, handleCompletion, onCancel]);
 
-  // Cleanup polling on unmount
+  // Cleanup polling and popup on unmount
   useEffect(() => {
     return () => {
       if (pollingInterval) {
@@ -139,10 +141,147 @@ export function CoinbaseOnrampWidget({
       if (instanceRef.current) {
         instanceRef.current.destroy();
       }
+      if (popupCloseCheckRef.current) {
+        clearInterval(popupCloseCheckRef.current);
+      }
     };
   }, [pollingInterval]);
 
-  // Open Coinbase widget
+  // Open Coinbase widget via direct URL (session token path — no wallet in URL)
+  const openWidgetDirect = useCallback(() => {
+    if (!config) return;
+    const { widget_config } = config;
+
+    const url = generateOnRampURL({
+      sessionToken: widget_config.sessionToken,
+      presetCryptoAmount: widget_config.presetCryptoAmount,
+      defaultNetwork: widget_config.defaultNetwork,
+      defaultExperience: 'buy' as const,
+      handlingRequestedUrls: widget_config.handlingRequestedUrls,
+      partnerUserId: widget_config.partnerUserId,
+    } as Parameters<typeof generateOnRampURL>[0]);
+
+    const popup = window.open(url, 'coinbase_onramp', 'width=460,height=720,popup=yes');
+    if (!popup) {
+      setErrorMessage('Popup was blocked. Please allow popups for this site.');
+      setStatus('error');
+      return;
+    }
+    widgetOpenedRef.current = true;
+    popupRef.current = popup;
+
+    // Listen for Coinbase postMessage events
+    const unsubSuccess = onBroadcastedPostMessage('success', {
+      onMessage: () => {
+        setStatus('processing');
+        startPolling(config.transaction_id);
+      },
+      allowedOrigin: 'https://pay.coinbase.com',
+    });
+    const unsubExit = onBroadcastedPostMessage('exit', {
+      onMessage: () => {
+        const currentStatus = statusRef.current;
+        if (currentStatus === 'processing' || currentStatus === 'success') return;
+        if (widgetOpenedRef.current) {
+          setStatus('checking');
+          startPolling(config.transaction_id, 8);
+        } else {
+          onCancel();
+        }
+      },
+      allowedOrigin: 'https://pay.coinbase.com',
+    });
+    const unsubEvent = onBroadcastedPostMessage('event', {
+      onMessage: (data) => {
+        const eventName = (data as Record<string, unknown>)?.eventName as string;
+        console.log('Coinbase event:', eventName);
+        if (eventName === 'transition_view' || eventName === 'request_open_url') {
+          widgetOpenedRef.current = true;
+        }
+      },
+      allowedOrigin: 'https://pay.coinbase.com',
+    });
+
+    // Poll for popup close (no reliable close event from postMessage)
+    const closeCheck = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(closeCheck);
+        unsubSuccess();
+        unsubExit();
+        unsubEvent();
+        const currentStatus = statusRef.current;
+        if (currentStatus === 'processing' || currentStatus === 'success') return;
+        if (widgetOpenedRef.current) {
+          setStatus('checking');
+          startPolling(config.transaction_id, 8);
+        } else {
+          onCancel();
+        }
+      }
+    }, 500);
+    popupCloseCheckRef.current = closeCheck;
+  }, [config, onCancel, startPolling]);
+
+  // Open Coinbase widget via SDK (fallback when no session token)
+  const openWidgetLegacy = useCallback(() => {
+    if (!config) return;
+    const { widget_config } = config;
+
+    initOnRamp(
+      {
+        appId: widget_config.appId,
+        widgetParameters: {
+          destinationWallets: widget_config.destinationWallets,
+          presetCryptoAmount: widget_config.presetCryptoAmount,
+          defaultNetwork: widget_config.defaultNetwork,
+          defaultExperience: 'buy' as const,
+          handlingRequestedUrls: widget_config.handlingRequestedUrls,
+          partnerUserId: widget_config.partnerUserId,
+        } as Record<string, unknown>,
+        onSuccess: () => {
+          setStatus('processing');
+          startPolling(config.transaction_id);
+        },
+        onExit: () => {
+          const currentStatus = statusRef.current;
+          if (currentStatus === 'processing' || currentStatus === 'success') return;
+          if (widgetOpenedRef.current) {
+            setStatus('checking');
+            startPolling(config.transaction_id, 8);
+          } else {
+            onCancel();
+          }
+        },
+        onEvent: (event) => {
+          console.log('Coinbase event:', event.eventName);
+          if (event.eventName === 'transition_view' || event.eventName === 'request_open_url') {
+            widgetOpenedRef.current = true;
+          }
+          if (event.eventName === 'error') {
+            const errorEvent = event as { error?: { message?: string } };
+            setErrorMessage(errorEvent.error?.message || 'Payment error occurred');
+            setStatus('error');
+          }
+        },
+        experienceLoggedIn: 'popup',
+      },
+      (error, instance) => {
+        if (error) {
+          console.error('Coinbase initOnRamp error:', error);
+          setErrorMessage(error.message || 'Failed to initialize payment widget');
+          setStatus('error');
+          return;
+        }
+        if (instance) {
+          instanceRef.current = instance;
+          widgetOpenedRef.current = true;
+          instance.open();
+        }
+      },
+    );
+  }, [config, onCancel, startPolling]);
+
+  // Open Coinbase widget — uses direct URL when session token is available
   const openWidget = useCallback(() => {
     if (!config) {
       setErrorMessage('Payment config not ready');
@@ -150,80 +289,18 @@ export function CoinbaseOnrampWidget({
       return;
     }
 
-    const { widget_config } = config;
-
     try {
-      initOnRamp(
-        {
-          appId: widget_config.appId,
-          widgetParameters: {
-            ...(widget_config.destinationWallets && { destinationWallets: widget_config.destinationWallets }),
-            presetCryptoAmount: widget_config.presetCryptoAmount,
-            defaultNetwork: widget_config.defaultNetwork,
-            defaultExperience: 'buy' as const,
-            handlingRequestedUrls: widget_config.handlingRequestedUrls,
-            partnerUserId: widget_config.partnerUserId,
-            ...(widget_config.sessionToken && { sessionToken: widget_config.sessionToken }),
-          } as Record<string, unknown>,
-          onSuccess: () => {
-            // Coinbase SDK confirms payment completed
-            setStatus('processing');
-            startPolling(config.transaction_id);
-          },
-          onExit: () => {
-            // User closed the Coinbase popup.
-            // If already processing (onSuccess fired first), keep polling.
-            // Otherwise, check if payment may have completed before closing.
-            const currentStatus = statusRef.current;
-            if (currentStatus === 'processing' || currentStatus === 'success') {
-              return; // Already handling completion
-            }
-
-            if (widgetOpenedRef.current) {
-              // Widget was opened - user may have completed payment then closed popup.
-              // Poll briefly to check before canceling.
-              setStatus('checking');
-              startPolling(config.transaction_id, 8); // Check for ~24 seconds
-            } else {
-              onCancel();
-            }
-          },
-          onEvent: (event) => {
-            console.log('Coinbase event:', event.eventName);
-
-            // Track that the widget was actually opened/interacted with
-            if (event.eventName === 'transition_view' || event.eventName === 'request_open_url') {
-              widgetOpenedRef.current = true;
-            }
-
-            if (event.eventName === 'error') {
-              const errorEvent = event as { error?: { message?: string } };
-              setErrorMessage(errorEvent.error?.message || 'Payment error occurred');
-              setStatus('error');
-            }
-          },
-          experienceLoggedIn: 'popup',
-        },
-        (error, instance) => {
-          if (error) {
-            console.error('Coinbase initOnRamp error:', error);
-            setErrorMessage(error.message || 'Failed to initialize payment widget');
-            setStatus('error');
-            return;
-          }
-          if (instance) {
-            instanceRef.current = instance;
-            widgetOpenedRef.current = true;
-            instance.open();
-          }
-        },
-      );
+      if (config.widget_config.sessionToken) {
+        openWidgetDirect();
+      } else {
+        openWidgetLegacy();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to open payment widget';
       setErrorMessage(message);
       setStatus('error');
     }
-  }, [config, onCancel, startPolling]);
+  }, [config, openWidgetDirect, openWidgetLegacy]);
 
   // Auto-open widget when ready
   useEffect(() => {
