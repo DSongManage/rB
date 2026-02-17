@@ -667,8 +667,6 @@ class BridgeService:
             logger.warning(f"Failed to parse Bridge webhook signature header: {e}")
             return False
 
-        logger.warning(f"Bridge webhook sig check: timestamp={timestamp}, sig_len={len(sig_b64)}")
-
         # Reject events older than 10 minutes (replay protection)
         try:
             event_time_ms = int(timestamp)
@@ -681,66 +679,24 @@ class BridgeService:
             logger.warning("Bridge webhook timestamp not a valid integer")
             return False
 
-        # Create message: timestamp + "." + payload
-        message = f"{timestamp}.".encode('utf-8') + payload
+        # Create signed payload string and compute SHA256 digest
+        # Bridge uses double-SHA256: hash the message, then verify() hashes again internally
+        signed_payload = f"{timestamp}.{payload.decode('utf-8')}"
+        digest = hashlib.sha256(signed_payload.encode('utf-8')).digest()
 
-        # Verify RSA signature
+        # Verify RSA-PKCS1v15 signature against the digest
         try:
             public_key = serialization.load_pem_public_key(pem.encode('utf-8'))
             sig_bytes = base64.b64decode(sig_b64)
-            logger.warning(f"Bridge webhook: PEM loaded OK, sig_bytes_len={len(sig_bytes)}")
 
-            # Approach 1: PKCS1v15-SHA256 over timestamp.payload
-            try:
-                public_key.verify(sig_bytes, message, padding.PKCS1v15(), hashes.SHA256())
-                logger.warning("Bridge webhook: verified (PKCS1v15 timestamp.payload)")
-                return True
-            except Exception as e1:
-                logger.warning(f"Bridge webhook: PKCS1v15 timestamp.payload failed: {type(e1).__name__}")
-
-            # Approach 2: PKCS1v15-SHA256 over raw payload only
-            try:
-                public_key.verify(sig_bytes, payload, padding.PKCS1v15(), hashes.SHA256())
-                logger.warning("Bridge webhook: verified (PKCS1v15 raw payload)")
-                return True
-            except Exception:
-                logger.warning("Bridge webhook: PKCS1v15 raw payload failed")
-
-            # Approach 3: PSS-SHA256 over timestamp.payload
-            try:
-                public_key.verify(
-                    sig_bytes, message,
-                    padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.AUTO),
-                    hashes.SHA256(),
-                )
-                logger.warning("Bridge webhook: verified (PSS timestamp.payload)")
-                return True
-            except Exception:
-                logger.warning("Bridge webhook: PSS timestamp.payload failed")
-
-            # Approach 4: Prehashed SHA256 digest of timestamp.payload
-            try:
-                from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
-                digest = hashlib.sha256(message).digest()
-                public_key.verify(sig_bytes, digest, padding.PKCS1v15(), Prehashed(hashes.SHA256()))
-                logger.warning("Bridge webhook: verified (Prehashed timestamp.payload)")
-                return True
-            except Exception:
-                logger.warning("Bridge webhook: Prehashed timestamp.payload failed")
-
-            # Approach 5: Prehashed SHA256 digest of raw payload
-            try:
-                from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
-                digest = hashlib.sha256(payload).digest()
-                public_key.verify(sig_bytes, digest, padding.PKCS1v15(), Prehashed(hashes.SHA256()))
-                logger.warning("Bridge webhook: verified (Prehashed raw payload)")
-                return True
-            except Exception:
-                logger.warning("Bridge webhook: Prehashed raw payload failed")
-
-            # Both verification methods failed
-            logger.warning("Bridge webhook: both signature verification methods failed")
-            return False
+            public_key.verify(
+                sig_bytes,
+                digest,
+                padding.PKCS1v15(),
+                hashes.SHA256(),
+            )
+            logger.info("Bridge webhook: signature verified successfully")
+            return True
         except Exception as e:
             logger.warning(f"Bridge webhook signature verification failed: {type(e).__name__}: {e}")
             return False
