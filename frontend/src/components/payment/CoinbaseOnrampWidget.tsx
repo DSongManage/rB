@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { initOnRamp, generateOnRampURL, onBroadcastedPostMessage } from '@coinbase/cbpay-js';
+import { initOnRamp, onBroadcastedPostMessage } from '@coinbase/cbpay-js';
 import { X, CreditCard, Loader2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { paymentApi, CoinbaseWidgetConfig } from '../../services/paymentApi';
 import { useBalance } from '../../contexts/BalanceContext';
@@ -148,20 +148,27 @@ export function CoinbaseOnrampWidget({
   }, [pollingInterval]);
 
   // Open Coinbase widget via direct URL (session token path — no wallet in URL)
+  // We build the URL manually because cbpay-js generateOnRampURL always
+  // requires destinationWallets/addresses at runtime (despite TypeScript types
+  // claiming sessionToken is an alternative).
   const openWidgetDirect = useCallback(() => {
     if (!config) return;
     const { widget_config } = config;
 
-    const url = generateOnRampURL({
-      sessionToken: widget_config.sessionToken,
-      presetCryptoAmount: widget_config.presetCryptoAmount,
-      defaultNetwork: widget_config.defaultNetwork,
-      defaultExperience: 'buy' as const,
-      handlingRequestedUrls: widget_config.handlingRequestedUrls,
-      partnerUserId: widget_config.partnerUserId,
-    } as Parameters<typeof generateOnRampURL>[0]);
+    const url = new URL('https://pay.coinbase.com/buy/select-asset');
+    url.searchParams.set('sessionToken', widget_config.sessionToken!);
+    url.searchParams.set('presetCryptoAmount', String(widget_config.presetCryptoAmount));
+    url.searchParams.set('defaultNetwork', widget_config.defaultNetwork);
+    url.searchParams.set('defaultExperience', 'buy');
+    if (widget_config.handlingRequestedUrls) {
+      url.searchParams.set('handlingRequestedUrls', 'true');
+    }
+    if (widget_config.partnerUserId) {
+      url.searchParams.set('partnerUserId', widget_config.partnerUserId);
+    }
+    url.searchParams.sort();
 
-    const popup = window.open(url, 'coinbase_onramp', 'width=460,height=720,popup=yes');
+    const popup = window.open(url.toString(), 'coinbase_onramp', 'width=460,height=720,popup=yes');
     if (!popup) {
       setErrorMessage('Popup was blocked. Please allow popups for this site.');
       setStatus('error');
