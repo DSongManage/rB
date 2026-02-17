@@ -647,6 +647,9 @@ class BridgeService:
             logger.warning("Bridge webhook public key not configured")
             return False
 
+        # Normalize PEM: env vars may store \n as literal backslash-n
+        pem = pem.replace('\\n', '\n')
+
         # Parse header: t=<timestamp>,v0=<base64 signature>
         try:
             parts = {}
@@ -658,18 +661,21 @@ class BridgeService:
             sig_b64 = parts.get('v0', '')
 
             if not timestamp or not sig_b64:
-                logger.warning("Bridge webhook signature header missing t or v0")
+                logger.warning(f"Bridge webhook signature header missing t or v0. Header: {signature_header[:100]}")
                 return False
         except Exception as e:
             logger.warning(f"Failed to parse Bridge webhook signature header: {e}")
             return False
 
+        logger.info(f"Bridge webhook sig check: timestamp={timestamp}, sig_len={len(sig_b64)}")
+
         # Reject events older than 10 minutes (replay protection)
         try:
             event_time_ms = int(timestamp)
             now_ms = int(time.time() * 1000)
-            if abs(now_ms - event_time_ms) > 600_000:
-                logger.warning("Bridge webhook event too old, possible replay attack")
+            age_ms = abs(now_ms - event_time_ms)
+            if age_ms > 600_000:
+                logger.warning(f"Bridge webhook event too old ({age_ms}ms), possible replay attack")
                 return False
         except ValueError:
             logger.warning("Bridge webhook timestamp not a valid integer")
@@ -682,6 +688,7 @@ class BridgeService:
         try:
             public_key = serialization.load_pem_public_key(pem.encode('utf-8'))
             sig_bytes = base64.b64decode(sig_b64)
+            logger.info(f"Bridge webhook: PEM loaded OK, sig_bytes_len={len(sig_bytes)}")
 
             # Try standard PKCS1v15-SHA256 (library hashes internally)
             try:
@@ -691,22 +698,31 @@ class BridgeService:
                     padding.PKCS1v15(),
                     hashes.SHA256(),
                 )
+                logger.info("Bridge webhook: signature verified (PKCS1v15-SHA256)")
                 return True
-            except Exception:
-                pass
+            except Exception as e1:
+                logger.info(f"Bridge webhook: PKCS1v15-SHA256 failed: {type(e1).__name__}: {e1}")
 
             # Fallback: verify against pre-computed SHA256 digest
-            from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
-            digest = hashlib.sha256(message).digest()
-            public_key.verify(
-                sig_bytes,
-                digest,
-                padding.PKCS1v15(),
-                Prehashed(hashes.SHA256()),
-            )
-            return True
+            try:
+                from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
+                digest = hashlib.sha256(message).digest()
+                public_key.verify(
+                    sig_bytes,
+                    digest,
+                    padding.PKCS1v15(),
+                    Prehashed(hashes.SHA256()),
+                )
+                logger.info("Bridge webhook: signature verified (Prehashed-SHA256)")
+                return True
+            except Exception as e2:
+                logger.info(f"Bridge webhook: Prehashed-SHA256 failed: {type(e2).__name__}: {e2}")
+
+            # Both verification methods failed
+            logger.warning("Bridge webhook: both signature verification methods failed")
+            return False
         except Exception as e:
-            logger.warning(f"Bridge webhook signature verification failed: {e}")
+            logger.warning(f"Bridge webhook signature verification failed: {type(e).__name__}: {e}")
             return False
 
     def health_check(self) -> bool:
