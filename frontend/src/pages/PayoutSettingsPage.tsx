@@ -22,7 +22,7 @@ import {
   getBridgeOnboardingStatus,
   listBankAccounts,
   createLiquidationAddress,
-  openBankLinkingFlow,
+  linkBankAccountManual,
 } from '../services/bridgeApi';
 import type {
   BridgeOnboardingStatus,
@@ -59,7 +59,16 @@ export const PayoutSettingsPage: React.FC = () => {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [linkingBank, setLinkingBank] = useState(false);
+  const [showBankForm, setShowBankForm] = useState(false);
+  const [bankFormLoading, setBankFormLoading] = useState(false);
+  const [bankFormError, setBankFormError] = useState<string | null>(null);
+  const [bankFormData, setBankFormData] = useState({
+    account_owner_name: '',
+    routing_number: '',
+    account_number: '',
+    account_number_confirm: '',
+    account_type: 'checking' as 'checking' | 'savings',
+  });
   const [creatingAddress, setCreatingAddress] = useState(false);
   const [activeTab, setActiveTab] = useState<'withdraw' | 'send'>('withdraw');
 
@@ -99,15 +108,50 @@ export const PayoutSettingsPage: React.FC = () => {
     fetchData();
   }, []);
 
-  const handleLinkBankAccount = async () => {
-    setLinkingBank(true);
+  const handleLinkBankAccount = () => {
+    setShowBankForm(true);
+    setBankFormError(null);
+  };
+
+  const handleBankFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBankFormError(null);
+
+    // Validate
+    if (bankFormData.account_number !== bankFormData.account_number_confirm) {
+      setBankFormError('Account numbers do not match');
+      return;
+    }
+    if (bankFormData.routing_number.length !== 9) {
+      setBankFormError('Routing number must be 9 digits');
+      return;
+    }
+    if (bankFormData.account_number.length < 4) {
+      setBankFormError('Account number must be at least 4 digits');
+      return;
+    }
+
+    setBankFormLoading(true);
     try {
-      await openBankLinkingFlow();
+      await linkBankAccountManual({
+        account_number: bankFormData.account_number,
+        routing_number: bankFormData.routing_number,
+        account_type: bankFormData.account_type,
+        account_owner_name: bankFormData.account_owner_name || undefined,
+      });
+      setShowBankForm(false);
+      setBankFormData({
+        account_owner_name: '',
+        routing_number: '',
+        account_number: '',
+        account_number_confirm: '',
+        account_type: 'checking',
+      });
       await fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to link bank account');
+      setBankFormError(err instanceof Error ? err.message : 'Failed to link bank account');
     } finally {
-      setLinkingBank(false);
+      setBankFormLoading(false);
     }
   };
 
@@ -425,7 +469,6 @@ export const PayoutSettingsPage: React.FC = () => {
               {status?.kyc_status === 'approved' && (
                 <button
                   onClick={handleLinkBankAccount}
-                  disabled={linkingBank}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -437,13 +480,12 @@ export const PayoutSettingsPage: React.FC = () => {
                     borderRadius: 8,
                     fontSize: 13,
                     fontWeight: 600,
-                    cursor: linkingBank ? 'not-allowed' : 'pointer',
-                    opacity: linkingBank ? 0.6 : 1,
+                    cursor: 'pointer',
                     transition: 'all 0.2s',
                   }}
                 >
                   <Plus size={16} />
-                  {linkingBank ? 'Linking...' : 'Link Account'}
+                  Link Account
                 </button>
               )}
             </div>
@@ -460,53 +502,266 @@ export const PayoutSettingsPage: React.FC = () => {
                     Complete identity verification first to link bank accounts
                   </p>
                 </div>
-              ) : bankAccounts.length === 0 ? (
-                <div style={{
-                  background: `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bgHover} 100%)`,
-                  border: `1px dashed ${colors.borderLight}`,
-                  borderRadius: 12,
-                  padding: 32,
-                  textAlign: 'center',
-                }}>
-                  <CreditCard size={40} style={{ color: colors.textMuted, marginBottom: 16 }} />
-                  <p style={{ color: colors.textSecondary, margin: '0 0 16px', fontSize: 15 }}>
-                    No bank accounts linked yet
-                  </p>
-                  <p style={{ color: colors.textMuted, margin: '0 0 20px', fontSize: 13 }}>
-                    Link a bank account to receive direct deposits from your sales
-                  </p>
-                  <button
-                    onClick={handleLinkBankAccount}
-                    disabled={linkingBank}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      padding: '12px 24px',
-                      background: colors.accent,
-                      color: '#000',
-                      border: 'none',
-                      borderRadius: 10,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: linkingBank ? 'not-allowed' : 'pointer',
-                      opacity: linkingBank ? 0.6 : 1,
-                    }}
-                  >
-                    <Plus size={18} />
-                    {linkingBank ? 'Linking...' : 'Link Your First Bank Account'}
-                  </button>
-                </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {bankAccounts.map((account) => (
-                    <BridgeBankAccountCard
-                      key={account.id}
-                      account={account}
-                      onUpdate={fetchData}
-                    />
-                  ))}
-                </div>
+                <>
+                  {/* Bank Account Form */}
+                  {showBankForm && (
+                    <div style={{
+                      background: colors.bg,
+                      border: `1px solid ${colors.borderLight}`,
+                      borderRadius: 12,
+                      padding: 24,
+                      marginBottom: bankAccounts.length > 0 ? 16 : 0,
+                    }}>
+                      <h3 style={{ color: colors.text, fontSize: 16, fontWeight: 600, margin: '0 0 20px' }}>
+                        Link Bank Account
+                      </h3>
+
+                      {bankFormError && (
+                        <div style={{
+                          background: colors.errorBg,
+                          border: `1px solid ${colors.error}40`,
+                          borderRadius: 8,
+                          padding: 12,
+                          marginBottom: 16,
+                          color: colors.error,
+                          fontSize: 13,
+                        }}>
+                          {bankFormError}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleBankFormSubmit}>
+                        <div style={{ display: 'grid', gap: 16 }}>
+                          {/* Account Holder Name */}
+                          <div>
+                            <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
+                              Account Holder Name
+                            </label>
+                            <input
+                              type="text"
+                              value={bankFormData.account_owner_name}
+                              onChange={(e) => setBankFormData(prev => ({ ...prev, account_owner_name: e.target.value }))}
+                              placeholder="Full name on account"
+                              style={{
+                                width: '100%',
+                                padding: '10px 14px',
+                                background: colors.bgCard,
+                                border: `1px solid ${colors.border}`,
+                                borderRadius: 8,
+                                color: colors.text,
+                                fontSize: 14,
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                          </div>
+
+                          {/* Routing Number */}
+                          <div>
+                            <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
+                              Routing Number *
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={9}
+                              required
+                              value={bankFormData.routing_number}
+                              onChange={(e) => setBankFormData(prev => ({ ...prev, routing_number: e.target.value.replace(/\D/g, '') }))}
+                              placeholder="9-digit routing number"
+                              style={{
+                                width: '100%',
+                                padding: '10px 14px',
+                                background: colors.bgCard,
+                                border: `1px solid ${colors.border}`,
+                                borderRadius: 8,
+                                color: colors.text,
+                                fontSize: 14,
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                              }}
+                            />
+                          </div>
+
+                          {/* Account Number */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <div>
+                              <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
+                                Account Number *
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                required
+                                value={bankFormData.account_number}
+                                onChange={(e) => setBankFormData(prev => ({ ...prev, account_number: e.target.value.replace(/\D/g, '') }))}
+                                placeholder="Account number"
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 14px',
+                                  background: colors.bgCard,
+                                  border: `1px solid ${colors.border}`,
+                                  borderRadius: 8,
+                                  color: colors.text,
+                                  fontSize: 14,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
+                                Confirm Account Number *
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                required
+                                value={bankFormData.account_number_confirm}
+                                onChange={(e) => setBankFormData(prev => ({ ...prev, account_number_confirm: e.target.value.replace(/\D/g, '') }))}
+                                placeholder="Re-enter account number"
+                                style={{
+                                  width: '100%',
+                                  padding: '10px 14px',
+                                  background: colors.bgCard,
+                                  border: `1px solid ${colors.border}`,
+                                  borderRadius: 8,
+                                  color: colors.text,
+                                  fontSize: 14,
+                                  outline: 'none',
+                                  boxSizing: 'border-box',
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Account Type */}
+                          <div>
+                            <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
+                              Account Type *
+                            </label>
+                            <div style={{ display: 'flex', gap: 12 }}>
+                              {(['checking', 'savings'] as const).map((type) => (
+                                <button
+                                  key={type}
+                                  type="button"
+                                  onClick={() => setBankFormData(prev => ({ ...prev, account_type: type }))}
+                                  style={{
+                                    flex: 1,
+                                    padding: '10px 16px',
+                                    background: bankFormData.account_type === type ? `${colors.accent}20` : colors.bgCard,
+                                    border: `1px solid ${bankFormData.account_type === type ? colors.accent : colors.border}`,
+                                    borderRadius: 8,
+                                    color: bankFormData.account_type === type ? colors.accent : colors.textSecondary,
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    textTransform: 'capitalize',
+                                  }}
+                                >
+                                  {type}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => { setShowBankForm(false); setBankFormError(null); }}
+                            style={{
+                              padding: '10px 20px',
+                              background: colors.bgHover,
+                              color: colors.textSecondary,
+                              border: `1px solid ${colors.border}`,
+                              borderRadius: 8,
+                              fontSize: 14,
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={bankFormLoading}
+                            style={{
+                              padding: '10px 24px',
+                              background: colors.accent,
+                              color: '#000',
+                              border: 'none',
+                              borderRadius: 8,
+                              fontSize: 14,
+                              fontWeight: 600,
+                              cursor: bankFormLoading ? 'not-allowed' : 'pointer',
+                              opacity: bankFormLoading ? 0.6 : 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                            }}
+                          >
+                            {bankFormLoading && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                            {bankFormLoading ? 'Linking...' : 'Link Account'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Empty state or account list */}
+                  {bankAccounts.length === 0 && !showBankForm ? (
+                    <div style={{
+                      background: `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bgHover} 100%)`,
+                      border: `1px dashed ${colors.borderLight}`,
+                      borderRadius: 12,
+                      padding: 32,
+                      textAlign: 'center',
+                    }}>
+                      <CreditCard size={40} style={{ color: colors.textMuted, marginBottom: 16 }} />
+                      <p style={{ color: colors.textSecondary, margin: '0 0 16px', fontSize: 15 }}>
+                        No bank accounts linked yet
+                      </p>
+                      <p style={{ color: colors.textMuted, margin: '0 0 20px', fontSize: 13 }}>
+                        Link a bank account to receive direct deposits from your sales
+                      </p>
+                      <button
+                        onClick={handleLinkBankAccount}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '12px 24px',
+                          background: colors.accent,
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: 10,
+                          fontSize: 14,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Plus size={18} />
+                        Link Your First Bank Account
+                      </button>
+                    </div>
+                  ) : bankAccounts.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {bankAccounts.map((account) => (
+                        <BridgeBankAccountCard
+                          key={account.id}
+                          account={account}
+                          onUpdate={fetchData}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           </section>
