@@ -160,7 +160,7 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
     incomplete: {
       icon: AlertCircle,
       label: 'Incomplete',
-      description: 'Your verification is incomplete. Please complete all required steps.',
+      description: 'Your identity is verified. Please accept the Terms of Service to continue.',
       color: colors.warning,
       bgColor: colors.warningBg,
     },
@@ -226,7 +226,7 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
             }}
           >
             <ExternalLink size={16} />
-            {hasCustomer ? 'Continue Verification' : 'Start Verification'}
+            {!hasCustomer ? 'Start Verification' : currentStatus === 'incomplete' ? 'Accept Terms of Service' : 'Continue Verification'}
           </button>
         )}
 

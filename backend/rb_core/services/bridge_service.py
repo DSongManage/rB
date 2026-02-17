@@ -256,8 +256,9 @@ class BridgeService:
         Returns:
             KYC status string: 'not_started', 'pending', 'approved', 'rejected', 'incomplete'
         """
+        from ..views.bridge import _map_bridge_status
         customer = self.get_customer(customer_id)
-        return customer.get('kyc_status', 'not_started')
+        return _map_bridge_status(customer.get('status'))
 
     # =========================================================================
     # External Accounts (Bank Accounts)

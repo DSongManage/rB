@@ -196,7 +196,13 @@ class GetKYCLinkView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Get or refresh KYC link."""
+        """Get or refresh KYC link.
+
+        Returns the appropriate next-step URL based on customer status:
+        - If KYC not done: returns Persona verification link
+        - If KYC done but TOS pending (status=incomplete): returns TOS acceptance link
+        - If fully approved: returns message
+        """
         user = request.user
 
         if not hasattr(user, 'bridge_customer'):
@@ -214,8 +220,31 @@ class GetKYCLinkView(APIView):
             })
 
         try:
-            # Get fresh KYC link from Bridge
             bridge_service = BridgeService()
+
+            # Check current status from Bridge to determine next step
+            customer_data = bridge_service.get_customer(bridge_customer.bridge_customer_id)
+            bridge_status = customer_data.get('status', '')
+            new_status = _map_bridge_status(bridge_status)
+
+            # Update local status if changed
+            if new_status != bridge_customer.kyc_status:
+                bridge_customer.kyc_status = new_status
+                if new_status == 'approved':
+                    bridge_customer.kyc_completed_at = timezone.now()
+                bridge_customer.save()
+
+            # If status is incomplete (KYC done, TOS pending), return TOS link
+            tos_link = customer_data.get('tos_link')
+            if bridge_status == 'incomplete' and tos_link:
+                logger.info(f"User {user.id} KYC complete, returning TOS link")
+                return Response({
+                    'url': tos_link,
+                    'kyc_status': bridge_customer.kyc_status,
+                    'step': 'tos_acceptance',
+                })
+
+            # Otherwise, get fresh KYC/Persona link
             kyc_response = bridge_service.get_kyc_link(bridge_customer.bridge_customer_id)
 
             # Update stored link
@@ -224,7 +253,8 @@ class GetKYCLinkView(APIView):
 
             return Response({
                 'url': bridge_customer.kyc_link,
-                'kyc_status': bridge_customer.kyc_status
+                'kyc_status': bridge_customer.kyc_status,
+                'step': 'kyc_verification',
             })
 
         except BridgeAPIError as e:
