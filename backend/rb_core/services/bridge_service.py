@@ -667,7 +667,7 @@ class BridgeService:
             logger.warning(f"Failed to parse Bridge webhook signature header: {e}")
             return False
 
-        logger.info(f"Bridge webhook sig check: timestamp={timestamp}, sig_len={len(sig_b64)}")
+        logger.warning(f"Bridge webhook sig check: timestamp={timestamp}, sig_len={len(sig_b64)}")
 
         # Reject events older than 10 minutes (replay protection)
         try:
@@ -688,7 +688,7 @@ class BridgeService:
         try:
             public_key = serialization.load_pem_public_key(pem.encode('utf-8'))
             sig_bytes = base64.b64decode(sig_b64)
-            logger.info(f"Bridge webhook: PEM loaded OK, sig_bytes_len={len(sig_bytes)}")
+            logger.warning(f"Bridge webhook: PEM loaded OK, sig_bytes_len={len(sig_bytes)}")
 
             # Try standard PKCS1v15-SHA256 (library hashes internally)
             try:
@@ -698,10 +698,10 @@ class BridgeService:
                     padding.PKCS1v15(),
                     hashes.SHA256(),
                 )
-                logger.info("Bridge webhook: signature verified (PKCS1v15-SHA256)")
+                logger.warning("Bridge webhook: signature verified (PKCS1v15-SHA256)")
                 return True
             except Exception as e1:
-                logger.info(f"Bridge webhook: PKCS1v15-SHA256 failed: {type(e1).__name__}: {e1}")
+                logger.warning(f"Bridge webhook: PKCS1v15-SHA256 failed: {type(e1).__name__}: {e1}")
 
             # Fallback: verify against pre-computed SHA256 digest
             try:
@@ -713,10 +713,10 @@ class BridgeService:
                     padding.PKCS1v15(),
                     Prehashed(hashes.SHA256()),
                 )
-                logger.info("Bridge webhook: signature verified (Prehashed-SHA256)")
+                logger.warning("Bridge webhook: signature verified (Prehashed-SHA256)")
                 return True
             except Exception as e2:
-                logger.info(f"Bridge webhook: Prehashed-SHA256 failed: {type(e2).__name__}: {e2}")
+                logger.warning(f"Bridge webhook: Prehashed-SHA256 failed: {type(e2).__name__}: {e2}")
 
             # Both verification methods failed
             logger.warning("Bridge webhook: both signature verification methods failed")
