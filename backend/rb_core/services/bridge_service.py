@@ -614,34 +614,100 @@ class BridgeService:
     def verify_webhook_signature(
         self,
         payload: bytes,
-        signature: str,
-        webhook_secret: Optional[str] = None,
+        signature_header: str,
+        public_key_pem: Optional[str] = None,
     ) -> bool:
-        """Verify webhook signature from Bridge.
+        """Verify webhook signature from Bridge using RSA public key.
+
+        Bridge signs webhooks with their private key. The signature header
+        format is: t=<timestamp_ms>,v0=<base64_encoded_signature>
+
+        Verification:
+        1. Parse timestamp and signature from header
+        2. Create message: timestamp + "." + raw_payload
+        3. SHA256 hash the message
+        4. Verify the RSA signature against the hash using the public key
 
         Args:
             payload: Raw request body bytes
-            signature: Signature from X-Bridge-Signature header
-            webhook_secret: Webhook secret. Defaults to settings.BRIDGE_WEBHOOK_SECRET.
+            signature_header: Value of X-Webhook-Signature header
+            public_key_pem: PEM-encoded public key. Defaults to settings.BRIDGE_WEBHOOK_PUBLIC_KEY.
 
         Returns:
             True if signature is valid
         """
-        import hmac
+        import base64
         import hashlib
+        import time
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding
 
-        secret = webhook_secret or getattr(settings, 'BRIDGE_WEBHOOK_SECRET', '')
-        if not secret:
-            logger.warning("Bridge webhook secret not configured")
+        pem = public_key_pem or getattr(settings, 'BRIDGE_WEBHOOK_PUBLIC_KEY', '')
+        if not pem:
+            logger.warning("Bridge webhook public key not configured")
             return False
 
-        expected = hmac.new(
-            secret.encode('utf-8'),
-            payload,
-            hashlib.sha256,
-        ).hexdigest()
+        # Parse header: t=<timestamp>,v0=<base64 signature>
+        try:
+            parts = {}
+            for part in signature_header.split(','):
+                key, _, value = part.partition('=')
+                parts[key.strip()] = value.strip()
 
-        return hmac.compare_digest(signature, expected)
+            timestamp = parts.get('t', '')
+            sig_b64 = parts.get('v0', '')
+
+            if not timestamp or not sig_b64:
+                logger.warning("Bridge webhook signature header missing t or v0")
+                return False
+        except Exception as e:
+            logger.warning(f"Failed to parse Bridge webhook signature header: {e}")
+            return False
+
+        # Reject events older than 10 minutes (replay protection)
+        try:
+            event_time_ms = int(timestamp)
+            now_ms = int(time.time() * 1000)
+            if abs(now_ms - event_time_ms) > 600_000:
+                logger.warning("Bridge webhook event too old, possible replay attack")
+                return False
+        except ValueError:
+            logger.warning("Bridge webhook timestamp not a valid integer")
+            return False
+
+        # Create message: timestamp + "." + payload
+        message = f"{timestamp}.".encode('utf-8') + payload
+
+        # Verify RSA signature
+        try:
+            public_key = serialization.load_pem_public_key(pem.encode('utf-8'))
+            sig_bytes = base64.b64decode(sig_b64)
+
+            # Try standard PKCS1v15-SHA256 (library hashes internally)
+            try:
+                public_key.verify(
+                    sig_bytes,
+                    message,
+                    padding.PKCS1v15(),
+                    hashes.SHA256(),
+                )
+                return True
+            except Exception:
+                pass
+
+            # Fallback: verify against pre-computed SHA256 digest
+            from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
+            digest = hashlib.sha256(message).digest()
+            public_key.verify(
+                sig_bytes,
+                digest,
+                padding.PKCS1v15(),
+                Prehashed(hashes.SHA256()),
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Bridge webhook signature verification failed: {e}")
+            return False
 
     def health_check(self) -> bool:
         """Check if Bridge API is reachable.

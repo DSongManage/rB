@@ -30,7 +30,7 @@ def bridge_webhook(request):
     from ..services import BridgeService
 
     payload = request.body
-    sig_header = request.META.get('HTTP_X_BRIDGE_SIGNATURE', '')
+    sig_header = request.META.get('HTTP_X_WEBHOOK_SIGNATURE', '')
 
     # Verify webhook signature
     bridge_service = BridgeService()

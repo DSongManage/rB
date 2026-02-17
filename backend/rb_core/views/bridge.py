@@ -41,6 +41,23 @@ class BridgeOnboardingStatusView(APIView):
         # Check for Bridge customer
         bridge_customer = getattr(user, 'bridge_customer', None)
         has_bridge_customer = bridge_customer is not None
+
+        # Live-refresh KYC status from Bridge API if not in a terminal state
+        if bridge_customer and bridge_customer.kyc_status not in ('approved', 'rejected'):
+            try:
+                bridge_service = BridgeService()
+                customer_data = bridge_service.get_customer(bridge_customer.bridge_customer_id)
+                new_status = customer_data.get('kyc_status', bridge_customer.kyc_status)
+
+                if new_status != bridge_customer.kyc_status:
+                    bridge_customer.kyc_status = new_status
+                    if new_status == 'approved':
+                        bridge_customer.kyc_completed_at = timezone.now()
+                    bridge_customer.save()
+                    logger.info(f"Updated KYC status for user {user.id}: {new_status}")
+            except BridgeAPIError as e:
+                logger.warning(f"Could not refresh KYC status for user {user.id}: {e}")
+
         kyc_status = bridge_customer.kyc_status if bridge_customer else None
         kyc_link = bridge_customer.kyc_link if bridge_customer else None
 

@@ -433,8 +433,8 @@ FEATURE_COLLABORATIVE_MINTING = os.getenv('FEATURE_COLLABORATIVE_MINTING', 'true
 # Bridge.xyz Configuration (USDC -> USD Off-ramp)
 # API key for Bridge.xyz - get from https://dashboard.bridge.xyz
 BRIDGE_API_KEY = os.getenv('BRIDGE_API_KEY', '')
-# Webhook secret for verifying Bridge webhook signatures
-BRIDGE_WEBHOOK_SECRET = os.getenv('BRIDGE_WEBHOOK_SECRET', '')
+# Public key (PEM) for verifying Bridge webhook signatures
+BRIDGE_WEBHOOK_PUBLIC_KEY = os.getenv('BRIDGE_WEBHOOK_PUBLIC_KEY', '')
 # Use sandbox environment (True for testing, False for production)
 BRIDGE_SANDBOX_MODE = os.getenv('BRIDGE_SANDBOX_MODE', 'true').lower() in ('1', 'true', 'yes', 'on')
 # Minimum USDC amount to trigger a Bridge payout (prevents dust transactions)

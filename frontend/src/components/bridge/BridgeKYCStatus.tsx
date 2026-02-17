@@ -3,7 +3,7 @@
  * Updated with dark theme styling.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CheckCircle, Clock, XCircle, AlertCircle, ExternalLink, RefreshCw, type LucideIcon } from 'lucide-react';
 import { openKYCFlow, getKYCStatus, createBridgeCustomer } from '../../services/bridgeApi';
 import type { KYCStatus } from '../../types/bridge';
@@ -41,6 +41,56 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const kycWindowOpenRef = useRef(false);
+
+  const isTerminalStatus = status === 'approved' || status === 'rejected';
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    kycWindowOpenRef.current = false;
+  }, []);
+
+  const checkStatus = useCallback(async () => {
+    try {
+      const result = await getKYCStatus();
+      if (result.kyc_status === 'approved' || result.kyc_status === 'rejected') {
+        stopPolling();
+      }
+      onStatusChange?.();
+    } catch (err) {
+      console.error('Failed to check KYC status:', err);
+    }
+  }, [onStatusChange, stopPolling]);
+
+  const startPolling = useCallback(() => {
+    if (pollingRef.current) return; // already polling
+    pollingRef.current = setInterval(checkStatus, 5000);
+  }, [checkStatus]);
+
+  // Listen for tab visibility changes — immediate check when user returns
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && kycWindowOpenRef.current && !isTerminalStatus) {
+        checkStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      stopPolling();
+    };
+  }, [checkStatus, stopPolling, isTerminalStatus]);
+
+  // Stop polling if status becomes terminal
+  useEffect(() => {
+    if (isTerminalStatus) {
+      stopPolling();
+    }
+  }, [isTerminalStatus, stopPolling]);
 
   const handleStartKYC = async () => {
     setLoading(true);
@@ -50,7 +100,9 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
         await createBridgeCustomer();
       }
       await openKYCFlow();
-      onStatusChange?.();
+      // Mark that KYC window is open and start polling
+      kycWindowOpenRef.current = true;
+      startPolling();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start KYC');
     } finally {
@@ -178,7 +230,7 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
           </button>
         )}
 
-        {currentStatus === 'pending' && (
+        {hasCustomer && currentStatus !== 'approved' && (
           <button
             onClick={handleRefreshStatus}
             disabled={loading}
@@ -198,7 +250,7 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
             }}
           >
             <RefreshCw size={16} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
-            Refresh Status
+            {currentStatus === 'not_started' ? 'Check Status' : 'Refresh Status'}
           </button>
         )}
       </div>
