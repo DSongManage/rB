@@ -29,6 +29,24 @@ from ..services import BridgeService, BridgeAPIError
 logger = logging.getLogger(__name__)
 
 
+def _map_bridge_status(bridge_status: str) -> str:
+    """Map Bridge customer status to our internal KYC status.
+
+    Bridge uses: active, incomplete, under_review, rejected, blocked
+    We use: not_started, pending, approved, rejected, incomplete
+    """
+    mapping = {
+        'active': 'approved',
+        'approved': 'approved',
+        'incomplete': 'incomplete',
+        'under_review': 'pending',
+        'pending': 'pending',
+        'rejected': 'rejected',
+        'blocked': 'rejected',
+    }
+    return mapping.get(bridge_status, bridge_status or 'not_started')
+
+
 class BridgeOnboardingStatusView(APIView):
     """Get current Bridge onboarding status for the user."""
     permission_classes = [IsAuthenticated]
@@ -47,7 +65,7 @@ class BridgeOnboardingStatusView(APIView):
             try:
                 bridge_service = BridgeService()
                 customer_data = bridge_service.get_customer(bridge_customer.bridge_customer_id)
-                new_status = customer_data.get('kyc_status', bridge_customer.kyc_status)
+                new_status = _map_bridge_status(customer_data.get('status'))
 
                 if new_status != bridge_customer.kyc_status:
                     bridge_customer.kyc_status = new_status
@@ -148,7 +166,7 @@ class CreateBridgeCustomerView(APIView):
             bridge_customer = BridgeCustomer.objects.create(
                 user=user,
                 bridge_customer_id=customer_id,
-                kyc_status=bridge_response.get('kyc_status') or 'not_started',
+                kyc_status=_map_bridge_status(bridge_response.get('status')),
                 kyc_link=kyc_response.get('url', ''),
             )
 
@@ -237,7 +255,7 @@ class GetKYCStatusView(APIView):
             try:
                 bridge_service = BridgeService()
                 customer_data = bridge_service.get_customer(bridge_customer.bridge_customer_id)
-                new_status = customer_data.get('kyc_status', bridge_customer.kyc_status)
+                new_status = _map_bridge_status(customer_data.get('status'))
 
                 if new_status != bridge_customer.kyc_status:
                     bridge_customer.kyc_status = new_status

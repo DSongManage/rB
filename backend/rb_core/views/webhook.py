@@ -83,13 +83,17 @@ def bridge_webhook(request):
 def _handle_bridge_kyc_status_changed(data):
     """Handle KYC status change webhook."""
     from django.utils import timezone
+    from .bridge import _map_bridge_status
 
     customer_id = data.get('customer_id')
-    new_status = data.get('kyc_status')
+    # Bridge may send 'kyc_status' or 'status' in webhook events
+    raw_status = data.get('kyc_status') or data.get('status')
 
-    if not customer_id or not new_status:
-        logger.warning('[Bridge Webhook] Missing customer_id or kyc_status in KYC event')
+    if not customer_id or not raw_status:
+        logger.warning(f'[Bridge Webhook] Missing customer_id or status in KYC event. Data keys: {list(data.keys())}')
         return
+
+    new_status = _map_bridge_status(raw_status)
 
     try:
         bridge_customer = BridgeCustomer.objects.get(bridge_customer_id=customer_id)
