@@ -42,7 +42,13 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const kycWindowOpenRef = useRef(false);
+  const kycWindowRef = useRef<Window | null>(null);
+
+  // Use ref for callback to prevent effect dependency changes from killing polling
+  const onStatusChangeRef = useRef(onStatusChange);
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+  });
 
   const isTerminalStatus = status === 'approved' || status === 'rejected';
 
@@ -51,7 +57,6 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
       clearInterval(pollingRef.current);
       pollingRef.current = null;
     }
-    kycWindowOpenRef.current = false;
   }, []);
 
   const checkStatus = useCallback(async () => {
@@ -60,30 +65,45 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
       if (result.kyc_status === 'approved' || result.kyc_status === 'rejected') {
         stopPolling();
       }
-      onStatusChange?.();
+      onStatusChangeRef.current?.();
     } catch (err) {
       console.error('Failed to check KYC status:', err);
     }
-  }, [onStatusChange, stopPolling]);
+  }, [stopPolling]);
 
+  // Start polling and monitor popup window close
   const startPolling = useCallback(() => {
-    if (pollingRef.current) return; // already polling
-    pollingRef.current = setInterval(checkStatus, 5000);
+    if (pollingRef.current) return;
+
+    pollingRef.current = setInterval(() => {
+      // Detect popup window close for immediate check
+      if (kycWindowRef.current && kycWindowRef.current.closed) {
+        kycWindowRef.current = null;
+        // Do an immediate check, then let normal polling continue
+        checkStatus();
+        return;
+      }
+      checkStatus();
+    }, 3000);
   }, [checkStatus]);
 
   // Listen for tab visibility changes — immediate check when user returns
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && kycWindowOpenRef.current && !isTerminalStatus) {
+      if (document.visibilityState === 'visible' && pollingRef.current && !isTerminalStatus) {
         checkStatus();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      stopPolling();
     };
-  }, [checkStatus, stopPolling, isTerminalStatus]);
+  }, [checkStatus, isTerminalStatus]);
+
+  // Cleanup polling on unmount only
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
 
   // Stop polling if status becomes terminal
   useEffect(() => {
@@ -99,9 +119,8 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
       if (!hasCustomer) {
         await createBridgeCustomer();
       }
-      await openKYCFlow();
-      // Mark that KYC window is open and start polling
-      kycWindowOpenRef.current = true;
+      const win = await openKYCFlow();
+      kycWindowRef.current = win;
       startPolling();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start KYC');
@@ -114,7 +133,7 @@ export const BridgeKYCStatus: React.FC<BridgeKYCStatusProps> = ({
     setLoading(true);
     try {
       await getKYCStatus();
-      onStatusChange?.();
+      onStatusChangeRef.current?.();
     } catch (err) {
       console.error('Failed to refresh KYC status:', err);
     } finally {

@@ -4,7 +4,7 @@
  * Redesigned with dark theme to match app aesthetic.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Plus, RefreshCw, Shield, Building2, Wallet,
@@ -63,9 +63,11 @@ export const PayoutSettingsPage: React.FC = () => {
   const [creatingAddress, setCreatingAddress] = useState(false);
   const [activeTab, setActiveTab] = useState<'withdraw' | 'send'>('withdraw');
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchData = async (background = false) => {
+    if (!background) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [statusData, accountsData, profileData] = await Promise.all([
         getBridgeOnboardingStatus(),
@@ -80,11 +82,18 @@ export const PayoutSettingsPage: React.FC = () => {
         setWalletAddress(profileData.wallet_address);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load payout settings');
+      if (!background) {
+        setError(err instanceof Error ? err.message : 'Failed to load payout settings');
+      }
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
   };
+
+  // Background refresh for polling — no loading spinner, no error display
+  const refreshStatus = useCallback(() => fetchData(true), []);
 
   useEffect(() => {
     fetchData();
@@ -373,7 +382,7 @@ export const PayoutSettingsPage: React.FC = () => {
               <BridgeKYCStatus
                 status={status?.kyc_status || null}
                 hasCustomer={status?.has_bridge_customer || false}
-                onStatusChange={fetchData}
+                onStatusChange={refreshStatus}
               />
             </div>
           </section>
