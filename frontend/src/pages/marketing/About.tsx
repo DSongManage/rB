@@ -5,8 +5,8 @@ export default function About() {
   return (
     <MarketingLayout>
       <SEOHead
-        title="About | renaissBlock — The Creative Renaissance"
-        description="renaissBlock exists so that collaboration never dies because of money. Learn the story behind the comic collaboration platform built for writers and artists."
+        title="About renaissBlock — Where Writers and Artists Collaborate and Get Paid"
+        description="renaissBlock is where writers and artists find each other, agree on terms, and publish together — with every sale splitting revenue automatically. No invoicing. No chasing payments. No trust required."
         canonicalPath="/about"
       />
 
