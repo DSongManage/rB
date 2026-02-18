@@ -9,12 +9,17 @@ from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from django.core.mail import send_mail
 from django.conf import settings
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
+from django.http import HttpResponse
 from django.utils import timezone
+from django.views.decorators.http import require_GET
 import logging
 
 from ..models import BetaInvite, User as CoreUser, UserProfile
 from ..serializers import BetaInviteSerializer
 from rest_framework.permissions import IsAuthenticated
+
+signer = TimestampSigner(salt='beta-quick-approve')
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +61,11 @@ def request_beta_access(request):
         status='requested'
     )
 
-    # Notify admin about new request
+    # Notify admin about new request (with one-click approve link)
     try:
-        admin_email = settings.ADMIN_EMAIL if hasattr(settings, 'ADMIN_EMAIL') else 'admin@example.com'
+        admin_email = getattr(settings, 'ADMIN_EMAIL', 'admin@example.com')
+        token = signer.sign(str(beta_invite.id))
+        approve_url = f'{settings.BACKEND_URL}/api/beta/quick-approve/{token}/'
         send_mail(
             subject=f'[renaissBlock] New Beta Access Request - {email}',
             message=f'''New beta access request received:
@@ -67,18 +74,13 @@ Email: {email}
 Message: {message or "(No message provided)"}
 Date: {timezone.now().strftime("%Y-%m-%d %H:%M:%S")}
 
-To approve this request:
-1. Log in to Django admin: {settings.BACKEND_URL}/admin/
-2. Navigate to Beta Invites
-3. Select the request and use "Approve and send invites" action
+==> ONE-CLICK APPROVE:
+{approve_url}
 
-Or approve via API:
-POST {settings.BACKEND_URL}/api/beta/approve/
-{{
-    "invite_id": {beta_invite.id}
-}}
+Or manage in Django admin:
+{settings.BACKEND_URL}/admin/rb_core/betainvite/{beta_invite.id}/change/
 ''',
-            from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@renaissblock.com',
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com'),
             recipient_list=[admin_email],
             fail_silently=True
         )
@@ -138,6 +140,89 @@ def approve_beta_request(request):
         return Response(
             {'error': 'Failed to approve beta request'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@require_GET
+def quick_approve_beta(request, token):
+    """
+    One-click beta approval via signed URL sent in admin notification email.
+
+    The token is a TimestampSigner-signed invite ID, valid for 7 days.
+    No login required — the signed token IS the authorization.
+    """
+    try:
+        invite_id = signer.unsign(token, max_age=60 * 60 * 24 * 7)  # 7 days
+    except SignatureExpired:
+        return HttpResponse(
+            '<h2>Link expired</h2><p>This approval link has expired (7-day limit). '
+            'Please approve via the <a href="{}/admin/rb_core/betainvite/">Django admin</a>.</p>'.format(
+                settings.BACKEND_URL
+            ),
+            content_type='text/html', status=410,
+        )
+    except BadSignature:
+        return HttpResponse(
+            '<h2>Invalid link</h2><p>This approval link is invalid or has been tampered with.</p>',
+            content_type='text/html', status=400,
+        )
+
+    try:
+        beta_invite = BetaInvite.objects.get(id=invite_id)
+    except BetaInvite.DoesNotExist:
+        return HttpResponse(
+            '<h2>Not found</h2><p>Beta invite request not found.</p>',
+            content_type='text/html', status=404,
+        )
+
+    # Already processed?
+    if beta_invite.status in ('approved', 'sent', 'used'):
+        return HttpResponse(
+            '<h2>Already processed</h2>'
+            '<p>This invite for <b>{email}</b> was already approved '
+            '(code: <code>{code}</code>, status: {status}).</p>'.format(
+                email=beta_invite.email,
+                code=beta_invite.invite_code or 'N/A',
+                status=beta_invite.status,
+            ),
+            content_type='text/html',
+        )
+
+    if beta_invite.status == 'declined':
+        return HttpResponse(
+            '<h2>Declined</h2><p>This invite was previously declined.</p>',
+            content_type='text/html', status=409,
+        )
+
+    # Approve: generate code and send invite email
+    beta_invite.generate_invite_code()
+    beta_invite.status = 'approved'
+    beta_invite.save()
+
+    try:
+        send_beta_invite_email(beta_invite)
+        return HttpResponse(
+            '<h2>Done!</h2>'
+            '<p>Invite sent to <b>{email}</b> (code: <code>{code}</code>).</p>'.format(
+                email=beta_invite.email,
+                code=beta_invite.invite_code,
+            ),
+            content_type='text/html',
+        )
+    except Exception as e:
+        logger.error(f'Quick-approve email failed for {beta_invite.email}: {e}')
+        return HttpResponse(
+            '<h2>Approved but email failed</h2>'
+            '<p>Invite for <b>{email}</b> approved (code: <code>{code}</code>), '
+            'but the invite email failed to send. Error: {err}</p>'
+            '<p>You can resend from <a href="{backend}/admin/rb_core/betainvite/{id}/change/">Django admin</a>.</p>'.format(
+                email=beta_invite.email,
+                code=beta_invite.invite_code,
+                err=str(e),
+                backend=settings.BACKEND_URL,
+                id=beta_invite.id,
+            ),
+            content_type='text/html', status=500,
         )
 
 
@@ -229,55 +314,41 @@ def send_beta_invite_email(beta_invite):
     frontend_url = settings.FRONTEND_URL
     invite_url = f'{frontend_url}/signup?invite={beta_invite.invite_code}'
 
-    subject = '🎨 Welcome to renaissBlock Beta!'
+    subject = 'Your renaissBlock beta access is ready'
 
-    message = f'''Hi there!
+    message = f'''Hey,
 
-Welcome to the future of creative collaboration!
+Thanks for signing up — your beta access is ready.
 
-You're one of the first people to experience renaissBlock - the world's first platform where creators can collaborate and automatically split revenue using blockchain technology.
+renaissBlock is a marketplace where writers and artists collaborate on comics with automatic revenue sharing. You find a creative partner, agree on a split, publish chapter by chapter, and every sale distributes earnings instantly. No contracts, no chasing payments.
 
-🚀 Your Beta Access:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Website: {frontend_url}
+Your access:
+
 Invite Code: {beta_invite.invite_code}
-Direct Link: {invite_url}
-Valid for 30 days
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sign up here: {invite_url}
 
-💡 What to Try:
-• Create content (book chapter, artwork, music)
-• Test the purchase flow (use test card: 4242 4242 4242 4242)
-• Try collaborating with other beta users
-• Browse and discover content
+Your code is valid for 30 days.
 
-⚠️ Beta Notes:
-• This is test mode - no real money charged
-• Blockchain features use fake SOL (devnet)
-• Some features still being polished
-• Your feedback is incredibly valuable!
+What to do first:
 
-🗣️ Share Your Thoughts:
-Found a bug? Love a feature? Confused by something?
-Email us at feedback@renaissblock.com
+Set up your profile — upload your work, list your genres, and mark yourself as open to collaborations if you're looking for a partner. Then browse other creators and see who's on the platform. If someone's style clicks with your vision, send them a project proposal.
 
-Thanks for being an early explorer!
+A few things to know:
 
-The renaissBlock Team
+This is a real, working platform — not a demo. Purchases use real money and creators earn real revenue. That said, we're still in beta, so you may run into rough edges. If something breaks or confuses you, I want to hear about it.
 
-P.S. As a beta tester, you'll get special perks when we launch!
+Reply directly to this email with any feedback, bugs, or ideas. I read everything.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-renaissBlock - The Future of Creative Collaboration
-{frontend_url}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+— F1KAL
+
+P.S. The first 50 creators to complete a project earning $100+ in sales lock in a permanent 1% platform fee (instead of the standard 10%). Forever. You're early enough to claim one of those spots.
 '''
 
     try:
         send_mail(
             subject=subject,
             message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'beta@renaissblock.com',
+            from_email='welcome@renaissblock.com',
             recipient_list=[beta_invite.email],
             fail_silently=False
         )
