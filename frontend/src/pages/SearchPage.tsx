@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { VideoCard } from '../components/VideoCard';
 import { API_URL } from '../config';
 
@@ -121,8 +122,20 @@ export default function SearchPage() {
     const w = Math.floor(seconds / 604800); return `${w} week${w !== 1 ? 's' : ''} ago`;
   };
 
+  const seoTitle = query
+    ? `"${query}" — Search Results | renaissBlock`
+    : 'Explore Comics, Books & Art | renaissBlock';
+  const seoDesc = query
+    ? `Browse results for "${query}" on renaissBlock — comics, books, and art from independent creators.`
+    : 'Discover comics, books, and art from independent creators on renaissBlock.';
+
   return (
     <div className="page" style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}>
+      <Helmet>
+        <title>{seoTitle}</title>
+        <meta name="description" content={seoDesc} />
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
       {/* Search query display */}
       {query && (
         <div style={{ marginBottom: 16 }}>

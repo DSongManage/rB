@@ -66,3 +66,4 @@ User-agent: Googlebot
 Allow: /
 
 Sitemap: https://renaissblock.com/sitemap.xml
+Sitemap: https://api.renaissblock.com/api/sitemap.xml

@@ -55,6 +55,7 @@ from .views.direct_crypto import (
     CancelDirectCryptoPaymentView
 )
 from .views.tiers import MyTierProgressView, FoundingStatusView, CreatorTierView
+from .views.sitemap import DynamicSitemapView
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -279,6 +280,9 @@ urlpatterns = [
     path('api/direct-crypto/initiate/<int:intent_id>/', InitiateDirectCryptoPaymentView.as_view(), name='direct_crypto_initiate'),
     path('api/direct-crypto/status/<int:payment_id>/', DirectCryptoPaymentStatusView.as_view(), name='direct_crypto_status'),
     path('api/direct-crypto/cancel/<int:payment_id>/', CancelDirectCryptoPaymentView.as_view(), name='direct_crypto_cancel'),
+
+    # Dynamic sitemap
+    path('api/sitemap.xml', DynamicSitemapView.as_view(), name='dynamic_sitemap'),
 ]
 
 # Development-only endpoints (not exposed in production)

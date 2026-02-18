@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, Play, ChevronDown, ChevronUp, User, AlertCircle, ShoppingCart, Check } from 'lucide-react';
 import PreviewModal from '../components/PreviewModal';
 import AddToCartButton from '../components/AddToCartButton';
@@ -166,8 +167,30 @@ export default function ContentDetail(){
     ? `${editionsNum} edition${editionsNum > 1 ? 's' : ''} available`
     : 'Sold out';
 
+  const seoTitle = `${data.title} by @${data.creator_username} | renaissBlock`;
+  const seoDesc = data.description
+    ? data.description.slice(0, 155) + (data.description.length > 155 ? '...' : '')
+    : `${data.title} — a ${data.content_type || 'work'} on renaissBlock by @${data.creator_username}.`;
+  const seoImage = data.teaser_link || 'https://renaissblock.com/logo512.png';
+  const seoUrl = `https://renaissblock.com/content/${id}`;
+
   return (
     <div style={{maxWidth:900, margin:'0 auto', padding: isMobile ? '16px 12px' : '24px 16px'}}>
+      <Helmet>
+        <title>{seoTitle}</title>
+        <meta name="description" content={seoDesc} />
+        <link rel="canonical" href={seoUrl} />
+        <meta property="og:title" content={seoTitle} />
+        <meta property="og:description" content={seoDesc} />
+        <meta property="og:type" content="article" />
+        <meta property="og:url" content={seoUrl} />
+        <meta property="og:image" content={seoImage} />
+        <meta property="og:site_name" content="renaissBlock" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={seoTitle} />
+        <meta name="twitter:description" content={seoDesc} />
+        <meta name="twitter:image" content={seoImage} />
+      </Helmet>
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}

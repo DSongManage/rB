@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import {
   MapPin, Briefcase, Award, ExternalLink, Star, Users, DollarSign,
   Book, Music, Film, Palette, Globe, Linkedin, Twitter, Instagram,
@@ -224,8 +225,30 @@ export default function PublicProfilePage() {
   };
   const statusColor = statusColors[p.status_category] || statusColors.green;
 
+  const seoTitle = `${p.display_name || p.username} (@${p.username}) | renaissBlock`;
+  const seoDesc = p.bio
+    ? p.bio.slice(0, 155) + (p.bio.length > 155 ? '...' : '')
+    : `${p.display_name || p.username} is a creator on renaissBlock.${p.roles?.length ? ' ' + p.roles.join(', ') + '.' : ''}`;
+  const seoImage = p.avatar || 'https://renaissblock.com/logo512.png';
+  const seoUrl = `https://renaissblock.com/profile/${p.username}`;
+
   return (
     <div className="page" style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px 40px' }}>
+      <Helmet>
+        <title>{seoTitle}</title>
+        <meta name="description" content={seoDesc} />
+        <link rel="canonical" href={seoUrl} />
+        <meta property="og:title" content={seoTitle} />
+        <meta property="og:description" content={seoDesc} />
+        <meta property="og:type" content="profile" />
+        <meta property="og:url" content={seoUrl} />
+        <meta property="og:image" content={seoImage} />
+        <meta property="og:site_name" content="renaissBlock" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content={seoTitle} />
+        <meta name="twitter:description" content={seoDesc} />
+        <meta name="twitter:image" content={seoImage} />
+      </Helmet>
       {/* Hero Section */}
       <div style={{
         background: '#1e293b',
