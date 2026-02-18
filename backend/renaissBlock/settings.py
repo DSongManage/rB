@@ -102,7 +102,7 @@ INSTALLED_APPS = [
     'allauth',
     'allauth.account',
     'corsheaders',
-    # Future: Add apps for integrations like 'rest_framework' for APIs (FR2, FR4 in REQUIREMENTS.md)
+    'anymail',
 ]
 
 # Use custom user model from rb_core for auth (FR3)
@@ -521,23 +521,22 @@ ALLOWED_UPLOAD_CONTENT_TYPES = set((
     'video/mp4',
 ))
 
-# Email Configuration (for beta invites and notifications)
-# In development: emails are logged to console
-# In beta mode: use SMTP for real email delivery
-# In production: configure SMTP settings via environment variables
-if BETA_MODE:
-    # Beta mode: use SMTP from environment (for sending real beta invites)
-    EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-    EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-    EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
-    EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+# Email Configuration
+# Uses Resend (HTTP API) in production/beta — Railway blocks outbound SMTP.
+# Falls back to console backend in local development.
+RESEND_API_KEY = os.getenv('RESEND_API_KEY', '')
+
+if RESEND_API_KEY:
+    # Production / Beta: Resend via django-anymail (HTTP API, no SMTP needed)
+    EMAIL_BACKEND = 'anymail.backends.resend.EmailBackend'
+    ANYMAIL = {
+        'RESEND_API_KEY': RESEND_API_KEY,
+    }
 elif DEBUG:
     # Development: console backend
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
-    # Production: SMTP
+    # Fallback: SMTP (may not work on Railway)
     EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
     EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
     EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
@@ -546,9 +545,8 @@ else:
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com')
-ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')  # Update this to your email
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')
 
-# Email timeout (seconds) – Gmail TLS handshake + auth needs ~10-15s
 EMAIL_TIMEOUT = 30
 
 # ============================================================================

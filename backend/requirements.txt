@@ -76,6 +76,9 @@ varint==1.0.2
 websockets==15.0
 whitenoise==6.11.0
 zipp==3.23.0
+# Email (HTTP API instead of SMTP — Railway blocks outbound SMTP)
+django-anymail[resend]==14.0
+
 # Operational Readiness
 sentry-sdk[django]==2.19.2
 geoip2==4.8.0

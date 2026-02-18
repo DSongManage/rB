@@ -348,7 +348,7 @@ P.S. The first 50 creators to complete a project earning $100+ in sales lock in 
         send_mail(
             subject=subject,
             message=message,
-            from_email='welcome@renaissblock.com',
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com'),
             recipient_list=[beta_invite.email],
             fail_silently=False
         )
