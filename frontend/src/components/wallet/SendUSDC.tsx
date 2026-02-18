@@ -22,12 +22,12 @@ import {
   estimateTransferFee,
 } from '../../services/usdcTransferService';
 import {
-  getUSDCBalance,
   getSolBalance,
   isValidSolanaAddress,
   getTransactionExplorerLink,
   getAddressExplorerLink,
 } from '../../services/web3authService';
+import { API_URL } from '../../config';
 
 // Dark theme colors
 const colors = {
@@ -95,11 +95,14 @@ export const SendUSDC: React.FC<SendUSDCProps> = ({
     if (!walletAddress) return;
     setLoadingBalance(true);
     try {
-      const [usdc, sol] = await Promise.all([
-        getUSDCBalance(walletAddress),
+      const [earningsRes, sol] = await Promise.all([
+        fetch(`${API_URL}/api/earnings-balance/`, { credentials: 'include' }),
         getSolBalance(walletAddress),
       ]);
-      setUsdcBalance(usdc);
+      if (earningsRes.ok) {
+        const data = await earningsRes.json();
+        setUsdcBalance(parseFloat(data.balance));
+      }
       setSolBalance(sol);
     } catch (err) {
       console.error('Failed to fetch balances:', err);

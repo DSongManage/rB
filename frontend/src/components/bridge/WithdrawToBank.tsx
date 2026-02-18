@@ -21,7 +21,8 @@ import {
   getPrimaryLiquidationAddress,
   type LiquidationAddress,
 } from '../../services/usdcTransferService';
-import { getUSDCBalance, getTransactionExplorerLink } from '../../services/web3authService';
+import { getTransactionExplorerLink } from '../../services/web3authService';
+import { API_URL } from '../../config';
 
 // Dark theme colors (matching other Bridge components)
 const colors = {
@@ -70,11 +71,15 @@ export const WithdrawToBank: React.FC<WithdrawToBankProps> = ({
   }, [walletAddress]);
 
   const fetchBalance = async () => {
-    if (!walletAddress) return;
     setLoadingBalance(true);
     try {
-      const bal = await getUSDCBalance(walletAddress);
-      setBalance(bal);
+      const res = await fetch(`${API_URL}/api/earnings-balance/`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setBalance(parseFloat(data.balance));
+      } else {
+        console.error('Failed to fetch earnings balance:', res.status);
+      }
     } catch (err) {
       console.error('Failed to fetch balance:', err);
     } finally {

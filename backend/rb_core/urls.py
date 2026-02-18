@@ -41,7 +41,7 @@ from .views.legal import (
     LegalPendingAcceptancesView, CreatorAgreementStatusView
 )
 # Dual Payment System views
-from .views.balance import UserBalanceView, SyncBalanceView, CheckBalanceSufficiencyView
+from .views.balance import UserBalanceView, SyncBalanceView, CheckBalanceSufficiencyView, EarningsBalanceView
 from .views.payment import (
     CreatePurchaseIntentView, SelectPaymentMethodView, PayWithBalanceView,
     SubmitSponsoredPaymentView, ConfirmBalancePaymentView, PurchaseIntentStatusView
@@ -254,6 +254,7 @@ urlpatterns = [
     path('api/balance/', UserBalanceView.as_view(), name='user_balance'),
     path('api/balance/sync/', SyncBalanceView.as_view(), name='sync_balance'),
     path('api/balance/check/', CheckBalanceSufficiencyView.as_view(), name='check_balance'),
+    path('api/earnings-balance/', EarningsBalanceView.as_view(), name='earnings_balance'),
 
     # Purchase Intent
     path('api/payment/intent/', CreatePurchaseIntentView.as_view(), name='create_purchase_intent'),

@@ -4,11 +4,13 @@ Balance API views for the dual payment system.
 Provides endpoints for:
 - Getting user's renaissBlock Balance (cached USDC)
 - Force syncing balance from blockchain
+- Getting user's earnings-based available balance (from CollaboratorPayment records)
 """
 
 import logging
 from decimal import Decimal
 
+from django.db.models import Sum
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -16,7 +18,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.throttling import UserRateThrottle
 
-from rb_core.models import UserBalance
+from rb_core.models import UserBalance, CollaboratorPayment
 from rb_core.services import get_solana_service
 
 logger = logging.getLogger(__name__)
@@ -211,4 +213,38 @@ class CheckBalanceSufficiencyView(APIView):
             'sufficient': sufficient,
             'remaining_after': str(remaining),
             'shortfall': str(shortfall),
+        })
+
+
+class EarningsBalanceView(APIView):
+    """
+    Get user's available balance based on actual earnings from CollaboratorPayment records.
+
+    This is the source of truth for payout/withdrawal display — NOT on-chain balance,
+    which can include devNet tokens or other non-earnings USDC.
+
+    GET /api/earnings-balance/
+
+    Response:
+    {
+        "balance": "0.90",
+        "display_balance": "$0.90"
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        total_earnings = CollaboratorPayment.objects.filter(
+            collaborator=user
+        ).aggregate(
+            total=Sum('amount_usdc')
+        )['total'] or Decimal('0')
+
+        total_earnings = total_earnings.quantize(Decimal('0.01'))
+
+        return Response({
+            'balance': str(total_earnings),
+            'display_balance': f"${total_earnings:.2f}",
         })
