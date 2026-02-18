@@ -4,7 +4,7 @@
  * Redesigned with dark theme to match app aesthetic.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Plus, RefreshCw, Shield, Building2, Wallet,
@@ -99,8 +99,23 @@ export const PayoutSettingsPage: React.FC = () => {
   });
   const [routingLookup, setRoutingLookup] = useState<{ bank_name?: string; valid?: boolean; loading?: boolean } | null>(null);
   const routingLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  const addressInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [creatingAddress, setCreatingAddress] = useState(false);
   const [activeTab, setActiveTab] = useState<'withdraw' | 'send'>('withdraw');
+
+  // Account number mismatch detection
+  const accountNumberMismatch = useMemo(() => {
+    if (!confirmTouched) return false;
+    if (!bankFormData.account_number_confirm) return false;
+    return bankFormData.account_number !== bankFormData.account_number_confirm;
+  }, [bankFormData.account_number, bankFormData.account_number_confirm, confirmTouched]);
+
+  const accountNumbersMatch = useMemo(() => {
+    if (!bankFormData.account_number || !bankFormData.account_number_confirm) return false;
+    return bankFormData.account_number === bankFormData.account_number_confirm;
+  }, [bankFormData.account_number, bankFormData.account_number_confirm]);
 
   const fetchData = async (background = false) => {
     if (!background) {
@@ -137,6 +152,75 @@ export const PayoutSettingsPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Load Google Places script & attach autocomplete when form is shown
+  useEffect(() => {
+    if (!showBankForm) return;
+
+    const apiKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY;
+    if (!apiKey) return;
+
+    const initAutocomplete = () => {
+      if (!addressInputRef.current || autocompleteRef.current) return;
+      const ac = new google.maps.places.Autocomplete(addressInputRef.current, {
+        types: ['address'],
+        componentRestrictions: { country: 'us' },
+        fields: ['address_components'],
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        if (!place.address_components) return;
+        let street_number = '';
+        let route = '';
+        let city = '';
+        let state = '';
+        let postal_code = '';
+        let subpremise = '';
+        for (const c of place.address_components) {
+          const t = c.types[0];
+          if (t === 'street_number') street_number = c.long_name;
+          else if (t === 'route') route = c.short_name;
+          else if (t === 'locality') city = c.long_name;
+          else if (t === 'sublocality_level_1' && !city) city = c.long_name;
+          else if (t === 'administrative_area_level_1') state = c.short_name;
+          else if (t === 'postal_code') postal_code = c.long_name;
+          else if (t === 'subpremise') subpremise = c.long_name;
+        }
+        setBankFormData(prev => ({
+          ...prev,
+          street_line_1: `${street_number} ${route}`.trim(),
+          street_line_2: subpremise ? `#${subpremise}` : prev.street_line_2,
+          city,
+          state,
+          postal_code,
+        }));
+      });
+      autocompleteRef.current = ac;
+    };
+
+    // If Google Maps is already loaded
+    if (window.google?.maps?.places) {
+      initAutocomplete();
+      return;
+    }
+
+    // Load the script
+    const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api/js"]');
+    if (existing) {
+      existing.addEventListener('load', initAutocomplete);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.onload = initAutocomplete;
+    document.head.appendChild(script);
+
+    return () => {
+      autocompleteRef.current = null;
+    };
+  }, [showBankForm]);
 
   const handleRoutingNumberChange = (value: string) => {
     const clean = value.replace(/\D/g, '');
@@ -215,6 +299,7 @@ export const PayoutSettingsPage: React.FC = () => {
       });
       setShowBankForm(false);
       setRoutingLookup(null);
+      setConfirmTouched(false);
       setBankFormData({
         first_name: '',
         last_name: '',
@@ -293,6 +378,29 @@ export const PayoutSettingsPage: React.FC = () => {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
           }
+          .pac-container {
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            margin-top: 4px;
+            font-family: inherit;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+          }
+          .pac-item {
+            padding: 8px 14px;
+            color: #f8fafc;
+            border-top: 1px solid #334155;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .pac-item:first-child { border-top: none; }
+          .pac-item:hover, .pac-item-selected {
+            background: #334155;
+          }
+          .pac-item-query { color: #f8fafc; font-weight: 500; }
+          .pac-matched { color: #f59e0b; font-weight: 600; }
+          .pac-icon { display: none; }
+          .pac-item span:last-child { color: #94a3b8; }
         `}</style>
       </div>
     );
@@ -714,10 +822,39 @@ export const PayoutSettingsPage: React.FC = () => {
                                 pattern="[0-9]*"
                                 required
                                 value={bankFormData.account_number_confirm}
-                                onChange={(e) => setBankFormData(prev => ({ ...prev, account_number_confirm: e.target.value.replace(/\D/g, '') }))}
+                                onChange={(e) => {
+                                  setConfirmTouched(true);
+                                  setBankFormData(prev => ({ ...prev, account_number_confirm: e.target.value.replace(/\D/g, '') }));
+                                }}
                                 placeholder="Re-enter account number"
-                                style={inputStyle}
+                                style={{
+                                  ...inputStyle,
+                                  borderColor: accountNumberMismatch ? colors.error
+                                    : accountNumbersMatch ? colors.success
+                                    : colors.border,
+                                }}
                               />
+                              {(accountNumberMismatch || accountNumbersMatch) && (
+                                <div style={{
+                                  marginTop: 6,
+                                  fontSize: 13,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                }}>
+                                  {accountNumberMismatch ? (
+                                    <>
+                                      <AlertCircle size={14} style={{ color: colors.error }} />
+                                      <span style={{ color: colors.error }}>Account numbers don't match</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 size={14} style={{ color: colors.success }} />
+                                      <span style={{ color: colors.success, fontWeight: 500 }}>Numbers match</span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -758,11 +895,13 @@ export const PayoutSettingsPage: React.FC = () => {
                               <div>
                                 <label style={labelStyle}>Street Address *</label>
                                 <input
+                                  ref={addressInputRef}
                                   type="text"
                                   required
                                   value={bankFormData.street_line_1}
                                   onChange={(e) => setBankFormData(prev => ({ ...prev, street_line_1: e.target.value }))}
-                                  placeholder="123 Main Street"
+                                  placeholder="Start typing to search..."
+                                  autoComplete="off"
                                   style={inputStyle}
                                 />
                               </div>
@@ -837,7 +976,7 @@ export const PayoutSettingsPage: React.FC = () => {
                           </button>
                           <button
                             type="submit"
-                            disabled={bankFormLoading}
+                            disabled={bankFormLoading || accountNumberMismatch}
                             style={{
                               padding: '10px 24px',
                               background: colors.accent,
@@ -846,8 +985,8 @@ export const PayoutSettingsPage: React.FC = () => {
                               borderRadius: 8,
                               fontSize: 14,
                               fontWeight: 600,
-                              cursor: bankFormLoading ? 'not-allowed' : 'pointer',
-                              opacity: bankFormLoading ? 0.6 : 1,
+                              cursor: (bankFormLoading || accountNumberMismatch) ? 'not-allowed' : 'pointer',
+                              opacity: (bankFormLoading || accountNumberMismatch) ? 0.6 : 1,
                               display: 'flex',
                               alignItems: 'center',
                               gap: 8,

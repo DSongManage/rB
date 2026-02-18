@@ -754,22 +754,33 @@ class RoutingNumberLookupView(APIView):
         '10': 'Kansas City', '11': 'Dallas', '12': 'San Francisco',
     }
 
-    # Words that should stay fully uppercase (acronyms in bank names)
-    _UPPERCASE_WORDS = {'na', 'n.a.', 'fsb', 'td', 'hsbc', 'bbva', 'usaa', 'pnc', 'bb&t'}
     # Words with specific casing (brand names)
-    _SPECIAL_CASE = {'jpmorgan': 'JPMorgan', 'sofi': 'SoFi'}
+    _SPECIAL_CASE = {'jpmorgan': 'JPMorgan', 'sofi': 'SoFi', 'bbva': 'BBVA',
+                     'hsbc': 'HSBC', 'usaa': 'USAA', 'pnc': 'PNC', 'td': 'TD'}
 
     @classmethod
     def _format_bank_name(cls, raw_name: str) -> str:
-        """Title-case a bank name while preserving acronyms and lowercasing articles."""
-        words = raw_name.strip().title().split()
+        """Clean up official bank name into a user-friendly display name.
+
+        Strips banking jargon (NA, N.A., FSB) and redundant suffixes,
+        then title-cases with proper handling of brand names.
+        """
+        # Strip trailing comma + whitespace
+        name = raw_name.strip().rstrip(',').strip()
+        # Remove "National Association" jargon: NA, N.A., N.A
+        name = re.sub(r'\bN\.?A\.?\b', '', name)
+        # Remove other banking suffixes (FSB = Federal Savings Bank, etc.)
+        name = re.sub(r'\bFSB\b', '', name)
+        # Clean up extra whitespace and trailing commas from removals
+        name = re.sub(r'\s*,\s*$', '', name)
+        name = re.sub(r'\s{2,}', ' ', name).strip()
+        # Title-case
+        words = name.title().split()
         result = []
         for i, w in enumerate(words):
             wl = w.lower()
             if wl in cls._SPECIAL_CASE:
                 result.append(cls._SPECIAL_CASE[wl])
-            elif wl in cls._UPPERCASE_WORDS:
-                result.append(w.upper())
             elif i > 0 and wl in ('of', 'the', 'and', 'for'):
                 result.append(wl)
             else:
