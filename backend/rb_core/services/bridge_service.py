@@ -292,30 +292,57 @@ class BridgeService:
         customer_id: str,
         account_number: str,
         routing_number: str,
-        account_type: str = "checking",
-        account_owner_name: Optional[str] = None,
+        checking_or_savings: str = "checking",
+        account_owner_name: str = "",
+        first_name: str = "",
+        last_name: str = "",
+        address: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        """Create external account with manual bank details entry.
+        """Create external US bank account with manual details entry.
+
+        Bridge API requires nested structure for US accounts:
+        - account_type: "us"
+        - currency: "usd"
+        - account: { account_number, routing_number, checking_or_savings }
+        - address: { street_line_1, city, state, country, postal_code }
 
         Args:
             customer_id: Bridge customer ID
             account_number: Bank account number
-            routing_number: Bank routing number (ABA)
-            account_type: "checking" or "savings"
+            routing_number: Bank routing number (9-digit ABA)
+            checking_or_savings: "checking" or "savings"
             account_owner_name: Name on the bank account
+            first_name: Account holder first name
+            last_name: Account holder last name
+            address: Dict with street_line_1, city, state, country, postal_code
 
         Returns:
             External account object from Bridge
         """
-        data = {
-            "type": "us_bank_account",
-            "account_number": account_number,
-            "routing_number": routing_number,
-            "account_type": account_type,
+        data: Dict[str, Any] = {
+            "currency": "usd",
+            "account_type": "us",
+            "account_owner_name": account_owner_name,
+            "account_owner_type": "individual",
+            "first_name": first_name,
+            "last_name": last_name,
+            "account": {
+                "account_number": account_number,
+                "routing_number": routing_number,
+                "checking_or_savings": checking_or_savings,
+            },
         }
 
-        if account_owner_name:
-            data["account_owner_name"] = account_owner_name
+        if address:
+            data["address"] = {
+                "street_line_1": address.get("street_line_1", ""),
+                "city": address.get("city", ""),
+                "state": address.get("state", ""),
+                "country": "USA",
+                "postal_code": address.get("postal_code", ""),
+            }
+            if address.get("street_line_2"):
+                data["address"]["street_line_2"] = address["street_line_2"]
 
         logger.info(f"Creating manual bank account for customer {customer_id}")
         return self._request("POST", f"/customers/{customer_id}/external_accounts", data)

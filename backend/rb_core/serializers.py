@@ -1509,7 +1509,7 @@ class BridgeOnboardingStatusSerializer(serializers.Serializer):
 
 
 class ManualBankAccountSerializer(serializers.Serializer):
-    """Serializer for manual bank account linking."""
+    """Serializer for manual US bank account linking via Bridge.xyz."""
     account_number = serializers.CharField(
         min_length=4,
         max_length=17,
@@ -1520,15 +1520,23 @@ class ManualBankAccountSerializer(serializers.Serializer):
         max_length=9,
         help_text="9-digit ABA routing number"
     )
-    account_type = serializers.ChoiceField(
+    checking_or_savings = serializers.ChoiceField(
         choices=['checking', 'savings'],
         default='checking'
     )
     account_owner_name = serializers.CharField(
-        max_length=255,
-        required=False,
-        help_text="Name on the bank account"
+        min_length=1,
+        max_length=35,
+        help_text="Name on the bank account (3-35 chars for ACH)"
     )
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
+    # Address fields (required for US accounts on Bridge)
+    street_line_1 = serializers.CharField(min_length=4, max_length=35)
+    street_line_2 = serializers.CharField(max_length=35, required=False, allow_blank=True)
+    city = serializers.CharField(max_length=100)
+    state = serializers.CharField(min_length=2, max_length=2, help_text="2-letter US state code")
+    postal_code = serializers.CharField(min_length=5, max_length=10)
 
     def validate_routing_number(self, value):
         """Validate routing number format."""
@@ -1541,6 +1549,10 @@ class ManualBankAccountSerializer(serializers.Serializer):
         if not value.isdigit():
             raise serializers.ValidationError("Account number must contain only digits")
         return value
+
+    def validate_state(self, value):
+        """Validate US state code."""
+        return value.upper()
 
 
 class PlaidLinkAccountSerializer(serializers.Serializer):

@@ -53,6 +53,27 @@ const colors = {
   infoBg: 'rgba(59,130,246,0.1)',
 };
 
+// Shared form styles
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  color: colors.textSecondary,
+  fontSize: 13,
+  marginBottom: 6,
+  fontWeight: 500,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 14px',
+  background: colors.bgCard,
+  border: `1px solid ${colors.border}`,
+  borderRadius: 8,
+  color: colors.text,
+  fontSize: 14,
+  outline: 'none',
+  boxSizing: 'border-box',
+};
+
 export const PayoutSettingsPage: React.FC = () => {
   const [status, setStatus] = useState<BridgeOnboardingStatus | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BridgeExternalAccount[]>([]);
@@ -63,11 +84,17 @@ export const PayoutSettingsPage: React.FC = () => {
   const [bankFormLoading, setBankFormLoading] = useState(false);
   const [bankFormError, setBankFormError] = useState<string | null>(null);
   const [bankFormData, setBankFormData] = useState({
-    account_owner_name: '',
+    first_name: '',
+    last_name: '',
     routing_number: '',
     account_number: '',
     account_number_confirm: '',
-    account_type: 'checking' as 'checking' | 'savings',
+    checking_or_savings: 'checking' as 'checking' | 'savings',
+    street_line_1: '',
+    street_line_2: '',
+    city: '',
+    state: '',
+    postal_code: '',
   });
   const [creatingAddress, setCreatingAddress] = useState(false);
   const [activeTab, setActiveTab] = useState<'withdraw' | 'send'>('withdraw');
@@ -118,6 +145,10 @@ export const PayoutSettingsPage: React.FC = () => {
     setBankFormError(null);
 
     // Validate
+    if (!bankFormData.first_name.trim() || !bankFormData.last_name.trim()) {
+      setBankFormError('First and last name are required');
+      return;
+    }
     if (bankFormData.account_number !== bankFormData.account_number_confirm) {
       setBankFormError('Account numbers do not match');
       return;
@@ -130,22 +161,39 @@ export const PayoutSettingsPage: React.FC = () => {
       setBankFormError('Account number must be at least 4 digits');
       return;
     }
+    if (!bankFormData.street_line_1.trim() || !bankFormData.city.trim() || !bankFormData.state.trim() || !bankFormData.postal_code.trim()) {
+      setBankFormError('Complete mailing address is required');
+      return;
+    }
 
     setBankFormLoading(true);
     try {
       await linkBankAccountManual({
         account_number: bankFormData.account_number,
         routing_number: bankFormData.routing_number,
-        account_type: bankFormData.account_type,
-        account_owner_name: bankFormData.account_owner_name || undefined,
+        checking_or_savings: bankFormData.checking_or_savings,
+        account_owner_name: `${bankFormData.first_name} ${bankFormData.last_name}`,
+        first_name: bankFormData.first_name,
+        last_name: bankFormData.last_name,
+        street_line_1: bankFormData.street_line_1,
+        street_line_2: bankFormData.street_line_2 || undefined,
+        city: bankFormData.city,
+        state: bankFormData.state.toUpperCase(),
+        postal_code: bankFormData.postal_code,
       });
       setShowBankForm(false);
       setBankFormData({
-        account_owner_name: '',
+        first_name: '',
+        last_name: '',
         routing_number: '',
         account_number: '',
         account_number_confirm: '',
-        account_type: 'checking',
+        checking_or_savings: 'checking',
+        street_line_1: '',
+        street_line_2: '',
+        city: '',
+        state: '',
+        postal_code: '',
       });
       await fetchData();
     } catch (err) {
@@ -513,9 +561,12 @@ export const PayoutSettingsPage: React.FC = () => {
                       padding: 24,
                       marginBottom: bankAccounts.length > 0 ? 16 : 0,
                     }}>
-                      <h3 style={{ color: colors.text, fontSize: 16, fontWeight: 600, margin: '0 0 20px' }}>
+                      <h3 style={{ color: colors.text, fontSize: 16, fontWeight: 600, margin: '0 0 4px' }}>
                         Link Bank Account
                       </h3>
+                      <p style={{ color: colors.textMuted, fontSize: 13, margin: '0 0 20px' }}>
+                        Enter your US bank account details for direct deposits.
+                      </p>
 
                       {bankFormError && (
                         <div style={{
@@ -533,35 +584,35 @@ export const PayoutSettingsPage: React.FC = () => {
 
                       <form onSubmit={handleBankFormSubmit}>
                         <div style={{ display: 'grid', gap: 16 }}>
-                          {/* Account Holder Name */}
-                          <div>
-                            <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
-                              Account Holder Name
-                            </label>
-                            <input
-                              type="text"
-                              value={bankFormData.account_owner_name}
-                              onChange={(e) => setBankFormData(prev => ({ ...prev, account_owner_name: e.target.value }))}
-                              placeholder="Full name on account"
-                              style={{
-                                width: '100%',
-                                padding: '10px 14px',
-                                background: colors.bgCard,
-                                border: `1px solid ${colors.border}`,
-                                borderRadius: 8,
-                                color: colors.text,
-                                fontSize: 14,
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                              }}
-                            />
+                          {/* Name */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <div>
+                              <label style={labelStyle}>First Name *</label>
+                              <input
+                                type="text"
+                                required
+                                value={bankFormData.first_name}
+                                onChange={(e) => setBankFormData(prev => ({ ...prev, first_name: e.target.value }))}
+                                placeholder="First name"
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Last Name *</label>
+                              <input
+                                type="text"
+                                required
+                                value={bankFormData.last_name}
+                                onChange={(e) => setBankFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                                placeholder="Last name"
+                                style={inputStyle}
+                              />
+                            </div>
                           </div>
 
                           {/* Routing Number */}
                           <div>
-                            <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
-                              Routing Number *
-                            </label>
+                            <label style={labelStyle}>Routing Number *</label>
                             <input
                               type="text"
                               inputMode="numeric"
@@ -571,26 +622,14 @@ export const PayoutSettingsPage: React.FC = () => {
                               value={bankFormData.routing_number}
                               onChange={(e) => setBankFormData(prev => ({ ...prev, routing_number: e.target.value.replace(/\D/g, '') }))}
                               placeholder="9-digit routing number"
-                              style={{
-                                width: '100%',
-                                padding: '10px 14px',
-                                background: colors.bgCard,
-                                border: `1px solid ${colors.border}`,
-                                borderRadius: 8,
-                                color: colors.text,
-                                fontSize: 14,
-                                outline: 'none',
-                                boxSizing: 'border-box',
-                              }}
+                              style={inputStyle}
                             />
                           </div>
 
                           {/* Account Number */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                             <div>
-                              <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
-                                Account Number *
-                              </label>
+                              <label style={labelStyle}>Account Number *</label>
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -599,23 +638,11 @@ export const PayoutSettingsPage: React.FC = () => {
                                 value={bankFormData.account_number}
                                 onChange={(e) => setBankFormData(prev => ({ ...prev, account_number: e.target.value.replace(/\D/g, '') }))}
                                 placeholder="Account number"
-                                style={{
-                                  width: '100%',
-                                  padding: '10px 14px',
-                                  background: colors.bgCard,
-                                  border: `1px solid ${colors.border}`,
-                                  borderRadius: 8,
-                                  color: colors.text,
-                                  fontSize: 14,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                }}
+                                style={inputStyle}
                               />
                             </div>
                             <div>
-                              <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
-                                Confirm Account Number *
-                              </label>
+                              <label style={labelStyle}>Confirm Account Number *</label>
                               <input
                                 type="text"
                                 inputMode="numeric"
@@ -624,39 +651,27 @@ export const PayoutSettingsPage: React.FC = () => {
                                 value={bankFormData.account_number_confirm}
                                 onChange={(e) => setBankFormData(prev => ({ ...prev, account_number_confirm: e.target.value.replace(/\D/g, '') }))}
                                 placeholder="Re-enter account number"
-                                style={{
-                                  width: '100%',
-                                  padding: '10px 14px',
-                                  background: colors.bgCard,
-                                  border: `1px solid ${colors.border}`,
-                                  borderRadius: 8,
-                                  color: colors.text,
-                                  fontSize: 14,
-                                  outline: 'none',
-                                  boxSizing: 'border-box',
-                                }}
+                                style={inputStyle}
                               />
                             </div>
                           </div>
 
                           {/* Account Type */}
                           <div>
-                            <label style={{ display: 'block', color: colors.textSecondary, fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
-                              Account Type *
-                            </label>
+                            <label style={labelStyle}>Account Type *</label>
                             <div style={{ display: 'flex', gap: 12 }}>
                               {(['checking', 'savings'] as const).map((type) => (
                                 <button
                                   key={type}
                                   type="button"
-                                  onClick={() => setBankFormData(prev => ({ ...prev, account_type: type }))}
+                                  onClick={() => setBankFormData(prev => ({ ...prev, checking_or_savings: type }))}
                                   style={{
                                     flex: 1,
                                     padding: '10px 16px',
-                                    background: bankFormData.account_type === type ? `${colors.accent}20` : colors.bgCard,
-                                    border: `1px solid ${bankFormData.account_type === type ? colors.accent : colors.border}`,
+                                    background: bankFormData.checking_or_savings === type ? `${colors.accent}20` : colors.bgCard,
+                                    border: `1px solid ${bankFormData.checking_or_savings === type ? colors.accent : colors.border}`,
                                     borderRadius: 8,
-                                    color: bankFormData.account_type === type ? colors.accent : colors.textSecondary,
+                                    color: bankFormData.checking_or_savings === type ? colors.accent : colors.textSecondary,
                                     fontSize: 14,
                                     fontWeight: 500,
                                     cursor: 'pointer',
@@ -666,6 +681,73 @@ export const PayoutSettingsPage: React.FC = () => {
                                   {type}
                                 </button>
                               ))}
+                            </div>
+                          </div>
+
+                          {/* Address Section */}
+                          <div style={{ borderTop: `1px solid ${colors.border}`, paddingTop: 16 }}>
+                            <label style={{ ...labelStyle, fontSize: 14, fontWeight: 600, marginBottom: 12, display: 'block' }}>
+                              Mailing Address
+                            </label>
+                            <div style={{ display: 'grid', gap: 12 }}>
+                              <div>
+                                <label style={labelStyle}>Street Address *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={bankFormData.street_line_1}
+                                  onChange={(e) => setBankFormData(prev => ({ ...prev, street_line_1: e.target.value }))}
+                                  placeholder="123 Main Street"
+                                  style={inputStyle}
+                                />
+                              </div>
+                              <div>
+                                <label style={labelStyle}>Apt / Suite (optional)</label>
+                                <input
+                                  type="text"
+                                  value={bankFormData.street_line_2}
+                                  onChange={(e) => setBankFormData(prev => ({ ...prev, street_line_2: e.target.value }))}
+                                  placeholder="Apt 4B"
+                                  style={inputStyle}
+                                />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12 }}>
+                                <div>
+                                  <label style={labelStyle}>City *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={bankFormData.city}
+                                    onChange={(e) => setBankFormData(prev => ({ ...prev, city: e.target.value }))}
+                                    placeholder="City"
+                                    style={inputStyle}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={labelStyle}>State *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    maxLength={2}
+                                    value={bankFormData.state}
+                                    onChange={(e) => setBankFormData(prev => ({ ...prev, state: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') }))}
+                                    placeholder="CA"
+                                    style={inputStyle}
+                                  />
+                                </div>
+                                <div>
+                                  <label style={labelStyle}>ZIP *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    maxLength={10}
+                                    value={bankFormData.postal_code}
+                                    onChange={(e) => setBankFormData(prev => ({ ...prev, postal_code: e.target.value }))}
+                                    placeholder="94107"
+                                    style={inputStyle}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>

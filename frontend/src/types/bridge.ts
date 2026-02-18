@@ -81,12 +81,19 @@ export interface BridgeOnboardingStatus {
   pending_bridge_amount: string;
 }
 
-// Manual bank account input
+// Manual bank account input (matches Bridge.xyz US account requirements)
 export interface ManualBankAccountInput {
   account_number: string;
   routing_number: string;
-  account_type: 'checking' | 'savings';
-  account_owner_name?: string;
+  checking_or_savings: 'checking' | 'savings';
+  account_owner_name: string;
+  first_name: string;
+  last_name: string;
+  street_line_1: string;
+  street_line_2?: string;
+  city: string;
+  state: string;
+  postal_code: string;
 }
 
 // API Response types

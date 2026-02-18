@@ -404,23 +404,33 @@ class LinkBankAccountManualView(APIView):
 
         try:
             bridge_service = BridgeService()
+            d = serializer.validated_data
             account_response = bridge_service.create_external_account_manual(
                 customer_id=bridge_customer.bridge_customer_id,
-                account_number=serializer.validated_data['account_number'],
-                routing_number=serializer.validated_data['routing_number'],
-                account_type=serializer.validated_data['account_type'],
-                account_owner_name=serializer.validated_data.get('account_owner_name'),
+                account_number=d['account_number'],
+                routing_number=d['routing_number'],
+                checking_or_savings=d['checking_or_savings'],
+                account_owner_name=d['account_owner_name'],
+                first_name=d['first_name'],
+                last_name=d['last_name'],
+                address={
+                    'street_line_1': d['street_line_1'],
+                    'street_line_2': d.get('street_line_2', ''),
+                    'city': d['city'],
+                    'state': d['state'],
+                    'postal_code': d['postal_code'],
+                },
             )
 
             # Create local record
-            last_four = serializer.validated_data['account_number'][-4:]
+            last_four = d['account_number'][-4:]
             external_account = BridgeExternalAccount.objects.create(
                 bridge_customer=bridge_customer,
                 bridge_external_account_id=account_response['id'],
                 account_name=f"****{last_four}",
                 bank_name=account_response.get('bank_name', ''),
                 last_four=last_four,
-                account_type=serializer.validated_data['account_type'],
+                account_type=d['checking_or_savings'],
                 is_default=not bridge_customer.external_accounts.filter(is_active=True).exists()
             )
 
