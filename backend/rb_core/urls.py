@@ -13,7 +13,8 @@ from .views.bridge import (
     ListExternalAccountsView, LinkBankAccountPlaidView, LinkBankAccountManualView,
     DeleteExternalAccountView, SetDefaultExternalAccountView,
     ListLiquidationAddressesView, CreateLiquidationAddressView, SetPrimaryLiquidationAddressView,
-    ListPayoutsView, GetPayoutPreferencesView, UpdatePayoutPreferencesView
+    ListPayoutsView, GetPayoutPreferencesView, UpdatePayoutPreferencesView,
+    RoutingNumberLookupView
 )
 from .views.purchases import UserPurchasesView, PurchaseStatusView, BatchPurchaseStatusView, OwnedIssuesView
 from .views.library import LibraryView, FullContentView, ReadingProgressView, ComicPreviewView, ComicReaderDataView
@@ -243,6 +244,7 @@ urlpatterns = [
     path('api/bridge/payouts/', ListPayoutsView.as_view(), name='bridge_payouts'),
     path('api/bridge/preferences/', GetPayoutPreferencesView.as_view(), name='bridge_preferences_get'),
     path('api/bridge/preferences/update/', UpdatePayoutPreferencesView.as_view(), name='bridge_preferences_update'),
+    path('api/bridge/routing-lookup/', RoutingNumberLookupView.as_view(), name='bridge_routing_lookup'),
 
     # ==========================================================================
     # Dual Payment System (Coinbase Onramp + Direct Crypto)

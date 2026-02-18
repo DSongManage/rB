@@ -4,7 +4,7 @@
  * Redesigned with dark theme to match app aesthetic.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Plus, RefreshCw, Shield, Building2, Wallet,
@@ -23,6 +23,7 @@ import {
   listBankAccounts,
   createLiquidationAddress,
   linkBankAccountManual,
+  lookupRoutingNumber,
 } from '../services/bridgeApi';
 import type {
   BridgeOnboardingStatus,
@@ -96,6 +97,8 @@ export const PayoutSettingsPage: React.FC = () => {
     state: '',
     postal_code: '',
   });
+  const [routingLookup, setRoutingLookup] = useState<{ bank_name?: string; valid?: boolean; loading?: boolean } | null>(null);
+  const routingLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [creatingAddress, setCreatingAddress] = useState(false);
   const [activeTab, setActiveTab] = useState<'withdraw' | 'send'>('withdraw');
 
@@ -135,9 +138,34 @@ export const PayoutSettingsPage: React.FC = () => {
     fetchData();
   }, []);
 
+  const handleRoutingNumberChange = (value: string) => {
+    const clean = value.replace(/\D/g, '');
+    setBankFormData(prev => ({ ...prev, routing_number: clean }));
+
+    // Clear previous timer
+    if (routingLookupTimer.current) clearTimeout(routingLookupTimer.current);
+
+    if (clean.length !== 9) {
+      setRoutingLookup(null);
+      return;
+    }
+
+    // Debounce the lookup
+    setRoutingLookup({ loading: true });
+    routingLookupTimer.current = setTimeout(async () => {
+      try {
+        const result = await lookupRoutingNumber(clean);
+        setRoutingLookup(result);
+      } catch {
+        setRoutingLookup(null);
+      }
+    }, 300);
+  };
+
   const handleLinkBankAccount = () => {
     setShowBankForm(true);
     setBankFormError(null);
+    setRoutingLookup(null);
   };
 
   const handleBankFormSubmit = async (e: React.FormEvent) => {
@@ -155,6 +183,10 @@ export const PayoutSettingsPage: React.FC = () => {
     }
     if (bankFormData.routing_number.length !== 9) {
       setBankFormError('Routing number must be 9 digits');
+      return;
+    }
+    if (routingLookup?.valid === false) {
+      setBankFormError('Please enter a valid routing number');
       return;
     }
     if (bankFormData.account_number.length < 4) {
@@ -182,6 +214,7 @@ export const PayoutSettingsPage: React.FC = () => {
         postal_code: bankFormData.postal_code,
       });
       setShowBankForm(false);
+      setRoutingLookup(null);
       setBankFormData({
         first_name: '',
         last_name: '',
@@ -620,10 +653,42 @@ export const PayoutSettingsPage: React.FC = () => {
                               maxLength={9}
                               required
                               value={bankFormData.routing_number}
-                              onChange={(e) => setBankFormData(prev => ({ ...prev, routing_number: e.target.value.replace(/\D/g, '') }))}
+                              onChange={(e) => handleRoutingNumberChange(e.target.value)}
                               placeholder="9-digit routing number"
-                              style={inputStyle}
+                              style={{
+                                ...inputStyle,
+                                borderColor: routingLookup?.valid === false ? colors.error
+                                  : routingLookup?.valid === true ? colors.success
+                                  : colors.border,
+                              }}
                             />
+                            {routingLookup && (
+                              <div style={{
+                                marginTop: 6,
+                                fontSize: 13,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                              }}>
+                                {routingLookup.loading ? (
+                                  <span style={{ color: colors.textMuted }}>Looking up...</span>
+                                ) : routingLookup.valid ? (
+                                  <>
+                                    <CheckCircle2 size={14} style={{ color: colors.success }} />
+                                    <span style={{ color: colors.success, fontWeight: 500 }}>
+                                      {routingLookup.bank_name}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <AlertCircle size={14} style={{ color: colors.error }} />
+                                    <span style={{ color: colors.error }}>
+                                      Invalid routing number
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {/* Account Number */}

@@ -734,3 +734,51 @@ class UpdatePayoutPreferencesView(APIView):
             'payout_destination': profile.payout_destination,
             'bridge_payout_percentage': profile.bridge_payout_percentage,
         })
+
+
+class RoutingNumberLookupView(APIView):
+    """Look up bank name from ABA routing number."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Validate routing number and return bank name."""
+        import requests as http_requests
+
+        routing_number = request.query_params.get('routing_number', '').strip()
+
+        # Basic validation
+        if not routing_number.isdigit() or len(routing_number) != 9:
+            return Response({
+                'valid': False,
+                'error': 'Routing number must be 9 digits',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ABA checksum validation
+        digits = [int(d) for d in routing_number]
+        weights = [3, 7, 1, 3, 7, 1, 3, 7, 1]
+        checksum = sum(d * w for d, w in zip(digits, weights))
+        if checksum % 10 != 0:
+            return Response({
+                'valid': False,
+                'error': 'Invalid routing number',
+            })
+
+        # Look up bank name from routingnumbers.info
+        bank_name = None
+        try:
+            resp = http_requests.get(
+                f'https://www.routingnumbers.info/api/data.json?rn={routing_number}',
+                timeout=5,
+            )
+            if resp.ok:
+                data = resp.json()
+                if data.get('code') == 200:
+                    bank_name = data.get('customer_name', '').strip()
+        except Exception:
+            pass  # Lookup is best-effort; checksum already validated
+
+        return Response({
+            'valid': True,
+            'routing_number': routing_number,
+            'bank_name': bank_name or 'Valid routing number',
+        })

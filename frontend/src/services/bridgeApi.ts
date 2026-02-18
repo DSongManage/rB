@@ -310,6 +310,22 @@ export async function updatePayoutPreferences(
 // =============================================================================
 
 /**
+ * Look up bank name from routing number.
+ * Returns { valid, bank_name, routing_number } or { valid: false, error }.
+ */
+export async function lookupRoutingNumber(routingNumber: string): Promise<{
+  valid: boolean;
+  bank_name?: string;
+  error?: string;
+}> {
+  const response = await fetch(
+    `${API_URL}/api/bridge/routing-lookup/?routing_number=${routingNumber}`,
+    { credentials: 'include' }
+  );
+  return response.json();
+}
+
+/**
  * Check if Bridge is fully set up for the user.
  * Useful for showing/hiding payout options.
  */
