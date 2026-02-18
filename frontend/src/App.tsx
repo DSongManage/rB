@@ -67,6 +67,8 @@ const MarketingHome = lazy(() => import('./pages/marketing/MarketingHome'));
 const HowItWorksPage = lazy(() => import('./pages/marketing/HowItWorks'));
 const PricingPage = lazy(() => import('./pages/marketing/Pricing'));
 const AboutPage = lazy(() => import('./pages/marketing/About'));
+const BlogPage = lazy(() => import('./pages/marketing/Blog'));
+const BlogPostPage = lazy(() => import('./pages/marketing/BlogPost'));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -295,8 +297,8 @@ export default function App() {
   const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
 
   // Marketing pages (accessible to everyone, rendered without app chrome)
-  const marketingPaths = ['/how-it-works', '/pricing', '/about'];
-  const isMarketingRoute = marketingPaths.includes(location.pathname);
+  const marketingPaths = ['/how-it-works', '/pricing', '/about', '/blog'];
+  const isMarketingRoute = marketingPaths.includes(location.pathname) || location.pathname.startsWith('/blog/');
 
   // Show loading state while checking authentication
   if (loading) {
@@ -324,6 +326,8 @@ export default function App() {
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
         </Routes>
       </Suspense>
     );
