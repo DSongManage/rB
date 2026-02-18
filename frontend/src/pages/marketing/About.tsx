@@ -19,38 +19,31 @@ export default function About() {
         <div className="mk-container">
           <div className="mk-about-narrative">
             <div className="mk-about-block">
-              <h2>The Problem</h2>
+              <h2>Who We Are</h2>
               <p>
-                There's a writer with a story that would make an incredible comic. They can see every panel in their head — the splash pages, the quiet moments, the cliffhangers. But they can't draw.
+                renaissBlock is where writers and artists find each other and build something together.
               </p>
               <p>
-                There's an artist with extraordinary talent who's tired of drawing other people's ideas on Fiverr for $50 a pop. They want to build something they <em>own</em>.
+                Finding the right creative partner is hard. Reddit posts, Discord servers, convention networking — it's scattered and inefficient. And even when you find someone, agreeing on money is awkward and enforcing that agreement is harder.
+              </p>
+              <p>
+                We built a place where creators come together, agree on terms, and publish — with every sale splitting revenue automatically. No invoicing. No chasing payments. No trust required.
               </p>
             </div>
 
             <div className="mk-about-block">
-              <h2>The Insight</h2>
+              <h2>What We Do</h2>
               <p>
-                These two people need each other. But finding each other is hard. Trusting each other is harder. And figuring out how to share money fairly? That's where most collaborations die.
+                Browse profiles. Find someone whose work resonates. Send them a proposal with your pitch and your split. If they accept, you're partners.
               </p>
               <p>
-                One person does the work, the other handles payments. Someone forgets. Someone feels shorted. The awkwardness builds, the creative energy drains, and the project dies — not because the work wasn't good, but because the business side was broken.
+                Every sale distributes revenue instantly according to your agreement, enforced by code. The technology behind it is completely invisible — you just create, publish, and get paid.
               </p>
             </div>
 
             <blockquote className="mk-about-quote">
               renaissBlock exists so that collaboration never dies because of money.
             </blockquote>
-
-            <div className="mk-about-block">
-              <h2>The Mission</h2>
-              <p>
-                We built a platform where writers and artists can find each other, agree on terms, and publish together — with every sale splitting revenue automatically, enforced by smart contracts. No invoicing, no chasing payments, no trust required.
-              </p>
-              <p>
-                The technology that powers this — blockchain, smart contracts, digital wallets — is completely invisible to our users. They never see it, never need to understand it. They just create, publish, and get paid.
-              </p>
-            </div>
 
             <div className="mk-about-block">
               <h2>The Name</h2>
