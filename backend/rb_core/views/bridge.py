@@ -8,7 +8,10 @@ Provides endpoints for:
 - Payout history and preferences
 """
 import logging
+import re
+import requests
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.views import APIView
@@ -737,83 +740,59 @@ class UpdatePayoutPreferencesView(APIView):
 
 
 class RoutingNumberLookupView(APIView):
-    """Look up bank name from ABA routing number."""
+    """Look up bank name from ABA routing number using Wise data."""
     permission_classes = [IsAuthenticated]
 
-    # Major US bank routing numbers (exact match).
-    # Sources: each bank's official website.
-    KNOWN_ROUTING_NUMBERS = {
-        # Wells Fargo
-        '121000248': 'Wells Fargo', '121042882': 'Wells Fargo',
-        '111900659': 'Wells Fargo', '062000080': 'Wells Fargo',
-        '021200025': 'Wells Fargo', '091000019': 'Wells Fargo',
-        '107002192': 'Wells Fargo', '102000076': 'Wells Fargo',
-        '092107869': 'Wells Fargo', '122000247': 'Wells Fargo',
-        '121145433': 'Wells Fargo',
-        # Chase
-        '021000021': 'JPMorgan Chase', '022300173': 'JPMorgan Chase',
-        '083000137': 'JPMorgan Chase', '065400137': 'JPMorgan Chase',
-        '071000013': 'JPMorgan Chase', '044000037': 'JPMorgan Chase',
-        '072000326': 'JPMorgan Chase', '322271627': 'JPMorgan Chase',
-        '325070760': 'JPMorgan Chase', '021202337': 'JPMorgan Chase',
-        # Bank of America
-        '026009593': 'Bank of America', '011000138': 'Bank of America',
-        '051000017': 'Bank of America', '121000358': 'Bank of America',
-        '111000025': 'Bank of America', '061000052': 'Bank of America',
-        '082000073': 'Bank of America', '071000505': 'Bank of America',
-        '081000032': 'Bank of America', '021200339': 'Bank of America',
-        # Citibank
-        '021000089': 'Citibank', '322271724': 'Citibank',
-        '021001486': 'Citibank', '271070801': 'Citibank',
-        # US Bank
-        '091000022': 'U.S. Bank', '122235821': 'U.S. Bank',
-        '042100175': 'U.S. Bank', '091000022': 'U.S. Bank',
-        '123103729': 'U.S. Bank', '091215927': 'U.S. Bank',
-        '081000210': 'U.S. Bank', '101000187': 'U.S. Bank',
-        # PNC Bank
-        '043000096': 'PNC Bank', '042000398': 'PNC Bank',
-        '031100089': 'PNC Bank', '054000030': 'PNC Bank',
-        '083000108': 'PNC Bank', '041000124': 'PNC Bank',
-        # TD Bank
-        '031101266': 'TD Bank', '036001808': 'TD Bank',
-        '011600033': 'TD Bank', '011103093': 'TD Bank',
-        '011400071': 'TD Bank', '054001725': 'TD Bank',
-        # Capital One
-        '051405515': 'Capital One', '056073502': 'Capital One',
-        '065000090': 'Capital One', '051001033': 'Capital One',
-        '255071981': 'Capital One',
-        # Truist (BB&T + SunTrust)
-        '053101121': 'Truist', '061000104': 'Truist',
-        '053100465': 'Truist', '055002707': 'Truist',
-        # USAA
-        '314074269': 'USAA', '114094041': 'USAA',
-        # Ally Bank
-        '124003116': 'Ally Bank',
-        # Charles Schwab
-        '121202211': 'Charles Schwab',
-        # Discover Bank
-        '031100649': 'Discover Bank',
-        # Goldman Sachs (Marcus)
-        '124085024': 'Marcus by Goldman Sachs',
-        # Navy Federal Credit Union
-        '256074974': 'Navy Federal Credit Union',
-        # Fidelity
-        '101205681': 'Fidelity Investments',
-        # SoFi
-        '084106768': 'SoFi',
-        # Chime
-        '031101279': 'Chime (via Stride Bank)',
-        '103100195': 'Chime (via Stride Bank)',
-    }
+    CACHE_PREFIX = 'routing_bank_'
+    CACHE_TTL = 60 * 60 * 24 * 30  # 30 days — routing numbers don't change banks
 
     # Federal Reserve District prefixes (first 2 digits).
-    # Useful fallback to at least identify the region.
     FED_DISTRICTS = {
         '01': 'Boston', '02': 'New York', '03': 'Philadelphia',
         '04': 'Cleveland', '05': 'Richmond', '06': 'Atlanta',
         '07': 'Chicago', '08': 'St. Louis', '09': 'Minneapolis',
         '10': 'Kansas City', '11': 'Dallas', '12': 'San Francisco',
     }
+
+    # Words that should stay fully uppercase (acronyms in bank names)
+    _UPPERCASE_WORDS = {'na', 'n.a.', 'fsb', 'td', 'hsbc', 'bbva', 'usaa', 'pnc', 'bb&t'}
+    # Words with specific casing (brand names)
+    _SPECIAL_CASE = {'jpmorgan': 'JPMorgan', 'sofi': 'SoFi'}
+
+    @classmethod
+    def _format_bank_name(cls, raw_name: str) -> str:
+        """Title-case a bank name while preserving acronyms and lowercasing articles."""
+        words = raw_name.strip().title().split()
+        result = []
+        for i, w in enumerate(words):
+            wl = w.lower()
+            if wl in cls._SPECIAL_CASE:
+                result.append(cls._SPECIAL_CASE[wl])
+            elif wl in cls._UPPERCASE_WORDS:
+                result.append(w.upper())
+            elif i > 0 and wl in ('of', 'the', 'and', 'for'):
+                result.append(wl)
+            else:
+                result.append(w)
+        return ' '.join(result)
+
+    @classmethod
+    def _fetch_bank_name(cls, routing_number: str) -> str | None:
+        """Fetch bank name from Wise routing number page."""
+        try:
+            resp = requests.get(
+                f'https://wise.com/us/routing-number/{routing_number}',
+                headers={'User-Agent': 'Mozilla/5.0'},
+                timeout=5,
+            )
+            if resp.status_code != 200:
+                return None
+            match = re.search(r'"bankName"\s*:\s*"([^"]+)"', resp.text)
+            if match:
+                return cls._format_bank_name(match.group(1))
+            return None
+        except requests.RequestException:
+            return None
 
     def get(self, request):
         """Validate routing number and return bank name."""
@@ -836,13 +815,21 @@ class RoutingNumberLookupView(APIView):
                 'error': 'Invalid routing number',
             })
 
-        # Look up bank name from known routing numbers
-        bank_name = self.KNOWN_ROUTING_NUMBERS.get(routing_number)
+        # Check cache first
+        cache_key = f'{self.CACHE_PREFIX}{routing_number}'
+        bank_name = cache.get(cache_key)
 
-        if not bank_name:
-            # Fallback: identify Fed district
-            district = self.FED_DISTRICTS.get(routing_number[:2], '')
-            bank_name = f'Valid routing number ({district} district)' if district else 'Valid routing number'
+        if bank_name is None:
+            # Fetch from Wise
+            bank_name = self._fetch_bank_name(routing_number)
+            if bank_name:
+                cache.set(cache_key, bank_name, self.CACHE_TTL)
+            else:
+                # Fallback: identify Fed district
+                district = self.FED_DISTRICTS.get(routing_number[:2], '')
+                bank_name = f'Valid routing number ({district} district)' if district else 'Valid routing number'
+                # Cache fallback for shorter period so we retry later
+                cache.set(cache_key, bank_name, 60 * 60)  # 1 hour
 
         return Response({
             'valid': True,
