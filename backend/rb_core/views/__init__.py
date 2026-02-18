@@ -1966,6 +1966,13 @@ class SignupView(APIView):
             except Web3AuthVerificationError as exc:
                 return Response({'error': f'web3auth verification failed: {exc}'}, status=400)
         profile = serializer.save()
+
+        # Log the new user in immediately — flushes any existing session
+        # (e.g. admin session from Django admin in the same browser).
+        from django.contrib.auth import login as django_login
+        django_login(request, profile.user,
+                     backend='django.contrib.auth.backends.ModelBackend')
+
         return Response(UserProfileSerializer(profile).data, status=201)
 
 

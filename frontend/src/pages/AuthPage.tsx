@@ -117,8 +117,9 @@ export default function AuthPage() {
     try {
       const st = await fetch(`${API_URL}/api/auth/status/`, { credentials:'include' });
       const data = await st.json();
-      if (data?.authenticated) return true;
-      // Try programmatic login with provided credentials using custom endpoint
+      // Verify authenticated as the CORRECT user (not a stale admin session)
+      if (data?.authenticated && data?.user?.username === username) return true;
+      // Either not authenticated or authenticated as wrong user — login explicitly
       const res = await fetch(`${API_URL}/api/users/login/`, {
         method:'POST',
         credentials:'include',
