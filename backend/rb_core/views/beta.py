@@ -82,11 +82,11 @@ Or manage in Django admin:
 ''',
             from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com'),
             recipient_list=[admin_email],
-            fail_silently=True
+            fail_silently=False
         )
-        logger.info(f'Beta access requested by {email}')
+        logger.info(f'Beta access requested by {email}, admin notified at {admin_email}')
     except Exception as e:
-        logger.error(f'Failed to send admin notification: {e}')
+        logger.error(f'Failed to send admin notification for {email}: {e}', exc_info=True)
 
     return Response({
         'success': True,

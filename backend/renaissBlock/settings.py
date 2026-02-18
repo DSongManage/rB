@@ -548,8 +548,8 @@ else:
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', 'admin@example.com')  # Update this to your email
 
-# Email timeout to prevent worker hangs (Railway may block SMTP)
-EMAIL_TIMEOUT = 5  # Fail quickly if SMTP is blocked
+# Email timeout (seconds) – Gmail TLS handshake + auth needs ~10-15s
+EMAIL_TIMEOUT = 30
 
 # ============================================================================
 # Celery Configuration for Async Tasks
