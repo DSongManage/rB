@@ -3,6 +3,33 @@ import { Check } from 'lucide-react';
 import SEOHead from './SEOHead';
 import MarketingLayout from './MarketingLayout';
 
+const pricingSchemas = [
+  {
+    "@type": "Offer",
+    "name": "Standard",
+    "price": "0",
+    "priceCurrency": "USD",
+    "description": "Free to join and publish. 10% platform fee on sales — creators keep 90% of every sale. Includes automatic revenue splits, secure digital wallet, bank cashouts, reader analytics, and unlimited collaborations.",
+    "eligibleRegion": "Worldwide",
+    "seller": {
+      "@type": "Organization",
+      "name": "renaissBlock"
+    }
+  },
+  {
+    "@type": "Offer",
+    "name": "Founding Creator",
+    "price": "0",
+    "priceCurrency": "USD",
+    "description": "Permanent 1% platform fee — creators keep 99% of every sale. Available to the first 50 creators who complete a project earning $100+ in sales. Includes Founding Creator badge, priority in creator directory, and early access to new features.",
+    "eligibleRegion": "Worldwide",
+    "seller": {
+      "@type": "Organization",
+      "name": "renaissBlock"
+    }
+  }
+];
+
 const standardFeatures = [
   'Free to sign up & publish',
   'Automatic revenue splits',
@@ -36,6 +63,7 @@ export default function Pricing() {
         title="Pricing | renaissBlock — Simple, Creator-First Pricing"
         description="Keep 90-99% of every sale. renaissBlock charges a simple 10% platform fee — or just 1% for founding creators. No hidden fees, no subscriptions."
         canonicalPath="/pricing"
+        schemas={pricingSchemas}
       />
 
       <div className="mk-page-hero">

@@ -1,13 +1,44 @@
 import SEOHead from './SEOHead';
 import MarketingLayout from './MarketingLayout';
 
+const aboutFaqSchema = {
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is renaissBlock?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "renaissBlock is a comic collaboration platform where writers and artists find each other, agree on revenue splits, and publish together. Every sale automatically distributes earnings to each collaborator's wallet — no invoicing, no chasing payments."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does trustless revenue sharing work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "When collaborators agree on a revenue split, that agreement is enforced by smart contracts on the Solana blockchain. Every time a reader purchases your work, earnings are automatically divided and deposited into each partner's wallet instantly. No one can change the split after it's set."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is renaissBlock free to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. It's free to sign up, create a profile, and publish your work. renaissBlock takes a 10% platform fee on sales. Founding creators — the first 50 to complete a project earning $100+ in sales — get a permanent 1% fee instead, keeping 99% of every sale."
+      }
+    }
+  ]
+};
+
 export default function About() {
   return (
     <MarketingLayout>
       <SEOHead
-        title="About renaissBlock — Where Writers and Artists Collaborate and Get Paid"
-        description="renaissBlock is where writers and artists find each other, agree on terms, and publish together — with every sale splitting revenue automatically. No invoicing. No chasing payments. No trust required."
+        title="About renaissBlock | Comic Collaboration Platform"
+        description="renaissBlock is where writers and artists find each other, agree on terms, and publish together — with every sale splitting revenue automatically."
         canonicalPath="/about"
+        schemas={[aboutFaqSchema]}
       />
 
       <div className="mk-page-hero">

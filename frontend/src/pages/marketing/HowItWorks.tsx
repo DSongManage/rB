@@ -115,7 +115,7 @@ export default function HowItWorks() {
   return (
     <MarketingLayout>
       <SEOHead
-        title="How It Works | renaissBlock — Comic Collaboration Platform"
+        title="How It Works | renaissBlock"
         description="Learn how renaissBlock connects writers and artists for comic collaborations with automatic revenue sharing. Create, publish, and earn — step by step."
         canonicalPath="/how-it-works"
         schemas={[faqPageSchema, howToSchema]}

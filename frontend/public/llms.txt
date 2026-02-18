@@ -1,0 +1,34 @@
+# renaissBlock
+
+## What is renaissBlock?
+
+renaissBlock is a comic collaboration platform where writers and artists create together with automatic, trustless revenue sharing. Writers who can't draw find artists. Artists who want original projects find writers. They agree on a revenue split, publish chapter by chapter, and every sale automatically distributes earnings to each collaborator's wallet.
+
+URL: https://renaissblock.com
+
+## Key Pages
+
+- Home: https://renaissblock.com/
+- How It Works: https://renaissblock.com/how-it-works
+- Pricing: https://renaissblock.com/pricing
+- About: https://renaissblock.com/about
+- Blog: https://renaissblock.com/blog
+
+## What makes renaissBlock different?
+
+- Automatic revenue splits enforced by smart contracts — no contracts or lawyers needed
+- Writers and artists collaborate as equal partners, not employer/freelancer
+- Chapter-by-chapter publishing de-risks collaboration
+- Readers pay with Apple Pay, Google Pay, or debit card — no crypto knowledge needed
+- Creators cash out to their bank account in 1-3 days
+- 90% of revenue goes to creators (99% for founding creators)
+
+## Pricing
+
+- Free to join and publish
+- Standard: 10% platform fee (creators keep 90%)
+- Founding Creator: 1% platform fee forever (creators keep 99%) — limited to first 50 qualifying creators
+
+## Company
+
+renaissBlock, LLC is incorporated in California. Founded by David Song.

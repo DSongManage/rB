@@ -41,6 +41,7 @@ export default function MarketingNav() {
           <Link to="/how-it-works" className={`mk-nav-link ${isActive('/how-it-works') ? 'active' : ''}`}>How It Works</Link>
           <Link to="/pricing" className={`mk-nav-link ${isActive('/pricing') ? 'active' : ''}`}>Creators</Link>
           <Link to="/about" className={`mk-nav-link ${isActive('/about') ? 'active' : ''}`}>About</Link>
+          <Link to="/blog" className={`mk-nav-link ${isActive('/blog') ? 'active' : ''}`}>Blog</Link>
           <a href="/#signup" className="mk-nav-cta">Start Creating</a>
         </div>
       </div>

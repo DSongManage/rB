@@ -71,7 +71,7 @@ export default function MarketingHome() {
     <MarketingLayout>
       <SEOHead
         title="renaissBlock — Where Writers and Artists Create Together"
-        description="A marketplace for comic collaborations with automatic revenue sharing. Writers find artists, artists find writers. Publish chapter by chapter, split revenue instantly, and cash out to your bank."
+        description="A comic collaboration marketplace with automatic revenue sharing. Writers find artists, publish chapter by chapter, and cash out to your bank."
         canonicalPath="/"
         schemas={[softwareAppSchema]}
       />

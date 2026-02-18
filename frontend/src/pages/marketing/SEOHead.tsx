@@ -52,6 +52,7 @@ export default function SEOHead({ title, description, canonicalPath, ogType = 'w
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
+      <meta name="twitter:image" content={`${BASE_URL}/logo512.png`} />
       <script type="application/ld+json">{JSON.stringify(graphData)}</script>
     </Helmet>
   );
