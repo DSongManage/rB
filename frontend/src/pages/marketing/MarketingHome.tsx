@@ -182,6 +182,20 @@ export default function MarketingHome() {
               <p>Every sale splits revenue automatically. Creators cash out to their bank account anytime. Simple.</p>
             </div>
           </div>
+          <div className="mk-screenshots">
+            <div className="mk-screenshot-card">
+              <div className="mk-screenshot-label">Browse creators and invite collaborators</div>
+              <img src="/screenshots/team-up.png" alt="Find collaborators - browse writers and artists" loading="lazy" />
+            </div>
+            <div className="mk-screenshot-card">
+              <div className="mk-screenshot-label">Create books, comics, or art</div>
+              <img src="/screenshots/post-create.png" alt="Create a new project in renaissBlock studio" loading="lazy" />
+            </div>
+            <div className="mk-screenshot-card">
+              <div className="mk-screenshot-label">Publish and earn with automatic revenue splits</div>
+              <img src="/screenshots/publish-earn.png" alt="Published works with pricing and stats" loading="lazy" />
+            </div>
+          </div>
         </div>
       </section>
 
