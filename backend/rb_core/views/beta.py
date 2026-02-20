@@ -175,8 +175,8 @@ def quick_approve_beta(request, token):
             content_type='text/html', status=404,
         )
 
-    # Already processed?
-    if beta_invite.status in ('approved', 'sent', 'used'):
+    # Already fully sent or used — nothing to do
+    if beta_invite.status in ('sent', 'used'):
         return HttpResponse(
             '<h2>Already processed</h2>'
             '<p>This invite for <b>{email}</b> was already approved '
@@ -194,10 +194,11 @@ def quick_approve_beta(request, token):
             content_type='text/html', status=409,
         )
 
-    # Approve: generate code and send invite email
-    beta_invite.generate_invite_code()
-    beta_invite.status = 'approved'
-    beta_invite.save()
+    # Status is 'requested' or 'approved' (approved = previous email send failed).
+    # Generate invite code if not already present.
+    if not beta_invite.invite_code:
+        beta_invite.generate_invite_code()
+        beta_invite.save(update_fields=['invite_code'])
 
     try:
         send_beta_invite_email(beta_invite)
@@ -210,12 +211,20 @@ def quick_approve_beta(request, token):
             content_type='text/html',
         )
     except Exception as e:
-        logger.error(f'Quick-approve email failed for {beta_invite.email}: {e}')
+        # Save as 'approved' so we know the code was generated but email failed
+        if beta_invite.status != 'approved':
+            beta_invite.status = 'approved'
+            beta_invite.save(update_fields=['status'])
+        logger.error(
+            'Quick-approve email failed for %s: %s',
+            beta_invite.email, e, exc_info=True,
+        )
         return HttpResponse(
-            '<h2>Approved but email failed</h2>'
+            '<h2>Email failed — click the link again to retry</h2>'
             '<p>Invite for <b>{email}</b> approved (code: <code>{code}</code>), '
             'but the invite email failed to send. Error: {err}</p>'
-            '<p>You can resend from <a href="{backend}/admin/rb_core/betainvite/{id}/change/">Django admin</a>.</p>'.format(
+            '<p>Click the approval link again to retry, or resend from '
+            '<a href="{backend}/admin/rb_core/betainvite/{id}/change/">Django admin</a>.</p>'.format(
                 email=beta_invite.email,
                 code=beta_invite.invite_code,
                 err=str(e),
@@ -359,7 +368,10 @@ P.S. The first 50 creators to complete a project earning $100+ in sales lock in 
         logger.info(f'Beta invite email sent to {beta_invite.email}')
 
     except Exception as e:
-        logger.error(f'Failed to send beta invite email to {beta_invite.email}: {e}')
+        logger.error(
+            'Failed to send beta invite email to %s: %s',
+            beta_invite.email, e, exc_info=True,
+        )
         # Don't change status if email failed
         raise
 

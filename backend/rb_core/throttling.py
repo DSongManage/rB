@@ -34,9 +34,9 @@ class SignupRateThrottle(AnonRateThrottle):
 
     Prevents mass account creation and spam.
     """
-    # In DEBUG mode: 5 signups per hour (for testing)
-    # In production: 3 signups per hour
-    rate = '5/hour' if settings.DEBUG else '3/hour'
+    # In DEBUG mode: 10 signups per hour (for testing)
+    # In production: 5 signups per hour
+    rate = '10/hour' if settings.DEBUG else '5/hour'
     scope = 'signup'
 
 

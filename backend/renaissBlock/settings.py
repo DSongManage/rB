@@ -260,6 +260,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Environment-aware HTTPS enforcement: strict in production, permissive in dev
 # Railway (and most platforms) terminates SSL at load balancer level
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Trust X-Forwarded-Proto header
+NUM_PROXIES = 1  # Railway terminates at one proxy; tells DRF to read real client IP from X-Forwarded-For
 SECURE_SSL_REDIRECT = not DEBUG  # Redirect HTTP to HTTPS in production
 SECURE_REDIRECT_EXEMPT = [r'^health/$']  # Allow HTTP healthchecks from Railway load balancer
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0  # 1 year HSTS in production
@@ -502,7 +503,7 @@ REST_FRAMEWORK = {
         # Strict auth endpoint throttles (prevent brute force attacks)
         'auth_anon': '10/min' if DEBUG else '5/min',
         'auth_user': '20/min' if DEBUG else '10/min',
-        'signup': '5/hour' if DEBUG else '3/hour',
+        'signup': '10/hour' if DEBUG else '5/hour',
         'password_reset': '5/hour' if DEBUG else '3/hour',
     },
     # Custom exception handler for generic error messages in production
