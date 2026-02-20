@@ -278,10 +278,10 @@ export default function AuthPage() {
         // Login successful
         setMsg('Login successful! Redirecting...');
 
-        // Wait a moment for session to be fully established, then hard reload to profile
+        // Wait a moment for session to be fully established, then hard reload to home
         // Hard reload ensures fresh auth state check
         setTimeout(() => {
-          window.location.href = '/profile';
+          window.location.href = '/';
         }, 500);
       } else {
         // Show error from backend
@@ -392,8 +392,8 @@ export default function AuthPage() {
       });
       if (res.ok) {
         setWalletStatus('✅ Wallet created and linked successfully!');
-        // Redirect to profile after wallet setup
-        setTimeout(() => window.location.href = '/profile', 1500);
+        // Redirect to home after wallet setup
+        setTimeout(() => window.location.href = '/', 1500);
       } else {
         const t = await res.text();
         setWalletStatus(`Error linking wallet: ${t}`);
@@ -483,7 +483,7 @@ export default function AuthPage() {
           } catch {}
         }
         setWalletStatus('✅ Signed in successfully!');
-        setTimeout(() => window.location.href = '/profile', 1000);
+        setTimeout(() => window.location.href = '/', 1000);
       } else {
         setWalletStatus('Signed in, but session not detected yet. Please refresh the page.');
       }
@@ -503,8 +503,8 @@ export default function AuthPage() {
     });
     if (res.ok) {
       setWalletStatus('Wallet linked');
-      // Redirect to profile after wallet setup
-      setTimeout(() => window.location.href = '/profile', 500);
+      // Redirect to home after wallet setup
+      setTimeout(() => window.location.href = '/', 500);
     } else {
       const t = await res.text();
       setWalletStatus(`Failed: ${t}`);
