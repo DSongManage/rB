@@ -12,6 +12,17 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
   {
+    slug: 'anatomy-of-a-comic-visual-guide',
+    title: 'Anatomy of a Comic — A Visual Guide for New Creators',
+    tag: 'Visual Guide',
+    excerpt: 'From panels and gutters to cover layouts and chapter structure — an interactive visual breakdown of how comics are built.',
+    date: 'Feb 20, 2026',
+    isoDate: '2026-02-20',
+    readTime: '5 min read',
+    wordCount: 1200,
+    published: true,
+  },
+  {
     slug: 'how-to-price-webcomic-indie-comic',
     title: 'How to Price Your Webcomic or Indie Comic — A First Principles Guide',
     tag: 'Tutorial',

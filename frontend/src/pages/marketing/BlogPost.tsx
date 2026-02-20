@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import SEOHead from './SEOHead';
 import MarketingLayout from './MarketingLayout';
@@ -376,8 +377,406 @@ function PricingGuide() {
   );
 }
 
+/* ================================================================
+   ARTICLE: Anatomy of a Comic — Visual Guide
+   ================================================================ */
+
+/* Color palette for SVG diagrams (matching marketing CSS variables) */
+const D = {
+  gold: '#FF9500', bg: '#0a0f1a', surface: '#0e1527', surfaceLight: '#253a50',
+  text: '#e5e7eb', textSec: '#94a3b8', textMuted: '#64748b',
+  border: '#334155', borderAlpha: 'rgba(51,65,85,0.5)',
+  bleed: '#C0392B', gutter: '#2E86AB', panel: '#FF9500',
+  balloon: '#27AE60', caption: '#8E44AD', sfx: '#E74C3C',
+};
+
+function DiagramCallout(props: {
+  x: number; y: number; labelX: number; labelY: number;
+  label: string; color: string; align?: 'right' | 'left'; dotSize?: number;
+}) {
+  const { x, y, labelX, labelY, label, color, align = 'right', dotSize = 6 } = props;
+  const lineEndX = align === 'right' ? labelX - 6 : labelX + 6;
+  return (
+    <g>
+      <circle cx={x} cy={y} r={dotSize} fill={color} opacity={0.9} />
+      <circle cx={x} cy={y} r={dotSize + 3} fill={color} opacity={0.2} />
+      <line x1={x} y1={y} x2={lineEndX} y2={labelY} stroke={color} strokeWidth={1.5} strokeDasharray="4,3" opacity={0.6} />
+      <text x={labelX} y={labelY + 4} fill={color} fontSize={14} fontWeight={600} fontFamily="Inter, sans-serif" textAnchor={align === 'right' ? 'start' : 'end'}>{label}</text>
+    </g>
+  );
+}
+
+function PageAnatomyDiagram() {
+  return (
+    <div className="mk-diagram-content">
+      <p className="mk-diagram-desc">
+        A traditional comic page broken down into its core components.
+        Every element serves a purpose in guiding the reader's eye through the story.
+      </p>
+      <svg viewBox="0 0 620 520" width="100%" style={{ maxWidth: 620 }}>
+        <rect x={60} y={20} width={360} height={480} rx={2} fill={D.bleed} opacity={0.22} stroke={D.bleed} strokeWidth={1.5} strokeDasharray="6,4" />
+        <rect x={80} y={40} width={320} height={440} rx={1} fill={D.surface} stroke={D.border} strokeWidth={1} />
+        <rect x={100} y={60} width={280} height={120} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1.5} />
+        <rect x={80} y={60} width={20} height={120} fill={D.surfaceLight} opacity={0.7} />
+        <rect x={110} y={70} width={120} height={28} rx={3} fill={D.caption} opacity={0.4} stroke={D.caption} strokeWidth={1} />
+        <text x={130} y={88} fill={D.caption} fontSize={11} fontFamily="Inter, sans-serif">CAPTION BOX</text>
+        <text x={300} y={150} fill={D.sfx} fontSize={28} fontFamily="Georgia, serif" fontWeight={900} fontStyle="italic" opacity={0.75} transform="rotate(-12, 300, 150)">KRAK!</text>
+        <rect x={100} y={180} width={280} height={12} fill={D.gutter} opacity={0.25} />
+        <rect x={100} y={192} width={134} height={100} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1.5} />
+        <rect x={246} y={192} width={134} height={100} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1.5} />
+        <ellipse cx={167} cy={222} rx={48} ry={22} fill={D.balloon} opacity={0.35} stroke={D.balloon} strokeWidth={1} />
+        <text x={167} y={226} fill={D.balloon} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle">DIALOGUE</text>
+        <polygon points="155,244 162,244 150,260" fill={D.balloon} opacity={0.35} stroke={D.balloon} strokeWidth={0.8} />
+        <rect x={234} y={192} width={12} height={100} fill={D.gutter} opacity={0.25} />
+        <rect x={100} y={304} width={86} height={80} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1.5} />
+        <rect x={198} y={304} width={86} height={80} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1.5} />
+        <rect x={296} y={304} width={84} height={80} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1.5} />
+        <rect x={100} y={396} width={280} height={68} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1.5} />
+        <defs>
+          <marker id="arrowhead" markerWidth={8} markerHeight={6} refX={8} refY={3} orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill={D.textMuted} opacity={0.4} />
+          </marker>
+        </defs>
+        <path d="M 140,120 L 340,120 L 140,240 L 340,240 L 140,340 L 340,340 L 240,430" fill="none" stroke={D.textMuted} strokeWidth={1} strokeDasharray="3,4" opacity={0.25} markerEnd="url(#arrowhead)" />
+        <DiagramCallout x={70} y={120} labelX={455} labelY={40} label="BLEED AREA" color={D.bleed} />
+        <DiagramCallout x={240} y={186} labelX={455} labelY={76} label="GUTTER" color={D.gutter} />
+        <DiagramCallout x={240} y={140} labelX={455} labelY={112} label="PANEL" color={D.panel} />
+        <DiagramCallout x={167} y={222} labelX={455} labelY={148} label="WORD BALLOON" color={D.balloon} />
+        <DiagramCallout x={170} y={84} labelX={455} labelY={184} label="CAPTION BOX" color={D.caption} />
+        <DiagramCallout x={320} y={140} labelX={455} labelY={220} label="SOUND EFFECT" color={D.sfx} />
+        <text x={240} y={500} fill={D.textMuted} fontSize={13} fontFamily="Inter, sans-serif" textAnchor="middle" opacity={0.7}>Z-pattern reading flow →</text>
+      </svg>
+    </div>
+  );
+}
+
+function ReadingDirectionDiagram() {
+  return (
+    <div className="mk-diagram-content">
+      <p className="mk-diagram-desc">
+        Western comics read left-to-right. Manga reads right-to-left. The panel order,
+        word balloon placement, and even book binding are all mirrored. Choose your format
+        before you start — it affects every page.
+      </p>
+      <div className="mk-diagram-compare">
+        {/* Western LTR */}
+        <div className="mk-diagram-col">
+          <div className="mk-diagram-col-title">Western (LTR)</div>
+          <svg viewBox="0 0 240 340" width={280}>
+            <defs>
+              <marker id="arrowLTR" markerWidth={8} markerHeight={6} refX={8} refY={3} orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill={D.gold} opacity={0.6} />
+              </marker>
+            </defs>
+            <rect x={20} y={10} width={200} height={280} rx={2} fill={D.surface} stroke={D.border} strokeWidth={1} />
+            <rect x={20} y={10} width={5} height={280} rx={1} fill={D.gold} opacity={0.5} />
+            <text x={10} y={150} fill={D.gold} fontSize={11} fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight={600} transform="rotate(-90, 10, 150)" opacity={0.6}>SPINE</text>
+            <rect x={34} y={24} width={86} height={70} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={128} y={24} width={78} height={70} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <circle cx={54} cy={59} r={12} fill={D.gold} opacity={0.35} stroke={D.gold} strokeWidth={1} />
+            <text x={54} y={63} fill={D.gold} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">1</text>
+            <circle cx={167} cy={59} r={12} fill={D.gold} opacity={0.35} stroke={D.gold} strokeWidth={1} />
+            <text x={167} y={63} fill={D.gold} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">2</text>
+            <rect x={34} y={102} width={54} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={96} y={102} width={54} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={158} y={102} width={48} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <circle cx={61} cy={132} r={12} fill={D.gold} opacity={0.35} stroke={D.gold} strokeWidth={1} />
+            <text x={61} y={136} fill={D.gold} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">3</text>
+            <circle cx={123} cy={132} r={12} fill={D.gold} opacity={0.35} stroke={D.gold} strokeWidth={1} />
+            <text x={123} y={136} fill={D.gold} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">4</text>
+            <circle cx={182} cy={132} r={12} fill={D.gold} opacity={0.35} stroke={D.gold} strokeWidth={1} />
+            <text x={182} y={136} fill={D.gold} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">5</text>
+            <rect x={34} y={170} width={172} height={55} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <circle cx={120} cy={197} r={12} fill={D.gold} opacity={0.35} stroke={D.gold} strokeWidth={1} />
+            <text x={120} y={201} fill={D.gold} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">6</text>
+            <ellipse cx={58} cy={42} rx={22} ry={10} fill={D.balloon} opacity={0.3} stroke={D.balloon} strokeWidth={0.8} />
+            <text x={58} y={45} fill={D.balloon} fontSize={9} fontFamily="Inter, sans-serif" textAnchor="middle">first</text>
+            <ellipse cx={155} cy={42} rx={22} ry={10} fill={D.balloon} opacity={0.3} stroke={D.balloon} strokeWidth={0.8} />
+            <text x={155} y={45} fill={D.balloon} fontSize={9} fontFamily="Inter, sans-serif" textAnchor="middle">second</text>
+            <path d="M 54,72 L 167,72 L 167,82 L 61,98 L 61,108 L 61,142 L 123,142 L 123,148 L 182,142 L 182,166 L 120,175" fill="none" stroke={D.gold} strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} markerEnd="url(#arrowLTR)" />
+            <path d="M 210,150 Q 228,150 228,170 Q 228,190 210,190" fill="none" stroke={D.textMuted} strokeWidth={1} strokeDasharray="3,3" opacity={0.4} />
+            <text x={232} y={174} fill={D.textMuted} fontSize={10} fontFamily="Inter, sans-serif" opacity={0.7}>turn</text>
+            <text x={54} y={18} fill={D.gold} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight={700} opacity={0.9}>START ↓</text>
+            <text x={120} y={255} fill={D.text} fontSize={12} fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight={600}>Left → Right, Top → Bottom</text>
+            <text x={120} y={270} fill={D.textSec} fontSize={11} fontFamily="Inter, sans-serif" textAnchor="middle" opacity={0.8}>Balloons: top-left read first</text>
+            <text x={120} y={285} fill={D.textSec} fontSize={11} fontFamily="Inter, sans-serif" textAnchor="middle" opacity={0.8}>Book opens from the right</text>
+            <text x={120} y={310} fill={D.textSec} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle" fontStyle="italic" opacity={0.7}>Spider-Man · Saga · Invincible · Watchmen</text>
+          </svg>
+        </div>
+
+        {/* Manga RTL */}
+        <div className="mk-diagram-col">
+          <div className="mk-diagram-col-title">Manga (RTL)</div>
+          <svg viewBox="0 0 240 340" width={280}>
+            <defs>
+              <marker id="arrowRTL" markerWidth={8} markerHeight={6} refX={8} refY={3} orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill={D.sfx} opacity={0.6} />
+              </marker>
+            </defs>
+            <rect x={20} y={10} width={200} height={280} rx={2} fill={D.surface} stroke={D.border} strokeWidth={1} />
+            <rect x={215} y={10} width={5} height={280} rx={1} fill={D.sfx} opacity={0.5} />
+            <text x={230} y={150} fill={D.sfx} fontSize={11} fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight={600} transform="rotate(90, 230, 150)" opacity={0.6}>SPINE</text>
+            <rect x={128} y={24} width={78} height={70} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={34} y={24} width={86} height={70} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <circle cx={167} cy={59} r={12} fill={D.sfx} opacity={0.35} stroke={D.sfx} strokeWidth={1} />
+            <text x={167} y={63} fill={D.sfx} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">1</text>
+            <circle cx={77} cy={59} r={12} fill={D.sfx} opacity={0.35} stroke={D.sfx} strokeWidth={1} />
+            <text x={77} y={63} fill={D.sfx} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">2</text>
+            <rect x={158} y={102} width={48} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={96} y={102} width={54} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={34} y={102} width={54} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <circle cx={182} cy={132} r={12} fill={D.sfx} opacity={0.35} stroke={D.sfx} strokeWidth={1} />
+            <text x={182} y={136} fill={D.sfx} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">3</text>
+            <circle cx={123} cy={132} r={12} fill={D.sfx} opacity={0.35} stroke={D.sfx} strokeWidth={1} />
+            <text x={123} y={136} fill={D.sfx} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">4</text>
+            <circle cx={61} cy={132} r={12} fill={D.sfx} opacity={0.35} stroke={D.sfx} strokeWidth={1} />
+            <text x={61} y={136} fill={D.sfx} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">5</text>
+            <rect x={34} y={170} width={172} height={55} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <circle cx={120} cy={197} r={12} fill={D.sfx} opacity={0.35} stroke={D.sfx} strokeWidth={1} />
+            <text x={120} y={201} fill={D.sfx} fontSize={12} fontWeight={700} fontFamily="Inter, sans-serif" textAnchor="middle">6</text>
+            <ellipse cx={178} cy={42} rx={22} ry={10} fill={D.balloon} opacity={0.3} stroke={D.balloon} strokeWidth={0.8} />
+            <text x={178} y={45} fill={D.balloon} fontSize={9} fontFamily="Inter, sans-serif" textAnchor="middle">first</text>
+            <ellipse cx={65} cy={42} rx={22} ry={10} fill={D.balloon} opacity={0.3} stroke={D.balloon} strokeWidth={0.8} />
+            <text x={65} y={45} fill={D.balloon} fontSize={9} fontFamily="Inter, sans-serif" textAnchor="middle">second</text>
+            <path d="M 167,72 L 77,72 L 77,82 L 182,98 L 182,108 L 182,142 L 123,142 L 123,148 L 61,142 L 61,166 L 120,175" fill="none" stroke={D.sfx} strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} markerEnd="url(#arrowRTL)" />
+            <path d="M 30,150 Q 12,150 12,170 Q 12,190 30,190" fill="none" stroke={D.textMuted} strokeWidth={1} strokeDasharray="3,3" opacity={0.4} />
+            <text x={5} y={174} fill={D.textMuted} fontSize={8} fontFamily="Inter, sans-serif" opacity={0.5} textAnchor="end">turn</text>
+            <text x={178} y={18} fill={D.sfx} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight={700} opacity={0.9}>↓ START</text>
+            <text x={120} y={255} fill={D.text} fontSize={12} fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight={600}>Right → Left, Top → Bottom</text>
+            <text x={120} y={270} fill={D.textSec} fontSize={11} fontFamily="Inter, sans-serif" textAnchor="middle" opacity={0.8}>Balloons: top-right read first</text>
+            <text x={120} y={285} fill={D.textSec} fontSize={11} fontFamily="Inter, sans-serif" textAnchor="middle" opacity={0.8}>Book opens from the left</text>
+            <text x={120} y={310} fill={D.textSec} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle" fontStyle="italic" opacity={0.7}>One Piece · Naruto · Attack on Titan · JJK</text>
+          </svg>
+        </div>
+      </div>
+
+      {/* Key differences summary */}
+      <div className="mk-diagram-info-box">
+        <div className="mk-diagram-info-title">WHY THIS MATTERS FOR YOUR COMIC</div>
+        <div className="mk-diagram-bullets" style={{ maxWidth: '100%' }}>
+          {[
+            { color: D.gold, text: 'Choose your direction before drawing a single panel — it affects every layout decision' },
+            { color: D.balloon, text: 'Word balloon placement is completely mirrored — top-left first (LTR) vs top-right first (RTL)' },
+            { color: D.panel, text: 'Page turns reveal from opposite sides — right-page reveals (LTR) vs left-page reveals (RTL)' },
+            { color: D.textSec, text: 'Manhwa (Korean comics) uses LTR like Western — only Japanese manga is RTL' },
+            { color: D.sfx, text: 'Vertical scroll format avoids this entirely — panels just stack top to bottom' },
+          ].map((item, i) => (
+            <div key={i} className="mk-diagram-bullet">
+              <span className="mk-diagram-bullet-icon" style={{ color: item.color }}>◆</span>
+              <span className="mk-diagram-bullet-text">{item.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PrintVsScrollDiagram() {
+  return (
+    <div className="mk-diagram-content">
+      <p className="mk-diagram-desc">
+        Same story, two formats. Print composes full pages read in Z-patterns.
+        Scroll stacks panels vertically, controlling pacing through spacing.
+      </p>
+      <div className="mk-diagram-compare">
+        {/* Print format */}
+        <div className="mk-diagram-col">
+          <div className="mk-diagram-col-title">Traditional Page</div>
+          <svg viewBox="0 0 220 310" width={280}>
+            <rect x={10} y={10} width={200} height={290} rx={2} fill={D.surface} stroke={D.border} strokeWidth={1} />
+            <rect x={22} y={22} width={176} height={70} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={30} y={30} width={70} height={18} rx={2} fill={D.caption} opacity={0.4} />
+            <text x={65} y={42} fill={D.caption} fontSize={9} textAnchor="middle" fontFamily="Inter, sans-serif">Caption</text>
+            <rect x={22} y={100} width={84} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={114} y={100} width={84} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <ellipse cx={64} cy={120} rx={28} ry={12} fill={D.balloon} opacity={0.3} stroke={D.balloon} strokeWidth={0.8} />
+            <ellipse cx={156} cy={125} rx={24} ry={10} fill={D.balloon} opacity={0.3} stroke={D.balloon} strokeWidth={0.8} />
+            <rect x={22} y={168} width={54} height={50} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={84} y={168} width={54} height={50} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={146} y={168} width={52} height={50} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <text x={172} y={200} fill={D.sfx} fontSize={14} fontWeight={900} fontStyle="italic" fontFamily="Georgia, serif" opacity={0.6} transform="rotate(-8,172,200)">BAM</text>
+            <rect x={22} y={226} width={176} height={60} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <path d="M 50,55 L 170,55 L 50,130 L 170,130 L 50,195 L 170,195 L 110,260" fill="none" stroke={D.gold} strokeWidth={1} strokeDasharray="3,3" opacity={0.3} />
+          </svg>
+          <div style={{ textAlign: 'center', color: D.textSec, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 6, opacity: 0.8 }}>5–9 panels per page</div>
+          <div className="mk-diagram-bullets">
+            {['Full page visible at once', 'Complex multi-panel layouts', 'Z-pattern reading flow', 'Page turns create reveals'].map((t, i) => (
+              <div key={i} className="mk-diagram-bullet">
+                <span className="mk-diagram-bullet-icon">◆</span>
+                <span className="mk-diagram-bullet-text">{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Scroll format */}
+        <div className="mk-diagram-col">
+          <div className="mk-diagram-col-title">Vertical Scroll</div>
+          <svg viewBox="0 0 280 310" width={280}>
+            <rect x={40} y={5} width={140} height={300} rx={12} fill="none" stroke={D.border} strokeWidth={1.5} />
+            <rect x={42} y={20} width={136} height={270} fill={D.surface} />
+            <rect x={50} y={28} width={120} height={50} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={56} y={34} width={60} height={14} rx={2} fill={D.caption} opacity={0.4} />
+            <rect x={50} y={92} width={120} height={40} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <ellipse cx={110} cy={107} rx={30} ry={10} fill={D.balloon} opacity={0.3} stroke={D.balloon} strokeWidth={0.8} />
+            <rect x={50} y={138} width={120} height={35} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <text x={110} y={160} fill={D.sfx} fontSize={14} fontWeight={900} fontStyle="italic" fontFamily="Georgia, serif" opacity={0.6}>BAM</text>
+            <rect x={50} y={178} width={120} height={35} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <rect x={50} y={232} width={120} height={45} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} />
+            <path d="M 110,28 L 110,275" fill="none" stroke={D.gold} strokeWidth={1} strokeDasharray="3,3" opacity={0.2} />
+            <text x={188} y={86} fill={D.gutter} fontSize={11} fontFamily="Inter, sans-serif" fontWeight={600}>← slow pause</text>
+            <text x={188} y={136} fill={D.sfx} fontSize={11} fontFamily="Inter, sans-serif" fontWeight={600}>← quick cut</text>
+            <text x={188} y={218} fill={D.gutter} fontSize={11} fontFamily="Inter, sans-serif" fontWeight={600}>← big reveal</text>
+            <rect x={90} y={8} width={40} height={4} rx={2} fill={D.border} opacity={0.5} />
+          </svg>
+          <div style={{ textAlign: 'center', color: D.textSec, fontSize: 13, fontFamily: 'Inter, sans-serif', marginTop: 6, opacity: 0.8 }}>1–2 panels visible at a time</div>
+          <div className="mk-diagram-bullets">
+            {['One panel at a time', 'Full-width stacked panels', 'Spacing controls pacing', 'Scrolling replaces page turns'].map((t, i) => (
+              <div key={i} className="mk-diagram-bullet">
+                <span className="mk-diagram-bullet-icon">◆</span>
+                <span className="mk-diagram-bullet-text">{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChapterStructureDiagram() {
+  const sections = [
+    { label: 'COVER', sub: 'Title · Chapter # · Credits · Publisher logo', color: D.gold, icon: '◉' },
+    { label: 'CREDITS / INDICIA', sub: 'Full names & roles · Copyright · Publisher info · Rating', color: D.textSec, icon: '◎' },
+    { label: 'RECAP (Ch. 2+)', sub: '"Previously on..." · Key moment reminder', color: D.caption, icon: '◎', optional: true },
+    { label: 'SPLASH / TITLE PAGE', sub: 'Opening shot · Chapter title · Abbreviated credits', color: D.panel, icon: '◉' },
+    { label: 'INTERIOR PAGES', sub: 'Panels · Dialogue · Narration · SFX · The story itself', color: D.gold, icon: '◉', main: true },
+    { label: 'CLOSING PANEL', sub: 'Chapter-ending hook · Cliffhanger or resolution', color: D.panel, icon: '◉' },
+    { label: 'NEXT CHAPTER TEASER', sub: 'Preview image or text · "Next: Chapter 4"', color: D.balloon, icon: '◎' },
+    { label: 'CREATOR NOTES', sub: 'Behind the scenes · Process insights · Personal note', color: D.textSec, icon: '◎' },
+    { label: 'BACK MATTER', sub: 'Character profiles · Glossary · Other works · Links', color: D.textSec, icon: '◎', optional: true },
+  ];
+
+  return (
+    <div className="mk-diagram-content">
+      <p className="mk-diagram-desc">
+        The complete structure of a digital comic chapter, from the first thing
+        a reader sees to the last. Items marked optional can be skipped for later chapters.
+      </p>
+      <div className="mk-diagram-flow">
+        {sections.map((s, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div className={`mk-diagram-flow-item${s.main ? ' mk-diagram-flow-item--main' : ''}`}>
+              <div className="mk-diagram-flow-icon" style={{ background: `${s.color}18`, border: `2px solid ${s.color}60`, color: s.color }}>{s.icon}</div>
+              <div className="mk-diagram-flow-body">
+                <div className="mk-diagram-flow-header">
+                  <span className="mk-diagram-flow-label" style={{ color: s.color }}>{s.label}</span>
+                  {s.optional && <span className="mk-diagram-flow-badge">OPTIONAL</span>}
+                </div>
+                <div className="mk-diagram-flow-sub">{s.sub}</div>
+              </div>
+              <div className="mk-diagram-flow-num">{String(i + 1).padStart(2, '0')}</div>
+            </div>
+            {i < sections.length - 1 && <div className="mk-diagram-flow-connector" />}
+          </div>
+        ))}
+      </div>
+      <div className="mk-diagram-legend">
+        <span><span style={{ color: D.gold }}>◉</span> Essential</span>
+        <span><span style={{ color: D.textSec }}>◎</span> Recommended</span>
+      </div>
+    </div>
+  );
+}
+
+function CoverAnatomyDiagram() {
+  return (
+    <div className="mk-diagram-content">
+      <p className="mk-diagram-desc">
+        Every element on a comic cover serves a purpose — from selling the book to establishing
+        your brand. Here's where everything goes.
+      </p>
+      <svg viewBox="0 0 580 480" width="100%" style={{ maxWidth: 580 }}>
+        <rect x={140} y={20} width={280} height={430} rx={4} fill={D.surface} stroke={D.border} strokeWidth={1.5} />
+        <rect x={158} y={36} width={56} height={20} rx={3} fill={D.gold} opacity={0.35} stroke={D.gold} strokeWidth={1} />
+        <text x={186} y={50} fill={D.gold} fontSize={8} fontFamily="Inter, sans-serif" textAnchor="middle" fontWeight={700}>rB</text>
+        <rect x={158} y={70} width={244} height={36} rx={2} fill="transparent" stroke={D.panel} strokeWidth={1.5} strokeDasharray="4,3" />
+        <text x={280} y={94} fill={D.text} fontSize={20} fontFamily="Georgia, serif" textAnchor="middle" fontWeight={700} opacity={0.7}>COMIC TITLE</text>
+        <rect x={340} y={36} width={62} height={20} rx={3} fill={D.surfaceLight} stroke={D.textMuted} strokeWidth={0.8} />
+        <text x={371} y={50} fill={D.textMuted} fontSize={9} fontFamily="Inter, sans-serif" textAnchor="middle">CH. 03</text>
+        <rect x={158} y={118} width={244} height={260} rx={2} fill={D.surfaceLight} stroke={D.panel} strokeWidth={1} strokeDasharray="6,4" />
+        <text x={280} y={245} fill={D.textMuted} fontSize={14} fontFamily="Inter, sans-serif" textAnchor="middle">[ COVER ART ]</text>
+        <text x={280} y={265} fill={D.textMuted} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle">The illustration that</text>
+        <text x={280} y={280} fill={D.textMuted} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle">sells the chapter</text>
+        <text x={280} y={400} fill={D.textSec} fontSize={10} fontFamily="Inter, sans-serif" textAnchor="middle">Written by SMITH · Art by JANE</text>
+        <rect x={240} y={412} width={80} height={18} rx={9} fill={D.gold} opacity={0.15} stroke={D.gold} strokeWidth={0.8} />
+        <text x={280} y={424} fill={D.gold} fontSize={8} fontFamily="Inter, sans-serif" textAnchor="middle">FANTASY</text>
+        <DiagramCallout x={186} y={46} labelX={12} labelY={36} label="PUBLISHER LOGO" color={D.gold} align="left" dotSize={4} />
+        <DiagramCallout x={280} y={88} labelX={455} labelY={60} label="SERIES TITLE" color={D.panel} dotSize={4} />
+        <DiagramCallout x={371} y={46} labelX={455} labelY={96} label="CHAPTER NUMBER" color={D.textMuted} dotSize={4} />
+        <DiagramCallout x={280} y={248} labelX={455} labelY={180} label="COVER ART" color={D.panel} dotSize={4} />
+        <DiagramCallout x={280} y={400} labelX={455} labelY={300} label="CREATOR CREDITS" color={D.textSec} dotSize={4} />
+        <DiagramCallout x={280} y={421} labelX={455} labelY={336} label="GENRE TAG" color={D.gold} dotSize={4} />
+        <text x={455} y={410} fill={D.textMuted} fontSize={9} fontFamily="Inter, sans-serif">Digital covers also serve</text>
+        <text x={455} y={424} fill={D.textMuted} fontSize={9} fontFamily="Inter, sans-serif">as the thumbnail in</text>
+        <text x={455} y={438} fill={D.textMuted} fontSize={9} fontFamily="Inter, sans-serif">search results and feeds</text>
+      </svg>
+    </div>
+  );
+}
+
+function ComicAnatomyGuide() {
+  const [activeTab, setActiveTab] = useState('page');
+  const tabs = [
+    { id: 'page', label: 'Page Anatomy' },
+    { id: 'reading', label: 'Reading Direction' },
+    { id: 'compare', label: 'Print vs. Scroll' },
+    { id: 'flow', label: 'Chapter Structure' },
+    { id: 'cover', label: 'Cover Anatomy' },
+  ];
+
+  return (
+    <>
+      <p className="mk-article-lead">
+        Whether you're writing your first script or drawing your first panel, understanding how comics are built helps you communicate clearly with collaborators, pace your story effectively, and present your work professionally.
+      </p>
+      <p>
+        This interactive guide breaks down the core building blocks of comic creation — from page anatomy and reading direction to chapter structure and cover design. Select a tab below to explore each element.
+      </p>
+
+      <hr className="mk-article-divider" />
+
+      <div className="mk-diagram-tabs">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`mk-diagram-tab${activeTab === tab.id ? ' mk-diagram-tab--active' : ''}`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mk-diagram-panel">
+        {activeTab === 'page' && <PageAnatomyDiagram />}
+        {activeTab === 'reading' && <ReadingDirectionDiagram />}
+        {activeTab === 'compare' && <PrintVsScrollDiagram />}
+        {activeTab === 'flow' && <ChapterStructureDiagram />}
+        {activeTab === 'cover' && <CoverAnatomyDiagram />}
+      </div>
+
+      <p className="mk-diagram-footer-note">Part of the renaissBlock Creator Education Series</p>
+
+      <p><strong><a href="https://renaissblock.com">Start creating on renaissBlock &rarr;</a></strong></p>
+    </>
+  );
+}
+
 /* ---- Article content keyed by slug ---- */
 const articleContent: Record<string, () => JSX.Element> = {
+  'anatomy-of-a-comic-visual-guide': ComicAnatomyGuide,
   'how-to-price-webcomic-indie-comic': PricingGuide,
   'writer-artist-first-collaboration-guide': WriterArtistGuide,
 };

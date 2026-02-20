@@ -1496,3 +1496,260 @@ a.mk-blog-card:hover .mk-blog-card-title {
     font-size: 26px;
   }
 }
+
+/* ============================================
+   INTERACTIVE DIAGRAM COMPONENTS
+   ============================================ */
+.mk-diagram-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--mk-bg-secondary);
+  border-radius: 10px;
+  padding: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+
+.mk-diagram-tab {
+  background: transparent;
+  color: var(--mk-text-muted);
+  border: none;
+  border-radius: 7px;
+  padding: 9px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--mk-font-body);
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+}
+
+.mk-diagram-tab:hover {
+  color: var(--mk-text-secondary);
+}
+
+.mk-diagram-tab--active {
+  background: var(--mk-gold);
+  color: var(--mk-bg-primary);
+}
+
+.mk-diagram-tab--active:hover {
+  color: var(--mk-bg-primary);
+}
+
+.mk-diagram-panel {
+  background: var(--mk-bg-secondary);
+  border-radius: 12px;
+  padding: 28px 20px;
+  border: 1px solid var(--mk-border);
+}
+
+.mk-diagram-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.mk-diagram-desc {
+  color: var(--mk-text-secondary) !important;
+  font-size: 15px !important;
+  max-width: 560px;
+  text-align: center;
+  line-height: 1.6 !important;
+  margin: 0 auto 0 !important;
+}
+
+.mk-diagram-compare {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.mk-diagram-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.mk-diagram-col-title {
+  color: var(--mk-gold);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--mk-font-body);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.mk-diagram-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 220px;
+}
+
+.mk-diagram-bullet {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.mk-diagram-bullet-icon {
+  color: var(--mk-gold);
+  font-size: 11px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.mk-diagram-bullet-text {
+  color: var(--mk-text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ---- Chapter structure flow ---- */
+.mk-diagram-flow {
+  display: flex;
+  flex-direction: column;
+  max-width: 460px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.mk-diagram-flow-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--mk-bg-primary);
+  border: 1px solid var(--mk-border);
+  border-radius: 8px;
+  padding: 14px 20px;
+  position: relative;
+  width: 100%;
+}
+
+.mk-diagram-flow-item--main {
+  background: rgba(255, 149, 0, 0.06);
+  border-color: rgba(255, 149, 0, 0.25);
+}
+
+.mk-diagram-flow-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.mk-diagram-flow-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mk-diagram-flow-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mk-diagram-flow-label {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--mk-font-body);
+  letter-spacing: 1px;
+}
+
+.mk-diagram-flow-badge {
+  font-size: 10px;
+  color: var(--mk-text-secondary);
+  background: var(--mk-bg-secondary);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: var(--mk-font-body);
+}
+
+.mk-diagram-flow-sub {
+  color: var(--mk-text-secondary);
+  font-size: 13px;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.mk-diagram-flow-num {
+  color: var(--mk-text-muted);
+  font-size: 11px;
+  font-family: var(--mk-font-body);
+  position: absolute;
+  right: -36px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.mk-diagram-flow-connector {
+  width: 2px;
+  height: 16px;
+  background: linear-gradient(to bottom, var(--mk-border), transparent);
+  margin: 0 auto;
+}
+
+.mk-diagram-legend {
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--mk-text-muted);
+  font-family: var(--mk-font-body);
+  justify-content: center;
+}
+
+.mk-diagram-footer-note {
+  color: var(--mk-text-muted);
+  font-size: 11px;
+  font-family: var(--mk-font-body);
+  text-align: center;
+  margin-top: 20px;
+}
+
+@media (max-width: 480px) {
+  .mk-diagram-panel {
+    padding: 20px 12px;
+  }
+
+  .mk-diagram-compare {
+    gap: 32px;
+  }
+
+  .mk-diagram-flow-num {
+    display: none;
+  }
+
+  .mk-diagram-flow-item {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+}
+
+.mk-diagram-info-box {
+  background: var(--mk-bg-primary);
+  border-radius: 8px;
+  padding: 16px 20px;
+  max-width: 520px;
+  width: 100%;
+  border: 1px solid var(--mk-border);
+}
+
+.mk-diagram-info-title {
+  color: var(--mk-text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--mk-font-body);
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+}
