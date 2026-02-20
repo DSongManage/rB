@@ -17,7 +17,7 @@ const blogSchema = {
     "headline": p.title,
     "description": p.excerpt,
     "url": `https://renaissblock.com/blog/${p.slug}`,
-    "datePublished": p.date,
+    "datePublished": p.isoDate,
   })),
 };
 

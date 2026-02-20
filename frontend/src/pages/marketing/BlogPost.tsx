@@ -24,7 +24,7 @@ export default function BlogPost() {
     "mainEntityOfPage": { "@type": "WebPage", "@id": `https://renaissblock.com/blog/${post.slug}` },
     "url": `https://renaissblock.com/blog/${post.slug}`,
     "articleSection": post.tag,
-    "wordCount": 2800,
+    "wordCount": post.wordCount,
     "inLanguage": "en-US",
   };
 
@@ -66,9 +66,9 @@ export default function BlogPost() {
         </div>
 
         <div className="mk-article-cta">
-          <h3>Ready to start your first collaboration?</h3>
-          <p>Browse creator profiles, send a proposal, and publish your first chapter — with revenue splits enforced automatically.</p>
-          <a href="https://renaissblock.com" className="mk-btn-primary">Browse Creators on renaissBlock</a>
+          <h3>Ready to publish your comic?</h3>
+          <p>Automatic revenue splits, instant payments, and built-in royalties on every sale. Start publishing on renaissBlock today.</p>
+          <a href="https://renaissblock.com" className="mk-btn-primary">Get Started on renaissBlock</a>
         </div>
 
         <div className="mk-article-footer">
@@ -220,7 +220,164 @@ function WriterArtistGuide() {
   );
 }
 
+/* ================================================================
+   ARTICLE: How to Price Your Webcomic or Indie Comic
+   ================================================================ */
+function PricingGuide() {
+  return (
+    <>
+      <p className="mk-article-lead">
+        Most pricing advice for indie comics boils down to "look at what everyone else charges and do something similar." That's not terrible advice, but it skips the part that actually matters — understanding <em>why</em> a chapter should cost what it costs, and how to build a pricing strategy that makes you money over time rather than just matching the market.
+      </p>
+      <p>
+        This guide breaks down comic pricing from the ground up. No hand-waving, no "it depends." Just the math, the logic, and the strategy behind every dollar.
+      </p>
+
+      <hr className="mk-article-divider" />
+
+      <h2>Start With What the Reader Is Actually Buying</h2>
+
+      <p>Before you pick a number, think about what a reader gets when they buy your chapter — and what they <em>don't</em> get.</p>
+
+      <p>A physical comic book is a thing. It exists. It has paper, ink, a cover you can hold. A standard print issue costs $3.99–$4.99 at a comic shop in 2026, and even at that price, the margins are razor-thin after printing, distribution, and retail cuts. The reader is paying for the story, yes, but also for the object.</p>
+
+      <p>A digital chapter is not an object. There's no paper. No shipping. No shelf space. No print run to finance. The marginal cost of delivering one more copy to one more reader is essentially zero.</p>
+
+      <p>This matters because your reader knows it too. They intuitively understand that a digital chapter shouldn't cost the same as a physical comic, even if the creative work behind it is identical. You're not competing with print pricing — you're competing with every other form of digital entertainment that costs a dollar or two.</p>
+
+      <p><strong>The anchor price your reader carries in their head</strong> is probably somewhere between a song on iTunes ($1.29), a mobile game purchase ($0.99–$4.99), and a WEBTOON Fast Pass episode (roughly $0.50 in coins). That's the neighborhood you're operating in, whether you like it or not.</p>
+
+      <h2>The Math That Most Creators Skip</h2>
+
+      <p>Here's a thought experiment that cuts straight to the right price range.</p>
+
+      <p>Imagine your comic is a complete story told across 10 chapters. If a reader bought the entire series as a collected print volume, they'd probably pay around $10–$15 for a paperback or $15–$25 for a hardcover. That's the ceiling — the maximum a reader would pay for the complete experience in its most premium form.</p>
+
+      <p>Now work backwards. If the whole story is worth $10–$15 to a reader in print, and you're selling individual digital chapters — no printing costs, no binding, no shipping — each chapter needs to come in <em>well under</em> $1.50. Probably closer to $0.99 or even $0.49 for shorter chapters.</p>
+
+      <p>Here's the logic laid out plainly:</p>
+
+      <p>A 10-chapter story priced at $0.99 per chapter costs the reader $9.90 total. That's roughly the same as a print paperback, but the reader got no physical object. They might feel like they overpaid. Drop it to $0.49 per chapter and the full story costs $4.90 — a price that feels fair for a digital-only experience and leaves room for a premium collected edition later.</p>
+
+      <p>If your chapters are longer (30+ pages of dense, full-color work), you can push toward $0.99–$1.99 per chapter. If they're shorter webtoon-style episodes (15–20 panels in vertical scroll), $0.25–$0.69 is more realistic for what the market will bear.</p>
+
+      <p><strong>The point isn't to undervalue your work.</strong> The point is that pricing too high per chapter kills your readership before it starts. A reader who hesitates at $1.99 per chapter might never try your comic. A reader who picks it up for $0.49 might binge-read ten chapters in a sitting.</p>
+
+      <h2>Volume Is the Strategy, Not Price</h2>
+
+      <p>The creators who actually make money from digital comics aren't the ones charging the most per chapter. They're the ones with the most chapters for sale.</p>
+
+      <p>Think of it this way: if you have 5 chapters at $0.99 each, your maximum revenue per reader is $4.95. But if you have 40 chapters at $0.49 each, your maximum revenue per reader is $19.60. The lower price per chapter made each purchase easier, and the larger catalog made the total spend higher.</p>
+
+      <p>This is why serialized publishing is the dominant model in digital comics. Manga magazines in Japan understood this decades ago — individual chapters are cheap, but readers who follow a series for years spend far more in total than they would on a single book.</p>
+
+      <p><strong>The practical implication:</strong> Don't agonize over squeezing an extra $0.50 out of each chapter. Focus on building a catalog. Every new chapter you publish is a new thing that can be sold — not just to new readers, but to existing fans who are already bought in.</p>
+
+      <h2>How Many Chapters Should You Release?</h2>
+
+      <p>This is the part most pricing guides ignore entirely, but it's inseparable from your pricing strategy.</p>
+
+      <p>If you're starting a new series with no audience, your first arc needs to be long enough to hook readers but short enough that you (and your collaborator, if you have one) can actually finish it. A good target for a first arc is 8–12 chapters. Here's why:</p>
+
+      <p><strong>Too few chapters (under 5)</strong> and readers can't tell if your story has legs. They might enjoy what's there but won't commit emotionally or financially to something that might never continue. It also gives you very little catalog to generate meaningful revenue.</p>
+
+      <p><strong>Too many chapters planned upfront (30+)</strong> and you're betting months or years of work on an unproven concept. If the story doesn't land, you've sunk enormous effort into something that isn't finding its audience. And if you're collaborating with an artist, that's months of their time too.</p>
+
+      <p><strong>8–12 chapters as a first arc</strong> gives you enough room to establish characters, build tension, and deliver a satisfying payoff. It's a complete experience that justifies asking readers to pay. And critically, it's achievable — a writer and artist working together can reasonably produce this in 3–6 months, depending on page count and complexity.</p>
+
+      <p>After your first arc, you have real data. You know how many readers you have. You know your sell-through rate. You know whether the story has momentum. That's when you decide whether to continue, adjust, or start something new.</p>
+
+      <p><strong>Release cadence matters as much as chapter count.</strong> Weekly or biweekly releases keep readers engaged and create a habit. Monthly releases work but require each chapter to deliver more value (longer, more polished) to justify the wait. Anything slower than monthly and you're fighting against readers forgetting you exist.</p>
+
+      <h2>The Price Tiers That Actually Work</h2>
+
+      <p>Based on what the market currently supports and the first-principles math above, here are the price ranges that make sense for indie digital comics in 2026:</p>
+
+      <p><strong>$0.25–$0.49 per chapter</strong> works for shorter episodes (10–15 pages or vertical scroll format), new series building an audience, creators prioritizing readership growth over immediate revenue, and the first few chapters of any new series (consider making chapter one free).</p>
+
+      <p><strong>$0.49–$0.99 per chapter</strong> works for standard-length chapters (20–30 pages), series with an established readership, full-color work with high production value, and genre work with dedicated fanbases (fantasy, horror, romance).</p>
+
+      <p><strong>$0.99–$1.99 per chapter</strong> works for premium-length chapters (30+ pages), series with proven demand and strong sell-through, work from creators with an existing following, and chapters that include bonus content (behind-the-scenes, creator commentary).</p>
+
+      <p><strong>$1.99+ per chapter</strong> is difficult to sustain for most indie creators unless you have a devoted fanbase. At this price point, you're competing with major publishers' digital offerings and you need production quality to match.</p>
+
+      <p><strong>The free chapter strategy:</strong> Making your first chapter free is almost always the right move. It's the single most effective thing you can do to get readers into your funnel. A reader who enjoyed a free first chapter and sees chapter two for $0.49 is far more likely to buy than someone encountering a $0.99 paywall with no idea what they're getting.</p>
+
+      <h2>What You Actually Take Home</h2>
+
+      <p>Price is only half the equation. What matters is what lands in your pocket after the platform takes its cut.</p>
+
+      <p>On most platforms, the creator's share varies dramatically. Ad-supported models like WEBTOON Canvas pay unpredictable amounts based on views, with many creators reporting fractions of a cent per read. Subscription models pool revenue and distribute based on reading time, which favors high-volume output over quality. Direct sales platforms take anywhere from 30% to 50% — Apple and Google each take 30% from app purchases, and many platforms take an additional cut on top of that.</p>
+
+      <p>On a platform like ComiXology (now integrated into Amazon Kindle), a comic priced at $0.99 might net the creator as little as $0.35 after Amazon's cut — and that's before splitting with a collaborator.</p>
+
+      <p><strong>This is why the platform you choose matters as much as the price you set.</strong> A comic priced at $0.49 on a platform where you keep 90% nets you $0.44. That same comic priced at $0.99 on a platform that takes 65% nets you $0.35. You made less money at the higher price.</p>
+
+      <p><strong>On renaissBlock</strong>, the platform fee is 10% — and that's it. No app store middleman. No ad revenue guessing game. A chapter priced at $0.49 puts $0.44 directly into the creators' wallets, split automatically between collaborators according to their agreement. At $0.99, you keep $0.89. The math is simple because the system is simple.</p>
+
+      <h2>Pricing With a Collaborator — Where It Gets Interesting</h2>
+
+      <p>If you're a solo creator, pricing is straightforward. Everything you earn is yours. But most comic collaborations involve at least a writer and an artist, and the pricing conversation gets more nuanced when two people need to eat from the same plate.</p>
+
+      <p><strong>The first-principles question:</strong> If you're splitting revenue 50/50 with your collaborator and pricing chapters at $0.49, each of you earns roughly $0.22 per sale after a 10% platform fee. At 100 sales per chapter, that's $22 each. At 1,000 sales, it's $220 each. At 10,000 sales, it's $2,200 each per chapter — and every chapter you've ever published keeps earning.</p>
+
+      <p>This is where the long-term math of equity partnerships starts to look very different from one-time page rates. An artist who gets paid $200 per page for a 20-page chapter earns $4,000 once. An artist with a 50% revenue share on that same chapter earns nothing upfront — but if the series builds an audience, the cumulative earnings over months and years can far exceed the page rate.</p>
+
+      <p>The risk is real. Revenue share means you earn nothing if nobody buys. But the upside is uncapped, and every chapter you add to the catalog increases the total earning potential of the entire series.</p>
+
+      <p><strong>Here's what makes this work in practice:</strong> automatic, instant payment splitting. The reason revenue share has a bad reputation isn't the model — it's the enforcement. When one person controls the payment account and is responsible for manually sending their partner's share, things go wrong. Not always out of malice, but out of friction, forgetfulness, and human nature.</p>
+
+      <p>On renaissBlock, this problem doesn't exist. Revenue splits are written into the transaction itself. When a reader buys a chapter, the writer's share and the artist's share are separated and delivered in the same moment. There's no delay, no invoice, no "I'll send your share this weekend." The deal you agreed to is the deal that executes, every time, automatically.</p>
+
+      <p>This changes the pricing conversation between collaborators. Instead of negotiating who gets paid what and when, you're just agreeing on a percentage — and then focusing on making the work good enough that people want to buy it.</p>
+
+      <h2>The Royalty Advantage — Earning From Every Future Sale</h2>
+
+      <p>Here's something most creators don't think about when pricing their chapters: the difference between selling a comic and selling a <em>digital asset that keeps earning</em>.</p>
+
+      <p>When you sell a print comic, the transaction is done. The reader owns the book. If they lend it to a friend, give it away, or resell it, you see nothing from that. You earned once.</p>
+
+      <p>Digital comics on most platforms work similarly — one sale, one payment. But on renaissBlock, your published chapters are minted as digital collectibles on the blockchain. This sounds technical, but what it means for you is simple: if a reader decides to resell or transfer their copy, you — the creator — automatically receive a royalty from that secondary sale. Not because someone remembered to pay you. Because it's built into the asset itself.</p>
+
+      <p>This is a fundamental shift in how creative work generates value. Traditional pricing assumes each chapter earns once. With automatic royalties on resale, each chapter can earn multiple times over its lifetime. A reader who buys your chapter today and resells it to another reader in two years still sends money back to you and your collaborator — split automatically, according to the same agreement you set up from the beginning.</p>
+
+      <p><strong>How this affects your pricing strategy:</strong> If your chapters have ongoing earning potential beyond the initial sale, you can afford to price them lower upfront. A $0.49 chapter that earns you $0.44 on the first sale, plus a percentage of every future resale, is worth more over time than a $1.99 chapter that earns once and sits in someone's library forever.</p>
+
+      <p>You don't need to understand blockchain to benefit from this. You don't need a crypto wallet or any technical knowledge. You just set your price, set your revenue split, and publish. The system handles the rest.</p>
+
+      <h2>Pricing Strategy for Your First Series — A Practical Roadmap</h2>
+
+      <p>If you're launching your first comic, here's a concrete pricing approach that balances audience growth with revenue:</p>
+
+      <p><strong>Chapter 1: Free.</strong> No exceptions. This is your hook. Remove every barrier to entry. Let readers discover your work with zero risk.</p>
+
+      <p><strong>Chapters 2–4: $0.49 each.</strong> Low enough that readers who enjoyed chapter one won't hesitate. This is where you convert free readers into paying readers. The transition from free to paid is the hardest jump — make it as small as possible.</p>
+
+      <p><strong>Chapters 5+: $0.49–$0.99 each.</strong> By chapter five, readers are invested. They've committed time and money to your story. You can increase the price slightly, especially if your chapters are getting longer or more polished as you hit your stride.</p>
+
+      <p><strong>Collected arc (chapters 1–10): $3.99–$5.99.</strong> Bundle your first arc at a slight discount compared to buying chapters individually. This gives new readers a low-friction way to catch up and gives you a premium product to promote.</p>
+
+      <p><strong>Adjust based on data, not instinct.</strong> After your first arc, look at your actual numbers. What's your conversion rate from free to paid? Where do readers drop off? If chapter three has a steep drop, the price isn't the problem — the story is. If readers are buying every chapter but you're not growing, your marketing needs work, not your pricing.</p>
+
+      <h2>The Uncomfortable Truth About Comic Pricing</h2>
+
+      <p>Here's the thing nobody in the indie comics world wants to say out loud: <strong>most comics, at any price, don't sell enough copies to matter.</strong></p>
+
+      <p>The difference between a comic priced at $0.49 and one priced at $1.99 is irrelevant if only 12 people buy it. The creators who succeed aren't the ones who found the perfect price point — they're the ones who found an audience.</p>
+
+      <p>Pricing is a lever, but it's not the biggest lever. The biggest levers are the quality of your work, the consistency of your output, and your ability to get the right readers to see chapter one. Get those right, and almost any reasonable price will work. Get those wrong, and no price — not even free — will save you.</p>
+
+      <p>So price your work fairly, keep it accessible, and then pour your energy into the things that actually move the needle: making comics people want to read, and making sure people know they exist.</p>
+
+      <p>Your first chapter is worth whatever it takes to get someone to read it. Everything after that is worth whatever your story earns.</p>
+
+      <p><strong><a href="https://renaissblock.com">Publish your first chapter on renaissBlock &rarr;</a></strong></p>
+    </>
+  );
+}
+
 /* ---- Article content keyed by slug ---- */
 const articleContent: Record<string, () => JSX.Element> = {
+  'how-to-price-webcomic-indie-comic': PricingGuide,
   'writer-artist-first-collaboration-guide': WriterArtistGuide,
 };
