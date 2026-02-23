@@ -237,13 +237,43 @@ def process_atomic_purchase(self, purchase_id):
     Returns:
         dict: Result with success status and transaction details
     """
+    from django.db import transaction as db_transaction
     from django.utils import timezone
     from .models import Purchase, CollaboratorPayment
     from blockchain.solana_service import mint_and_distribute_collaborative_nft
     from .payment_utils import calculate_payment_breakdown
 
     try:
-        # Get purchase
+        # Idempotency guard: atomically check if already completed/minting
+        # and transition to 'minting' to claim this task execution.
+        # Prevents duplicate NFT mints from Celery retries or webhook replays.
+        with db_transaction.atomic():
+            purchase = Purchase.objects.select_for_update().get(id=purchase_id)
+            if purchase.status == 'completed' or purchase.nft_minted:
+                logger.info(
+                    f'[Atomic Purchase] Purchase {purchase_id} already completed '
+                    f'(status={purchase.status}, nft_minted={purchase.nft_minted}), skipping'
+                )
+                return {
+                    'success': True,
+                    'purchase_id': purchase_id,
+                    'skipped': True,
+                    'reason': 'already_completed',
+                }
+            if purchase.status == 'minting':
+                logger.warning(
+                    f'[Atomic Purchase] Purchase {purchase_id} already in minting state, skipping'
+                )
+                return {
+                    'success': False,
+                    'purchase_id': purchase_id,
+                    'skipped': True,
+                    'reason': 'already_minting',
+                }
+            purchase.status = 'minting'
+            purchase.save(update_fields=['status'])
+
+        # Re-fetch without lock for the rest of processing
         purchase = Purchase.objects.get(id=purchase_id)
 
         # Determine purchase type (chapter, content, or comic_issue)
@@ -300,13 +330,12 @@ def process_atomic_purchase(self, purchase_id):
                 f'Net=${net_amount}, To distribute=${amount_to_distribute}'
             )
 
-        # Update purchase with fee details
+        # Update purchase with fee details (status already set to 'minting' in idempotency guard)
         purchase.stripe_fee = stripe_fee
         purchase.net_after_stripe = net_amount
         purchase.mint_cost = mint_gas_fee
-        purchase.status = 'minting'
         purchase.usdc_distribution_status = 'processing'
-        purchase.save()
+        purchase.save(update_fields=['stripe_fee', 'net_after_stripe', 'mint_cost', 'usdc_distribution_status'])
 
         # Get collaborators - both Chapter and Content now have this method
         # Check if the method exists to avoid catching unrelated AttributeErrors
@@ -1589,6 +1618,7 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
     4. Trigger NFT minting for each purchase
     5. Update user balance cache
     """
+    from django.db import transaction as db_transaction
     from django.utils import timezone
     from .models import PurchaseIntent, Purchase, UserBalance, Cart, Content, Chapter
     from .services import get_solana_service
@@ -1599,208 +1629,237 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
         logger.error(f"[Balance Purchase] Intent {intent_id} not found")
         return {'error': 'Intent not found'}
 
+    # Idempotency guard: skip if intent already completed
+    if intent.status == 'completed':
+        logger.info(f"[Balance Purchase] Intent {intent_id} already completed, skipping")
+        return {'skipped': True, 'reason': 'already_completed'}
+
     try:
         # Verify transaction is confirmed
         solana_service = get_solana_service()
         if not solana_service.confirm_transaction(transaction_signature):
             raise self.retry(countdown=10, exc=Exception("Transaction not confirmed"))
 
-        purchases = []
+        # ═══════════════════════════════════════════════════════════════════
+        # ATOMIC BLOCK: All Purchase creation, CollaboratorPayment creation,
+        # profile updates, and cart clearing happen atomically.
+        # If any step fails, everything rolls back — no orphaned records.
+        # ═══════════════════════════════════════════════════════════════════
+        from .models import CollaboratorPayment, User as CoreUser, UserProfile
+        from .tier_service import get_project_fee_rate
 
-        # Handle cart purchases (multiple items)
-        if intent.is_cart_purchase and intent.cart_snapshot:
-            cart_data = intent.cart_snapshot if isinstance(intent.cart_snapshot, dict) else json.loads(intent.cart_snapshot)
-            items = cart_data.get('items', [])
+        with db_transaction.atomic():
+            purchases = []
 
-            for item in items:
-                chapter_id = item.get('chapter_id')
-                content_id = item.get('content_id')
-                item_price = Decimal(item.get('price', '0'))
+            # Handle cart purchases (multiple items)
+            if intent.is_cart_purchase and intent.cart_snapshot:
+                cart_data = intent.cart_snapshot if isinstance(intent.cart_snapshot, dict) else json.loads(intent.cart_snapshot)
+                items = cart_data.get('items', [])
 
-                # Get the chapter or content object
-                chapter = None
-                content = None
-                if chapter_id:
-                    try:
-                        chapter = Chapter.objects.get(id=chapter_id)
-                        content = chapter.published_content
-                    except Chapter.DoesNotExist:
-                        logger.warning(f"[Balance Purchase] Chapter {chapter_id} not found")
-                elif content_id:
-                    try:
-                        content = Content.objects.get(id=content_id)
-                    except Content.DoesNotExist:
-                        logger.warning(f"[Balance Purchase] Content {content_id} not found")
+                for item in items:
+                    chapter_id = item.get('chapter_id')
+                    content_id = item.get('content_id')
+                    item_price = Decimal(item.get('price', '0'))
 
-                if not content and not chapter:
-                    logger.error(f"[Balance Purchase] No content/chapter found for item: {item}")
-                    continue
+                    # Get the chapter or content object
+                    chapter = None
+                    content = None
+                    if chapter_id:
+                        try:
+                            chapter = Chapter.objects.get(id=chapter_id)
+                            content = chapter.published_content
+                        except Chapter.DoesNotExist:
+                            logger.warning(f"[Balance Purchase] Chapter {chapter_id} not found")
+                    elif content_id:
+                        try:
+                            content = Content.objects.get(id=content_id)
+                        except Content.DoesNotExist:
+                            logger.warning(f"[Balance Purchase] Content {content_id} not found")
 
+                    if not content and not chapter:
+                        logger.error(f"[Balance Purchase] No content/chapter found for item: {item}")
+                        continue
+
+                    purchase = Purchase.objects.create(
+                        user=intent.user,
+                        chapter=chapter,
+                        content=content,
+                        payment_provider='balance',
+                        purchase_price_usd=item_price,
+                        gross_amount=item_price,
+                        buyer_total=item_price,
+                        chapter_price=item_price,
+                        credit_card_fee=Decimal('0'),
+                        stripe_fee=Decimal('0'),
+                        status='payment_completed',
+                        transaction_signature=transaction_signature,
+                    )
+                    purchases.append(purchase)
+                    logger.info(f"[Balance Purchase] Created purchase {purchase.id} for content {content_id or chapter_id}")
+
+            else:
+                # Single item purchase (original logic)
                 purchase = Purchase.objects.create(
                     user=intent.user,
-                    chapter=chapter,
-                    content=content,
+                    chapter=intent.chapter,
+                    content=intent.content,
                     payment_provider='balance',
-                    purchase_price_usd=item_price,
-                    gross_amount=item_price,
-                    buyer_total=item_price,
-                    chapter_price=item_price,
+                    purchase_price_usd=intent.total_amount,
+                    gross_amount=intent.total_amount,
+                    buyer_total=intent.total_amount,
+                    chapter_price=intent.item_price,
                     credit_card_fee=Decimal('0'),
                     stripe_fee=Decimal('0'),
                     status='payment_completed',
                     transaction_signature=transaction_signature,
                 )
                 purchases.append(purchase)
-                logger.info(f"[Balance Purchase] Created purchase {purchase.id} for content {content_id or chapter_id}")
 
-        else:
-            # Single item purchase (original logic)
-            purchase = Purchase.objects.create(
-                user=intent.user,
-                chapter=intent.chapter,
-                content=intent.content,
-                payment_provider='balance',
-                purchase_price_usd=intent.total_amount,
-                gross_amount=intent.total_amount,
-                buyer_total=intent.total_amount,
-                chapter_price=intent.item_price,
-                credit_card_fee=Decimal('0'),
-                stripe_fee=Decimal('0'),
-                status='payment_completed',
-                transaction_signature=transaction_signature,
-            )
-            purchases.append(purchase)
+            # Link first purchase to intent (for backward compatibility)
+            if purchases:
+                intent.purchase = purchases[0]
+            intent.status = 'processing'
+            intent.save()
 
-        # Link first purchase to intent (for backward compatibility)
-        if purchases:
-            intent.purchase = purchases[0]
-        intent.status = 'processing'
-        intent.save()
+            # ═══════════════════════════════════════════════════════════════
+            # CREATE COLLABORATOR PAYMENT RECORDS (for analytics/earnings)
+            # These are created HERE because the USDC transfer already happened
+            # in the user-signed transaction. process_atomic_purchase handles NFT
+            # minting separately, but CollaboratorPayment records must exist
+            # immediately so creator analytics are accurate.
+            # ═══════════════════════════════════════════════════════════════
+            for purchase in purchases:
+                try:
+                    p_item = purchase.chapter or purchase.content
+                    if not p_item or not hasattr(p_item, 'get_collaborators_with_wallets'):
+                        logger.warning(f"[Balance Purchase] No item or collaborators method for purchase {purchase.id}")
+                        continue
 
-        # Clear user's cart if this was a cart purchase
-        if intent.is_cart_purchase:
-            try:
-                cart = Cart.objects.get(user=intent.user)
-                cart.items.all().delete()
-                cart.subtotal = None
-                cart.credit_card_fee = None
-                cart.total = None
-                cart.status = 'completed'
-                cart.save()
-                logger.info(f"[Balance Purchase] Cleared cart for user {intent.user.id}")
-            except Cart.DoesNotExist:
-                logger.warning(f"[Balance Purchase] No cart found for user {intent.user.id}")
+                    collaborators = p_item.get_collaborators_with_wallets()
+                    if not collaborators:
+                        logger.warning(f"[Balance Purchase] No collaborators for purchase {purchase.id}")
+                        continue
 
-        # Sync user balance (runs async to update cached balance)
-        sync_user_balance_task.delay(intent.user.id)
+                    p_item_price = purchase.chapter_price or purchase.purchase_price_usd
+                    dynamic_fee_rate = get_project_fee_rate(p_item)
+                    platform_percentage = (dynamic_fee_rate * Decimal('100')).quantize(Decimal('1'))
+                    platform_fee = (p_item_price * dynamic_fee_rate).quantize(Decimal('0.000001'))
+                    creator_pool = p_item_price - platform_fee
 
-        # ═══════════════════════════════════════════════════════════════════
-        # CREATE COLLABORATOR PAYMENT RECORDS (for analytics/earnings tracking)
-        # These are created HERE because the USDC transfer already happened
-        # in the user-signed transaction. process_atomic_purchase handles NFT
-        # minting separately, but CollaboratorPayment records must exist
-        # immediately so creator analytics are accurate.
-        # ═══════════════════════════════════════════════════════════════════
-        from .models import CollaboratorPayment, User as CoreUser, UserProfile
-        from .tier_service import get_project_fee_rate
+                    total_collab_pct = sum(Decimal(str(c['percentage'])) for c in collaborators)
+                    is_collaborative = total_collab_pct > Decimal('95')
 
-        for purchase in purchases:
-            try:
-                item = purchase.chapter or purchase.content
-                if not item or not hasattr(item, 'get_collaborators_with_wallets'):
-                    logger.warning(f"[Balance Purchase] No item or collaborators method for purchase {purchase.id}")
-                    continue
+                    for collab in collaborators:
+                        collab_pct = Decimal(str(collab['percentage']))
+                        if is_collaborative:
+                            usdc_amount = (creator_pool * collab_pct / 100).quantize(Decimal('0.000001'))
+                        else:
+                            usdc_amount = (p_item_price * collab_pct / 100).quantize(Decimal('0.000001'))
 
-                collaborators = item.get_collaborators_with_wallets()
-                if not collaborators:
-                    logger.warning(f"[Balance Purchase] No collaborators for purchase {purchase.id}")
-                    continue
+                        CollaboratorPayment.objects.update_or_create(
+                            purchase=purchase,
+                            collaborator=collab['user'],
+                            defaults={
+                                'collaborator_wallet': collab['wallet'],
+                                'amount_usdc': usdc_amount,
+                                'percentage': int(collab_pct),
+                                'role': collab.get('role', 'creator'),
+                                'transaction_signature': transaction_signature,
+                            }
+                        )
+                        logger.info(
+                            f"[Balance Purchase] CollaboratorPayment: {collab['user'].username} "
+                            f"earned ${usdc_amount} ({collab_pct}%) for purchase {purchase.id}"
+                        )
 
-                item_price = purchase.chapter_price or purchase.purchase_price_usd
-                dynamic_fee_rate = get_project_fee_rate(item)
-                platform_percentage = (dynamic_fee_rate * Decimal('100')).quantize(Decimal('1'))
-                platform_fee = (item_price * dynamic_fee_rate).quantize(Decimal('0.000001'))
-                creator_pool = item_price - platform_fee
-
-                total_collab_pct = sum(Decimal(str(c['percentage'])) for c in collaborators)
-                is_collaborative = total_collab_pct > Decimal('95')
-
-                for collab in collaborators:
-                    collab_pct = Decimal(str(collab['percentage']))
-                    if is_collaborative:
-                        usdc_amount = (creator_pool * collab_pct / 100).quantize(Decimal('0.000001'))
-                    else:
-                        usdc_amount = (item_price * collab_pct / 100).quantize(Decimal('0.000001'))
-
-                    CollaboratorPayment.objects.update_or_create(
-                        purchase=purchase,
-                        collaborator=collab['user'],
-                        defaults={
-                            'collaborator_wallet': collab['wallet'],
-                            'amount_usdc': usdc_amount,
-                            'percentage': int(collab_pct),
-                            'role': collab.get('role', 'creator'),
-                            'transaction_signature': transaction_signature,
-                        }
-                    )
-                    logger.info(
-                        f"[Balance Purchase] CollaboratorPayment: {collab['user'].username} "
-                        f"earned ${usdc_amount} ({collab_pct}%) for purchase {purchase.id}"
-                    )
-
-                    # Update creator profile earnings
-                    try:
+                        # Update creator profile earnings
                         profile, _ = UserProfile.objects.get_or_create(
                             user=collab['user'],
                             defaults={'username': collab['user'].username}
                         )
                         profile.total_sales_usd = (profile.total_sales_usd or Decimal('0')) + usdc_amount
                         profile.save(update_fields=['total_sales_usd'])
+
+                    # Update purchase with distribution info
+                    purchase.usdc_distribution_status = 'completed'
+                    purchase.usdc_distributed_at = timezone.now()
+                    purchase.usdc_distribution_transaction = transaction_signature
+                    purchase.platform_usdc_earned = platform_fee
+                    purchase.save(update_fields=[
+                        'usdc_distribution_status', 'usdc_distributed_at',
+                        'usdc_distribution_transaction', 'platform_usdc_earned',
+                    ])
+
+                    # Update creator tiers
+                    try:
+                        from .tier_service import process_sale_for_tiers
+                        process_sale_for_tiers(purchase, p_item, p_item_price)
                     except Exception as e:
-                        logger.error(f"[Balance Purchase] Failed to update profile for {collab['user'].username}: {e}")
+                        logger.error(f"[Balance Purchase] Tier processing failed for purchase {purchase.id}: {e}")
 
-                # Send purchase notifications to creators
-                try:
-                    from .notifications_utils import notify_content_purchase
-                    content_title = (purchase.chapter.title if purchase.chapter
-                                     else (purchase.content.title if purchase.content else 'Content'))
-                    for collab in collaborators:
-                        if collab['user'] != purchase.user:  # Don't notify self-purchases
-                            collab_pct = Decimal(str(collab['percentage']))
-                            if is_collaborative:
-                                notif_amount = (creator_pool * collab_pct / 100).quantize(Decimal('0.000001'))
-                            else:
-                                notif_amount = (item_price * collab_pct / 100).quantize(Decimal('0.000001'))
-                            notify_content_purchase(
-                                recipient=collab['user'],
-                                buyer=purchase.user,
-                                content_title=content_title,
-                                amount_usdc=notif_amount,
-                                role=collab.get('role'),
-                            )
-                    logger.info(f"[Balance Purchase] Sent purchase notifications for purchase {purchase.id}")
                 except Exception as e:
-                    logger.error(f"[Balance Purchase] Failed to send notifications for purchase {purchase.id}: {e}")
+                    logger.error(f"[Balance Purchase] Failed to create CollaboratorPayment for purchase {purchase.id}: {e}")
+                    raise  # Re-raise to roll back entire atomic block
 
-                # Update purchase with distribution info
-                purchase.usdc_distribution_status = 'completed'
-                purchase.usdc_distributed_at = timezone.now()
-                purchase.usdc_distribution_transaction = transaction_signature
-                purchase.platform_usdc_earned = platform_fee
-                purchase.save(update_fields=[
-                    'usdc_distribution_status', 'usdc_distributed_at',
-                    'usdc_distribution_transaction', 'platform_usdc_earned',
-                ])
-
-                # Update creator tiers
+            # Clear user's cart AFTER all purchases and payments succeed
+            if intent.is_cart_purchase:
                 try:
-                    from .tier_service import process_sale_for_tiers
-                    process_sale_for_tiers(purchase, item, item_price)
-                except Exception as e:
-                    logger.error(f"[Balance Purchase] Tier processing failed for purchase {purchase.id}: {e}")
+                    cart = Cart.objects.get(user=intent.user)
+                    cart.items.all().delete()
+                    cart.subtotal = None
+                    cart.credit_card_fee = None
+                    cart.total = None
+                    cart.status = 'completed'
+                    cart.save()
+                    logger.info(f"[Balance Purchase] Cleared cart for user {intent.user.id}")
+                except Cart.DoesNotExist:
+                    logger.warning(f"[Balance Purchase] No cart found for user {intent.user.id}")
 
+        # END OF ATOMIC BLOCK — all DB records are committed.
+
+        # Non-transactional side effects (notifications, async tasks, balance sync)
+        # These happen outside the atomic block so DB commit isn't blocked by them.
+
+        # Sync user balance (async)
+        sync_user_balance_task.delay(intent.user.id)
+
+        # Send purchase notifications to creators
+        for purchase in purchases:
+            try:
+                p_item = purchase.chapter or purchase.content
+                if not p_item or not hasattr(p_item, 'get_collaborators_with_wallets'):
+                    continue
+                collaborators = p_item.get_collaborators_with_wallets()
+                if not collaborators:
+                    continue
+
+                p_item_price = purchase.chapter_price or purchase.purchase_price_usd
+                dynamic_fee_rate = get_project_fee_rate(p_item)
+                platform_fee = (p_item_price * dynamic_fee_rate).quantize(Decimal('0.000001'))
+                creator_pool = p_item_price - platform_fee
+                total_collab_pct = sum(Decimal(str(c['percentage'])) for c in collaborators)
+                is_collaborative = total_collab_pct > Decimal('95')
+
+                from .notifications_utils import notify_content_purchase
+                content_title = (purchase.chapter.title if purchase.chapter
+                                 else (purchase.content.title if purchase.content else 'Content'))
+                for collab in collaborators:
+                    if collab['user'] != purchase.user:
+                        collab_pct = Decimal(str(collab['percentage']))
+                        if is_collaborative:
+                            notif_amount = (creator_pool * collab_pct / 100).quantize(Decimal('0.000001'))
+                        else:
+                            notif_amount = (p_item_price * collab_pct / 100).quantize(Decimal('0.000001'))
+                        notify_content_purchase(
+                            recipient=collab['user'],
+                            buyer=purchase.user,
+                            content_title=content_title,
+                            amount_usdc=notif_amount,
+                            role=collab.get('role'),
+                        )
+                logger.info(f"[Balance Purchase] Sent purchase notifications for purchase {purchase.id}")
             except Exception as e:
-                logger.error(f"[Balance Purchase] Failed to create CollaboratorPayment for purchase {purchase.id}: {e}")
+                logger.error(f"[Balance Purchase] Failed to send notifications for purchase {purchase.id}: {e}")
 
         # Trigger NFT minting for each purchase
         for purchase in purchases:
@@ -1812,9 +1871,15 @@ def process_balance_purchase_task(self, intent_id, transaction_signature):
 
     except Exception as e:
         logger.error(f"[Balance Purchase] Failed for intent {intent_id}: {e}")
-        intent.status = 'failed'
-        intent.failure_reason = str(e)
-        intent.save()
+        # Use update() to avoid FK issues — the atomic rollback may leave
+        # dangling references on the in-memory intent object (e.g. intent.purchase).
+        try:
+            PurchaseIntent.objects.filter(id=intent_id).update(
+                status='failed',
+                failure_reason=str(e)[:500],
+            )
+        except Exception as save_error:
+            logger.error(f"[Balance Purchase] Failed to mark intent {intent_id} as failed: {save_error}")
         raise
 
 
@@ -1905,8 +1970,9 @@ def check_coinbase_and_complete_purchase_task(transaction_id):
         cb_transaction.status = 'completed'
         cb_transaction.save()
 
-        # Ready for user to complete purchase
-        intent.status = 'payment_received'
+        # Only update if intent hasn't already progressed to balance payment flow
+        if intent.status in ('awaiting_payment', 'payment_method_selected'):
+            intent.status = 'payment_received'
         intent.balance_sufficient = True
         intent.save()
 

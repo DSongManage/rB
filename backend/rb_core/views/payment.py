@@ -395,40 +395,65 @@ class PayWithBalanceView(APIView):
     def post(self, request, intent_id):
         user = request.user
 
+        # Lock the intent row to prevent concurrent balance payment requests.
+        # This prevents double-spend where two requests both pass the balance
+        # check before either updates the intent status.
         try:
-            intent = PurchaseIntent.objects.get(id=intent_id, user=user)
-        except PurchaseIntent.DoesNotExist:
-            return Response({
-                'error': 'Purchase intent not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            with transaction.atomic():
+                try:
+                    intent = PurchaseIntent.objects.select_for_update().get(
+                        id=intent_id, user=user
+                    )
+                except PurchaseIntent.DoesNotExist:
+                    return Response({
+                        'error': 'Purchase intent not found'
+                    }, status=status.HTTP_404_NOT_FOUND)
 
-        # Validate intent state
-        if intent.is_expired:
-            return Response({
-                'error': 'Purchase intent has expired'
-            }, status=status.HTTP_400_BAD_REQUEST)
+                # Validate intent state (inside atomic block so status is reliable)
+                if intent.is_expired:
+                    return Response({
+                        'error': 'Purchase intent has expired'
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-        if intent.status in ['completed', 'processing']:
-            return Response({
-                'error': 'Purchase is already being processed'
-            }, status=status.HTTP_400_BAD_REQUEST)
+                if intent.status in ['completed', 'processing', 'awaiting_signature', 'payment_received']:
+                    return Response({
+                        'error': 'Purchase is already being processed'
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-        if intent.payment_method != 'balance':
-            return Response({
-                'error': 'Payment method not set to balance'
-            }, status=status.HTTP_400_BAD_REQUEST)
+                if intent.payment_method not in ('balance', 'coinbase'):
+                    return Response({
+                        'error': 'Payment method not set to balance'
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Verify balance is still sufficient
+                # Mark as awaiting_signature immediately while holding the lock.
+                # This ensures no other concurrent request can proceed past this point.
+                intent.status = 'awaiting_signature'
+                intent.save(update_fields=['status'])
+        except Exception as e:
+            if isinstance(e, PurchaseIntent.DoesNotExist):
+                raise
+            logger.error(f"Failed to lock intent {intent_id}: {e}")
+            return Response({
+                'error': 'Failed to process payment request'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Verify balance is still sufficient (outside lock — read-only check)
         solana_service = get_solana_service()
         try:
             current_balance = solana_service.get_cached_balance(user, force_sync=True)
         except Exception as e:
             logger.error(f"Failed to verify balance: {e}")
+            # Revert intent status since we can't proceed
+            intent.status = 'payment_method_selected'
+            intent.save(update_fields=['status'])
             return Response({
                 'error': 'Failed to verify balance'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if current_balance < intent.total_amount:
+            # Revert intent status since balance is insufficient
+            intent.status = 'payment_method_selected'
+            intent.save(update_fields=['status'])
             return Response({
                 'error': 'Insufficient balance',
                 'current_balance': str(current_balance),
@@ -439,6 +464,8 @@ class PayWithBalanceView(APIView):
         platform_wallet = getattr(settings, 'PLATFORM_USDC_ADDRESS', None)
         if not platform_wallet:
             logger.error("PLATFORM_USDC_ADDRESS not configured")
+            intent.status = 'payment_method_selected'
+            intent.save(update_fields=['status'])
             return Response({
                 'error': 'Platform configuration error'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -446,6 +473,8 @@ class PayWithBalanceView(APIView):
         # Calculate payment splits (platform fee + collaborator shares)
         transfers = self._calculate_payment_splits(intent, platform_wallet)
         if not transfers:
+            intent.status = 'payment_method_selected'
+            intent.save(update_fields=['status'])
             return Response({
                 'error': 'Failed to calculate payment distribution'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -469,20 +498,20 @@ class PayWithBalanceView(APIView):
                 )
         except ValueError as e:
             logger.error(f"Platform wallet not configured: {e}")
+            intent.status = 'payment_method_selected'
+            intent.save(update_fields=['status'])
             return Response({
                 'error': 'Platform wallet configuration error',
                 'message': 'Please contact support.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             logger.error(f"Failed to build sponsored transaction: {e}")
+            intent.status = 'payment_method_selected'
+            intent.save(update_fields=['status'])
             return Response({
                 'error': 'Failed to prepare transaction',
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        # Update intent status
-        intent.status = 'awaiting_signature'
-        intent.save()
 
         # Return transaction data for client-side signing
         response_data = {
@@ -679,22 +708,34 @@ class SubmitSponsoredPaymentView(APIView):
                 'error': 'User signature index required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # Lock intent to prevent duplicate submission
         try:
-            intent = PurchaseIntent.objects.get(id=intent_id, user=user)
-        except PurchaseIntent.DoesNotExist:
-            return Response({
-                'error': 'Purchase intent not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            with transaction.atomic():
+                try:
+                    intent = PurchaseIntent.objects.select_for_update().get(
+                        id=intent_id, user=user
+                    )
+                except PurchaseIntent.DoesNotExist:
+                    return Response({
+                        'error': 'Purchase intent not found'
+                    }, status=status.HTTP_404_NOT_FOUND)
 
-        if intent.status != 'awaiting_signature':
-            return Response({
-                'error': 'Intent not in awaiting_signature status',
-                'current_status': intent.status
-            }, status=status.HTTP_400_BAD_REQUEST)
+                if intent.status != 'awaiting_signature':
+                    return Response({
+                        'error': 'Intent not in awaiting_signature status',
+                        'current_status': intent.status
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Update status to processing
-        intent.status = 'processing'
-        intent.save()
+                # Atomically transition to processing
+                intent.status = 'processing'
+                intent.save(update_fields=['status'])
+        except Exception as e:
+            if isinstance(e, PurchaseIntent.DoesNotExist):
+                raise
+            logger.error(f"Failed to lock intent for submission: {e}")
+            return Response({
+                'error': 'Failed to process submission'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Submit transaction with platform signature
         from rb_core.services.sponsored_transaction_service import get_sponsored_transaction_service
