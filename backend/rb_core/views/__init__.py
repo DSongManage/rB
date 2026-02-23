@@ -51,7 +51,23 @@ logger = logging.getLogger(__name__)
 # Create your views here.
 
 def home(request):
-    return HttpResponse("renaissBlock Backend Running")
+    response = HttpResponse("renaissBlock Backend Running")
+    response['X-Robots-Tag'] = 'noindex, nofollow'
+    return response
+
+
+def api_robots_txt(request):
+    """Serve robots.txt for the API subdomain to prevent indexing."""
+    lines = [
+        "User-agent: *",
+        "Disallow: /",
+        "",
+        "# Allow sitemap for search engine discovery of frontend URLs",
+        "Allow: /api/sitemap.xml",
+        "",
+        "Sitemap: https://api.renaissblock.com/api/sitemap.xml",
+    ]
+    return HttpResponse("\n".join(lines), content_type="text/plain")
 
 
 class HealthCheckView(APIView):
