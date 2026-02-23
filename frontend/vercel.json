@@ -17,12 +17,12 @@
   ],
   "rewrites": [
     {
-      "source": "/content/:id(\\d+)",
-      "destination": "/api/render?type=content&id=:id"
+      "source": "/content/:id",
+      "destination": "/api/content/:id"
     },
     {
-      "source": "/profile/:username([A-Za-z0-9_]+)",
-      "destination": "/api/render?type=profile&username=:username"
+      "source": "/profile/:username",
+      "destination": "/api/profile/:username"
     },
     {
       "source": "/((?!assets/|api/).*)",
