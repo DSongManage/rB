@@ -17,7 +17,15 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/).*)",
+      "source": "/content/:id(\\d+)",
+      "destination": "/api/render?type=content&id=:id"
+    },
+    {
+      "source": "/profile/:username([A-Za-z0-9_]+)",
+      "destination": "/api/render?type=profile&username=:username"
+    },
+    {
+      "source": "/((?!assets/|api/).*)",
       "destination": "/index.html"
     }
   ],

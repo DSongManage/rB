@@ -168,8 +168,8 @@ export default function ContentDetail(){
     : 'Sold out';
 
   const seoTitle = `${data.title} by @${data.creator_username} | renaissBlock`;
-  const seoDesc = data.description
-    ? data.description.slice(0, 155) + (data.description.length > 155 ? '...' : '')
+  const seoDesc = data.authors_note
+    ? data.authors_note.slice(0, 155) + (data.authors_note.length > 155 ? '...' : '')
     : `${data.title} — a ${data.content_type || 'work'} on renaissBlock by @${data.creator_username}.`;
   const seoImage = data.teaser_link || 'https://renaissblock.com/logo512.png';
   const seoUrl = `https://renaissblock.com/content/${id}`;
