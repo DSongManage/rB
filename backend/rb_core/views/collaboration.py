@@ -1568,18 +1568,10 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         from ..utils.solana_integration import get_nft_metadata_uri
         metadata_uri = get_nft_metadata_uri(project.id, project.content_type)
 
-        # Execute minting on Solana blockchain
-        from ..utils.solana_integration import mint_collaborative_nft
-
-        result = mint_collaborative_nft(
-            project_id=project.id,
-            sale_amount_usd=sale_amount_usd,
-            creator_splits=creator_splits,
-            metadata_uri=metadata_uri,
-            title=project.title
-        )
-
-        if result['success']:
+        # Publishing step: create the Content record and mark project as minted.
+        # Actual on-chain NFT minting + USDC distribution happens at purchase
+        # time via process_atomic_purchase / mint_and_distribute_atomic.
+        try:
             # Update project status to minted
             project.status = 'minted'
             project.save()
@@ -1597,7 +1589,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 teaser_percent=project.teaser_percent,
                 watermark_preview=project.watermark_preview,
                 inventory_status='minted',
-                nft_contract=result.get('mint_address', ''),
+                nft_contract='',  # Set at purchase time when NFT is minted on-chain
                 copyright_year=datetime.now().year,
                 copyright_holder=author_name,
             )
@@ -1629,24 +1621,23 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
             return Response({
                 'success': True,
-                'message': 'Collaborative NFT minted successfully',
-                'transaction_signature': result['transaction_signature'],
-                'mint_address': result['mint_address'],
-                'sale_amount_lamports': result['sale_amount_lamports'],
-                'platform_fee_lamports': result['platform_fee_lamports'],
-                'creator_splits': result['creator_splits'],
-                'num_creators': result['num_creators'],
+                'message': 'NFT published successfully',
                 'project_id': project.id,
                 'project_title': project.title,
-                'content_id': content.id,  # Content ID for marketplace listing
+                'content_id': content.id,
+                'metadata_uri': metadata_uri,
+                'creator_splits': creator_splits,
+                'num_creators': len(creator_splits),
             })
-        else:
+
+        except Exception as e:
+            logger.error(f"Publishing failed for project {project.id}: {e}")
             return Response({
                 'success': False,
-                'error': result.get('error', 'Unknown error occurred'),
-                'error_type': result.get('error_type', 'UnknownError'),
+                'error': str(e),
+                'error_type': 'PublishingError',
                 'creator_splits': creator_splits
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # ========== Real-time Collaboration Stub Endpoints ==========
     # These are placeholder endpoints to prevent 404 errors.

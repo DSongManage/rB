@@ -1147,18 +1147,19 @@ export const collaborationApi = {
   },
 
   /**
-   * Mint project as NFT
+   * Publish project as NFT (creates marketplace listing)
    */
   async mintProject(
     projectId: number,
     forceMint: boolean = false
   ): Promise<{
     success: boolean;
-    nft_id: string;
-    token_id: string;
-    contract_address: string;
-    ipfs_hash: string;
-    transaction_hash: string;
+    project_id: number;
+    project_title: string;
+    content_id: number;
+    metadata_uri: string;
+    creator_splits: any[];
+    num_creators: number;
   }> {
     const response = await fetch(
       `${API_BASE}/api/collaborative-projects/${projectId}/mint/`,
@@ -1176,11 +1177,12 @@ export const collaborationApi = {
 
     return handleResponse<{
       success: boolean;
-      nft_id: string;
-      token_id: string;
-      contract_address: string;
-      ipfs_hash: string;
-      transaction_hash: string;
+      project_id: number;
+      project_title: string;
+      content_id: number;
+      metadata_uri: string;
+      creator_splits: any[];
+      num_creators: number;
     }>(response);
   },
 

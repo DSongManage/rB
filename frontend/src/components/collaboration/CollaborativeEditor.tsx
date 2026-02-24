@@ -300,10 +300,10 @@ export default function CollaborativeEditor({
       // Log activity
       await logActivity(
         'project_minted',
-        `Project minted as NFT (Token ID: ${result.token_id})`
+        `Project minted as NFT (Content ID: ${result.content_id || 'N/A'})`
       );
 
-      alert(`Project successfully minted! NFT Token ID: ${result.token_id}`);
+      alert(`Project successfully published!`);
     } catch (err: any) {
       setError(err.message || 'Failed to mint project');
     }
