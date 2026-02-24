@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import PreviewModal from '../components/PreviewModal';
 import { Web3Auth } from '@web3auth/modal';
 import { CHAIN_NAMESPACES } from '@web3auth/base';
@@ -49,6 +49,7 @@ type Dashboard = { content_count: number; sales: number; tier?: string; fee?: nu
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [user, setUser] = useState<UserStatus>(null);
   const [content, setContent] = useState<any[]>([]);
   const [q, setQ] = useState('');
@@ -71,6 +72,16 @@ export default function ProfilePage() {
   const [editingPortfolioItem, setEditingPortfolioItem] = useState<ExternalPortfolioItem | null>(null);
   const [activeTab, setActiveTab] = useState<'content' | 'collaborations' | 'portfolio' | 'analytics'>('content');
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+
+  // Auto-open settings modal when navigated with ?tab=settings
+  useEffect(() => {
+    if (searchParams.get('tab') === 'settings') {
+      setSettingsModalOpen(true);
+      searchParams.delete('tab');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const { isMobile, isPhone } = useMobile();
   const { displayBalance, loading: balanceLoading, syncStatus } = useBalance();
 
