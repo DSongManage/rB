@@ -324,10 +324,15 @@ class ProfileStatusUpdateSerializer(serializers.ModelSerializer):
 
 class ChapterSerializer(serializers.ModelSerializer):
     """Serializer for individual book chapters."""
+    has_published_content = serializers.SerializerMethodField()
+
     class Meta:
         model = Chapter
-        fields = ['id', 'title', 'content_html', 'synopsis', 'order', 'created_at', 'updated_at', 'is_published']
-        read_only_fields = ['created_at', 'updated_at', 'is_published', 'order']
+        fields = ['id', 'title', 'content_html', 'synopsis', 'order', 'created_at', 'updated_at', 'is_published', 'has_published_content']
+        read_only_fields = ['created_at', 'updated_at', 'is_published', 'order', 'has_published_content']
+
+    def get_has_published_content(self, obj):
+        return obj.published_content is not None
 
 
 class BookProjectSerializer(serializers.ModelSerializer):
@@ -337,12 +342,18 @@ class BookProjectSerializer(serializers.ModelSerializer):
     cover_image_url = serializers.SerializerMethodField()
     series_info = serializers.SerializerMethodField()
     copyright_preview = serializers.SerializerMethodField()
+    has_published_content = serializers.SerializerMethodField()
 
     class Meta:
         model = BookProject
         fields = ['id', 'title', 'description', 'cover_image', 'cover_image_url', 'chapters', 'chapter_count',
-                  'series', 'series_order', 'series_info', 'copyright_preview', 'created_at', 'updated_at', 'is_published']
-        read_only_fields = ['created_at', 'updated_at', 'is_published', 'chapter_count', 'cover_image_url', 'series_info', 'copyright_preview']
+                  'series', 'series_order', 'series_info', 'copyright_preview', 'created_at', 'updated_at', 'is_published', 'has_published_content']
+        read_only_fields = ['created_at', 'updated_at', 'is_published', 'chapter_count', 'cover_image_url', 'series_info', 'copyright_preview', 'has_published_content']
+
+    def get_has_published_content(self, obj):
+        if obj.published_content is not None:
+            return True
+        return obj.chapters.filter(published_content__isnull=False).exists()
 
     def get_chapter_count(self, obj):
         return obj.chapters.count()

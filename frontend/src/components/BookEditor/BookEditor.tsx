@@ -24,6 +24,12 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
+  // Unpublish/Republish state
+  const [unpublishing, setUnpublishing] = useState(false);
+  const [republishing, setRepublishing] = useState(false);
+  const [showUnpublishConfirm, setShowUnpublishConfirm] = useState(false);
+  const [showRepublishConfirm, setShowRepublishConfirm] = useState(false);
+
   // Mobile responsive state
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -254,6 +260,49 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
   // Check if project can be deleted (no published chapters)
   const hasPublishedChapters = chapters.some(ch => ch.is_published);
   const canDeleteProject = !hasPublishedChapters;
+
+  // Detect delisted state: has published_content but is_published is false
+  const isUnpublished = !hasPublishedChapters && (
+    (project?.has_published_content) ||
+    chapters.some(ch => ch.has_published_content && !ch.is_published)
+  );
+
+  const refreshProjectAndChapters = async () => {
+    if (!project) return;
+    const updatedProject = await bookApi.getProject(project.id);
+    setProject(updatedProject);
+    setChapters(updatedProject.chapters || []);
+  };
+
+  const handleUnpublish = async () => {
+    if (!project) return;
+    setUnpublishing(true);
+    setError('');
+    try {
+      await bookApi.unpublishBook(project.id);
+      await refreshProjectAndChapters();
+      setShowUnpublishConfirm(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to unpublish');
+    } finally {
+      setUnpublishing(false);
+    }
+  };
+
+  const handleRepublish = async () => {
+    if (!project) return;
+    setRepublishing(true);
+    setError('');
+    try {
+      await bookApi.republishBook(project.id);
+      await refreshProjectAndChapters();
+      setShowRepublishConfirm(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to republish');
+    } finally {
+      setRepublishing(false);
+    }
+  };
 
   const handleDeleteProject = async () => {
     if (!project || !canDeleteProject) return;
@@ -527,8 +576,8 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            {canDeleteProject && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {canDeleteProject && !isUnpublished && (
               <button
                 onClick={handleDeleteProject}
                 style={{
@@ -544,6 +593,42 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
                 title="Delete this book project"
               >
                 {chapters.length === 0 ? 'Cancel Project' : 'Delete Project'}
+              </button>
+            )}
+            {hasPublishedChapters && (
+              <button
+                onClick={() => setShowUnpublishConfirm(true)}
+                disabled={unpublishing}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #ef4444',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  color: '#ef4444',
+                  fontWeight: 600,
+                  cursor: unpublishing ? 'wait' : 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                {unpublishing ? 'Removing...' : 'Remove from Marketplace'}
+              </button>
+            )}
+            {isUnpublished && (
+              <button
+                onClick={() => setShowRepublishConfirm(true)}
+                disabled={republishing}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: republishing ? 'wait' : 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                {republishing ? 'Listing...' : 'Re-list on Marketplace'}
               </button>
             )}
             {selectedChapterId && selectedChapter && (
@@ -881,6 +966,181 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
         currentChapter={selectedChapter}
         onPublish={handlePublish}
       />
+
+      {/* Unpublish Confirmation Modal */}
+      {showUnpublishConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowUnpublishConfirm(false)}
+        >
+          <div
+            style={{
+              background: 'var(--panel)',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 400,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 18,
+              fontWeight: 700,
+              color: 'var(--text)',
+            }}>
+              Remove from Marketplace?
+            </h3>
+            <p style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 14,
+              color: '#94a3b8',
+              lineHeight: 1.5,
+            }}>
+              This will remove your book from the marketplace. No new purchases can be made.
+            </p>
+            <p style={{
+              margin: 0,
+              marginBottom: 24,
+              fontSize: 13,
+              color: '#64748b',
+              lineHeight: 1.5,
+            }}>
+              Existing buyers will keep access to their purchased content. You can re-list this book later.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowUnpublishConfirm(false)}
+                disabled={unpublishing}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: 'var(--text)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUnpublish}
+                disabled={unpublishing}
+                style={{
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: unpublishing ? 'wait' : 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                {unpublishing ? 'Removing...' : 'Yes, Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Republish Confirmation Modal */}
+      {showRepublishConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowRepublishConfirm(false)}
+        >
+          <div
+            style={{
+              background: 'var(--panel)',
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 400,
+              width: '90%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: 0,
+              marginBottom: 16,
+              fontSize: 18,
+              fontWeight: 700,
+              color: 'var(--text)',
+            }}>
+              Re-list on Marketplace?
+            </h3>
+            <p style={{
+              margin: 0,
+              marginBottom: 24,
+              fontSize: 14,
+              color: '#94a3b8',
+              lineHeight: 1.5,
+            }}>
+              This will make your book available for purchase again on the marketplace.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowRepublishConfirm(false)}
+                disabled={republishing}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--panel-border)',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: 'var(--text)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRepublish}
+                disabled={republishing}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '10px 20px',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: republishing ? 'wait' : 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                {republishing ? 'Listing...' : 'Yes, Re-list'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

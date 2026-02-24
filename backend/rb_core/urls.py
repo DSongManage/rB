@@ -1,7 +1,7 @@
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from rest_framework.routers import DefaultRouter
-from .views import home, api_robots_txt, HealthCheckView, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, UnpublishBookView, BookProjectByContentView, MyPublishedBooksView, MyComicProjectsView, PublicBookProjectsView, PublicComicProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView, SeriesListCreateView, SeriesDetailView, AddBookToSeriesView, RemoveBookFromSeriesView
+from .views import home, api_robots_txt, HealthCheckView, ContentListView, MintView, DashboardView, SalesAnalyticsView, SearchView, Web3AuthLoginView, FlagView, InviteView, AuthStatusView, LinkWalletView, CsrfTokenView, UserSearchView, SignupView, LoginView, TestSessionView, ProfileEditView, AdminStatsUpdateView, ProfileStatusView, ContentDetailView, ContentPreviewView, ContentUnpublishView, AnalyticsFeesView, ContentTextTeaserView, NotificationsView, LogoutView, BookProjectListCreateView, BookProjectDetailView, ChapterListCreateView, ChapterDetailView, PrepareChapterView, PublishChapterView, PrepareBookView, PublishBookView, UnpublishBookView, RepublishBookView, BookProjectByContentView, MyPublishedBooksView, MyComicProjectsView, PublicBookProjectsView, PublicComicProjectsView, PublicProfileView, ExternalPortfolioListCreateView, ExternalPortfolioDetailView, ExternalPortfolioReorderView, TrackContentViewView, SeriesListCreateView, SeriesDetailView, AddBookToSeriesView, RemoveBookFromSeriesView
 from .views.checkout import DevProcessPurchaseView, FeeBreakdownView
 from .views.cart import (
     CartView, AddToCartView, RemoveFromCartView, ClearCartView,
@@ -169,6 +169,7 @@ urlpatterns = [
     path('api/book-projects/<int:pk>/prepare/', PrepareBookView.as_view(), name='prepare_book'),
     path('api/book-projects/<int:pk>/publish/', PublishBookView.as_view(), name='publish_book'),
     path('api/book-projects/<int:pk>/unpublish/', UnpublishBookView.as_view(), name='unpublish_book'),
+    path('api/book-projects/<int:pk>/republish/', RepublishBookView.as_view(), name='republish_book'),
     # Series management endpoints
     path('api/series/', SeriesListCreateView.as_view(), name='series_list_create'),
     path('api/series/<int:pk>/', SeriesDetailView.as_view(), name='series_detail'),

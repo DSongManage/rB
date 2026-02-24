@@ -2630,6 +2630,9 @@ class PublicBookProjectsView(APIView):
                     continue
 
                 content = chapter.published_content
+                # Defense-in-depth: skip delisted chapters
+                if content.inventory_status != 'minted':
+                    continue
                 chapter_data = {
                     'id': chapter.id,
                     'title': chapter.title,
@@ -2653,7 +2656,7 @@ class PublicBookProjectsView(APIView):
                     latest_published_at = content.created_at
 
             # Handle whole-book publishing (project.published_content without individual chapter publishing)
-            if published_count == 0 and project.is_published and project.published_content:
+            if published_count == 0 and project.is_published and project.published_content and project.published_content.inventory_status == 'minted':
                 # Whole book was published as one Content item
                 content = project.published_content
                 # Create a single chapter entry for the entire book
@@ -3273,7 +3276,12 @@ class PublishBookView(APIView):
 
 
 class UnpublishBookView(APIView):
-    """Unpublish a book project, removing its Content and resetting publish state."""
+    """Soft-delist a book project from the marketplace (non-destructive).
+
+    Sets is_published=False and inventory_status='delisted' on the project
+    and all its published chapters, keeping Content records intact so existing
+    buyers retain access and the book can be republished later.
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -3283,30 +3291,71 @@ class UnpublishBookView(APIView):
         except BookProject.DoesNotExist:
             return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        if not project.is_published:
+        has_published_chapters = project.chapters.filter(is_published=True).exists()
+        if not project.is_published and not has_published_chapters:
             return Response({'error': 'Book is not published'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Store old content ID for response
-        old_content_id = project.published_content.id if project.published_content else None
-
-        # Delete the associated Content object if it exists
-        if project.published_content:
-            project.published_content.delete()
-
-        # Reset the book project
+        # Soft-delist the project-level content (whole-book flow)
         project.is_published = False
-        project.published_content = None
+        if project.published_content:
+            project.published_content.inventory_status = 'delisted'
+            project.published_content.save()
         project.save()
 
-        # Also reset any chapters that were marked as published for this book
-        project.chapters.filter(is_published=True).update(
-            is_published=False,
-            published_content=None
-        )
+        # Soft-delist each published chapter
+        for chapter in project.chapters.filter(is_published=True):
+            chapter.is_published = False
+            chapter.save()
+            if chapter.published_content:
+                chapter.published_content.inventory_status = 'delisted'
+                chapter.published_content.save()
 
         return Response({
-            'message': 'Book unpublished successfully',
-            'deleted_content_id': old_content_id
+            'status': 'success',
+            'message': 'Book removed from marketplace successfully'
+        })
+
+
+class RepublishBookView(APIView):
+    """Re-list a previously unpublished book on the marketplace.
+
+    Restores is_published=True and inventory_status='minted' on the project
+    and all chapters that still have published_content (i.e. were published
+    before the book was unpublished).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        core_user, _ = CoreUser.objects.get_or_create(username=request.user.username)
+        try:
+            project = BookProject.objects.get(pk=pk, creator=core_user)
+        except BookProject.DoesNotExist:
+            return Response({'error': 'Project not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        has_delisted_content = (
+            (project.published_content is not None) or
+            project.chapters.filter(published_content__isnull=False).exists()
+        )
+        if project.is_published or not has_delisted_content:
+            return Response({'error': 'Book is not in an unpublished state'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Re-list the project-level content (whole-book flow)
+        project.is_published = True
+        if project.published_content:
+            project.published_content.inventory_status = 'minted'
+            project.published_content.save()
+        project.save()
+
+        # Re-list chapters that still have published_content
+        for chapter in project.chapters.filter(published_content__isnull=False):
+            chapter.is_published = True
+            chapter.save()
+            chapter.published_content.inventory_status = 'minted'
+            chapter.published_content.save()
+
+        return Response({
+            'status': 'success',
+            'message': 'Book re-listed on marketplace successfully'
         })
 
 

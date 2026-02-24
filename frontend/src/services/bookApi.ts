@@ -15,6 +15,7 @@ export interface Chapter {
   created_at: string;
   updated_at: string;
   is_published: boolean;
+  has_published_content: boolean;
 }
 
 export interface CopyrightPreview {
@@ -44,6 +45,7 @@ export interface BookProject {
   created_at: string;
   updated_at: string;
   is_published: boolean;
+  has_published_content: boolean;
   target_chapter_id?: number; // Set when loading by content ID of a specific chapter
 }
 
@@ -375,6 +377,40 @@ export const bookApi = {
       throw new Error(`Failed to prepare book: ${response.statusText}`);
     }
 
+    return response.json();
+  },
+
+  async unpublishBook(projectId: number): Promise<{ status: string; message: string }> {
+    const response = await fetch(`${API_BASE}/api/book-projects/${projectId}/unpublish/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to unpublish book');
+    }
+    return response.json();
+  },
+
+  async republishBook(projectId: number): Promise<{ status: string; message: string }> {
+    const response = await fetch(`${API_BASE}/api/book-projects/${projectId}/republish/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to republish book');
+    }
     return response.json();
   },
 };
