@@ -23,6 +23,7 @@ import { TourProvider } from './contexts/TourContext';
 import { BalanceProvider } from './contexts/BalanceContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProfileDropdown } from './components/profile/ProfileDropdown';
+import { SettingsModal } from './components/settings/SettingsModal';
 import { TourRenderer } from './components/Tour/TourProvider';
 import { TourMenu } from './components/Tour/TourMenu';
 import CartIcon from './components/CartIcon';
@@ -89,6 +90,7 @@ function Header() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const profileButtonRef = React.useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -258,6 +260,7 @@ function Header() {
                 username={username}
                 avatarUrl={avatarUrl}
                 onLogout={doLogout}
+                onOpenSettings={() => setSettingsModalOpen(true)}
               />
             </div>
           </>
@@ -269,6 +272,7 @@ function Header() {
           </button>
         )}
       </div>
+      <SettingsModal open={settingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
     </nav>
   );
 }

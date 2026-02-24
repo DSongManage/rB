@@ -1,27 +1,18 @@
 /**
  * ProfileDropdown Component
- * YouTube-style profile dropdown menu with theme toggle
+ * YouTube-style profile dropdown menu
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User,
-  Palette,
   PenTool,
   Wallet,
   Settings,
   HelpCircle,
   LogOut,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  Sun,
-  Moon,
-  Monitor,
 } from 'lucide-react';
-import { useTheme } from '../../contexts/ThemeContext';
-import { AppTheme } from '../../types/theme';
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -31,9 +22,8 @@ interface ProfileDropdownProps {
   avatarUrl: string | null;
   balance?: string;
   onLogout: () => void;
+  onOpenSettings?: () => void;
 }
-
-type MenuView = 'main' | 'appearance';
 
 export function ProfileDropdown({
   isOpen,
@@ -43,18 +33,10 @@ export function ProfileDropdown({
   avatarUrl,
   balance,
   onLogout,
+  onOpenSettings,
 }: ProfileDropdownProps) {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
-  const [menuView, setMenuView] = useState<MenuView>('main');
-  const { theme, setTheme } = useTheme();
-
-  // Reset to main view when dropdown opens
-  useEffect(() => {
-    if (isOpen) {
-      setMenuView('main');
-    }
-  }, [isOpen]);
 
   // Close panel when clicking outside
   useEffect(() => {
@@ -87,25 +69,17 @@ export function ProfileDropdown({
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (menuView !== 'main') {
-          setMenuView('main');
-        } else {
-          onClose();
-        }
+        onClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose, menuView]);
+  }, [isOpen, onClose]);
 
   const handleNavigate = (path: string) => {
     navigate(path);
     onClose();
-  };
-
-  const handleThemeSelect = (newTheme: AppTheme) => {
-    setTheme(newTheme);
   };
 
   if (!isOpen) return null;
@@ -127,12 +101,6 @@ export function ProfileDropdown({
     borderRadius: 0,
   };
 
-  const themeOptions: { value: AppTheme; label: string; icon: React.ReactNode }[] = [
-    { value: 'light', label: 'Light', icon: <Sun size={20} /> },
-    { value: 'dark', label: 'Dark', icon: <Moon size={20} /> },
-    { value: 'system', label: 'Use device theme', icon: <Monitor size={20} /> },
-  ];
-
   return (
     <div
       ref={panelRef}
@@ -152,8 +120,7 @@ export function ProfileDropdown({
         overflow: 'hidden',
       }}
     >
-      {menuView === 'main' ? (
-        <>
+      <>
           {/* User Header */}
           <div
             style={{
@@ -277,26 +244,10 @@ export function ProfileDropdown({
           {/* Menu Section 2 */}
           <div style={{ padding: '8px 0', borderBottom: '1px solid var(--dropdown-border)' }}>
             <button
-              onClick={() => setMenuView('appearance')}
-              style={{
-                ...menuItemStyle,
-                justifyContent: 'space-between',
+              onClick={() => {
+                onClose();
+                onOpenSettings?.();
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--dropdown-hover)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <Palette size={20} color="var(--text-muted)" />
-                <span>Appearance: {theme === 'system' ? 'Device' : theme.charAt(0).toUpperCase() + theme.slice(1)}</span>
-              </div>
-              <ChevronRight size={18} color="var(--text-muted)" />
-            </button>
-            <button
-              onClick={() => handleNavigate('/profile?tab=settings')}
               style={menuItemStyle}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'var(--dropdown-hover)';
@@ -346,84 +297,6 @@ export function ProfileDropdown({
             </button>
           </div>
         </>
-      ) : (
-        <>
-          {/* Appearance Submenu */}
-          <div
-            style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid var(--dropdown-border)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <button
-              onClick={() => setMenuView('main')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text)',
-                cursor: 'pointer',
-                padding: 4,
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--dropdown-hover)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-              aria-label="Back to main menu"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>
-              Appearance
-            </span>
-          </div>
-
-          <div style={{ padding: '8px 0' }}>
-            <div
-              style={{
-                padding: '8px 16px',
-                fontSize: 12,
-                color: 'var(--text-muted)',
-              }}
-            >
-              Setting applies to this browser only
-            </div>
-
-            {themeOptions.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => handleThemeSelect(option.value)}
-                style={{
-                  ...menuItemStyle,
-                  justifyContent: 'space-between',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--dropdown-hover)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>{option.icon}</span>
-                  <span>{option.label}</span>
-                </div>
-                {theme === option.value && (
-                  <Check size={18} color="var(--accent)" />
-                )}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
