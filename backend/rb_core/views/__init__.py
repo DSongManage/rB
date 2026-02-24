@@ -2754,10 +2754,11 @@ class PublicComicProjectsView(APIView):
         # Get all comic projects that either:
         # 1. Have at least one published issue (issue-by-issue flow)
         # 2. Are published as a whole comic (whole-project flow)
+        # Only include minted (published) projects — excludes unpublished/delisted
         projects = CollaborativeProject.objects.filter(
-            Q(content_type='comic') & (
+            Q(content_type='comic', status='minted') & (
                 Q(comic_issues__is_published=True, comic_issues__published_content__isnull=False) |
-                Q(published_content__isnull=False)
+                Q(published_content__isnull=False, published_content__inventory_status='minted')
             )
         ).distinct().prefetch_related(
             'comic_issues',
@@ -2791,6 +2792,8 @@ class PublicComicProjectsView(APIView):
                     continue
 
                 content = issue.published_content
+                if content.inventory_status != 'minted':
+                    continue
                 issue_data = {
                     'id': issue.id,
                     'title': issue.title,
@@ -2813,7 +2816,7 @@ class PublicComicProjectsView(APIView):
                     latest_published_at = content.created_at
 
             # Handle whole-comic publishing (project.published_content without individual issues)
-            if published_count == 0 and project.published_content:
+            if published_count == 0 and project.published_content and project.published_content.inventory_status == 'minted':
                 content = project.published_content
                 issues_data = [{
                     'id': 0,
