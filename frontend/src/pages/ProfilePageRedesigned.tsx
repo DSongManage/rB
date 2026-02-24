@@ -521,9 +521,9 @@ export default function ProfilePageRedesigned() {
         } else if (Array.isArray(data)) {
           items = data;
         }
-        // Filter out solo book content - these are fetched separately as book projects
-        // BUT keep collaborative book content (is_collaborative=true) since those aren't in bookProjects
-        setInventory(items.filter(item => (item.content_type !== 'book' && item.content_type !== 'comic') || item.is_collaborative));
+        // Filter out BookEditor books (shown via bookProjects section)
+        // Keep Studio books/comics (collaborative OR solo) — they have source_project_id
+        setInventory(items.filter(item => (item.content_type !== 'book' && item.content_type !== 'comic') || item.is_collaborative || item.source_project_id));
       })
       .catch(() => setInventory([]));
 
@@ -1802,15 +1802,11 @@ export default function ProfilePageRedesigned() {
             />
           ) : (
             (() => {
-              // Filter non-book inventory based on content type filter
-              // Note: music and film are coming soon, only book and art available
+              // Filter inventory based on content type filter
+              // BookEditor books are shown via bookProjects; Studio books/comics are in inventory
               let filteredInventory = contentFilter === 'all'
                 ? inventory
-                : contentFilter === 'book'
-                  ? [] // Books shown via bookProjects
-                  : contentFilter === 'comic'
-                    ? [] // Comics shown via comicProjects
-                    : inventory.filter(i => i.content_type === contentFilter);
+                : inventory.filter(i => i.content_type === contentFilter);
 
               // Apply status filter to inventory
               if (statusFilter === 'published') {
@@ -2051,8 +2047,8 @@ export default function ProfilePageRedesigned() {
                       item={item}
                       onView={() => openReader(item.id)}
                       onEdit={() => {
-                        // Comics with a source project should go to the collaborative project editor
-                        if (item.content_type === 'comic' && item.source_project_id) {
+                        // Studio content (books/comics) with a source project should go to the project editor
+                        if (item.source_project_id && (item.content_type === 'comic' || item.content_type === 'book')) {
                           navigate(`/studio/${item.source_project_id}?tab=content`);
                         } else {
                           navigate(`/studio?editContent=${item.id}`);

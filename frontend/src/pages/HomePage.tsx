@@ -22,6 +22,7 @@ type Item = {
   editions?: number;
   owned?: boolean;
   is_collaborative?: boolean;
+  source_project_id?: number | null;
   collaborators?: Collaborator[];
   like_count?: number;
   view_count?: number;
@@ -115,10 +116,11 @@ export default function HomePage() {
       .then(data => {
         // Handle paginated response from DRF
         if (data && Array.isArray(data.results)) {
-          // Filter out book and comic content - we'll show aggregated versions instead
-          return data.results.filter((item: Item) => item.content_type !== 'book' && item.content_type !== 'comic');
+          // Filter out BookEditor books/comics (shown as aggregated cards)
+          // Keep Studio books/comics (collaborative OR solo) — they have source_project_id
+          return data.results.filter((item: Item) => (item.content_type !== 'book' && item.content_type !== 'comic') || item.is_collaborative || item.source_project_id);
         } else if (Array.isArray(data)) {
-          return data.filter((item: Item) => item.content_type !== 'book' && item.content_type !== 'comic');
+          return data.filter((item: Item) => (item.content_type !== 'book' && item.content_type !== 'comic') || item.is_collaborative || item.source_project_id);
         }
         return [];
       });
