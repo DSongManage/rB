@@ -3,9 +3,31 @@ Notification Utility Functions
 Helper functions to create notifications for collaboration events
 """
 
+import logging
 from decimal import Decimal
 from typing import List, Optional
-from rb_core.models import Notification, User, CollaborativeProject, CollaboratorRole
+from rb_core.models import (
+    Notification, NotificationPreference, User,
+    CollaborativeProject, CollaboratorRole, NOTIFICATION_DEFAULTS,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def get_notification_preference(user: User, notification_type: str) -> dict:
+    """Return effective preference for a user + notification type.
+
+    Checks the DB for an explicit override; falls back to NOTIFICATION_DEFAULTS.
+    """
+    try:
+        pref = NotificationPreference.objects.get(
+            user=user, notification_type=notification_type
+        )
+        return {'in_app': pref.in_app, 'email': pref.email}
+    except NotificationPreference.DoesNotExist:
+        return NOTIFICATION_DEFAULTS.get(
+            notification_type, {'in_app': True, 'email': False}
+        )
 
 
 def create_notification(
@@ -16,31 +38,42 @@ def create_notification(
     message: str,
     project: Optional[CollaborativeProject] = None,
     action_url: Optional[str] = None
-) -> Notification:
+) -> Optional[Notification]:
     """
-    Create a new notification.
+    Create a new notification, respecting user preferences.
 
-    Args:
-        recipient: User who receives the notification
-        from_user: User who triggered the notification
-        notification_type: Type of notification (see Notification.NOTIFICATION_TYPES)
-        title: Short title for the notification
-        message: Detailed message
-        project: Optional related collaborative project
-        action_url: Optional URL to navigate to
-
-    Returns:
-        Created Notification instance
+    Returns None if the user has opted out of in-app for this type.
+    Queues an email via Celery if the user has email enabled.
     """
-    return Notification.objects.create(
-        recipient=recipient,
-        from_user=from_user,
-        notification_type=notification_type,
-        title=title,
-        message=message,
-        project=project,
-        action_url=action_url or (f'/studio/{project.id}' if project else '')
-    )
+    pref = get_notification_preference(recipient, notification_type)
+    resolved_action_url = action_url or (f'/studio/{project.id}' if project else '')
+
+    notification = None
+    if pref['in_app']:
+        notification = Notification.objects.create(
+            recipient=recipient,
+            from_user=from_user,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            project=project,
+            action_url=resolved_action_url,
+        )
+
+    if pref['email'] and getattr(recipient, 'email', None):
+        try:
+            from rb_core.tasks import send_notification_email
+            send_notification_email.delay(
+                recipient_id=recipient.id,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                action_url=resolved_action_url,
+            )
+        except Exception:
+            logger.exception('Failed to queue notification email for user %s', recipient.id)
+
+    return notification
 
 
 def notify_collaboration_invitation(
@@ -102,7 +135,8 @@ def notify_invitation_response(
             message=f'{responder.username} {status_text} your invitation to "{project.title}"',
             project=project
         )
-        notifications.append(notification)
+        if notification:
+            notifications.append(notification)
 
     # Notify other accepted collaborators (if accepted)
     if accepted:
@@ -123,7 +157,8 @@ def notify_invitation_response(
                 message=f'{responder.username} joined "{project.title}" as {collaborator_role.role}',
                 project=project
             )
-            notifications.append(notification)
+            if notification:
+                notifications.append(notification)
 
     return notifications
 
@@ -165,7 +200,8 @@ def notify_section_update(
             message=f'{updater.username} updated "{section_title}" in "{project.title}"',
             project=project
         )
-        notifications.append(notification)
+        if notification:
+            notifications.append(notification)
 
     return notifications
 
@@ -207,7 +243,8 @@ def notify_comment_added(
             message=f'{commenter.username}: {comment_preview[:100]}...',
             project=project
         )
-        notifications.append(notification)
+        if notification:
+            notifications.append(notification)
 
     return notifications
 
@@ -242,7 +279,8 @@ def notify_approval_status_change(
             message=f'{approver.username} approved the {approval_text} for "{project.title}"',
             project=project
         )
-        notifications.append(notification)
+        if notification:
+            notifications.append(notification)
 
     # Check if project is now fully approved
     if project.is_fully_approved():
@@ -261,7 +299,8 @@ def notify_approval_status_change(
                 message=f'"{project.title}" has been fully approved and is ready to mint',
                 project=project
             )
-            notifications.append(notification)
+            if notification:
+                notifications.append(notification)
 
     return notifications
 
@@ -303,7 +342,8 @@ def notify_revenue_proposal(
             message=f'{proposer.username} proposed changes to revenue split: {changes_summary}',
             project=project
         )
-        notifications.append(notification)
+        if notification:
+            notifications.append(notification)
 
     return notifications
 

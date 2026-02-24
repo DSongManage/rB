@@ -11,7 +11,7 @@ from rest_framework.mixins import DestroyModelMixin
 from django.utils import timezone
 from django.db.models import Q
 
-from rb_core.models import Notification
+from rb_core.models import Notification, NotificationPreference, NOTIFICATION_DEFAULTS
 from rb_core.serializers import NotificationSerializer
 
 
@@ -162,3 +162,101 @@ class NotificationViewSet(DestroyModelMixin, viewsets.ReadOnlyModelViewSet):
         }
 
         return Response(stats)
+
+    # ------------------------------------------------------------------
+    # Notification Preferences
+    # ------------------------------------------------------------------
+
+    PREFERENCE_LABELS = {
+        'invitation': 'Collaboration Invitations',
+        'invitation_response': 'Invitation Responses',
+        'counter_proposal': 'Counter Proposals',
+        'revenue_proposal': 'Revenue Proposals',
+        'approval': 'Approvals',
+        'mint_ready': 'Mint Ready',
+        'content_purchase': 'Purchases',
+        'content_like': 'Likes',
+        'content_comment': 'Content Comments',
+        'content_rating': 'Ratings',
+        'creator_review': 'Reviews',
+        'section_update': 'Section Updates',
+        'comment': 'Studio Comments',
+        'new_follower': 'New Followers',
+    }
+
+    ACTION_ITEM_TYPES = {
+        'invitation', 'invitation_response', 'counter_proposal',
+        'revenue_proposal', 'approval', 'mint_ready', 'content_purchase',
+    }
+
+    @action(detail=False, methods=['get'], url_path='preferences')
+    def preferences(self, request):
+        """
+        GET /api/notifications/preferences/
+
+        Returns all 14 notification types with effective preferences,
+        grouped by category.
+        """
+        overrides = {
+            p.notification_type: {'in_app': p.in_app, 'email': p.email}
+            for p in NotificationPreference.objects.filter(user=request.user)
+        }
+
+        action_items = []
+        engagement = []
+
+        for ntype, defaults in NOTIFICATION_DEFAULTS.items():
+            effective = overrides.get(ntype, defaults)
+            entry = {
+                'notification_type': ntype,
+                'label': self.PREFERENCE_LABELS.get(ntype, ntype),
+                'in_app': effective['in_app'],
+                'email': effective['email'],
+            }
+            if ntype in self.ACTION_ITEM_TYPES:
+                action_items.append(entry)
+            else:
+                engagement.append(entry)
+
+        return Response({
+            'action_items': action_items,
+            'engagement': engagement,
+        })
+
+    @action(detail=False, methods=['put'], url_path='preferences/update')
+    def update_preferences(self, request):
+        """
+        PUT /api/notifications/preferences/update/
+
+        Body: { "preferences": [{ "notification_type": "...", "in_app": bool, "email": bool }] }
+        """
+        prefs = request.data.get('preferences', [])
+        if not isinstance(prefs, list):
+            return Response(
+                {'error': 'preferences must be a list'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        valid_types = set(NOTIFICATION_DEFAULTS.keys())
+        updated = []
+
+        for item in prefs:
+            ntype = item.get('notification_type')
+            if ntype not in valid_types:
+                continue
+
+            obj, _ = NotificationPreference.objects.update_or_create(
+                user=request.user,
+                notification_type=ntype,
+                defaults={
+                    'in_app': item.get('in_app', True),
+                    'email': item.get('email', False),
+                },
+            )
+            updated.append({
+                'notification_type': obj.notification_type,
+                'in_app': obj.in_app,
+                'email': obj.email,
+            })
+
+        return Response({'status': 'success', 'updated': updated})

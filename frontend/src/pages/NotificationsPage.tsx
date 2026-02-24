@@ -41,6 +41,8 @@ const NOTIFICATION_TYPES = [
   { value: 'content_comment', label: 'Content Comments' },
   { value: 'content_rating', label: 'Ratings' },
   { value: 'creator_review', label: 'Reviews' },
+  { value: 'content_purchase', label: 'Purchases' },
+  { value: 'new_follower', label: 'New Followers' },
 ];
 
 const DATE_RANGE_OPTIONS = [

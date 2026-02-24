@@ -7,18 +7,20 @@
  */
 
 import React, { useState } from 'react';
-import { X, Palette } from 'lucide-react';
+import { X, Palette, Bell } from 'lucide-react';
 import ThemeSettings from './ThemeSettings';
+import NotificationSettings from './NotificationSettings';
 
 interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'appearance';
+type SettingsTab = 'appearance' | 'notifications';
 
 const tabs: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { key: 'appearance', label: 'Appearance', icon: <Palette size={18} /> },
+  { key: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
 ];
 
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
@@ -47,7 +49,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
           background: 'var(--panel)',
           borderRadius: 16,
           width: '100%',
-          maxWidth: 520,
+          maxWidth: 640,
           maxHeight: '90vh',
           overflow: 'hidden',
           border: '1px solid var(--panel-border)',
@@ -141,6 +143,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
             overflow: 'auto',
           }}>
             {activeTab === 'appearance' && <ThemeSettings />}
+            {activeTab === 'notifications' && <NotificationSettings />}
           </div>
         </div>
       </div>

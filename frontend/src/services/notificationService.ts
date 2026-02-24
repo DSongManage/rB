@@ -12,6 +12,7 @@ import { API_URL } from '../config';
 export type NotificationType =
   | 'invitation'
   | 'invitation_response'
+  | 'counter_proposal'
   | 'comment'
   | 'approval'
   | 'section_update'
@@ -21,7 +22,8 @@ export type NotificationType =
   | 'content_comment'
   | 'content_rating'
   | 'creator_review'
-  | 'content_purchase';
+  | 'content_purchase'
+  | 'new_follower';
 
 export interface NotificationUser {
   id: number;
@@ -45,6 +47,18 @@ export interface NotificationStats {
   total: number;
   unread: number;
   by_type: Record<NotificationType, number>;
+}
+
+export interface NotificationPreference {
+  notification_type: NotificationType;
+  label: string;
+  in_app: boolean;
+  email: boolean;
+}
+
+export interface NotificationPreferencesResponse {
+  action_items: NotificationPreference[];
+  engagement: NotificationPreference[];
 }
 
 // ============================================================================
@@ -353,6 +367,7 @@ export async function getNotificationStats(): Promise<NotificationStats> {
     by_type: {
       invitation: 0,
       invitation_response: 0,
+      counter_proposal: 0,
       comment: 0,
       approval: 0,
       section_update: 0,
@@ -363,6 +378,7 @@ export async function getNotificationStats(): Promise<NotificationStats> {
       content_rating: 0,
       creator_review: 0,
       content_purchase: 0,
+      new_follower: 0,
     },
   };
 
@@ -371,6 +387,27 @@ export async function getNotificationStats(): Promise<NotificationStats> {
   });
 
   return stats;
+}
+
+/**
+ * Fetch notification preferences (all 14 types with effective settings)
+ */
+export async function getNotificationPreferences(): Promise<NotificationPreferencesResponse> {
+  return apiRequest<NotificationPreferencesResponse>('/api/notifications/preferences/');
+}
+
+/**
+ * Update notification preferences
+ */
+export async function updateNotificationPreferences(
+  preferences: { notification_type: string; in_app?: boolean; email?: boolean }[]
+): Promise<void> {
+  const csrfToken = await getCsrfToken();
+  await apiRequest('/api/notifications/preferences/update/', {
+    method: 'PUT',
+    headers: { 'X-CSRFToken': csrfToken },
+    body: JSON.stringify({ preferences }),
+  });
 }
 
 // ============================================================================
@@ -578,6 +615,7 @@ export function getNotificationIcon(type: NotificationType): string {
   const icons: Record<NotificationType, string> = {
     invitation: '📬',
     invitation_response: '✉️',
+    counter_proposal: '🔄',
     comment: '💬',
     approval: '✅',
     section_update: '📝',
@@ -588,6 +626,7 @@ export function getNotificationIcon(type: NotificationType): string {
     content_rating: '⭐',
     creator_review: '📋',
     content_purchase: '💵',
+    new_follower: '👤',
   };
   return icons[type] || '🔔';
 }
@@ -599,6 +638,7 @@ export function getNotificationColor(type: NotificationType): string {
   const colors: Record<NotificationType, string> = {
     invitation: '#3b82f6', // blue
     invitation_response: '#8b5cf6', // purple
+    counter_proposal: '#f97316', // orange
     comment: '#06b6d4', // cyan
     approval: '#10b981', // green
     section_update: '#f59e0b', // amber
@@ -609,6 +649,7 @@ export function getNotificationColor(type: NotificationType): string {
     content_rating: '#f59e0b', // amber
     creator_review: '#8b5cf6', // purple
     content_purchase: '#10b981', // green for money/success
+    new_follower: '#3b82f6', // blue
   };
   return colors[type] || '#6b7280';
 }
@@ -626,6 +667,8 @@ export default {
   markAllNotificationsRead,
   deleteNotification,
   getNotificationStats,
+  getNotificationPreferences,
+  updateNotificationPreferences,
 
   // Polling Functions
   startPolling,

@@ -2166,3 +2166,58 @@ def expire_stale_purchase_intents():
         logger.info(f"[Expire Task] Expired: {results}")
 
     return results
+
+
+@shared_task
+def send_notification_email(recipient_id, title, message, notification_type, action_url=''):
+    """Send an HTML notification email to a user via the configured email backend."""
+    from django.contrib.auth import get_user_model
+    from django.template.loader import render_to_string
+    from django.core.mail import EmailMultiAlternatives
+    from django.conf import settings as django_settings
+
+    User = get_user_model()
+
+    try:
+        user = User.objects.select_related('profile').get(id=recipient_id)
+    except User.DoesNotExist:
+        logger.warning('[NotifEmail] User %s not found, skipping', recipient_id)
+        return
+
+    if not user.email:
+        logger.info('[NotifEmail] User %s has no email, skipping', user.username)
+        return
+
+    display_name = getattr(user, 'username', 'there')
+    try:
+        if user.profile and user.profile.display_name:
+            display_name = user.profile.display_name
+    except Exception:
+        pass
+
+    base_url = getattr(django_settings, 'FRONTEND_URL', 'https://renaissblock.com')
+    full_action_url = f'{base_url}{action_url}' if action_url else base_url
+    preferences_url = f'{base_url}/settings/notifications'
+
+    context = {
+        'display_name': display_name,
+        'title': title,
+        'message': message,
+        'notification_type': notification_type,
+        'action_url': full_action_url,
+        'preferences_url': preferences_url,
+    }
+
+    html_body = render_to_string('notifications/email_notification.html', context)
+    plain_body = f"{title}\n\n{message}\n\nView details: {full_action_url}\n\nManage preferences: {preferences_url}"
+
+    email = EmailMultiAlternatives(
+        subject=title,
+        body=plain_body,
+        from_email=getattr(django_settings, 'DEFAULT_FROM_EMAIL', 'noreply@renaissblock.com'),
+        to=[user.email],
+    )
+    email.attach_alternative(html_body, 'text/html')
+    email.send()
+
+    logger.info('[NotifEmail] Sent "%s" email to %s', notification_type, user.email)

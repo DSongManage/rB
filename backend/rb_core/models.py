@@ -3907,6 +3907,28 @@ class DividerLine(models.Model):
         return f"{self.line_type} line on Page {self.page.page_number}"
 
 
+# Notification preference defaults: only create DB rows when user overrides
+# Action items default to email=True; engagement defaults to email=False
+NOTIFICATION_DEFAULTS = {
+    # Action items (in_app=True, email=True)
+    'invitation':          {'in_app': True, 'email': True},
+    'invitation_response': {'in_app': True, 'email': True},
+    'counter_proposal':    {'in_app': True, 'email': True},
+    'revenue_proposal':    {'in_app': True, 'email': True},
+    'approval':            {'in_app': True, 'email': True},
+    'mint_ready':          {'in_app': True, 'email': True},
+    'content_purchase':    {'in_app': True, 'email': True},
+    # Engagement (in_app=True, email=False)
+    'content_like':        {'in_app': True, 'email': False},
+    'content_comment':     {'in_app': True, 'email': False},
+    'content_rating':      {'in_app': True, 'email': False},
+    'creator_review':      {'in_app': True, 'email': False},
+    'section_update':      {'in_app': True, 'email': False},
+    'comment':             {'in_app': True, 'email': False},
+    'new_follower':        {'in_app': True, 'email': False},
+}
+
+
 class Notification(models.Model):
     """Real-time notification system for collaboration activities.
 
@@ -3931,6 +3953,7 @@ class Notification(models.Model):
         ('content_rating', 'Content Rating'),
         ('creator_review', 'Creator Review'),
         ('content_purchase', 'Content Purchase'),
+        ('new_follower', 'New Follower'),
     ]
 
     # Core fields
@@ -3995,6 +4018,29 @@ class Notification(models.Model):
             self.read = True
             self.read_at = timezone.now()
             self.save(update_fields=['read', 'read_at'])
+
+
+class NotificationPreference(models.Model):
+    """Per-user overrides for notification delivery channels.
+
+    Only rows that differ from NOTIFICATION_DEFAULTS are stored.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notification_preferences',
+    )
+    notification_type = models.CharField(max_length=20)
+    in_app = models.BooleanField(default=True)
+    email = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['user', 'notification_type']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.notification_type} (app={self.in_app}, email={self.email})"
 
 
 class Proposal(models.Model):
