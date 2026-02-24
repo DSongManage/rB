@@ -257,12 +257,14 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
 
   const selectedChapter = chapters.find(ch => ch.id === selectedChapterId) || null;
 
-  // Check if project can be deleted (no published chapters)
+  // Check if project can be deleted (no published chapters and not whole-book published)
   const hasPublishedChapters = chapters.some(ch => ch.is_published);
-  const canDeleteProject = !hasPublishedChapters;
+  const isWholeBookPublished = !!(project?.is_published && project?.has_published_content);
+  const isPublished = hasPublishedChapters || isWholeBookPublished;
+  const canDeleteProject = !isPublished;
 
-  // Detect delisted state: has published_content but is_published is false
-  const isUnpublished = !hasPublishedChapters && (
+  // Detect delisted state: has published_content but not currently published
+  const isUnpublished = !isPublished && (
     (project?.has_published_content) ||
     chapters.some(ch => ch.has_published_content && !ch.is_published)
   );
@@ -595,7 +597,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
                 {chapters.length === 0 ? 'Cancel Project' : 'Delete Project'}
               </button>
             )}
-            {hasPublishedChapters && (
+            {isPublished && (
               <button
                 onClick={() => setShowUnpublishConfirm(true)}
                 disabled={unpublishing}
