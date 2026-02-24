@@ -1021,10 +1021,10 @@ class ContentUnpublishView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        content.inventory_status = 'unpublished'
+        content.inventory_status = 'delisted'
         content.save()
 
-        return Response({'status': 'unpublished', 'id': content.id})
+        return Response({'status': 'delisted', 'id': content.id})
 
 
 class ContentPreviewView(APIView):

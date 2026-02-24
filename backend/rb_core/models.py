@@ -108,7 +108,7 @@ class Content(models.Model):
     editions = models.PositiveIntegerField(default=1)
     teaser_percent = models.PositiveIntegerField(default=10)
     watermark_preview = models.BooleanField(default=False)
-    inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted'),('unpublished','Unpublished'),('delisted','Delisted')], default='draft')
+    inventory_status = models.CharField(max_length=16, choices=[('draft','Draft'),('minted','Minted'),('delisted','Delisted')], default='draft')
     flagged = models.BooleanField(default=False)  # For user flagging/moderation (FR14)
     created_at = models.DateTimeField(auto_now_add=True)
     # View tracking for analytics and discovery
@@ -4153,7 +4153,7 @@ class Proposal(models.Model):
         if self.proposal_type == 'unpublish_content':
             # Unpublish the collaborative content
             if self.project.published_content:
-                self.project.published_content.inventory_status = 'unpublished'
+                self.project.published_content.inventory_status = 'delisted'
                 self.project.published_content.save()
 
 
