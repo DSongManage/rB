@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 
-from ..models import Purchase, Content, ReadingProgress, ComicPage, CollaborativeProject, ComicIssue
+from ..models import Purchase, Content, ReadingProgress, ComicPage, CollaborativeProject, ComicIssue, ProjectSection
 from ..serializers import ContentSerializer, ReadingProgressSerializer, ComicPageSerializer
 
 
@@ -140,6 +140,26 @@ class FullContentView(APIView):
             # Include teaser_link for art/music/film content which store media URLs
             'teaser_link': content.teaser_link if content.teaser_link else None,
         }
+
+        # For art content, include gallery images from the source project's sections
+        if content.content_type == 'art' and hasattr(content, 'source_collaborative_project'):
+            project = content.source_collaborative_project.first()
+            if project:
+                sections = ProjectSection.objects.filter(
+                    project=project,
+                    section_type='image',
+                    media_file__isnull=False,
+                ).exclude(media_file='').order_by('order')
+                response_data['gallery_images'] = [
+                    {
+                        'id': s.id,
+                        'title': s.title,
+                        'media_file': request.build_absolute_uri(s.media_file.url) if s.media_file else None,
+                        'order': s.order,
+                        'owner_username': s.owner.username if s.owner else None,
+                    }
+                    for s in sections
+                ]
 
         return Response(response_data, status=status.HTTP_200_OK)
 

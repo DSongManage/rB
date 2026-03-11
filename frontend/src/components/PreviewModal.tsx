@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MessageCircle, Share2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MessageCircle, Share2, X, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { sanitizeHtml } from '../utils/sanitize';
 import { API_URL } from '../config';
 import { LikeButton } from './social/LikeButton';
@@ -21,6 +21,12 @@ type Collaborator = {
   revenuePercentage: number;
 };
 
+type GalleryPreviewItem = {
+  id: number;
+  title: string;
+  media_file: string;
+};
+
 type Props = {
   open: boolean;
   onClose: ()=>void;
@@ -37,6 +43,9 @@ type Props = {
   likeCount?: number;
   userHasLiked?: boolean;
   commentCount?: number;
+  galleryPreview?: GalleryPreviewItem[];
+  totalPieces?: number;
+  previewCount?: number;
 };
 
 export default function PreviewModal({
@@ -55,6 +64,9 @@ export default function PreviewModal({
   likeCount = 0,
   userHasLiked = false,
   commentCount = 0,
+  galleryPreview,
+  totalPieces,
+  previewCount,
 }: Props){
   const type = contentType || 'book';
   const [html, setHtml] = useState<string>('');
@@ -343,38 +355,121 @@ export default function PreviewModal({
               </div>
             )}
             {type === 'art' && (
-              <div style={{ display: 'grid', placeItems: 'center', height: '100%', position: 'relative' }}>
-                <img src={teaserUrl} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  pointerEvents: 'none',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignContent: 'center',
-                  justifyContent: 'center',
-                  gap: '40px 60px',
-                  overflow: 'hidden',
-                }}>
-                  {Array.from({ length: 40 }).map((_, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        color: 'rgba(255, 255, 255, 0.2)',
-                        fontSize: 14,
-                        fontWeight: 700,
-                        transform: 'rotate(-30deg)',
-                        whiteSpace: 'nowrap',
-                        userSelect: 'none',
-                        letterSpacing: 3,
-                        textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                      }}
-                    >
-                      renaissBlock
+              galleryPreview && galleryPreview.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12, padding: 12 }}>
+                  {totalPieces && previewCount && (
+                    <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
+                      Preview ({previewCount} of {totalPieces} piece{totalPieces > 1 ? 's' : ''})
                     </div>
-                  ))}
+                  )}
+                  <div style={{
+                    flex: 1,
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(auto-fill, minmax(${galleryPreview.length === 1 ? '280px' : '140px'}, 1fr))`,
+                    gap: 10,
+                    overflowY: 'auto',
+                    alignContent: 'start',
+                  }}>
+                    {galleryPreview.map((img) => (
+                      <div key={img.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#1e293b' }}>
+                        <img
+                          src={img.media_file}
+                          alt={img.title || 'Art piece'}
+                          style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
+                        />
+                        <div style={{
+                          position: 'absolute',
+                          inset: 0,
+                          pointerEvents: 'none',
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          alignContent: 'center',
+                          justifyContent: 'center',
+                          gap: '20px 30px',
+                          overflow: 'hidden',
+                        }}>
+                          {Array.from({ length: 12 }).map((_, i) => (
+                            <div key={i} style={{
+                              color: 'rgba(255,255,255,0.15)',
+                              fontSize: 10,
+                              fontWeight: 700,
+                              transform: 'rotate(-30deg)',
+                              whiteSpace: 'nowrap',
+                              userSelect: 'none',
+                              letterSpacing: 2,
+                            }}>renaissBlock</div>
+                          ))}
+                        </div>
+                        {img.title && (
+                          <div style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            padding: '6px 8px',
+                            background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+                            color: '#e2e8f0',
+                            fontSize: 11,
+                            fontWeight: 500,
+                          }}>{img.title}</div>
+                        )}
+                      </div>
+                    ))}
+                    {/* Blurred placeholder cards for locked pieces */}
+                    {totalPieces && previewCount && totalPieces > previewCount && (
+                      Array.from({ length: Math.min(totalPieces - previewCount, 6) }).map((_, i) => (
+                        <div key={`locked-${i}`} style={{
+                          borderRadius: 8,
+                          background: '#1e293b',
+                          aspectRatio: '1',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          border: '1px solid #334155',
+                        }}>
+                          <Lock size={20} style={{ color: '#475569' }} />
+                          <span style={{ color: '#475569', fontSize: 11 }}>Locked</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ display: 'grid', placeItems: 'center', height: '100%', position: 'relative' }}>
+                  <img src={teaserUrl} alt="preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }} />
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignContent: 'center',
+                    justifyContent: 'center',
+                    gap: '40px 60px',
+                    overflow: 'hidden',
+                  }}>
+                    {Array.from({ length: 40 }).map((_, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          color: 'rgba(255, 255, 255, 0.2)',
+                          fontSize: 14,
+                          fontWeight: 700,
+                          transform: 'rotate(-30deg)',
+                          whiteSpace: 'nowrap',
+                          userSelect: 'none',
+                          letterSpacing: 3,
+                          textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                        }}
+                      >
+                        renaissBlock
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
             )}
             {type === 'film' && (
               <video src={teaserUrl} controls style={{ width: '100%', height: '100%', borderRadius: 8 }} />

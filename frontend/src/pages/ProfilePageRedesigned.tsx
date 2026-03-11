@@ -2048,7 +2048,7 @@ export default function ProfilePageRedesigned() {
                       onView={() => openReader(item.id)}
                       onEdit={() => {
                         // Studio content (books/comics) with a source project should go to the project editor
-                        if (item.source_project_id && (item.content_type === 'comic' || item.content_type === 'book')) {
+                        if (item.source_project_id && (item.content_type === 'comic' || item.content_type === 'book' || item.content_type === 'art')) {
                           navigate(`/studio/${item.source_project_id}?tab=content`);
                         } else {
                           navigate(`/studio?editContent=${item.id}`);

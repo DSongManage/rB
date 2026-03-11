@@ -1,9 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { PenLine } from 'lucide-react';
 import {
   CollaborativeProject,
   ProjectSection,
   collaborationApi,
 } from '../../services/collaborationApi';
+
+/** Strip extension, replace _ and - with spaces, then title-case */
+function cleanFilename(raw: string): string {
+  const noExt = raw.replace(/\.[^/.]+$/, '');
+  return noExt
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim() || 'Untitled Art';
+}
 
 interface User {
   id: number;
@@ -35,7 +45,10 @@ export default function CollaborativeArtEditor({
   const [selectedPieceId, setSelectedPieceId] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [autoFocusTitle, setAutoFocusTitle] = useState(false);
+  const [hoveredTitleId, setHoveredTitleId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const collaborators = project.collaborators || [];
   const currentUserRole = collaborators.find(c => c.user === currentUser.id);
@@ -44,6 +57,15 @@ export default function CollaborativeArtEditor({
   useEffect(() => {
     loadArtPieces();
   }, [project.id]);
+
+  // Auto-focus and select title input after uploading a new piece
+  useEffect(() => {
+    if (autoFocusTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+      setAutoFocusTitle(false);
+    }
+  }, [autoFocusTitle, selectedPieceId]);
 
   const loadArtPieces = async () => {
     try {
@@ -97,7 +119,7 @@ export default function CollaborativeArtEditor({
       const newSection = await collaborationApi.createProjectSection({
         project: project.id,
         section_type: 'image',
-        title: file.name.replace(/\.[^/.]+$/, '') || 'Untitled Art',
+        title: cleanFilename(file.name),
         order: artPieces.length,
         media_file: file,
       });
@@ -113,6 +135,7 @@ export default function CollaborativeArtEditor({
 
       setArtPieces([...artPieces, newPiece]);
       setSelectedPieceId(newPiece.id);
+      setAutoFocusTitle(true);
     } catch (err: any) {
       setError(err.message || 'Failed to upload art');
     } finally {
@@ -236,14 +259,17 @@ export default function CollaborativeArtEditor({
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    color: selectedPieceId === piece.id ? '#f59e0b' : '#f8fafc',
+                    color: (!piece.title || piece.title === 'Untitled' || piece.title === 'Untitled Art')
+                      ? '#64748b'
+                      : (selectedPieceId === piece.id ? '#f59e0b' : '#f8fafc'),
                     fontSize: 13,
-                    fontWeight: 600,
+                    fontWeight: (!piece.title || piece.title === 'Untitled' || piece.title === 'Untitled Art') ? 400 : 600,
+                    fontStyle: (!piece.title || piece.title === 'Untitled' || piece.title === 'Untitled Art') ? 'italic' : 'normal',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                   }}>
-                    {piece.title}
+                    {piece.title || 'Untitled'}
                   </div>
                   <div style={{ color: '#64748b', fontSize: 11 }}>
                     @{piece.owner_username}
@@ -292,21 +318,45 @@ export default function CollaborativeArtEditor({
             }}>
               <div style={{ flex: 1 }}>
                 {canEditSelectedPiece ? (
-                  <input
-                    type="text"
-                    value={selectedPiece.title}
-                    onChange={(e) => handleUpdateTitle(selectedPiece.id, e.target.value)}
+                  <div
                     style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#f8fafc',
-                      fontSize: 18,
-                      fontWeight: 600,
-                      width: '100%',
-                      outline: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      borderBottom: hoveredTitleId === selectedPiece.id ? '1px solid #475569' : '1px solid transparent',
+                      paddingBottom: 2,
+                      transition: 'border-color 0.2s ease',
                     }}
-                    placeholder="Untitled"
-                  />
+                    onMouseEnter={() => setHoveredTitleId(selectedPiece.id)}
+                    onMouseLeave={() => setHoveredTitleId(null)}
+                  >
+                    <input
+                      ref={titleInputRef}
+                      type="text"
+                      value={selectedPiece.title}
+                      onChange={(e) => handleUpdateTitle(selectedPiece.id, e.target.value)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#f8fafc',
+                        fontSize: 18,
+                        fontWeight: 600,
+                        width: '100%',
+                        outline: 'none',
+                        padding: '2px 0',
+                      }}
+                      placeholder="Untitled"
+                    />
+                    <PenLine
+                      size={14}
+                      style={{
+                        color: '#64748b',
+                        flexShrink: 0,
+                        opacity: hoveredTitleId === selectedPiece.id ? 1 : 0.4,
+                        transition: 'opacity 0.2s ease',
+                      }}
+                    />
+                  </div>
                 ) : (
                   <h2 style={{ color: '#f8fafc', fontSize: 18, fontWeight: 600, margin: 0 }}>
                     {selectedPiece.title}

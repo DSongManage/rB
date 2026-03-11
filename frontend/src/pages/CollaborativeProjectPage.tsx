@@ -51,6 +51,13 @@ export default function CollaborativeProjectPage() {
     setSearchParams({ tab });
   };
 
+  // Default solo art projects to Gallery tab
+  useEffect(() => {
+    if (project && !searchParams.get('tab') && project.content_type === 'art' && project.is_solo) {
+      setSearchParams({ tab: 'content' }, { replace: true });
+    }
+  }, [project]);
+
   useEffect(() => {
     loadProjectAndUser();
   }, [projectId]);

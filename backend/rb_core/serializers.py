@@ -1063,6 +1063,19 @@ class CollaborationHistorySerializer(serializers.ModelSerializer):
         except Exception:
             pass
 
+        # Fallback for art projects: use first image section
+        if obj.content_type == 'art':
+            try:
+                first_image = obj.sections.filter(
+                    section_type='image'
+                ).order_by('order').first()
+                if first_image and first_image.media_file:
+                    if request:
+                        return request.build_absolute_uri(first_image.media_file.url)
+                    return first_image.media_file.url
+            except Exception:
+                pass
+
         # Check published_content teaser_link
         try:
             if obj.published_content and obj.published_content.teaser_link:

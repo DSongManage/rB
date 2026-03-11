@@ -4,7 +4,7 @@ from django.db import models
 import logging
 from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask, Tag, Series
+from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask, Tag, Series, ProjectSection
 from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer, SeriesSerializer
 from ..utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from ..utils.ipfs_utils import upload_to_ipfs
@@ -1001,12 +1001,18 @@ class ContentUnpublishView(APIView):
         if content.creator != core_user:
             return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
 
-        # Only allow for non-collaborative content
-        if content.source_collaborative_project.exists():
-            return Response(
-                {'error': 'Collaborative content must be unpublished through the project'},
-                status=status.HTTP_400_BAD_REQUEST
+        # Only allow for non-collaborative content (solo projects can unpublish directly)
+        collab_project = content.source_collaborative_project.first()
+        if collab_project:
+            is_truly_collaborative = (
+                not collab_project.is_solo
+                and collab_project.collaborators.filter(status='accepted').count() > 1
             )
+            if is_truly_collaborative:
+                return Response(
+                    {'error': 'Collaborative content must be unpublished through the project'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Only allow for minted non-book content (art, music, film)
         if content.inventory_status != 'minted':
@@ -1035,7 +1041,7 @@ class ContentPreviewView(APIView):
         except Content.DoesNotExist:
             return Response({'error':'not found'}, status=404)
         data = ContentSerializer(c, context={'request': request}).data
-        return Response({
+        response = {
             'id': c.id,
             'title': c.title,
             'teaser_link': c.teaser_link,
@@ -1054,7 +1060,34 @@ class ContentPreviewView(APIView):
             'like_count': data.get('like_count', 0),
             'user_has_liked': data.get('user_has_liked', False),
             'preview': data
-        })
+        }
+
+        # For art content, include gallery preview based on teaser_percent
+        if c.content_type == 'art' and hasattr(c, 'source_collaborative_project'):
+            project = c.source_collaborative_project.first()
+            if project:
+                sections = ProjectSection.objects.filter(
+                    project=project,
+                    section_type='image',
+                    media_file__isnull=False,
+                ).exclude(media_file='').order_by('order')
+                total = sections.count()
+                if total > 0:
+                    teaser_pct = getattr(project, 'teaser_percent', 10)
+                    preview_count = max(1, int(total * teaser_pct / 100))
+                    preview_sections = sections[:preview_count]
+                    response['gallery_preview'] = [
+                        {
+                            'id': s.id,
+                            'title': s.title,
+                            'media_file': request.build_absolute_uri(s.media_file.url) if s.media_file else None,
+                        }
+                        for s in preview_sections
+                    ]
+                    response['total_pieces'] = total
+                    response['preview_count'] = preview_count
+
+        return Response(response)
 
 class ContentTextTeaserView(APIView):
     permission_classes = [permissions.AllowAny]

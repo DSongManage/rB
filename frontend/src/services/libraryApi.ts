@@ -122,6 +122,14 @@ export interface ComicPreviewData {
   is_preview: boolean;
 }
 
+export interface GalleryImage {
+  id: number;
+  title: string;
+  media_file: string;
+  order: number;
+  owner_username?: string;
+}
+
 export interface FullContent {
   id: number;
   title: string;
@@ -132,6 +140,7 @@ export interface FullContent {
   teaser_link?: string | null;
   copyright_year?: number | null;
   copyright_holder?: string | null;
+  gallery_images?: GalleryImage[];
 }
 
 export interface ReadingProgress {

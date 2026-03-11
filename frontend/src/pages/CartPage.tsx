@@ -241,6 +241,11 @@ export default function CartPage() {
     setPaymentStep('success');
   }
 
+  // Coinbase funds arrived in wallet — now complete purchase via balance payment
+  async function handleCoinbaseFundsReady() {
+    await handleConfirmBalancePayment();
+  }
+
   // Handle payment cancellation
   function handlePaymentCancel() {
     setPaymentStep('idle');
@@ -1105,7 +1110,7 @@ export default function CartPage() {
       {paymentStep === 'coinbase' && purchaseIntent && (
         <CoinbaseOnrampWidget
           intentId={purchaseIntent.intent_id}
-          onSuccess={handlePaymentSuccess}
+          onSuccess={handleCoinbaseFundsReady}
           onCancel={handlePaymentCancel}
           onError={handlePaymentError}
         />

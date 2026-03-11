@@ -105,9 +105,12 @@ export default function OverviewTab({
         borderRadius: 12,
         padding: 24,
       }}>
-        <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
-          {project.content_type === 'art' ? 'Upload Art' : 'Cover Art'}
+        <h3 style={{ margin: '0 0 4px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
+          {project.content_type === 'art' ? 'Cover Image' : 'Cover Art'}
         </h3>
+        <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: 13 }}>
+          This image represents your project in the marketplace
+        </p>
         <input
           ref={coverInputRef}
           type="file"
@@ -187,14 +190,28 @@ export default function OverviewTab({
             )}
             <span style={{ fontSize: 14, color: 'var(--subtle)' }}>
               {isProjectLead
-                ? (project.content_type === 'art' ? 'Click to upload your artwork' : 'Click to upload cover art')
-                : (project.content_type === 'art' ? 'No artwork uploaded' : 'No cover art uploaded')}
+                ? (project.content_type === 'art' ? 'Click to upload a cover image' : 'Click to upload cover art')
+                : (project.content_type === 'art' ? 'No cover image uploaded' : 'No cover art uploaded')}
             </span>
             {isProjectLead && (
               <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
                 PNG, JPEG, or WebP
               </span>
             )}
+          </div>
+        )}
+
+        {project.content_type === 'art' && project.is_solo && (
+          <div style={{
+            marginTop: 16,
+            padding: '10px 14px',
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1px solid rgba(245, 158, 11, 0.25)',
+            borderRadius: 8,
+            fontSize: 13,
+            color: '#f59e0b',
+          }}>
+            Upload your artwork in the <strong>Gallery</strong> tab
           </div>
         )}
       </div>

@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { libraryApi, type FullContent, type ComicReaderData } from '../services/libraryApi';
+import { libraryApi, type FullContent, type ComicReaderData, type GalleryImage } from '../services/libraryApi';
 import { KindleReader } from '../components/reader';
 import { ComicReader } from '../components/reader/ComicReader';
-import { ArrowLeft, ZoomIn, ZoomOut, Maximize2, Download } from 'lucide-react';
+import { ArrowLeft, ZoomIn, ZoomOut, Maximize2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import CopyrightNotice from '../components/CopyrightNotice';
 
-// Art Viewer Component for displaying images
+// Art Viewer Component for displaying images (supports single image or gallery)
 function ArtViewer({
   title,
   imageUrl,
@@ -15,6 +15,7 @@ function ArtViewer({
   onBack,
   copyrightYear,
   copyrightHolder,
+  galleryImages,
 }: {
   title: string;
   imageUrl: string;
@@ -22,14 +23,36 @@ function ArtViewer({
   onBack: () => void;
   copyrightYear?: number | null;
   copyrightHolder?: string | null;
+  galleryImages?: GalleryImage[];
 }) {
   const [zoom, setZoom] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const thumbStripRef = useRef<HTMLDivElement>(null);
+
+  const hasGallery = galleryImages && galleryImages.length > 0;
+  const currentImage = hasGallery ? galleryImages[currentIndex] : null;
+  const displayUrl = currentImage ? currentImage.media_file : imageUrl;
+  const displayTitle = currentImage?.title || title;
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
   const handleResetZoom = () => setZoom(1);
+
+  const goNext = useCallback(() => {
+    if (hasGallery && currentIndex < galleryImages.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+      setZoom(1);
+    }
+  }, [hasGallery, currentIndex, galleryImages?.length]);
+
+  const goPrev = useCallback(() => {
+    if (hasGallery && currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+      setZoom(1);
+    }
+  }, [hasGallery, currentIndex]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -60,11 +83,23 @@ function ArtViewer({
         handleZoomOut();
       } else if (e.key === '0') {
         handleResetZoom();
+      } else if (e.key === 'ArrowRight') {
+        goNext();
+      } else if (e.key === 'ArrowLeft') {
+        goPrev();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack]);
+  }, [onBack, goNext, goPrev]);
+
+  // Scroll active thumbnail into view
+  useEffect(() => {
+    if (thumbStripRef.current) {
+      const active = thumbStripRef.current.children[currentIndex] as HTMLElement;
+      active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [currentIndex]);
 
   return (
     <div
@@ -107,13 +142,17 @@ function ArtViewer({
             <ArrowLeft size={20} />
           </button>
           <div>
-            <div style={{ color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>{title}</div>
+            <div style={{ color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>{displayTitle}</div>
             <div style={{ color: '#64748b', fontSize: 13 }}>by {creator}</div>
           </div>
         </div>
 
-        {/* Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {hasGallery && (
+            <span style={{ color: '#94a3b8', fontSize: 13, marginRight: 8 }}>
+              {currentIndex + 1} / {galleryImages.length}
+            </span>
+          )}
           <button
             onClick={handleZoomOut}
             disabled={zoom <= 0.5}
@@ -179,7 +218,7 @@ function ArtViewer({
             <Maximize2 size={18} />
           </button>
           <a
-            href={imageUrl}
+            href={displayUrl}
             download
             target="_blank"
             rel="noopener noreferrer"
@@ -201,7 +240,7 @@ function ArtViewer({
         </div>
       </div>
 
-      {/* Image Container */}
+      {/* Image Container with navigation arrows */}
       <div
         style={{
           flex: 1,
@@ -210,11 +249,35 @@ function ArtViewer({
           alignItems: 'center',
           justifyContent: 'center',
           padding: 24,
+          position: 'relative',
         }}
       >
+        {hasGallery && currentIndex > 0 && (
+          <button
+            onClick={goPrev}
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'rgba(17, 24, 39, 0.8)',
+              border: '1px solid #334155',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              padding: 12,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              zIndex: 5,
+            }}
+            title="Previous"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        )}
         <img
-          src={imageUrl}
-          alt={title}
+          src={displayUrl}
+          alt={displayTitle}
           style={{
             maxWidth: '100%',
             maxHeight: '100%',
@@ -226,7 +289,71 @@ function ArtViewer({
           }}
           draggable={false}
         />
+        {hasGallery && currentIndex < galleryImages.length - 1 && (
+          <button
+            onClick={goNext}
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'rgba(17, 24, 39, 0.8)',
+              border: '1px solid #334155',
+              color: '#f8fafc',
+              cursor: 'pointer',
+              padding: 12,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              zIndex: 5,
+            }}
+            title="Next"
+          >
+            <ChevronRight size={24} />
+          </button>
+        )}
       </div>
+
+      {/* Thumbnail strip for gallery */}
+      {hasGallery && galleryImages.length > 1 && (
+        <div
+          ref={thumbStripRef}
+          style={{
+            display: 'flex',
+            gap: 8,
+            padding: '8px 20px',
+            overflowX: 'auto',
+            background: '#111827',
+            borderTop: '1px solid #1f2937',
+          }}
+        >
+          {galleryImages.map((img, idx) => (
+            <button
+              key={img.id}
+              onClick={() => { setCurrentIndex(idx); setZoom(1); }}
+              style={{
+                flex: '0 0 auto',
+                width: 60,
+                height: 60,
+                borderRadius: 6,
+                overflow: 'hidden',
+                border: idx === currentIndex ? '2px solid #f59e0b' : '2px solid transparent',
+                cursor: 'pointer',
+                padding: 0,
+                background: '#1e293b',
+                opacity: idx === currentIndex ? 1 : 0.6,
+                transition: 'opacity 0.15s, border-color 0.15s',
+              }}
+            >
+              <img
+                src={img.media_file}
+                alt={img.title || `Piece ${idx + 1}`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Footer with copyright and keyboard hints */}
       <div
@@ -235,13 +362,11 @@ function ArtViewer({
           borderTop: '1px solid #1f2937',
         }}
       >
-        {/* Copyright Notice */}
         <CopyrightNotice
           authorName={copyrightHolder || creator}
           year={copyrightYear || new Date().getFullYear()}
           compact
         />
-        {/* Keyboard hints */}
         <div
           style={{
             padding: '8px 20px',
@@ -252,8 +377,14 @@ function ArtViewer({
         >
           Press <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>+</kbd> /
           <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>-</kbd> to zoom,
-          <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>0</kbd> to reset,
-          <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>Esc</kbd> to go back
+          <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>0</kbd> to reset
+          {hasGallery && (
+            <>
+              , <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>←</kbd> /
+              <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>→</kbd> to navigate
+            </>
+          )}
+          , <kbd style={{ background: '#1f2937', padding: '2px 6px', borderRadius: 4, marginInline: 4 }}>Esc</kbd> to go back
         </div>
       </div>
     </div>
@@ -547,16 +678,17 @@ export function ReaderPage() {
 
   // Art viewer
   if (content.content_type === 'art') {
-    // Art viewer - display the image
-    if (content.teaser_link) {
+    // Art viewer - display the image(s)
+    if (content.teaser_link || (content.gallery_images && content.gallery_images.length > 0)) {
       return (
         <ArtViewer
           title={content.title}
-          imageUrl={content.teaser_link}
+          imageUrl={content.teaser_link || ''}
           creator={content.creator}
           onBack={handleBack}
           copyrightYear={content.copyright_year}
           copyrightHolder={content.copyright_holder}
+          galleryImages={content.gallery_images}
         />
       );
     } else {

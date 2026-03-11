@@ -1318,11 +1318,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             )
 
         # Verify project is in the correct status
-        if project.status == 'minted':
-            return Response(
-                {'error': 'Project has already been minted'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        is_remint = project.status in ('minted', 'unpublished') and project.published_content is not None
 
         if project.status == 'cancelled':
             return Response(
@@ -1568,36 +1564,59 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         from ..utils.solana_integration import get_nft_metadata_uri
         metadata_uri = get_nft_metadata_uri(project.id, project.content_type)
 
-        # Publishing step: create the Content record and mark project as minted.
+        # Publishing step: create or update the Content record and mark project as minted.
         # Actual on-chain NFT minting + USDC distribution happens at purchase
         # time via process_atomic_purchase / mint_and_distribute_atomic.
         try:
-            # Update project status to minted
-            project.status = 'minted'
-            project.save()
-
-            # Create Content record for marketplace listing
-            # This allows the minted NFT to be listed and sold on the home page
             author_name = get_author_display_name(core_user)
-            content = Content.objects.create(
-                creator=core_user,
-                title=project.title,
-                teaser_link='',  # Will be set below
-                content_type=project.content_type,
-                price_usd=project.price_usd,
-                editions=project.editions,
-                teaser_percent=project.teaser_percent,
-                watermark_preview=project.watermark_preview,
-                inventory_status='minted',
-                nft_contract='',  # Set at purchase time when NFT is minted on-chain
-                copyright_year=datetime.now().year,
-                copyright_holder=author_name,
-            )
-            # Set teaser link: prefer project cover art, fall back to teaser endpoint
+
+            if is_remint:
+                # Update existing Content record
+                content = project.published_content
+                content.title = project.title
+                content.price_usd = project.price_usd
+                content.editions = project.editions
+                content.teaser_percent = project.teaser_percent
+                content.watermark_preview = project.watermark_preview
+                content.copyright_holder = author_name
+                content.inventory_status = 'minted'
+
+                # Ensure project status is minted (e.g. if it was unpublished)
+                if project.status != 'minted':
+                    project.status = 'minted'
+                    project.save()
+            else:
+                # Update project status to minted
+                project.status = 'minted'
+                project.save()
+
+                # Create Content record for marketplace listing
+                content = Content.objects.create(
+                    creator=core_user,
+                    title=project.title,
+                    teaser_link='',  # Will be set below
+                    content_type=project.content_type,
+                    price_usd=project.price_usd,
+                    editions=project.editions,
+                    teaser_percent=project.teaser_percent,
+                    watermark_preview=project.watermark_preview,
+                    inventory_status='minted',
+                    nft_contract='',  # Set at purchase time when NFT is minted on-chain
+                    copyright_year=datetime.now().year,
+                    copyright_holder=author_name,
+                )
+
+            # Set teaser link: prefer project cover art, fall back to first section image, then teaser endpoint
             if project.cover_image:
                 content.teaser_link = project.cover_image.url
             else:
-                content.teaser_link = f'/api/content/{content.id}/teaser/'
+                first_media = project.sections.filter(
+                    section_type='image', media_file__isnull=False
+                ).exclude(media_file='').order_by('order').first()
+                if first_media and first_media.media_file:
+                    content.teaser_link = first_media.media_file.url
+                elif not is_remint:
+                    content.teaser_link = f'/api/content/{content.id}/teaser/'
 
             # Build teaser_html from project sections (for book content)
             if project.content_type == 'book':
@@ -1615,13 +1634,14 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
             content.save()
 
-            # Link the project to the content
-            project.published_content = content
-            project.save(update_fields=['published_content'])
+            if not is_remint:
+                # Link the project to the content
+                project.published_content = content
+                project.save(update_fields=['published_content'])
 
             return Response({
                 'success': True,
-                'message': 'NFT published successfully',
+                'message': 'Content updated successfully' if is_remint else 'NFT published successfully',
                 'project_id': project.id,
                 'project_title': project.title,
                 'content_id': content.id,
@@ -1907,6 +1927,12 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             project.published_content.inventory_status = 'minted'
             if project.cover_image:
                 project.published_content.teaser_link = project.cover_image.url
+            elif not project.published_content.teaser_link:
+                first_media = project.sections.filter(
+                    section_type='image', media_file__isnull=False
+                ).exclude(media_file='').order_by('order').first()
+                if first_media and first_media.media_file:
+                    project.published_content.teaser_link = first_media.media_file.url
             project.published_content.save()
 
         return Response({

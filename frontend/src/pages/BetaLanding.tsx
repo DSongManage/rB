@@ -227,6 +227,7 @@ export default function BetaLanding() {
               <p>Release chapter by chapter. Every sale pays both of you instantly.</p>
             </div>
           </div>
+
         </div>
       </section>
 

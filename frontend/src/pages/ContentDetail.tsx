@@ -713,6 +713,9 @@ export default function ContentDetail(){
         likeCount={data?.like_count || 0}
         userHasLiked={data?.user_has_liked || false}
         commentCount={data?.comment_count || 0}
+        galleryPreview={data?.gallery_preview}
+        totalPieces={data?.total_pieces}
+        previewCount={data?.preview_count}
       />
 
       {/* Ratings Section */}
