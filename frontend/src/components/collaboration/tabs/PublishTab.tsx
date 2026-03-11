@@ -685,6 +685,7 @@ export default function PublishTab({
           onNext={isProjectLead ? handleSaveCustomization : () => setStep('approve')}
           saving={saving}
           authorName={project.created_by_username || 'Creator'}
+          contentType={project.content_type}
         />
         </>
       )}
@@ -761,6 +762,7 @@ interface CustomizeStepProps {
   onNext: () => void;
   saving: boolean;
   authorName: string;
+  contentType: string;
 }
 
 // Helper to count words
@@ -783,6 +785,7 @@ function CustomizeStep({
   onNext,
   saving,
   authorName,
+  contentType,
 }: CustomizeStepProps) {
   const wordCount = countWords(authorsNote);
   const maxWords = 100;
@@ -1212,11 +1215,11 @@ function CustomizeStep({
             <div>
               <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <PenLine size={20} style={{ color: '#8b5cf6' }} />
-                Author's Note
+                {contentType === 'art' ? "Artist's Note" : "Author's Note"}
                 <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>(optional)</span>
               </h3>
               <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
-                Share a personal message with your audience
+                {contentType === 'art' ? 'Share a personal message with your collectors' : 'Share a personal message with your audience'}
               </p>
             </div>
             <span style={{
@@ -1235,7 +1238,9 @@ function CustomizeStep({
           <textarea
             value={authorsNote}
             onChange={(e) => setAuthorsNote(e.target.value)}
-            placeholder="Share the story behind this work, thank your collaborators, or leave a message for your readers..."
+            placeholder={contentType === 'art'
+              ? "Share the inspiration behind this piece, your creative process, or a message for your collectors..."
+              : "Share the story behind this work, thank your collaborators, or leave a message for your readers..."}
             disabled={!isProjectLead}
             style={{
               width: '100%',

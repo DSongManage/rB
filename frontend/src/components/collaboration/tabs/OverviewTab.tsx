@@ -99,14 +99,14 @@ export default function OverviewTab({
     }}>
       {/* Cover Art */}
       <div style={{
-        gridColumn: 'span 6',
+        gridColumn: project.content_type === 'art' && project.is_solo ? 'span 12' : 'span 6',
         background: 'var(--panel)',
         border: '1px solid var(--panel-border)',
         borderRadius: 12,
         padding: 24,
       }}>
         <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
-          Cover Art
+          {project.content_type === 'art' ? 'Upload Art' : 'Cover Art'}
         </h3>
         <input
           ref={coverInputRef}
@@ -119,7 +119,7 @@ export default function OverviewTab({
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             <img
               src={project.cover_image}
-              alt="Cover art"
+              alt={project.content_type === 'art' ? 'Artwork' : 'Cover art'}
               style={{
                 maxWidth: 320,
                 maxHeight: 400,
@@ -186,7 +186,9 @@ export default function OverviewTab({
               <ImageIcon size={32} style={{ color: 'var(--subtle)' }} />
             )}
             <span style={{ fontSize: 14, color: 'var(--subtle)' }}>
-              {isProjectLead ? 'Click to upload cover art' : 'No cover art uploaded'}
+              {isProjectLead
+                ? (project.content_type === 'art' ? 'Click to upload your artwork' : 'Click to upload cover art')
+                : (project.content_type === 'art' ? 'No artwork uploaded' : 'No cover art uploaded')}
             </span>
             {isProjectLead && (
               <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
@@ -197,8 +199,8 @@ export default function OverviewTab({
         )}
       </div>
 
-      {/* Proposal Summary - Full width */}
-      <div style={{
+      {/* Proposal Summary - Full width (hidden for solo art projects) */}
+      {!(project.content_type === 'art' && project.is_solo) && <div style={{
         gridColumn: 'span 12',
         background: 'var(--panel)',
         border: '1px solid var(--panel-border)',
@@ -398,7 +400,7 @@ export default function OverviewTab({
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Revenue Split Chart - Left side (hidden for solo projects) */}
       {!project.is_solo && (
