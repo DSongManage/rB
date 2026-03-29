@@ -340,6 +340,19 @@ export const paymentApi = {
       method: 'POST',
     });
   },
+  // Escrow Funding
+  async createEscrowIntent(
+    projectId: number,
+    collaboratorRoleId: number
+  ): Promise<PurchaseIntentResponse> {
+    return apiCall<PurchaseIntentResponse>('/api/payment/escrow-intent/', {
+      method: 'POST',
+      body: JSON.stringify({
+        project_id: projectId,
+        collaborator_role_id: collaboratorRoleId,
+      }),
+    });
+  },
 };
 
 export default paymentApi;
