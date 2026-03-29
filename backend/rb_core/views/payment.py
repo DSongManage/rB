@@ -785,11 +785,21 @@ class SubmitSponsoredPaymentView(APIView):
             task_func = process_balance_purchase_task
             success_message = 'Payment submitted. Your purchase is being processed.'
 
+        # Try async first, fall back to sync
+        processed_sync = False
         try:
             result = task_func.delay(intent.id, tx_signature)
             logger.info(f"Queued async processing for intent {intent.id} (escrow={intent.is_escrow_funding})")
         except Exception as e:
             logger.warning(f"Celery not available, processing synchronously: {e}")
+            processed_sync = True
+
+        # Always try sync as fallback if async might not be processing
+        if not processed_sync and settings.DEBUG:
+            # In dev mode, Celery worker may not be running — also process sync
+            processed_sync = True
+
+        if processed_sync:
             try:
                 sync_result = task_func.apply(
                     args=[intent.id, tx_signature],
