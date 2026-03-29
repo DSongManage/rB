@@ -4,7 +4,9 @@ from django.db import models
 import logging
 from rest_framework import generics
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask, Tag, Series, ProjectSection
+from decimal import Decimal
+from django.utils import timezone
+from ..models import Content, UserProfile, User as CoreUser, BookProject, Chapter, CollaborativeProject, CollaboratorRole, ContractTask, MilestoneTemplate, Tag, Series, ProjectSection
 from ..serializers import ContentSerializer, UserProfileSerializer, SignupSerializer, ProfileEditSerializer, ProfileStatusUpdateSerializer, BookProjectSerializer, ChapterSerializer, SeriesSerializer
 from ..utils import verify_web3auth_jwt, extract_wallet_from_claims, Web3AuthVerificationError
 from ..utils.ipfs_utils import upload_to_ipfs
@@ -529,8 +531,65 @@ class InviteView(APIView):
         attachments = request.data.get('attachments', '').strip()  # IPFS CID
         content_id = request.data.get('content_id')  # Optional
         collaborator_role = request.data.get('role', 'collaborator')  # Role name
+        role_definition_id = request.data.get('role_definition_id')  # Role definition ID for permissions
         tasks_data = request.data.get('tasks', [])  # Contract tasks
         project_type = request.data.get('project_type', 'book')  # Project type: book, art, music, video
+        project_title = request.data.get('project_title', '').strip()  # User-provided project title
+
+        # Permission fields — use request data, fall back to role definition defaults
+        invite_can_edit_text = request.data.get('can_edit_text')
+        invite_can_edit_images = request.data.get('can_edit_images')
+        if invite_can_edit_text is None and role_definition_id:
+            try:
+                from .models import RoleDefinition
+                role_def = RoleDefinition.objects.get(id=role_definition_id)
+                perms = role_def.default_permissions or {}
+                edit_types = perms.get('edit', {}).get('types', [])
+                create_types = perms.get('create', [])
+                invite_can_edit_text = 'text' in edit_types or 'text' in create_types
+                invite_can_edit_images = 'image' in edit_types or 'image' in create_types
+            except Exception:
+                pass
+        if invite_can_edit_text is None:
+            invite_can_edit_text = True
+        if invite_can_edit_images is None:
+            invite_can_edit_images = False
+
+        # Escrow / payment structure fields
+        contract_type = request.data.get('contract_type', 'revenue_share')
+        if contract_type not in ('revenue_share', 'work_for_hire', 'hybrid'):
+            contract_type = 'revenue_share'
+        total_contract_amount = Decimal(str(request.data.get('total_contract_amount', '0.00') or '0.00'))
+        milestone_template_id = request.data.get('milestone_template_id')
+        escrow_funding_deadline_str = request.data.get('escrow_funding_deadline')
+        escrow_funding_deadline = None
+        if escrow_funding_deadline_str:
+            try:
+                from dateutil.parser import parse as parse_datetime
+                escrow_funding_deadline = parse_datetime(escrow_funding_deadline_str)
+            except Exception:
+                pass
+
+        # Validate escrow fields
+        if contract_type in ('work_for_hire', 'hybrid') and total_contract_amount <= 0:
+            return Response({'error': 'Total contract amount is required for work-for-hire and hybrid contracts'}, status=400)
+
+        if milestone_template_id and tasks_data:
+            return Response({'error': 'Provide either a milestone template or manual tasks, not both'}, status=400)
+
+        # Validate milestone template if provided
+        milestone_template = None
+        if milestone_template_id:
+            try:
+                milestone_template = MilestoneTemplate.objects.get(id=milestone_template_id, is_active=True)
+            except MilestoneTemplate.DoesNotExist:
+                return Response({'error': 'Milestone template not found'}, status=404)
+
+        # Validate task payment amounts sum to total for escrow contracts
+        if contract_type in ('work_for_hire', 'hybrid') and tasks_data and not milestone_template:
+            task_payments_sum = sum(Decimal(str(t.get('payment_amount', '0') or '0')) for t in tasks_data)
+            if abs(task_payments_sum - total_contract_amount) > Decimal('0.01'):
+                return Response({'error': f'Task payments (${task_payments_sum}) must equal total contract amount (${total_contract_amount})'}, status=400)
 
         # Validate project_type
         valid_types = ['book', 'art', 'music', 'video', 'comic']
@@ -560,7 +619,7 @@ class InviteView(APIView):
         else:
             # Create placeholder collaboration content (can be updated later)
             content = Content.objects.create(
-                title=f"Collaboration Invite - {message_clean[:50]}",
+                title=project_title or f"Untitled {project_type.title()} Project",
                 creator=request.user,
                 content_type='other',
                 genre='other'
@@ -593,7 +652,7 @@ class InviteView(APIView):
         try:
             # Create CollaborativeProject - created_by expects Django User
             project = CollaborativeProject.objects.create(
-                title=content.title or f"Collaboration with {', '.join(c.username for c in collaborators)}",
+                title=project_title or content.title or f"Collaboration with {', '.join(c.username for c in collaborators)}",
                 description=message_clean,
                 content_type=project_type,  # User-selected project type (book, art, music, video)
                 created_by=request.user,  # Django User, not UserProfile
@@ -625,15 +684,29 @@ class InviteView(APIView):
                     role=collaborator_role,  # Use provided role name
                     status='invited',  # THIS IS THE KEY - status must be 'invited'
                     revenue_percentage=per_collaborator_equity,
-                    can_edit_text=True,
-                    can_edit_images=False,
+                    can_edit_text=bool(invite_can_edit_text),
+                    can_edit_images=bool(invite_can_edit_images),
                     can_edit_audio=False,
                     can_edit_video=False,
+                    contract_type=contract_type,
+                    total_contract_amount=total_contract_amount,
+                    role_definition_id=role_definition_id,
+                    escrow_funding_deadline=escrow_funding_deadline,
                 )
 
-                # Create contract tasks if provided
-                if tasks_data:
+                # Create contract tasks - either from milestone template or manual
+                if milestone_template:
+                    from datetime import timedelta
+                    base_deadline = timezone.now() + timedelta(days=7)
+                    generated_tasks = milestone_template.generate_tasks(
+                        collab_role, total_contract_amount, base_deadline
+                    )
+                    ContractTask.objects.bulk_create(generated_tasks)
+                    collab_role.tasks_total = len(generated_tasks)
+                    collab_role.save(update_fields=['tasks_total'])
+                elif tasks_data:
                     from dateutil.parser import parse as parse_datetime
+                    escrow_active = contract_type in ('work_for_hire', 'hybrid')
                     for i, task_data in enumerate(tasks_data):
                         try:
                             deadline = parse_datetime(task_data.get('deadline'))
@@ -642,8 +715,15 @@ class InviteView(APIView):
                                 title=task_data.get('title', '')[:200],
                                 description=task_data.get('description', ''),
                                 deadline=deadline,
-                                status='pending',  # Will become 'in_progress' on acceptance
+                                status='pending',
                                 order=i,
+                                payment_amount=Decimal(str(task_data.get('payment_amount', '0') or '0')),
+                                escrow_release_status='pending' if escrow_active else 'not_applicable',
+                                milestone_type=task_data.get('milestone_type', 'custom'),
+                                page_range_start=task_data.get('page_range_start'),
+                                page_range_end=task_data.get('page_range_end'),
+                                revision_limit=task_data.get('revision_limit', 3),
+                                review_window_hours=task_data.get('review_window_hours', 72),
                             )
                         except Exception as task_err:
                             logger.warning(f"[Invite] Failed to create task: {task_err}")
@@ -1459,19 +1539,48 @@ class SalesAnalyticsView(APIView):
         # ========== SUMMARY STATS ==========
         total_solo_earnings = sum(c['total_earnings'] for c in solo_content)
         total_collab_earnings = sum(c['total_earnings'] for c in collab_content)
-        total_earnings = total_solo_earnings + total_collab_earnings
+
+        # ========== ESCROW EARNINGS (work-for-hire milestone payments) ==========
+        from rb_core.models import EscrowTransaction, CollaboratorRole as CR
+        escrow_roles = CR.objects.filter(user=core_user, contract_type__in=['work_for_hire', 'hybrid'])
+        escrow_earnings_list = []
+        total_escrow_earnings = Decimal('0')
+
+        for role in escrow_roles:
+            released = EscrowTransaction.objects.filter(
+                collaborator_role=role,
+                transaction_type__in=['release', 'auto_release'],
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+            if released > 0:
+                escrow_earnings_list.append({
+                    'project_title': role.project.title.replace('Collaboration Invite - ', ''),
+                    'project_id': role.project.id,
+                    'role': role.effective_role_name or role.role,
+                    'contract_type': role.contract_type,
+                    'total_contract': float(role.total_contract_amount),
+                    'total_earned': float(released),
+                    'milestones_completed': role.tasks_signed_off,
+                    'milestones_total': role.tasks_total,
+                })
+                total_escrow_earnings += released
+
+        total_earnings = total_solo_earnings + total_collab_earnings + float(total_escrow_earnings)
 
         return Response({
             'summary': {
                 'total_earnings_usdc': round(total_earnings, 2),
                 'solo_earnings': round(total_solo_earnings, 2),
                 'collaboration_earnings': round(total_collab_earnings, 2),
+                'escrow_earnings': round(float(total_escrow_earnings), 2),
                 'content_count': len(solo_content),
                 'collaboration_count': len(collab_content),
+                'escrow_count': len(escrow_earnings_list),
                 'total_sales': sum(c['sales_count'] for c in content_earnings.values()),
             },
             'content_sales': sorted(solo_content, key=lambda x: x['total_earnings'], reverse=True),
             'collaboration_sales': sorted(collab_content, key=lambda x: x['total_earnings'], reverse=True),
+            'escrow_earnings': sorted(escrow_earnings_list, key=lambda x: x['total_earned'], reverse=True),
             'recent_transactions': recent_transactions[:20],
         })
 

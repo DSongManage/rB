@@ -87,6 +87,21 @@ export interface ContractTask {
   signoff_notes?: string;
   rejection_notes?: string;
   rejected_at?: string;
+  rejection_count: number;
+  // Escrow payment tracking
+  payment_amount: string;
+  escrow_release_status: 'not_applicable' | 'pending' | 'approved' | 'released' | 'disputed' | 'refunded';
+  escrow_released_at?: string;
+  // Artist protection
+  revision_limit: number;
+  revisions_used: number;
+  review_window_hours: number;
+  auto_approve_deadline?: string;
+  auto_approved: boolean;
+  // Milestone classification
+  milestone_type: 'trust_page' | 'production_block' | 'final_delivery' | 'custom';
+  page_range_start?: number;
+  page_range_end?: number;
   is_overdue: boolean;
   days_until_deadline?: number;
   created_at: string;
@@ -152,6 +167,8 @@ export interface CollaboratorRole {
   // Counter-proposal fields
   proposed_percentage?: number;
   counter_message?: string;
+  proposed_total_amount?: string;
+  proposed_tasks?: Array<{ task_id: number; deadline?: string; payment_amount?: string }>;
   // Deadline and accountability fields
   delivery_deadline?: string;
   deadline_extended_at?: string;
@@ -161,6 +178,19 @@ export interface CollaboratorRole {
   is_lead: boolean;
   can_invite_others: boolean;
   voting_weight: number;
+  // Contract type and escrow
+  contract_type: 'revenue_share' | 'work_for_hire' | 'hybrid';
+  total_contract_amount: string;
+  escrow_funded_amount: string;
+  escrow_released_amount: string;
+  escrow_remaining?: string;
+  escrow_funded_at?: string;
+  escrow_funding_deadline?: string;
+  // Trust phase
+  trust_phase: 'not_started' | 'trust_building' | 'production' | 'completed';
+  trust_pages_completed: number;
+  // Hybrid
+  upfront_percentage: string;
   // Contract task fields
   contract_tasks: ContractTask[];
   tasks_total: number;
@@ -245,6 +275,12 @@ export interface ContractTaskData {
   title: string;
   description?: string;
   deadline: string;
+  payment_amount?: string;
+  revision_limit?: number;
+  review_window_hours?: number;
+  milestone_type?: 'trust_page' | 'production_block' | 'final_delivery' | 'custom';
+  page_range_start?: number;
+  page_range_end?: number;
 }
 
 export interface InviteCollaboratorData {
@@ -257,6 +293,64 @@ export interface InviteCollaboratorData {
   can_edit_audio?: boolean;
   can_edit_video?: boolean;
   tasks?: ContractTaskData[];
+  contract_type?: 'revenue_share' | 'work_for_hire' | 'hybrid';
+  total_contract_amount?: string;
+  milestone_template_id?: number;
+  upfront_percentage?: string;
+}
+
+export interface MilestoneTemplate {
+  id: number;
+  role_definition: number;
+  role_definition_name: string;
+  name: string;
+  description: string;
+  total_pages: number;
+  milestones: Array<{
+    type: string;
+    pages: number;
+    payment_pct: number;
+    description: string;
+    revision_limit?: number;
+    review_window_hours?: number;
+  }>;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface EscrowTransaction {
+  id: number;
+  collaborator_role: number;
+  contract_task?: number;
+  task_title?: string;
+  transaction_type: 'fund' | 'release' | 'auto_release' | 'refund' | 'dispute_hold' | 'dispute_release';
+  amount: string;
+  escrow_balance_after: string;
+  initiated_by?: number;
+  initiated_by_username?: string;
+  notes: string;
+  created_at: string;
+}
+
+export interface EscrowStatusResponse {
+  project_id: number;
+  escrow_contracts: Array<{
+    collaborator: CollaboratorRole;
+    next_milestone: ContractTask | null;
+    milestones_completed: number;
+    milestones_total: number;
+  }>;
+}
+
+export interface EscrowHistoryResponse {
+  collaborator_role_id: number;
+  collaborator_username: string;
+  contract_type: string;
+  total_contract_amount: string;
+  escrow_funded_amount: string;
+  escrow_released_amount: string;
+  escrow_remaining: string;
+  transactions: EscrowTransaction[];
 }
 
 export interface CreateProjectData {
@@ -573,7 +667,12 @@ export const collaborationApi = {
    */
   async counterProposeInvite(
     projectId: number,
-    data: { proposed_percentage: number; message: string }
+    data: {
+      proposed_percentage: number;
+      message: string;
+      proposed_total_amount?: string;
+      proposed_tasks?: Array<{ task_id: number; deadline?: string; payment_amount?: string }>;
+    }
   ): Promise<{ message: string; invitation: CollaboratorRole }> {
     const response = await fetch(
       `${API_BASE}/api/collaborative-projects/${projectId}/counter_propose/`,
@@ -2163,6 +2262,88 @@ export const collaborationApi = {
       }
     );
     return handleResponse<ComicPanel>(response);
+  },
+
+  // ========== ESCROW MANAGEMENT ==========
+
+  async fundEscrow(projectId: number, collaboratorRoleId: number): Promise<CollaboratorRole> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/fund-escrow/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ collaborator_role_id: collaboratorRoleId }),
+      }
+    );
+    return handleResponse<CollaboratorRole>(response);
+  },
+
+  async getEscrowStatus(projectId: number): Promise<EscrowStatusResponse> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/escrow-status/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      }
+    );
+    return handleResponse<EscrowStatusResponse>(response);
+  },
+
+  async getEscrowHistory(projectId: number, roleId: number): Promise<EscrowHistoryResponse> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/escrow-history/${roleId}/`,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      }
+    );
+    return handleResponse<EscrowHistoryResponse>(response);
+  },
+
+  async getMilestoneTemplates(roleDefinitionId?: number): Promise<MilestoneTemplate[]> {
+    const params = roleDefinitionId ? `?role_definition_id=${roleDefinitionId}` : '';
+    const response = await fetch(
+      `${API_BASE}/api/milestone-templates/${params}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      }
+    );
+    return handleResponse<MilestoneTemplate[]>(response);
+  },
+
+  async applyMilestoneTemplate(
+    projectId: number,
+    collaboratorRoleId: number,
+    templateId: number,
+    baseDeadline?: string
+  ): Promise<CollaboratorRole> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/apply-milestone-template/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          collaborator_role_id: collaboratorRoleId,
+          template_id: templateId,
+          base_deadline: baseDeadline,
+        }),
+      }
+    );
+    return handleResponse<CollaboratorRole>(response);
   },
 };
 

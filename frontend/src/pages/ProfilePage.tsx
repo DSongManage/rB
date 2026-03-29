@@ -513,19 +513,38 @@ export default function ProfilePage() {
                   {/* Invite Details */}
                   <div style={{flex:1, minWidth:0}}>
                     <div style={{fontSize:15, fontWeight:700, color:'#f8fafc', marginBottom:4}}>
-                      {project.title}
+                      {project.title?.replace(/^Collaboration Invite - /, '') || project.title}
                     </div>
                     <div style={{fontSize:13, color:'#94a3b8', marginBottom:8}}>
                       @{project.created_by_username} invited you as <span style={{color:'#f59e0b', fontWeight:600}}>{invite.role}</span>
                     </div>
-                    <div style={{display:'flex', gap:16, fontSize:12}}>
+                    <div style={{display:'flex', gap:16, fontSize:12, flexWrap:'wrap'}}>
+                      {invite.contract_type === 'work_for_hire' ? (
+                        <div>
+                          <span style={{color:'#64748b'}}>Fixed Rate:</span>{' '}
+                          <span style={{color:'#10b981', fontWeight:700}}>${parseFloat(invite.total_contract_amount || '0').toFixed(2)}</span>
+                          <span style={{color:'#64748b', marginLeft:4}}>via escrow</span>
+                        </div>
+                      ) : invite.contract_type === 'hybrid' ? (
+                        <>
+                          <div>
+                            <span style={{color:'#64748b'}}>Upfront:</span>{' '}
+                            <span style={{color:'#10b981', fontWeight:700}}>${parseFloat(invite.total_contract_amount || '0').toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span style={{color:'#64748b'}}>+ Revenue:</span>{' '}
+                            <span style={{color:'#10b981', fontWeight:700}}>{invite.revenue_percentage}%</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <span style={{color:'#64748b'}}>Revenue Split:</span>{' '}
+                          <span style={{color:'#10b981', fontWeight:700}}>{invite.revenue_percentage}%</span>
+                        </div>
+                      )}
                       <div>
-                        <span style={{color:'#64748b'}}>Revenue Split:</span>{' '}
-                        <span style={{color:'#10b981', fontWeight:700}}>{invite.revenue_percentage}%</span>
-                      </div>
-                      <div>
-                        <span style={{color:'#64748b'}}>Collaborators:</span>{' '}
-                        <span style={{color:'#e2e8f0'}}>{project.total_collaborators}</span>
+                        <span style={{color:'#64748b'}}>Team:</span>{' '}
+                        <span style={{color:'#e2e8f0'}}>{project.total_collaborators} people</span>
                       </div>
                     </div>
                   </div>

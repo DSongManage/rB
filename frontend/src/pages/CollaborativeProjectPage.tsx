@@ -174,7 +174,9 @@ export default function CollaborativeProjectPage() {
   };
 
   // Check if title is a placeholder
-  const isPlaceholderTitle = project?.title?.startsWith('Collaboration Invite');
+  const isPlaceholderTitle = project?.title?.startsWith('Collaboration Invite') || project?.title?.startsWith('Untitled ');
+  // Clean display title: strip "Collaboration Invite - " prefix for legacy projects
+  const displayTitle = project?.title?.replace(/^Collaboration Invite - /, '') || project?.title;
 
   if (loading) {
     return (
@@ -340,7 +342,7 @@ export default function CollaborativeProjectPage() {
                 fontWeight: 700,
                 color: isPlaceholderTitle ? '#f59e0b' : 'var(--text)',
               }}>
-                {project.title}
+                {displayTitle}
               </h1>
               {project.created_by === currentUser.id && (
                 <button

@@ -107,6 +107,11 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
       await markAsRead(notification.id);
     }
 
+    // Don't navigate for invitations/counter-proposals — user must use the action button
+    if ((notification.type === 'invitation' || notification.type === 'counter_proposal') && notification.project_id) {
+      return;
+    }
+
     // Navigate to action URL if provided
     if (notification.action_url) {
       navigate(notification.action_url);

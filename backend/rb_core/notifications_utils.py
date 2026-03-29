@@ -416,6 +416,138 @@ def notify_content_purchase(
     )
 
 
+# ========== ESCROW NOTIFICATIONS ==========
+
+
+def notify_escrow_funded(
+    funder: User,
+    collaborator: CollaboratorRole,
+) -> Optional[Notification]:
+    """Notify collaborator that escrow has been funded for their contract."""
+    project = collaborator.project
+    amount = f"${collaborator.total_contract_amount:.2f}"
+    return create_notification(
+        recipient=collaborator.user,
+        from_user=funder,
+        notification_type='approval',
+        title=f'Escrow Funded: {project.title}',
+        message=f'{funder.username} funded {amount} escrow for your {collaborator.effective_role_name} work on "{project.title}"',
+        project=project,
+    )
+
+
+def notify_milestone_payment(
+    collaborator: CollaboratorRole,
+    task_title: str,
+    amount: Decimal,
+) -> Optional[Notification]:
+    """Notify collaborator they received a milestone payment."""
+    project = collaborator.project
+    return create_notification(
+        recipient=collaborator.user,
+        from_user=project.created_by,
+        notification_type='content_purchase',
+        title=f'Milestone Payment: ${amount:.2f}',
+        message=f'You received ${amount:.2f} for completing "{task_title}" on "{project.title}"',
+        project=project,
+    )
+
+
+def notify_auto_approve_warning(
+    writer: User,
+    collaborator: CollaboratorRole,
+    task_title: str,
+    hours_remaining: int,
+) -> Optional[Notification]:
+    """Warn writer that a task will auto-approve soon."""
+    project = collaborator.project
+    return create_notification(
+        recipient=writer,
+        from_user=collaborator.user,
+        notification_type='approval',
+        title=f'Review Deadline: {task_title}',
+        message=f'"{task_title}" on "{project.title}" will auto-approve in {hours_remaining} hours if not reviewed',
+        project=project,
+    )
+
+
+def notify_auto_approved(
+    writer: User,
+    collaborator: CollaboratorRole,
+    task_title: str,
+    amount: Decimal,
+) -> List[Optional[Notification]]:
+    """Notify both writer and collaborator that a task was auto-approved."""
+    project = collaborator.project
+    notifications = []
+
+    notifications.append(create_notification(
+        recipient=writer,
+        from_user=collaborator.user,
+        notification_type='approval',
+        title=f'Auto-Approved: {task_title}',
+        message=f'"{task_title}" on "{project.title}" was auto-approved (review window expired). ${amount:.2f} released.',
+        project=project,
+    ))
+
+    notifications.append(create_notification(
+        recipient=collaborator.user,
+        from_user=writer,
+        notification_type='content_purchase',
+        title=f'Payment Released: ${amount:.2f}',
+        message=f'"{task_title}" on "{project.title}" was auto-approved. ${amount:.2f} released to you.',
+        project=project,
+    ))
+
+    return notifications
+
+
+def notify_revision_limit_reached(
+    writer: User,
+    collaborator: CollaboratorRole,
+    task_title: str,
+) -> Optional[Notification]:
+    """Notify writer that revision limit has been reached on a task."""
+    project = collaborator.project
+    return create_notification(
+        recipient=writer,
+        from_user=collaborator.user,
+        notification_type='approval',
+        title=f'Revision Limit Reached: {task_title}',
+        message=f'Revision limit reached on "{task_title}" in "{project.title}". A contract amendment is needed for additional revisions.',
+        project=project,
+    )
+
+
+def notify_trust_phase_complete(
+    collaborator: CollaboratorRole,
+) -> List[Optional[Notification]]:
+    """Notify both parties that trust phase is complete."""
+    project = collaborator.project
+    writer = project.created_by
+    notifications = []
+
+    notifications.append(create_notification(
+        recipient=writer,
+        from_user=collaborator.user,
+        notification_type='approval',
+        title=f'Trust Phase Complete: {project.title}',
+        message=f'{collaborator.user.username} completed the trust-building phase on "{project.title}". Production milestones are now active.',
+        project=project,
+    ))
+
+    notifications.append(create_notification(
+        recipient=collaborator.user,
+        from_user=writer,
+        notification_type='approval',
+        title=f'Trust Phase Complete: {project.title}',
+        message=f'You completed the trust-building phase on "{project.title}". Moving to production milestones.',
+        project=project,
+    ))
+
+    return notifications
+
+
 def bulk_mark_as_read(user: User, notification_ids: List[int]) -> int:
     """
     Mark multiple notifications as read.

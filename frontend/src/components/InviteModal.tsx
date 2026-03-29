@@ -3,10 +3,12 @@ import {
   BookOpen, Palette, Music, Film, Check, Plus, User,
   Pen, Users, Image, CheckCircle, FileText, Mic, Mic2,
   Brush, PaintBucket, Eye, Sliders, Volume2, Video,
-  Scissors, PlayCircle, Briefcase, LayoutGrid, Type, PenTool
+  Scissors, PlayCircle, Briefcase, LayoutGrid, Type, PenTool,
+  DollarSign, Shield
 } from 'lucide-react';
 import { API_URL } from '../config';
 import { getCreatorTier, CreatorTierPublic } from '../services/tierApi';
+import { collaborationApi, MilestoneTemplate } from '../services/collaborationApi';
 
 // Helper to render role icon based on icon string
 const RoleIcon = ({ icon, size = 20 }: { icon: string; size?: number }) => {
@@ -44,6 +46,12 @@ interface ContractTask {
   title: string;
   description: string;
   deadline: string;
+  payment_amount?: string;
+  milestone_type?: string;
+  page_range_start?: number;
+  page_range_end?: number;
+  revision_limit?: number;
+  review_window_hours?: number;
 }
 
 // Types for role definitions
@@ -165,6 +173,17 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
   const [tasks, setTasks] = useState<ContractTask[]>([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
 
+  // Escrow / payment structure
+  const [contractType, setContractType] = useState<'revenue_share' | 'work_for_hire' | 'hybrid'>('revenue_share');
+  const [totalContractAmount, setTotalContractAmount] = useState('');
+  const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [escrowStartDate, setEscrowStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  });
+
   // Permissions - defaults based on project type
   const [canEditText, setCanEditText] = useState(true);
   const [canEditImages, setCanEditImages] = useState(true);
@@ -208,6 +227,25 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
       setMessage(getDefaultPitch());
     }
   }, [customProjectTitle, projectId]);
+
+  // Fetch milestone templates when contract type requires escrow
+  useEffect(() => {
+    if (contractType === 'revenue_share' || !selectedRoleId) {
+      setMilestoneTemplates([]);
+      setSelectedTemplateId(null);
+      return;
+    }
+    collaborationApi.getMilestoneTemplates(selectedRoleId)
+      .then(setMilestoneTemplates)
+      .catch(() => setMilestoneTemplates([]));
+  }, [contractType, selectedRoleId]);
+
+  // Auto-set revenue share to 0 for work-for-hire
+  useEffect(() => {
+    if (contractType === 'work_for_hire') {
+      setEquityPercent(0);
+    }
+  }, [contractType]);
 
   // Handle role selection - auto-populate permissions from role definition
   const handleRoleSelect = (roleId: number | null) => {
@@ -322,6 +360,22 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     setSuccessMsg('');
     setErrorMsg('');
 
+    // Validate escrow fields
+    if (contractType !== 'revenue_share') {
+      const amount = parseFloat(totalContractAmount);
+      if (!totalContractAmount || isNaN(amount) || amount <= 0) {
+        setErrorMsg('Total contract amount is required for escrow contracts');
+        return;
+      }
+      if (tasks.length > 0 && !selectedTemplateId) {
+        const taskSum = tasks.reduce((sum, t) => sum + (parseFloat(t.payment_amount || '0') || 0), 0);
+        if (Math.abs(taskSum - amount) > 0.01) {
+          setErrorMsg(`Task payments ($${taskSum.toFixed(2)}) must equal total contract amount ($${amount.toFixed(2)})`);
+          return;
+        }
+      }
+    }
+
     // Validate tasks have required fields
     for (const task of tasks) {
       if (!task.title.trim()) {
@@ -370,11 +424,19 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             can_edit_images: canEditImages,
             can_edit_audio: canEditAudio,
             can_edit_video: canEditVideo,
-            tasks: tasks.map(t => ({
+            contract_type: contractType,
+            total_contract_amount: contractType !== 'revenue_share' ? totalContractAmount : undefined,
+            escrow_funding_deadline: contractType !== 'revenue_share' && escrowStartDate ? new Date(escrowStartDate + 'T00:00:00').toISOString() : undefined,
+            milestone_template_id: selectedTemplateId || undefined,
+            tasks: !selectedTemplateId ? tasks.map(t => ({
               title: t.title,
               description: t.description,
               deadline: new Date(t.deadline).toISOString(),
-            })),
+              payment_amount: t.payment_amount || undefined,
+              milestone_type: t.milestone_type || 'custom',
+              revision_limit: t.revision_limit || 3,
+              review_window_hours: t.review_window_hours || 72,
+            })) : undefined,
           }),
         });
 
@@ -404,12 +466,24 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             collaborators: [recipient.id],
             attachments: '',
             role: role || 'Collaborator',
+            role_definition_id: selectedRoleId || undefined,
             project_type: projectType,
-            tasks: tasks.map(t => ({
+            project_title: effectiveTitle || undefined,
+            can_edit_text: canEditText,
+            can_edit_images: canEditImages,
+            contract_type: contractType,
+            total_contract_amount: contractType !== 'revenue_share' ? totalContractAmount : undefined,
+            escrow_funding_deadline: contractType !== 'revenue_share' && escrowStartDate ? new Date(escrowStartDate + 'T00:00:00').toISOString() : undefined,
+            milestone_template_id: selectedTemplateId || undefined,
+            tasks: !selectedTemplateId ? tasks.map(t => ({
               title: t.title,
               description: t.description,
               deadline: new Date(t.deadline).toISOString(),
-            })),
+              payment_amount: t.payment_amount || undefined,
+              milestone_type: t.milestone_type || 'custom',
+              revision_limit: t.revision_limit || 3,
+              review_window_hours: t.review_window_hours || 72,
+            })) : undefined,
           }),
         });
 
@@ -447,6 +521,15 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     setCanEditImages(true);
     setCanEditAudio(false);
     setCanEditVideo(false);
+    setContractType('revenue_share');
+    setTotalContractAmount('');
+    setMilestoneTemplates([]);
+    setSelectedTemplateId(null);
+    setEscrowStartDate(() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      return d.toISOString().slice(0, 10);
+    });
   };
 
   return (
@@ -931,6 +1014,127 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             )}
           </div>
 
+          {/* Payment Structure */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, color: '#cbd5e1', marginBottom: 8, fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Shield size={14} style={{ color: '#8b5cf6' }} />
+                Payment Structure
+              </div>
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              {([
+                { value: 'revenue_share' as const, label: 'Revenue Share', desc: 'Ongoing % of sales' },
+                { value: 'work_for_hire' as const, label: 'Work for Hire', desc: 'Upfront via escrow' },
+                { value: 'hybrid' as const, label: 'Hybrid', desc: 'Upfront + rev share' },
+              ]).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setContractType(opt.value)}
+                  style={{
+                    background: contractType === opt.value ? 'rgba(139, 92, 246, 0.15)' : '#1e293b',
+                    border: `1px solid ${contractType === opt.value ? '#8b5cf6' : '#334155'}`,
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 600, color: contractType === opt.value ? '#a78bfa' : '#f8fafc' }}>
+                    {opt.label}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{opt.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* Total Contract Amount (for escrow types) */}
+            {contractType !== 'revenue_share' && (
+              <div style={{ marginTop: 12 }}>
+                <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                  <DollarSign size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Total Contract Amount (USD)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={totalContractAmount}
+                  onChange={(e) => setTotalContractAmount(e.target.value)}
+                  placeholder="e.g., 1500.00"
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    background: '#1e293b', border: '1px solid #334155',
+                    borderRadius: 6, padding: 10, color: '#f8fafc', fontSize: 13,
+                  }}
+                />
+
+                {/* Milestone Template Selector */}
+                {milestoneTemplates.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                      Milestone Template (auto-generates tasks)
+                    </label>
+                    <select
+                      value={selectedTemplateId || ''}
+                      onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}
+                      style={{
+                        width: '100%', boxSizing: 'border-box',
+                        background: '#1e293b', border: '1px solid #334155',
+                        borderRadius: 6, padding: 10, color: '#f8fafc', fontSize: 13,
+                      }}
+                    >
+                      <option value="">Manual tasks (define below)</option>
+                      {milestoneTemplates.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.total_pages} pages, {t.milestones.length} milestones)
+                        </option>
+                      ))}
+                    </select>
+                    {selectedTemplateId && (
+                      <div style={{
+                        marginTop: 8, padding: 10, borderRadius: 8,
+                        background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.3)',
+                        fontSize: 12, color: '#a78bfa',
+                      }}>
+                        {milestoneTemplates.find(t => t.id === selectedTemplateId)?.description}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {contractType === 'work_for_hire' && (
+                  <div style={{
+                    marginTop: 8, padding: 8, borderRadius: 6,
+                    background: 'rgba(139, 92, 246, 0.08)', fontSize: 11, color: '#a78bfa',
+                  }}>
+                    Work-for-hire pays the artist via escrow. Revenue share is optional.
+                  </div>
+                )}
+
+                {/* Start Date / Escrow Funding Deadline */}
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                    Project Start Date (escrow funding deadline)
+                  </label>
+                  <input
+                    type="date"
+                    value={escrowStartDate}
+                    onChange={(e) => setEscrowStartDate(e.target.value)}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: '#1e293b', border: '1px solid #334155',
+                      borderRadius: 6, padding: 10, color: '#f8fafc', fontSize: 13,
+                    }}
+                  />
+                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+                    Escrow must be funded by this date. Work begins after funding.
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Project Pitch */}
           <div>
             <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
@@ -958,7 +1162,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             </div>
           </div>
 
-          {/* Contract Tasks Section */}
+          {/* Contract Tasks Section - hidden when milestone template selected */}
+          {!selectedTemplateId && (
           <div style={{
             background: '#1e293b',
             border: '1px solid #334155',
@@ -1076,6 +1281,30 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                             }}
                           />
                         </div>
+                        {contractType !== 'revenue_share' && (
+                          <div>
+                            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                              <DollarSign size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> Payment Amount (USD) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={task.payment_amount || ''}
+                              onChange={(e) => updateTask(task.id, 'payment_amount', e.target.value)}
+                              placeholder="e.g., 300.00"
+                              style={{
+                                width: '200px',
+                                background: '#1e293b',
+                                border: '1px solid #334155',
+                                borderRadius: 6,
+                                padding: 10,
+                                color: '#f8fafc',
+                                fontSize: 13,
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
                       <button
                         onClick={() => removeTask(task.id)}
@@ -1096,6 +1325,28 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               </div>
             )}
 
+            {/* Payment total tracker for escrow tasks */}
+            {contractType !== 'revenue_share' && tasks.length > 0 && !selectedTemplateId && (
+              <div style={{
+                marginTop: 12,
+                padding: 10,
+                background: 'rgba(139, 92, 246, 0.08)',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: 8,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: 12,
+              }}>
+                <span style={{ color: '#a78bfa' }}>
+                  Task payments total: ${tasks.reduce((sum, t) => sum + (parseFloat(t.payment_amount || '0') || 0), 0).toFixed(2)}
+                </span>
+                <span style={{ color: totalContractAmount ? '#94a3b8' : '#64748b' }}>
+                  Contract total: ${parseFloat(totalContractAmount || '0').toFixed(2)}
+                </span>
+              </div>
+            )}
+
             {tasks.length > 0 && (
               <div style={{
                 marginTop: 16,
@@ -1113,6 +1364,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               </div>
             )}
           </div>
+          )}
 
           {/* Permissions */}
           {projectId && (
@@ -1226,6 +1478,22 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Escrow Amount in Preview */}
+            {contractType !== 'revenue_share' && totalContractAmount && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
+                <div style={{ fontSize: 12, color: '#94a3b8' }}>Payment Structure</div>
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <DollarSign size={16} style={{ color: '#10b981' }} />
+                  <span style={{ color: '#f8fafc', fontSize: 15, fontWeight: 600 }}>
+                    ${parseFloat(totalContractAmount).toFixed(2)} USD
+                  </span>
+                  <span style={{ color: '#64748b', fontSize: 12 }}>
+                    ({contractType === 'work_for_hire' ? 'Work for Hire' : 'Hybrid'} via Escrow)
+                  </span>
+                </div>
               </div>
             )}
 

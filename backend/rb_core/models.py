@@ -2107,6 +2107,18 @@ class CollaboratorRole(models.Model):
         blank=True,
         help_text="Message explaining the counter-proposal"
     )
+    proposed_total_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Counter-proposed total contract amount for escrow contracts"
+    )
+    proposed_tasks = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Counter-proposed task modifications: [{task_id, deadline, payment_amount}]"
+    )
 
     # Deadline and accountability fields
     delivery_deadline = models.DateTimeField(
@@ -2232,6 +2244,73 @@ class CollaboratorRole(models.Model):
         null=True,
         blank=True,
         help_text="When warranty of originality was acknowledged"
+    )
+
+    # Contract type and escrow tracking
+    CONTRACT_TYPE_CHOICES = [
+        ('revenue_share', 'Revenue Share'),
+        ('work_for_hire', 'Work for Hire'),
+        ('hybrid', 'Hybrid'),
+    ]
+    contract_type = models.CharField(
+        max_length=20,
+        choices=CONTRACT_TYPE_CHOICES,
+        default='revenue_share',
+        help_text="Payment structure: revenue_share (existing), work_for_hire (milestone escrow), or hybrid (upfront + rev share)"
+    )
+    total_contract_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Total agreed payment in USD for work_for_hire/hybrid contracts"
+    )
+    escrow_funded_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Amount currently held in escrow (funded by project owner)"
+    )
+    escrow_released_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Cumulative amount released from escrow to collaborator"
+    )
+    escrow_funded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When escrow was fully funded"
+    )
+    escrow_funding_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Deadline for project owner to fund escrow. Work begins after funding."
+    )
+
+    # Trust-building phase tracking
+    TRUST_PHASE_CHOICES = [
+        ('not_started', 'Not Started'),
+        ('trust_building', 'Trust Building'),
+        ('production', 'Production'),
+        ('completed', 'Completed'),
+    ]
+    trust_phase = models.CharField(
+        max_length=20,
+        choices=TRUST_PHASE_CHOICES,
+        default='not_started',
+        help_text="Current phase of milestone progression"
+    )
+    trust_pages_completed = models.PositiveIntegerField(
+        default=0,
+        help_text="Pages completed in trust-building phase (max 5)"
+    )
+
+    # Hybrid contract field (Phase 4 activates fully, but field exists now)
+    upfront_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="For hybrid: percentage of total paid upfront via escrow. Revenue share handles the rest."
     )
 
     # Denormalized task counters for performance
@@ -2623,6 +2702,82 @@ class ContractTask(models.Model):
         help_text="Display order of task in contract"
     )
 
+    # Escrow payment tracking
+    payment_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="USD amount released from escrow on sign-off"
+    )
+    ESCROW_RELEASE_STATUS_CHOICES = [
+        ('not_applicable', 'Not Applicable'),
+        ('pending', 'Pending'),
+        ('approved', 'Release Approved'),
+        ('released', 'Released'),
+        ('disputed', 'Disputed'),
+        ('refunded', 'Refunded'),
+    ]
+    escrow_release_status = models.CharField(
+        max_length=20,
+        choices=ESCROW_RELEASE_STATUS_CHOICES,
+        default='not_applicable',
+        help_text="Status of escrow payment release for this task"
+    )
+    escrow_released_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When escrow funds were released for this task"
+    )
+
+    # Artist protection: revision limits
+    revision_limit = models.PositiveIntegerField(
+        default=3,
+        help_text="Maximum revisions before requiring contract amendment"
+    )
+    revisions_used = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of revisions consumed (increments on rejection)"
+    )
+
+    # Artist protection: auto-approve timer
+    review_window_hours = models.PositiveIntegerField(
+        default=72,
+        help_text="Hours the writer has to review before auto-approve triggers"
+    )
+    auto_approve_deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When auto-approve triggers if writer hasn't reviewed"
+    )
+    auto_approved = models.BooleanField(
+        default=False,
+        help_text="Whether this task was auto-approved by timer expiration"
+    )
+
+    # Milestone classification
+    MILESTONE_TYPE_CHOICES = [
+        ('trust_page', 'Trust Phase - Single Page'),
+        ('production_block', 'Production - Page Block'),
+        ('final_delivery', 'Final Delivery'),
+        ('custom', 'Custom Milestone'),
+    ]
+    milestone_type = models.CharField(
+        max_length=20,
+        choices=MILESTONE_TYPE_CHOICES,
+        default='custom',
+        help_text="Type of milestone this task represents"
+    )
+    page_range_start = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Starting page number for page-based milestones"
+    )
+    page_range_end = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Ending page number for page-based milestones"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -2646,6 +2801,12 @@ class ContractTask(models.Model):
         self.marked_complete_at = timezone.now()
         self.marked_complete_by = user
         self.completion_notes = notes
+
+        # Set auto-approve deadline for escrow tasks
+        if self.collaborator_role.contract_type in ('work_for_hire', 'hybrid'):
+            from datetime import timedelta
+            self.auto_approve_deadline = timezone.now() + timedelta(hours=self.review_window_hours)
+
         self.save()
 
     def sign_off(self, owner, notes=''):
@@ -2657,6 +2818,40 @@ class ContractTask(models.Model):
         self.signed_off_at = timezone.now()
         self.signed_off_by = owner
         self.signoff_notes = notes
+        self.auto_approve_deadline = None  # Clear timer on manual sign-off
+
+        # Handle escrow release
+        if self.escrow_release_status == 'pending':
+            self.escrow_release_status = 'approved'
+            self.escrow_released_at = timezone.now()
+            role = self.collaborator_role
+            role.escrow_released_amount += self.payment_amount
+            # Track trust phase progression
+            if role.trust_phase == 'trust_building' and self.milestone_type == 'trust_page':
+                role.trust_pages_completed += 1
+                if role.trust_pages_completed >= 5:
+                    role.trust_phase = 'production'
+            role.save(update_fields=[
+                'escrow_released_amount', 'trust_pages_completed', 'trust_phase'
+            ])
+            # Create audit record
+            EscrowTransaction.objects.create(
+                collaborator_role=role,
+                contract_task=self,
+                transaction_type='auto_release' if self.auto_approved else 'release',
+                amount=self.payment_amount,
+                escrow_balance_after=role.escrow_funded_amount - role.escrow_released_amount,
+                initiated_by=owner,
+                notes=notes,
+            )
+
+            # Trigger async USDC release
+            try:
+                from rb_core.tasks import process_escrow_release
+                process_escrow_release.delay(self.id)
+            except Exception:
+                pass  # Task will be processed manually if Celery unavailable
+
         self.save()
 
         # Update denormalized counters on CollaboratorRole
@@ -2665,15 +2860,25 @@ class ContractTask(models.Model):
     def reject_completion(self, owner, reason):
         """Owner rejects the completion and sends back for revision.
 
+        For escrow tasks, enforces revision_limit to protect artists.
         After 3 rejections on the same task, triggers a quality breach.
         """
         if self.status != 'complete':
             raise ValueError(f"Cannot reject: task status is {self.status}, expected 'complete'")
 
+        # Enforce revision limit for escrow tasks
+        if self.escrow_release_status != 'not_applicable' and self.revisions_used >= self.revision_limit:
+            raise ValueError(
+                f"Revision limit ({self.revision_limit}) reached. "
+                f"Additional revisions require a contract amendment."
+            )
+
         self.status = 'in_progress'
         self.rejection_notes = reason
         self.rejected_at = timezone.now()
         self.rejection_count += 1
+        self.revisions_used += 1
+        self.auto_approve_deadline = None  # Clear timer on rejection
 
         # Clear completion tracking
         self.marked_complete_at = None
@@ -2705,6 +2910,127 @@ class ContractTask(models.Model):
 
             return True  # Newly overdue
         return self.is_overdue
+
+
+class EscrowTransaction(models.Model):
+    """Immutable audit log for all escrow fund movements."""
+
+    TRANSACTION_TYPE_CHOICES = [
+        ('fund', 'Escrow Funded'),
+        ('release', 'Milestone Release'),
+        ('auto_release', 'Auto-Approve Release'),
+        ('refund', 'Refund to Funder'),
+        ('dispute_hold', 'Held for Dispute'),
+        ('dispute_release', 'Released After Dispute'),
+    ]
+
+    collaborator_role = models.ForeignKey(
+        CollaboratorRole,
+        on_delete=models.CASCADE,
+        related_name='escrow_transactions'
+    )
+    contract_task = models.ForeignKey(
+        ContractTask,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='escrow_transactions',
+        help_text="Specific task this transaction relates to (null for full-contract operations)"
+    )
+    transaction_type = models.CharField(
+        max_length=20,
+        choices=TRANSACTION_TYPE_CHOICES
+    )
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2
+    )
+    escrow_balance_after = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Running escrow balance after this transaction"
+    )
+    initiated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['collaborator_role', 'transaction_type']),
+            models.Index(fields=['contract_task']),
+        ]
+
+    def __str__(self):
+        return f"{self.get_transaction_type_display()}: ${self.amount}"
+
+
+class MilestoneTemplate(models.Model):
+    """Predefined milestone structures for common collaboration patterns."""
+
+    role_definition = models.ForeignKey(
+        RoleDefinition,
+        on_delete=models.CASCADE,
+        related_name='milestone_templates',
+        help_text="Role this template applies to"
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="e.g., '22-Page Issue Standard'"
+    )
+    description = models.TextField(blank=True)
+    total_pages = models.PositiveIntegerField(
+        default=22,
+        help_text="Total pages this template covers"
+    )
+    milestones = models.JSONField(
+        default=list,
+        help_text="Ordered list of milestone definitions: [{type, pages, payment_pct, description, revision_limit, review_window_hours}]"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['role_definition', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.role_definition.name})"
+
+    def generate_tasks(self, collaborator_role, total_amount, base_deadline):
+        """Generate ContractTask instances from this template.
+
+        Returns unsaved ContractTask objects. Caller should bulk_create them.
+        """
+        from datetime import timedelta
+        tasks = []
+        current_page = 1
+
+        for i, milestone in enumerate(self.milestones):
+            payment = (Decimal(str(milestone['payment_pct'])) / 100) * total_amount
+            page_count = milestone.get('pages', 1)
+
+            task = ContractTask(
+                collaborator_role=collaborator_role,
+                title=milestone.get('description', f'Milestone {i + 1}'),
+                description=milestone.get('detailed_description', ''),
+                deadline=base_deadline + timedelta(days=(i + 1) * 7),
+                payment_amount=payment,
+                escrow_release_status='pending',
+                milestone_type=milestone['type'],
+                page_range_start=current_page,
+                page_range_end=current_page + page_count - 1,
+                revision_limit=milestone.get('revision_limit', 3),
+                review_window_hours=milestone.get('review_window_hours', 72),
+                order=i,
+            )
+            tasks.append(task)
+            current_page += page_count
+
+        return tasks
 
 
 class Dispute(models.Model):
@@ -5530,6 +5856,20 @@ class PurchaseIntent(models.Model):
         related_name='source_intent'
     )
 
+    # Escrow funding support
+    is_escrow_funding = models.BooleanField(
+        default=False,
+        help_text="True if this intent is for escrow funding (not a content purchase)"
+    )
+    escrow_collaborator_role = models.ForeignKey(
+        'CollaboratorRole',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='escrow_funding_intents',
+        help_text="The collaborator role being funded via escrow"
+    )
+
     # Error tracking
     failure_reason = models.TextField(blank=True)
 
@@ -5549,6 +5889,8 @@ class PurchaseIntent(models.Model):
         ]
 
     def __str__(self):
+        if self.is_escrow_funding:
+            return f"EscrowIntent {self.id}: ${self.total_amount} for {self.user.username} ({self.status})"
         item = self.chapter or self.content or "Cart"
         return f"Intent {self.id}: {item} for {self.user.username} ({self.status})"
 

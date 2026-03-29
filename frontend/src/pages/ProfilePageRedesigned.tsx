@@ -56,8 +56,10 @@ type SalesSummary = {
   total_earnings_usdc: number;
   solo_earnings: number;
   collaboration_earnings: number;
+  escrow_earnings?: number;
   content_count: number;
   collaboration_count: number;
+  escrow_count?: number;
   total_sales: number;
 };
 // Transaction within a content sale
@@ -1409,17 +1411,42 @@ export default function ProfilePageRedesigned() {
                   {/* Invite Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
-                      {project.title}
+                      {project.title?.replace(/^Collaboration Invite - /, '') || project.title}
                     </div>
                     <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 10 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>@{project.created_by_username}</span> invited you as{' '}
+                      <a
+                        href={`/profile/${project.created_by_username}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ color: '#f59e0b', textDecoration: 'none', fontWeight: 500 }}
+                        onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+                      >@{project.created_by_username}</a> invited you as{' '}
                       <span style={{ color: '#f59e0b', fontWeight: 600 }}>{invite.role}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 20, fontSize: 13 }}>
-                      <div>
-                        <span style={{ color: 'var(--subtle)' }}>Revenue Split:</span>{' '}
-                        <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
-                      </div>
+                    <div style={{ display: 'flex', gap: 20, fontSize: 13, flexWrap: 'wrap' }}>
+                      {invite.contract_type === 'work_for_hire' ? (
+                        <div>
+                          <span style={{ color: 'var(--subtle)' }}>Fixed Rate:</span>{' '}
+                          <span style={{ color: '#10b981', fontWeight: 700 }}>${parseFloat(invite.total_contract_amount || '0').toFixed(2)}</span>
+                          <span style={{ color: 'var(--subtle)', marginLeft: 4 }}>via escrow</span>
+                        </div>
+                      ) : invite.contract_type === 'hybrid' ? (
+                        <>
+                          <div>
+                            <span style={{ color: 'var(--subtle)' }}>Upfront:</span>{' '}
+                            <span style={{ color: '#10b981', fontWeight: 700 }}>${parseFloat(invite.total_contract_amount || '0').toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--subtle)' }}>+ Revenue:</span>{' '}
+                            <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <span style={{ color: 'var(--subtle)' }}>Revenue Split:</span>{' '}
+                          <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
+                        </div>
+                      )}
                       <div>
                         <span style={{ color: 'var(--subtle)' }}>Team:</span>{' '}
                         <span style={{ color: '#e2e8f0' }}>{project.total_collaborators} people</span>
@@ -2656,6 +2683,18 @@ export default function ProfilePageRedesigned() {
                 <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.collaboration_count || 0} projects</div>
               </div>
 
+              {(salesAnalytics?.summary.escrow_earnings ?? 0) > 0 && (
+                <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Escrow Earnings
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>
+                    ${salesAnalytics?.summary.escrow_earnings?.toFixed(2) || '0.00'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.escrow_count || 0} contracts</div>
+                </div>
+              )}
+
               <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Total Sales
@@ -2860,6 +2899,41 @@ export default function ProfilePageRedesigned() {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Escrow Earnings Breakdown */}
+          {salesAnalytics && (salesAnalytics as any).escrow_earnings?.length > 0 && (
+            <div style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--panel-border-strong)',
+              borderRadius: 12,
+              padding: 24,
+              marginBottom: 24,
+            }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Shield size={18} style={{ color: '#10b981' }} />
+                Escrow Earnings
+              </h3>
+              {(salesAnalytics as any).escrow_earnings.map((item: any) => (
+                <div key={item.project_id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '12px 16px', background: 'var(--panel)', borderRadius: 8, marginBottom: 8,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{item.project_title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--subtle)', marginTop: 2 }}>
+                      {item.role} · {item.milestones_completed}/{item.milestones_total} milestones · ${item.total_contract.toFixed(2)} contract
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>
+                      ${item.total_earned.toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--subtle)' }}>earned</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
