@@ -1,7 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { CollaborativeProject, CollaboratorRole, collaborationApi } from '../../../services/collaborationApi';
 import RevenueSplitChart from '../RevenueSplitChart';
-import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2, Upload, ImageIcon, Trash2 } from 'lucide-react';
+import { EscrowStatusBar } from '../EscrowStatusBar';
+import { MilestoneTimeline } from '../MilestoneTimeline';
+import { EscrowFundingModal } from '../EscrowFundingModal';
+import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2, Upload, ImageIcon, Trash2, Shield, DollarSign } from 'lucide-react';
 
 interface User {
   id: number;
@@ -26,8 +29,11 @@ export default function OverviewTab({
   const [savingReadingDirection, setSavingReadingDirection] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [fundingModalRole, setFundingModalRole] = useState<CollaboratorRole | null>(null);
 
   const isProjectLead = project.created_by === currentUser.id;
+  const collaborators = project.collaborators || [];
+  const escrowCollaborators = collaborators.filter(c => c.contract_type && c.contract_type !== 'revenue_share');
 
   // Handle reading direction change
   const handleReadingDirectionChange = async (newDirection: 'ltr' | 'rtl') => {
@@ -418,6 +424,103 @@ export default function OverviewTab({
           )}
         </div>
       </div>}
+
+      {/* Escrow Contracts Section */}
+      {escrowCollaborators.length > 0 && (
+        <div style={{
+          gridColumn: 'span 12',
+          background: 'var(--panel)',
+          border: '1px solid var(--panel-border)',
+          borderRadius: 12,
+          padding: 24,
+        }}>
+          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Shield size={20} style={{ color: '#8b5cf6' }} /> Escrow Contracts
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {escrowCollaborators.map((collab) => (
+              <div key={collab.id}>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'center', marginBottom: 8,
+                }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                    @{collab.username} — {collab.effective_role_name || collab.role}
+                  </span>
+                  <span style={{
+                    fontSize: 11, padding: '3px 8px', borderRadius: 6,
+                    background: '#8b5cf620', color: '#a78bfa', fontWeight: 600,
+                    textTransform: 'capitalize',
+                  }}>
+                    {collab.contract_type?.replace('_', ' ')}
+                  </span>
+                </div>
+
+                {collab.escrow_funding_deadline && parseFloat(collab.escrow_funded_amount) < parseFloat(collab.total_contract_amount) && (
+                  <div style={{
+                    marginBottom: 8, padding: 8, borderRadius: 6,
+                    background: 'rgba(245, 158, 11, 0.08)', fontSize: 12, color: '#f59e0b',
+                  }}>
+                    Start date: {new Date(collab.escrow_funding_deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    {' — '}escrow must be funded by this date
+                  </div>
+                )}
+
+                <EscrowStatusBar
+                  contractType={collab.contract_type as 'work_for_hire' | 'hybrid'}
+                  totalAmount={collab.total_contract_amount}
+                  fundedAmount={collab.escrow_funded_amount}
+                  releasedAmount={collab.escrow_released_amount}
+                  remaining={collab.escrow_remaining}
+                  trustPhase={collab.trust_phase}
+                  trustPagesCompleted={collab.trust_pages_completed}
+                  fundedAt={collab.escrow_funded_at}
+                />
+
+                {/* Fund Escrow button (owner only, unfunded) */}
+                {isProjectLead && parseFloat(collab.escrow_funded_amount) < parseFloat(collab.total_contract_amount) && (
+                  <button
+                    onClick={() => setFundingModalRole(collab)}
+                    style={{
+                      marginTop: 8, width: '100%', padding: '10px 16px',
+                      borderRadius: 8, border: 'none', cursor: 'pointer',
+                      background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                      color: '#fff', fontSize: 13, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}
+                  >
+                    <DollarSign size={14} /> Fund Escrow
+                  </button>
+                )}
+
+                {/* Milestone Timeline */}
+                {collab.contract_tasks && collab.contract_tasks.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <MilestoneTimeline
+                      tasks={collab.contract_tasks}
+                      trustPhase={collab.trust_phase}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Escrow Funding Modal */}
+      {fundingModalRole && (
+        <EscrowFundingModal
+          isOpen={true}
+          onClose={() => setFundingModalRole(null)}
+          onFunded={async () => {
+            const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+            onProjectUpdate?.(updatedProject);
+          }}
+          projectId={project.id}
+          collaborator={fundingModalRole}
+        />
+      )}
 
       {/* Revenue Split Chart - Left side (hidden for solo projects) */}
       {!project.is_solo && (

@@ -20,7 +20,8 @@ from .views.purchases import UserPurchasesView, PurchaseStatusView, BatchPurchas
 from .views.library import LibraryView, FullContentView, ReadingProgressView, ComicPreviewView, ComicReaderDataView
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
-    ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet
+    ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet,
+    MilestoneTemplateViewSet
 )
 from .views.comic import ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet, ComicSeriesViewSet, ComicIssueViewSet, DividerLineViewSet, ArtworkLibraryViewSet
 from .views.notifications import NotificationViewSet
@@ -44,7 +45,8 @@ from .views.legal import (
 from .views.balance import UserBalanceView, SyncBalanceView, CheckBalanceSufficiencyView, EarningsBalanceView
 from .views.payment import (
     CreatePurchaseIntentView, SelectPaymentMethodView, PayWithBalanceView,
-    SubmitSponsoredPaymentView, ConfirmBalancePaymentView, PurchaseIntentStatusView
+    SubmitSponsoredPaymentView, ConfirmBalancePaymentView, PurchaseIntentStatusView,
+    CreateEscrowFundingIntentView
 )
 from .views.coinbase import (
     InitiateCoinbaseOnrampView, CoinbaseTransactionStatusView,
@@ -64,6 +66,7 @@ router.register(r'project-sections', ProjectSectionViewSet, basename='project-se
 router.register(r'project-comments', ProjectCommentViewSet, basename='project-comment')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'role-definitions', RoleDefinitionViewSet, basename='role-definition')
+router.register(r'milestone-templates', MilestoneTemplateViewSet, basename='milestone-template')
 # Social engagement ViewSets
 router.register(r'content-comments', ContentCommentViewSet, basename='content-comment')
 router.register(r'content-ratings', ContentRatingViewSet, basename='content-rating')
@@ -262,6 +265,7 @@ urlpatterns = [
 
     # Purchase Intent
     path('api/payment/intent/', CreatePurchaseIntentView.as_view(), name='create_purchase_intent'),
+    path('api/payment/escrow-intent/', CreateEscrowFundingIntentView.as_view(), name='create_escrow_intent'),
     path('api/payment/intent/<int:intent_id>/select/', SelectPaymentMethodView.as_view(), name='select_payment_method'),
     path('api/payment/intent/<int:intent_id>/pay-with-balance/', PayWithBalanceView.as_view(), name='pay_with_balance'),
     path('api/payment/intent/<int:intent_id>/submit/', SubmitSponsoredPaymentView.as_view(), name='submit_sponsored_payment'),

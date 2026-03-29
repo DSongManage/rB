@@ -17,6 +17,7 @@ import {
   Star,
   ClipboardList,
   Coins,
+  ArrowLeftRight,
 } from 'lucide-react';
 import {
   Notification,
@@ -54,6 +55,8 @@ function getNotificationLucideIcon(type: NotificationType): React.ReactNode {
       return <ClipboardList {...iconProps} />;
     case 'content_purchase':
       return <Coins {...iconProps} />;
+    case 'counter_proposal':
+      return <ArrowLeftRight {...iconProps} />;
     default:
       return <Bell {...iconProps} />;
   }
@@ -71,6 +74,7 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
   const color = getNotificationColor(notification.type);
   const timeAgo = getTimeAgo(notification.created_at);
   const isInvitation = notification.type === 'invitation';
+  const isCounterProposal = notification.type === 'counter_proposal';
 
   return (
     <div
@@ -185,6 +189,39 @@ function NotificationItemComponent({ notification, onClick, onDelete, onViewInvi
               }}
             >
               View Invite →
+            </button>
+          )}
+
+          {/* View Proposal button for counter-proposal notifications */}
+          {isCounterProposal && notification.project_id && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.location.href = `/studio/${notification.project_id}?tab=team`;
+              }}
+              style={{
+                marginTop: 10,
+                background: '#f97316',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#fb923c';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#f97316';
+              }}
+            >
+              View Proposal →
             </button>
           )}
         </div>

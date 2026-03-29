@@ -152,7 +152,7 @@ export function PendingInviteCard({
               maxWidth: 200,
             }}
           >
-            {project.title}
+            {project.title?.replace(/^Collaboration Invite - /, '') || project.title}
           </h3>
           <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }}>
             from <span style={{ color: '#f59e0b' }}>@{creator?.username}</span>
@@ -187,10 +187,14 @@ export function PendingInviteCard({
         />
         <div style={{ flex: 1 }}>
           <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>
-            Revenue
+            {myInvite.contract_type === 'work_for_hire' ? 'Fixed Rate' :
+             myInvite.contract_type === 'hybrid' ? 'Upfront' : 'Revenue'}
           </div>
           <div style={{ color: '#10b981', fontSize: 14, fontWeight: 600 }}>
-            {myInvite.revenue_percentage}%
+            {myInvite.contract_type === 'work_for_hire' || myInvite.contract_type === 'hybrid'
+              ? `$${parseFloat(myInvite.total_contract_amount || '0').toFixed(2)}`
+              : `${myInvite.revenue_percentage}%`
+            }
           </div>
         </div>
       </div>

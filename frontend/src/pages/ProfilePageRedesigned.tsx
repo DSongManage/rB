@@ -1409,17 +1409,42 @@ export default function ProfilePageRedesigned() {
                   {/* Invite Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
-                      {project.title}
+                      {project.title?.replace(/^Collaboration Invite - /, '') || project.title}
                     </div>
                     <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 10 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>@{project.created_by_username}</span> invited you as{' '}
+                      <a
+                        href={`/profile/${project.created_by_username}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ color: '#f59e0b', textDecoration: 'none', fontWeight: 500 }}
+                        onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+                      >@{project.created_by_username}</a> invited you as{' '}
                       <span style={{ color: '#f59e0b', fontWeight: 600 }}>{invite.role}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 20, fontSize: 13 }}>
-                      <div>
-                        <span style={{ color: 'var(--subtle)' }}>Revenue Split:</span>{' '}
-                        <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
-                      </div>
+                    <div style={{ display: 'flex', gap: 20, fontSize: 13, flexWrap: 'wrap' }}>
+                      {invite.contract_type === 'work_for_hire' ? (
+                        <div>
+                          <span style={{ color: 'var(--subtle)' }}>Fixed Rate:</span>{' '}
+                          <span style={{ color: '#10b981', fontWeight: 700 }}>${parseFloat(invite.total_contract_amount || '0').toFixed(2)}</span>
+                          <span style={{ color: 'var(--subtle)', marginLeft: 4 }}>via escrow</span>
+                        </div>
+                      ) : invite.contract_type === 'hybrid' ? (
+                        <>
+                          <div>
+                            <span style={{ color: 'var(--subtle)' }}>Upfront:</span>{' '}
+                            <span style={{ color: '#10b981', fontWeight: 700 }}>${parseFloat(invite.total_contract_amount || '0').toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--subtle)' }}>+ Revenue:</span>{' '}
+                            <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <span style={{ color: 'var(--subtle)' }}>Revenue Split:</span>{' '}
+                          <span style={{ color: '#10b981', fontWeight: 700 }}>{invite.revenue_percentage}%</span>
+                        </div>
+                      )}
                       <div>
                         <span style={{ color: 'var(--subtle)' }}>Team:</span>{' '}
                         <span style={{ color: '#e2e8f0' }}>{project.total_collaborators} people</span>

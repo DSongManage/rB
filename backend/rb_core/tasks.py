@@ -2221,3 +2221,251 @@ def send_notification_email(recipient_id, title, message, notification_type, act
     email.send()
 
     logger.info('[NotifEmail] Sent "%s" email to %s', notification_type, user.email)
+
+
+# ========== ESCROW TASKS ==========
+
+
+@shared_task
+def check_auto_approve_deadlines():
+    """Periodic task: auto-approve tasks past their review window.
+
+    Runs every 15 minutes. For escrow tasks where the writer hasn't
+    reviewed within review_window_hours, the task auto-approves and
+    escrow funds are released to protect the artist.
+    """
+    from django.utils import timezone
+    from .models import ContractTask, EscrowTransaction
+
+    now = timezone.now()
+    overdue_tasks = ContractTask.objects.filter(
+        status='complete',
+        auto_approve_deadline__lte=now,
+        auto_approved=False,
+        escrow_release_status='pending',
+    ).select_related('collaborator_role', 'collaborator_role__user', 'collaborator_role__project')
+
+    results = {'auto_approved': 0, 'errors': 0}
+
+    for task in overdue_tasks:
+        try:
+            role = task.collaborator_role
+            project = role.project
+            writer = project.created_by
+
+            # Auto sign-off
+            task.auto_approved = True
+            task.sign_off(writer, notes='Auto-approved: review window expired')
+
+            results['auto_approved'] += 1
+
+            # Send notifications
+            from .notifications_utils import notify_auto_approved
+            notify_auto_approved(writer, role, task.title, task.payment_amount)
+
+            # Check trust phase transition
+            if role.trust_phase == 'production' and role.trust_pages_completed >= 5:
+                from .notifications_utils import notify_trust_phase_complete
+                notify_trust_phase_complete(role)
+
+            logger.info(
+                '[AutoApprove] Task %s auto-approved, $%s released to %s',
+                task.id, task.payment_amount, role.user.username
+            )
+
+        except Exception:
+            results['errors'] += 1
+            logger.exception('[AutoApprove] Failed to auto-approve task %s', task.id)
+
+    if results['auto_approved'] > 0:
+        logger.info('[AutoApprove] Results: %s', results)
+
+    return results
+
+
+@shared_task
+def process_escrow_release(task_id):
+    """Process USDC payment to artist after milestone sign-off.
+
+    Reuses the existing treasury-fronting pattern: platform sends USDC
+    from treasury to the collaborator's wallet, then reconciles later.
+
+    For now this is a tracking task — actual USDC transfer happens via
+    the existing distribution pipeline when the project is minted/sold.
+    In the escrow model, payment is immediate on sign-off.
+    """
+    from .models import ContractTask
+
+    try:
+        task = ContractTask.objects.select_related(
+            'collaborator_role', 'collaborator_role__user',
+            'collaborator_role__project'
+        ).get(id=task_id)
+    except ContractTask.DoesNotExist:
+        logger.error('[EscrowRelease] Task %s not found', task_id)
+        return
+
+    if task.escrow_release_status != 'approved':
+        logger.warning(
+            '[EscrowRelease] Task %s status is %s, expected approved',
+            task_id, task.escrow_release_status
+        )
+        return
+
+    role = task.collaborator_role
+
+    # Get payout destinations for the collaborator
+    try:
+        wallet_address = role.user.wallet_address
+        if not wallet_address:
+            logger.warning(
+                '[EscrowRelease] No wallet for user %s, marking released (will pay when wallet set)',
+                role.user.username
+            )
+    except Exception:
+        wallet_address = None
+
+    # Mark as released
+    task.escrow_release_status = 'released'
+    task.save(update_fields=['escrow_release_status'])
+
+    # Send milestone payment notification
+    from .notifications_utils import notify_milestone_payment
+    notify_milestone_payment(role, task.title, task.payment_amount)
+
+    logger.info(
+        '[EscrowRelease] Task %s: $%s released to %s (wallet: %s)',
+        task_id, task.payment_amount, role.user.username, wallet_address or 'pending'
+    )
+
+    return {
+        'task_id': task_id,
+        'amount': str(task.payment_amount),
+        'collaborator': role.user.username,
+        'wallet': wallet_address,
+        'status': 'released',
+    }
+
+
+@shared_task
+def send_auto_approve_warnings():
+    """Periodic task: warn writers about upcoming auto-approvals.
+
+    Sends a warning when a task is within 12 hours of auto-approval.
+    Runs every hour.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import ContractTask
+
+    now = timezone.now()
+    warning_window = now + timedelta(hours=12)
+
+    # Tasks that will auto-approve within 12 hours and haven't been warned yet
+    upcoming_tasks = ContractTask.objects.filter(
+        status='complete',
+        auto_approve_deadline__lte=warning_window,
+        auto_approve_deadline__gt=now,
+        auto_approved=False,
+        escrow_release_status='pending',
+    ).select_related('collaborator_role', 'collaborator_role__user', 'collaborator_role__project')
+
+    count = 0
+    for task in upcoming_tasks:
+        role = task.collaborator_role
+        writer = role.project.created_by
+        hours_remaining = int((task.auto_approve_deadline - now).total_seconds() / 3600)
+
+        from .notifications_utils import notify_auto_approve_warning
+        notify_auto_approve_warning(writer, role, task.title, hours_remaining)
+        count += 1
+
+    if count > 0:
+        logger.info('[AutoApproveWarning] Sent %d warnings', count)
+
+    return {'warnings_sent': count}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def process_escrow_funding_task(self, intent_id, transaction_signature):
+    """
+    Process escrow funding after Solana transaction is confirmed.
+    Updates CollaboratorRole escrow fields and activates pending tasks.
+    """
+    from django.db import transaction
+    from django.utils import timezone
+    from rb_core.models import PurchaseIntent, EscrowTransaction, ContractTask
+    from rb_core.notifications_utils import notify_escrow_funded
+
+    logger.info(f'[EscrowFunding] Processing intent {intent_id}, tx={transaction_signature}')
+
+    try:
+        intent = PurchaseIntent.objects.get(id=intent_id)
+    except PurchaseIntent.DoesNotExist:
+        logger.error(f'[EscrowFunding] Intent {intent_id} not found')
+        return {'error': 'Intent not found'}
+
+    # Idempotency: skip if already completed
+    if intent.status == 'completed':
+        logger.info(f'[EscrowFunding] Intent {intent_id} already completed, skipping')
+        return {'status': 'already_completed'}
+
+    if not intent.is_escrow_funding or not intent.escrow_collaborator_role:
+        logger.error(f'[EscrowFunding] Intent {intent_id} is not an escrow funding intent')
+        intent.status = 'failed'
+        intent.failure_reason = 'Not an escrow funding intent'
+        intent.save()
+        return {'error': 'Not an escrow funding intent'}
+
+    role = intent.escrow_collaborator_role
+
+    try:
+        with transaction.atomic():
+            # Update escrow funding on the collaborator role
+            amount_funded = intent.total_amount
+            role.escrow_funded_amount = role.total_contract_amount
+            role.escrow_funded_at = timezone.now()
+            role.save(update_fields=['escrow_funded_amount', 'escrow_funded_at'])
+
+            # Create audit transaction record
+            EscrowTransaction.objects.create(
+                collaborator_role=role,
+                transaction_type='fund',
+                amount=amount_funded,
+                escrow_balance_after=role.escrow_funded_amount - role.escrow_released_amount,
+                initiated_by=intent.user,
+                notes=f'Escrow funded via payment intent #{intent.id}, tx={transaction_signature}',
+            )
+
+            # Activate pending tasks if collaborator already accepted
+            if role.status == 'accepted':
+                activated = ContractTask.objects.filter(
+                    collaborator_role=role, status='pending'
+                ).update(status='in_progress')
+                if activated:
+                    logger.info(f'[EscrowFunding] Activated {activated} tasks for {role.user.username}')
+
+            # Mark intent as completed
+            intent.status = 'completed'
+            intent.completed_at = timezone.now()
+            intent.save(update_fields=['status', 'completed_at'])
+
+        # Notify collaborator (outside transaction)
+        try:
+            notify_escrow_funded(intent.user, role)
+        except Exception as notify_err:
+            logger.warning(f'[EscrowFunding] Notification failed: {notify_err}')
+
+        logger.info(f'[EscrowFunding] Successfully funded escrow for role {role.id}, amount=${amount_funded}')
+        return {
+            'status': 'completed',
+            'role_id': role.id,
+            'amount_funded': str(amount_funded),
+        }
+
+    except Exception as e:
+        logger.error(f'[EscrowFunding] Failed to process: {e}')
+        intent.status = 'failed'
+        intent.failure_reason = str(e)
+        intent.save()
+        raise self.retry(exc=e)

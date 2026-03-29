@@ -16,20 +16,23 @@ from django.db.models import Q
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
 
+from django.utils import timezone
+
 from ..models import (
     CollaborativeProject, CollaboratorRole, ProjectSection,
     ProjectComment, User as CoreUser, Content, ContractTask, RoleDefinition,
-    ComicPage
+    ComicPage, EscrowTransaction, MilestoneTemplate
 )
 from ..serializers import (
     CollaborativeProjectSerializer, CollaborativeProjectListSerializer,
     CollaboratorRoleSerializer, ProjectSectionSerializer, ProjectCommentSerializer,
-    ContractTaskSerializer, ContractTaskCreateSerializer, RoleDefinitionSerializer
+    ContractTaskSerializer, ContractTaskCreateSerializer, RoleDefinitionSerializer,
+    EscrowTransactionSerializer, MilestoneTemplateSerializer
 )
 from ..notifications_utils import (
     notify_collaboration_invitation, notify_invitation_response,
     notify_section_update, notify_comment_added, notify_approval_status_change,
-    notify_revenue_proposal, notify_counter_proposal
+    notify_revenue_proposal, notify_counter_proposal, notify_escrow_funded
 )
 from ..utils.copyright import get_author_display_name
 
@@ -119,7 +122,11 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         - can_edit_images: bool (legacy, still supported)
         - can_edit_audio: bool (legacy, still supported)
         - can_edit_video: bool (legacy, still supported)
-        - tasks: array of {title, description, deadline} (optional but recommended)
+        - tasks: array of {title, description, deadline, payment_amount, revision_limit, review_window_hours, milestone_type, page_range_start, page_range_end} (optional but recommended)
+        - contract_type: str (revenue_share, work_for_hire, hybrid) - default: revenue_share
+        - total_contract_amount: decimal - total USD for work_for_hire/hybrid
+        - milestone_template_id: int (optional) - auto-generate tasks from template
+        - upfront_percentage: decimal (optional) - for hybrid contracts
         """
         project = self.get_object()
 
@@ -214,8 +221,33 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate tasks if provided
+        # Validate contract type and escrow fields
+        contract_type = request.data.get('contract_type', 'revenue_share')
+        if contract_type not in ('revenue_share', 'work_for_hire', 'hybrid'):
+            return Response(
+                {'error': 'contract_type must be revenue_share, work_for_hire, or hybrid'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        total_contract_amount = Decimal(str(request.data.get('total_contract_amount', '0.00')))
+        upfront_percentage = Decimal(str(request.data.get('upfront_percentage', '0.00')))
+
+        if contract_type in ('work_for_hire', 'hybrid') and total_contract_amount <= 0:
+            return Response(
+                {'error': 'total_contract_amount is required for work_for_hire and hybrid contracts'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Handle milestone template: auto-generate tasks if template provided
+        milestone_template_id = request.data.get('milestone_template_id')
         tasks_data = request.data.get('tasks', [])
+
+        if milestone_template_id and tasks_data:
+            return Response(
+                {'error': 'Provide either milestone_template_id or tasks, not both'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate tasks if provided manually
         if tasks_data:
             for i, task in enumerate(tasks_data):
                 task_serializer = ContractTaskCreateSerializer(data=task)
@@ -224,6 +256,31 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                         {'error': f'Invalid task at index {i}', 'details': task_serializer.errors},
                         status=status.HTTP_400_BAD_REQUEST
                     )
+
+        # Validate milestone template if provided
+        milestone_template = None
+        if milestone_template_id:
+            try:
+                from rb_core.models import MilestoneTemplate
+                milestone_template = MilestoneTemplate.objects.get(
+                    id=milestone_template_id, is_active=True
+                )
+            except MilestoneTemplate.DoesNotExist:
+                return Response(
+                    {'error': 'Milestone template not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        # For escrow contracts, validate that task payment amounts sum to total
+        if contract_type in ('work_for_hire', 'hybrid') and tasks_data and not milestone_template:
+            task_payments_sum = sum(
+                Decimal(str(t.get('payment_amount', '0'))) for t in tasks_data
+            )
+            if abs(task_payments_sum - total_contract_amount) > Decimal('0.01'):
+                return Response(
+                    {'error': f'Task payment amounts ({task_payments_sum}) must equal total_contract_amount ({total_contract_amount})'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Create invitation within transaction
         with transaction.atomic():
@@ -238,6 +295,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 role_definition=role_definition,
                 permissions=permissions,
                 revenue_percentage=revenue_percentage,
+                contract_type=contract_type,
+                total_contract_amount=total_contract_amount,
+                upfront_percentage=upfront_percentage,
                 status='invited',
                 can_edit_text=request.data.get('can_edit_text', False),
                 can_edit_images=request.data.get('can_edit_images', False),
@@ -245,19 +305,36 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 can_edit_video=request.data.get('can_edit_video', False)
             )
 
-            # Create contract tasks (status='pending' until accepted)
-            for i, task_data in enumerate(tasks_data):
-                ContractTask.objects.create(
-                    collaborator_role=collaborator,
-                    title=task_data.get('title'),
-                    description=task_data.get('description', ''),
-                    deadline=task_data.get('deadline'),
-                    status='pending',
-                    order=i
+            # Generate tasks from template or manual data
+            if milestone_template:
+                from datetime import timedelta
+                base_deadline = timezone.now() + timedelta(days=7)
+                generated_tasks = milestone_template.generate_tasks(
+                    collaborator, total_contract_amount, base_deadline
                 )
+                ContractTask.objects.bulk_create(generated_tasks)
+                collaborator.tasks_total = len(generated_tasks)
+            else:
+                # Create contract tasks (status='pending' until accepted)
+                escrow_status = 'pending' if contract_type in ('work_for_hire', 'hybrid') else 'not_applicable'
+                for i, task_data in enumerate(tasks_data):
+                    ContractTask.objects.create(
+                        collaborator_role=collaborator,
+                        title=task_data.get('title'),
+                        description=task_data.get('description', ''),
+                        deadline=task_data.get('deadline'),
+                        status='pending',
+                        order=i,
+                        payment_amount=Decimal(str(task_data.get('payment_amount', '0.00'))),
+                        escrow_release_status=escrow_status,
+                        revision_limit=task_data.get('revision_limit', 3),
+                        review_window_hours=task_data.get('review_window_hours', 72),
+                        milestone_type=task_data.get('milestone_type', 'custom'),
+                        page_range_start=task_data.get('page_range_start'),
+                        page_range_end=task_data.get('page_range_end'),
+                    )
+                collaborator.tasks_total = len(tasks_data)
 
-            # Update task counts
-            collaborator.tasks_total = len(tasks_data)
             collaborator.save(update_fields=['tasks_total'])
 
         # Send notification to invited user
@@ -325,10 +402,21 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             if not invitation.contract_effective_date:
                 invitation.contract_effective_date = now
 
+            # Initialize trust phase for escrow contracts
+            if invitation.contract_type in ('work_for_hire', 'hybrid'):
+                # Check if there are trust_page milestones
+                has_trust_pages = invitation.contract_tasks.filter(
+                    milestone_type='trust_page'
+                ).exists()
+                invitation.trust_phase = 'trust_building' if has_trust_pages else 'production'
+
             invitation.save()
 
-            # Activate all pending tasks (change from 'pending' to 'in_progress')
-            invitation.contract_tasks.filter(status='pending').update(status='in_progress')
+            # Activate tasks: only if escrow is funded (or no escrow needed)
+            escrow_funded = invitation.contract_type == 'revenue_share' or \
+                invitation.escrow_funded_amount >= invitation.total_contract_amount
+            if escrow_funded:
+                invitation.contract_tasks.filter(status='pending').update(status='in_progress')
 
         # Notify project creator and other collaborators
         notify_invitation_response(invitation, accepted=True)
@@ -406,6 +494,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         # Get counter-proposal details
         proposed_percentage = request.data.get('proposed_percentage')
         message = request.data.get('message', '')
+        proposed_total_amount = request.data.get('proposed_total_amount')
+        proposed_tasks = request.data.get('proposed_tasks')
 
         if proposed_percentage is None:
             return Response(
@@ -428,9 +518,44 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Validate proposed total amount for escrow contracts
+        proposed_amount_decimal = None
+        if proposed_total_amount is not None:
+            try:
+                proposed_amount_decimal = Decimal(str(proposed_total_amount))
+                if proposed_amount_decimal <= 0:
+                    return Response(
+                        {'error': 'proposed_total_amount must be greater than 0'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Exception:
+                return Response(
+                    {'error': 'Invalid proposed_total_amount value'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Validate proposed tasks (deadline/payment changes)
+        if proposed_tasks is not None:
+            if not isinstance(proposed_tasks, list):
+                return Response(
+                    {'error': 'proposed_tasks must be a list'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Validate each task has required fields
+            for pt in proposed_tasks:
+                if 'task_id' not in pt:
+                    return Response(
+                        {'error': 'Each proposed task must have a task_id'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
         # Store counter-proposal
         invitation.proposed_percentage = proposed_percentage
         invitation.counter_message = message
+        if proposed_amount_decimal is not None:
+            invitation.proposed_total_amount = proposed_amount_decimal
+        if proposed_tasks is not None:
+            invitation.proposed_tasks = proposed_tasks
         invitation.save()
 
         # Notify project creator
@@ -493,55 +618,91 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Verify there's actually a counter-proposal
-        if collaborator.proposed_percentage is None:
+        # Verify there's actually a counter-proposal (percentage, amount, or task changes)
+        has_percentage_change = (
+            collaborator.proposed_percentage is not None and
+            collaborator.proposed_percentage != collaborator.revenue_percentage
+        )
+        has_amount_change = (
+            collaborator.proposed_total_amount is not None and
+            collaborator.proposed_total_amount != collaborator.total_contract_amount
+        )
+        has_task_changes = collaborator.proposed_tasks is not None and len(collaborator.proposed_tasks) > 0
+
+        if not has_percentage_change and not has_amount_change and not has_task_changes:
             return Response(
                 {'error': 'No counter-proposal found for this collaborator'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         if action == 'accept':
-            # Accept the counter-proposal: update revenue_percentage to proposed_percentage
-            old_percentage = collaborator.revenue_percentage
-            new_percentage = collaborator.proposed_percentage
-
-            # Calculate the difference and adjust the project lead's share
-            difference = new_percentage - old_percentage
-            lead_collab = project.collaborators.get(user=project.created_by)
-
-            # Make sure lead has enough share to give
-            if lead_collab.revenue_percentage - difference < Decimal('0'):
-                return Response(
-                    {'error': 'Accepting this counter-proposal would make your share negative'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
             with transaction.atomic():
-                # Update the collaborator's percentage to their proposed amount
-                collaborator.revenue_percentage = new_percentage
-                # Clear the counter-proposal fields
+                # Accept revenue percentage change if proposed
+                if has_percentage_change:
+                    old_percentage = collaborator.revenue_percentage
+                    new_percentage = collaborator.proposed_percentage
+                    difference = new_percentage - old_percentage
+                    lead_collab = project.collaborators.get(user=project.created_by)
+
+                    if lead_collab.revenue_percentage - difference < Decimal('0'):
+                        return Response(
+                            {'error': 'Accepting this counter-proposal would make your share negative'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    collaborator.revenue_percentage = new_percentage
+                    lead_collab.revenue_percentage = lead_collab.revenue_percentage - difference
+                    lead_collab.save()
+
+                # Accept proposed total contract amount
+                if has_amount_change:
+                    collaborator.total_contract_amount = collaborator.proposed_total_amount
+
+                # Accept proposed task changes (deadlines + payment amounts)
+                if has_task_changes:
+                    from dateutil.parser import parse as parse_datetime
+                    for proposed_task in collaborator.proposed_tasks:
+                        try:
+                            task = ContractTask.objects.get(
+                                id=proposed_task['task_id'],
+                                collaborator_role=collaborator
+                            )
+                            if 'deadline' in proposed_task and proposed_task['deadline']:
+                                task.deadline = parse_datetime(proposed_task['deadline'])
+                            if 'payment_amount' in proposed_task and proposed_task['payment_amount']:
+                                task.payment_amount = Decimal(str(proposed_task['payment_amount']))
+                            task.save()
+                        except (ContractTask.DoesNotExist, Exception) as e:
+                            logger.warning(f"[CounterProposal] Failed to update task: {e}")
+
+                # Clear all counter-proposal fields
                 collaborator.proposed_percentage = None
+                collaborator.proposed_total_amount = None
+                collaborator.proposed_tasks = None
                 collaborator.counter_message = ''
                 collaborator.save()
 
-                # Adjust the project lead's share
-                lead_collab.revenue_percentage = lead_collab.revenue_percentage - difference
-                lead_collab.save()
-
-            # Notify the collaborator that their counter-proposal was accepted
-            # Link to profile page where they can accept the updated invitation (not the collab workspace yet)
+            # Build notification message
             from ..notifications_utils import create_notification
+            changes = []
+            if has_percentage_change:
+                changes.append(f'{collaborator.revenue_percentage}% revenue split')
+            if has_amount_change:
+                changes.append(f'${collaborator.total_contract_amount} contract rate')
+            if has_task_changes:
+                changes.append('updated schedule')
+            change_desc = ', '.join(changes) if changes else 'your proposed terms'
+
             create_notification(
                 recipient=collaborator.user,
                 from_user=core_user,
-                notification_type='collaboration_update',
+                notification_type='counter_proposal',
                 title=f'Counter-Proposal Accepted: {project.title}',
-                message=f'{core_user.username} accepted your counter-proposal of {new_percentage}% revenue split. Accept the invitation to join!' + (f' "{message}"' if message else ''),
+                message=f'{core_user.username} accepted your counter-proposal ({change_desc}). Accept the invitation to join!' + (f' "{message}"' if message else ''),
                 project=project,
                 action_url='/profile'
             )
 
-            # Re-fetch project to get fresh collaborator data
             project = self.get_object()
             serializer = CollaborativeProjectSerializer(project, context={'request': request})
             return Response({
@@ -550,25 +711,24 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             })
 
         else:  # action == 'decline'
-            # Decline: clear the counter-proposal fields but keep original terms
+            # Decline: clear all counter-proposal fields but keep original terms
             collaborator.proposed_percentage = None
+            collaborator.proposed_total_amount = None
+            collaborator.proposed_tasks = None
             collaborator.counter_message = ''
             collaborator.save()
 
-            # Notify the collaborator that their counter-proposal was declined
-            # Link to profile page where they can see the invite and respond (not the collab workspace)
             from ..notifications_utils import create_notification
             create_notification(
                 recipient=collaborator.user,
                 from_user=core_user,
-                notification_type='collaboration_update',
+                notification_type='counter_proposal',
                 title=f'Counter-Proposal Declined: {project.title}',
-                message=f'{core_user.username} declined your counter-proposal. The original offer of {collaborator.revenue_percentage}% still stands.' + (f' "{message}"' if message else ''),
+                message=f'{core_user.username} declined your counter-proposal. The original offer still stands.' + (f' "{message}"' if message else ''),
                 project=project,
                 action_url='/profile'
             )
 
-            # Re-fetch project to get fresh collaborator data
             project = self.get_object()
             serializer = CollaborativeProjectSerializer(project, context={'request': request})
             return Response({
@@ -1214,7 +1374,252 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'collaborators': status_summary
         })
 
-    # ========== END CONTRACT TASK MANAGEMENT ENDPOINTS ==========
+    # ========== ESCROW MANAGEMENT ENDPOINTS ==========
+
+    @action(detail=True, methods=['post'], url_path='fund-escrow')
+    def fund_escrow(self, request, pk=None):
+        """Fund escrow for a specific collaborator role.
+
+        POST data:
+        - collaborator_role_id: int
+
+        In this server-side implementation, funding is tracked in the DB.
+        The project owner's payment is processed separately (Stripe/balance).
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can fund escrow'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        role_id = request.data.get('collaborator_role_id')
+        if not role_id:
+            return Response(
+                {'error': 'collaborator_role_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            role = project.collaborators.get(id=role_id)
+        except CollaboratorRole.DoesNotExist:
+            return Response(
+                {'error': 'Collaborator role not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if role.contract_type == 'revenue_share':
+            return Response(
+                {'error': 'Revenue share contracts do not use escrow'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if role.escrow_funded_amount >= role.total_contract_amount:
+            return Response(
+                {'error': 'Escrow is already fully funded'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            amount_to_fund = role.total_contract_amount - role.escrow_funded_amount
+            role.escrow_funded_amount = role.total_contract_amount
+            role.escrow_funded_at = timezone.now()
+            role.save(update_fields=['escrow_funded_amount', 'escrow_funded_at'])
+
+            EscrowTransaction.objects.create(
+                collaborator_role=role,
+                transaction_type='fund',
+                amount=amount_to_fund,
+                escrow_balance_after=role.escrow_funded_amount - role.escrow_released_amount,
+                initiated_by=core_user,
+                notes=f'Full escrow funding for {role.effective_role_name}',
+            )
+
+        # Activate pending tasks if collaborator has already accepted
+        if role.status == 'accepted':
+            activated = role.contract_tasks.filter(status='pending').update(status='in_progress')
+            if activated:
+                logger.info(f"[FundEscrow] Activated {activated} pending tasks for {role.user.username}")
+
+        # Notify collaborator that escrow is funded
+        notify_escrow_funded(core_user, role)
+
+        serializer = CollaboratorRoleSerializer(role, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='escrow-status')
+    def escrow_status(self, request, pk=None):
+        """Get escrow status for all collaborators on a project.
+
+        Returns only collaborators with escrow contracts (work_for_hire/hybrid).
+        """
+        project = self.get_object()
+
+        escrow_roles = project.collaborators.filter(
+            contract_type__in=['work_for_hire', 'hybrid']
+        ).select_related('user', 'role_definition')
+
+        roles_data = []
+        for role in escrow_roles:
+            tasks = role.contract_tasks.all().order_by('order')
+            next_milestone = tasks.filter(
+                status__in=['in_progress', 'complete']
+            ).first()
+
+            roles_data.append({
+                'collaborator': CollaboratorRoleSerializer(role, context={'request': request}).data,
+                'next_milestone': ContractTaskSerializer(next_milestone).data if next_milestone else None,
+                'milestones_completed': tasks.filter(status='signed_off').count(),
+                'milestones_total': tasks.count(),
+            })
+
+        return Response({
+            'project_id': project.id,
+            'escrow_contracts': roles_data,
+        })
+
+    @action(detail=True, methods=['get'], url_path='escrow-history/(?P<role_id>[^/.]+)')
+    def escrow_history(self, request, pk=None, role_id=None):
+        """Get escrow transaction history for a specific collaborator role."""
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            role = project.collaborators.get(id=role_id)
+        except CollaboratorRole.DoesNotExist:
+            return Response(
+                {'error': 'Collaborator role not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Only project owner or the collaborator can view escrow history
+        if core_user != project.created_by and core_user != role.user:
+            return Response(
+                {'error': 'You do not have permission to view this escrow history'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        transactions = role.escrow_transactions.all().order_by('-created_at')
+        serializer = EscrowTransactionSerializer(transactions, many=True)
+        return Response({
+            'collaborator_role_id': role.id,
+            'collaborator_username': role.user.username,
+            'contract_type': role.contract_type,
+            'total_contract_amount': str(role.total_contract_amount),
+            'escrow_funded_amount': str(role.escrow_funded_amount),
+            'escrow_released_amount': str(role.escrow_released_amount),
+            'escrow_remaining': str(role.escrow_funded_amount - role.escrow_released_amount),
+            'transactions': serializer.data,
+        })
+
+    @action(detail=True, methods=['post'], url_path='apply-milestone-template')
+    def apply_milestone_template(self, request, pk=None):
+        """Generate tasks from a milestone template for a collaborator.
+
+        POST data:
+        - collaborator_role_id: int
+        - template_id: int
+        - base_deadline: datetime (optional, defaults to 7 days from now)
+
+        Only works before contract acceptance (while tasks are still pending).
+        """
+        project = self.get_object()
+
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if project.created_by != core_user:
+            return Response(
+                {'error': 'Only the project owner can apply milestone templates'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        role_id = request.data.get('collaborator_role_id')
+        template_id = request.data.get('template_id')
+
+        if not role_id or not template_id:
+            return Response(
+                {'error': 'collaborator_role_id and template_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            role = project.collaborators.get(id=role_id)
+        except CollaboratorRole.DoesNotExist:
+            return Response(
+                {'error': 'Collaborator role not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if role.status != 'invited':
+            return Response(
+                {'error': 'Cannot apply template after contract is accepted'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if role.contract_type == 'revenue_share':
+            return Response(
+                {'error': 'Milestone templates are for escrow contracts only'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            template = MilestoneTemplate.objects.get(id=template_id, is_active=True)
+        except MilestoneTemplate.DoesNotExist:
+            return Response(
+                {'error': 'Milestone template not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        base_deadline_str = request.data.get('base_deadline')
+        if base_deadline_str:
+            from django.utils.dateparse import parse_datetime
+            base_deadline = parse_datetime(base_deadline_str)
+            if not base_deadline:
+                return Response(
+                    {'error': 'Invalid base_deadline format'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            from datetime import timedelta
+            base_deadline = timezone.now() + timedelta(days=7)
+
+        with transaction.atomic():
+            # Remove existing pending tasks
+            role.contract_tasks.filter(status='pending').delete()
+
+            # Generate new tasks from template
+            tasks = template.generate_tasks(role, role.total_contract_amount, base_deadline)
+            ContractTask.objects.bulk_create(tasks)
+
+            role.tasks_total = len(tasks)
+            role.save(update_fields=['tasks_total'])
+
+        serializer = CollaboratorRoleSerializer(role, context={'request': request})
+        return Response(serializer.data)
+
+    # ========== END ESCROW MANAGEMENT ENDPOINTS ==========
 
     @action(detail=False, methods=['get'])
     def pending_invites(self, request):
@@ -2654,3 +3059,30 @@ class RoleDefinitionViewSet(viewsets.ReadOnlyModelViewSet):
             'roles_by_category': roles_by_category,
             'total_roles': queryset.count()
         })
+
+
+# ========== MILESTONE TEMPLATE API ==========
+
+class MilestoneTemplateViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for listing and retrieving milestone templates.
+
+    Provides read-only access to predefined milestone structures
+    that can be applied when creating escrow contracts.
+
+    Endpoints:
+    - GET /api/milestone-templates/ - List all active templates
+    - GET /api/milestone-templates/?role_definition_id=1 - Filter by role
+    - GET /api/milestone-templates/{id}/ - Retrieve specific template
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = MilestoneTemplateSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        queryset = MilestoneTemplate.objects.filter(is_active=True)
+
+        role_definition_id = self.request.query_params.get('role_definition_id')
+        if role_definition_id:
+            queryset = queryset.filter(role_definition_id=role_definition_id)
+
+        return queryset.select_related('role_definition').order_by('role_definition__name', 'name')

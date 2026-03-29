@@ -29,6 +29,8 @@ from rb_core.models import (
     PurchaseIntent,
     UserBalance,
     Cart,
+    CollaboratorRole,
+    CollaborativeProject,
 )
 from rb_core.services import get_solana_service
 
@@ -773,35 +775,37 @@ class SubmitSponsoredPaymentView(APIView):
         intent.status = 'payment_received'
         intent.save()
 
-        # Trigger purchase processing - try async first, fall back to sync
-        from rb_core.tasks import process_balance_purchase_task
-        purchase_result = None
+        # Trigger processing - different task for escrow vs purchase
+        if intent.is_escrow_funding:
+            from rb_core.tasks import process_escrow_funding_task
+            task_func = process_escrow_funding_task
+            success_message = 'Escrow funding submitted. Processing...'
+        else:
+            from rb_core.tasks import process_balance_purchase_task
+            task_func = process_balance_purchase_task
+            success_message = 'Payment submitted. Your purchase is being processed.'
+
         try:
-            # Try to queue async task (requires Celery broker)
-            result = process_balance_purchase_task.delay(intent.id, tx_signature)
-            logger.info(f"Queued async purchase processing for intent {intent.id}")
+            result = task_func.delay(intent.id, tx_signature)
+            logger.info(f"Queued async processing for intent {intent.id} (escrow={intent.is_escrow_funding})")
         except Exception as e:
             logger.warning(f"Celery not available, processing synchronously: {e}")
-            # Fall back to synchronous processing using .apply()
             try:
-                # Use apply() with throw=False to run sync without raising broker errors
-                sync_result = process_balance_purchase_task.apply(
+                sync_result = task_func.apply(
                     args=[intent.id, tx_signature],
                     throw=False
                 )
                 if sync_result.successful():
-                    purchase_result = sync_result.result
-                    logger.info(f"Synchronous purchase processing completed: {purchase_result}")
+                    logger.info(f"Synchronous processing completed for intent {intent.id}")
                 else:
-                    logger.error(f"Synchronous purchase processing failed: {sync_result.result}")
+                    logger.error(f"Synchronous processing failed: {sync_result.result}")
             except Exception as sync_error:
-                logger.error(f"Synchronous purchase processing failed: {sync_error}")
-                # Don't fail the request - payment was received, purchase will be created later
+                logger.error(f"Synchronous processing failed: {sync_error}")
 
         return Response({
             'intent_id': intent.id,
             'status': 'processing',
-            'message': 'Payment submitted. Your purchase is being processed.',
+            'message': success_message,
             'signature': tx_signature,
         })
 
@@ -868,3 +872,200 @@ class PurchaseIntentStatusView(APIView):
             response_data['failure_reason'] = intent.failure_reason
 
         return Response(response_data)
+
+
+class CreateEscrowFundingIntentView(APIView):
+    """
+    Create a purchase intent for escrow funding.
+
+    POST /api/payment/escrow-intent/
+
+    Body: { "project_id": 123, "collaborator_role_id": 456 }
+
+    Returns same format as CreatePurchaseIntentView:
+    {
+        "intent_id": 123,
+        "item": { "title": "Escrow: @Learn4 - Illustrator", "price": "300.00" },
+        "total_amount": "300.00",
+        "balance": { "current": "10.00", "display": "$10.00", "sufficient": false },
+        "payment_options": [...],
+        "expires_at": "..."
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        project_id = request.data.get('project_id')
+        role_id = request.data.get('collaborator_role_id')
+
+        if not project_id or not role_id:
+            return Response(
+                {'error': 'project_id and collaborator_role_id are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check wallet
+        wallet_address = user.wallet_address
+        if not wallet_address:
+            return Response({
+                'error': 'No wallet connected',
+                'message': 'Please connect a wallet before funding escrow.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Validate project ownership
+            project = CollaborativeProject.objects.get(id=project_id)
+            from rb_core.models import User as CoreUser
+            core_user = CoreUser.objects.get(username=user.username)
+            if project.created_by != core_user:
+                return Response(
+                    {'error': 'Only the project owner can fund escrow'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Validate collaborator role
+            try:
+                role = project.collaborators.get(id=role_id)
+            except CollaboratorRole.DoesNotExist:
+                return Response(
+                    {'error': 'Collaborator role not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            if role.contract_type == 'revenue_share':
+                return Response(
+                    {'error': 'Revenue share contracts do not use escrow'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if role.escrow_funded_amount >= role.total_contract_amount:
+                return Response(
+                    {'error': 'Escrow is already fully funded'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Calculate amount to fund
+            amount_to_fund = role.total_contract_amount - role.escrow_funded_amount
+
+            # Get user's current balance
+            solana_service = get_solana_service()
+            try:
+                balance = solana_service.get_cached_balance(user)
+            except Exception as e:
+                logger.warning(f"Failed to get balance for escrow funding: {e}")
+                balance = Decimal('0')
+
+            balance_sufficient = balance >= amount_to_fund
+            coinbase_minimum = self._calculate_coinbase_minimum(balance, amount_to_fund)
+
+            # Create purchase intent for escrow funding
+            with transaction.atomic():
+                intent = PurchaseIntent.objects.create(
+                    user=user,
+                    is_escrow_funding=True,
+                    escrow_collaborator_role=role,
+                    item_price=amount_to_fund,
+                    total_amount=amount_to_fund,
+                    user_balance_at_creation=balance,
+                    balance_sufficient=balance_sufficient,
+                    coinbase_minimum_add=coinbase_minimum,
+                    expires_at=timezone.now() + timedelta(minutes=INTENT_EXPIRY_MINUTES),
+                )
+
+            # Build response (same format as purchase intents)
+            after_purchase = balance - amount_to_fund if balance_sufficient else Decimal('0')
+            role_label = role.effective_role_name or role.role
+
+            response_data = {
+                'intent_id': intent.id,
+                'item': {
+                    'title': f'Escrow: @{role.user.username} — {role_label}',
+                    'price': str(amount_to_fund),
+                    'display_price': f'${amount_to_fund:.2f}',
+                },
+                'total_amount': str(amount_to_fund),
+                'display_total': f'${amount_to_fund:.2f}',
+                'balance': {
+                    'current': str(balance),
+                    'display': f'${balance:.2f}',
+                    'sufficient': balance_sufficient,
+                    'after_purchase': str(after_purchase) if balance_sufficient else None,
+                },
+                'payment_options': self._build_payment_options(
+                    balance, amount_to_fund, coinbase_minimum, balance_sufficient
+                ),
+                'expires_at': intent.expires_at.isoformat(),
+                'escrow_details': {
+                    'project_id': project.id,
+                    'project_title': project.title,
+                    'collaborator_username': role.user.username,
+                    'collaborator_role': role_label,
+                    'contract_type': role.contract_type,
+                    'total_contract_amount': str(role.total_contract_amount),
+                    'already_funded': str(role.escrow_funded_amount),
+                    'amount_to_fund': str(amount_to_fund),
+                },
+            }
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except CollaborativeProject.DoesNotExist:
+            return Response(
+                {'error': 'Project not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error creating escrow funding intent: {e}")
+            return Response({
+                'error': 'Failed to create escrow funding intent',
+                'message': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _calculate_coinbase_minimum(self, balance, total_amount):
+        needed = total_amount - balance
+        if needed <= 0:
+            return Decimal('0')
+        return max(needed, COINBASE_MINIMUM)
+
+    def _build_payment_options(self, balance, total_amount, coinbase_minimum, balance_sufficient):
+        options = []
+
+        balance_option = {
+            'method': 'balance',
+            'available': balance_sufficient,
+            'label': 'Pay with renaissBlock Balance',
+            'description': f'${balance:.2f} available',
+            'primary': balance_sufficient,
+        }
+        if not balance_sufficient:
+            shortfall = total_amount - balance
+            balance_option['description'] = f'${balance:.2f} available (need ${shortfall:.2f} more)'
+        options.append(balance_option)
+
+        remaining_after = coinbase_minimum - (total_amount - balance) if coinbase_minimum > 0 else Decimal('0')
+        coinbase_option = {
+            'method': 'coinbase',
+            'available': True,
+            'label': 'Add Funds with Card',
+            'description': 'Apple Pay, Debit Card',
+            'primary': not balance_sufficient,
+            'minimum_add': str(coinbase_minimum),
+        }
+        if coinbase_minimum > 0:
+            coinbase_option['explanation'] = (
+                f'Add ${coinbase_minimum:.2f} to your account. '
+                f'This covers the ${total_amount:.2f} escrow funding'
+                + (f' and leaves ${remaining_after:.2f} for future use.' if remaining_after > 0 else '.')
+            )
+        options.append(coinbase_option)
+
+        options.append({
+            'method': 'direct_crypto',
+            'available': True,
+            'label': 'Pay with Crypto Wallet',
+            'description': 'Phantom, Solflare, etc.',
+            'primary': False,
+        })
+
+        return options

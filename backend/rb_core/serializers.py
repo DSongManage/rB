@@ -519,7 +519,14 @@ class ContractTaskSerializer(serializers.ModelSerializer):
             # Sign-off tracking
             'signed_off_at', 'signed_off_by', 'signed_off_by_username', 'signoff_notes',
             # Rejection tracking
-            'rejection_notes', 'rejected_at',
+            'rejection_notes', 'rejected_at', 'rejection_count',
+            # Escrow payment tracking
+            'payment_amount', 'escrow_release_status', 'escrow_released_at',
+            # Artist protection
+            'revision_limit', 'revisions_used', 'review_window_hours',
+            'auto_approve_deadline', 'auto_approved',
+            # Milestone classification
+            'milestone_type', 'page_range_start', 'page_range_end',
             # Breach status
             'is_overdue', 'overdue_notified_at', 'is_late', 'days_until_deadline',
             # Timestamps
@@ -529,7 +536,10 @@ class ContractTaskSerializer(serializers.ModelSerializer):
             'id', 'collaborator_username', 'marked_complete_at', 'marked_complete_by',
             'marked_complete_by_username', 'signed_off_at', 'signed_off_by',
             'signed_off_by_username', 'is_overdue', 'overdue_notified_at',
-            'rejected_at', 'is_late', 'days_until_deadline', 'created_at', 'updated_at',
+            'rejected_at', 'rejection_count', 'is_late', 'days_until_deadline',
+            'escrow_release_status', 'escrow_released_at', 'revisions_used',
+            'auto_approve_deadline', 'auto_approved',
+            'created_at', 'updated_at',
         ]
 
     def get_days_until_deadline(self, obj):
@@ -552,10 +562,23 @@ class ContractTaskCreateSerializer(serializers.Serializer):
     """Serializer for creating tasks during invitation.
 
     Used when inviting a collaborator with specific contract tasks.
+    Supports escrow fields for work-for-hire and hybrid contracts.
     """
     title = serializers.CharField(max_length=200)
     description = serializers.CharField(required=False, allow_blank=True, default='')
     deadline = serializers.DateTimeField()
+    # Escrow fields (optional, used for work_for_hire/hybrid contracts)
+    payment_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False, default='0.00'
+    )
+    revision_limit = serializers.IntegerField(required=False, default=3, min_value=1)
+    review_window_hours = serializers.IntegerField(required=False, default=72, min_value=1)
+    milestone_type = serializers.ChoiceField(
+        choices=['trust_page', 'production_block', 'final_delivery', 'custom'],
+        required=False, default='custom'
+    )
+    page_range_start = serializers.IntegerField(required=False, allow_null=True, default=None)
+    page_range_end = serializers.IntegerField(required=False, allow_null=True, default=None)
 
     def validate_deadline(self, value):
         """Ensure deadline is in the future."""
@@ -585,6 +608,7 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
     can_edit = serializers.SerializerMethodField()
     contract_tasks = ContractTaskSerializer(many=True, read_only=True)
     all_tasks_complete = serializers.ReadOnlyField()
+    escrow_remaining = serializers.SerializerMethodField()
 
     # New role-based permission fields
     role_definition_id = serializers.PrimaryKeyRelatedField(
@@ -605,6 +629,14 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             'status', 'invited_at', 'accepted_at', 'can_edit_text', 'can_edit_images',
             'can_edit_audio', 'can_edit_video', 'can_edit', 'approved_current_version',
             'approved_revenue_split',
+            # Contract type and escrow
+            'contract_type', 'total_contract_amount',
+            'escrow_funded_amount', 'escrow_released_amount', 'escrow_remaining',
+            'escrow_funded_at', 'escrow_funding_deadline',
+            # Trust phase
+            'trust_phase', 'trust_pages_completed',
+            # Hybrid
+            'upfront_percentage',
             # Contract management fields
             'contract_version', 'contract_locked_at', 'contract_effective_date',
             'tasks_total', 'tasks_signed_off', 'all_tasks_complete',
@@ -618,12 +650,15 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             'contract_tasks',
             # Counter-proposal fields
             'proposed_percentage', 'counter_message',
+            'proposed_total_amount', 'proposed_tasks',
             # New role-based permission fields
             'role_definition_id', 'role_definition_details', 'permissions',
             'effective_role_name', 'effective_permissions', 'ui_components',
         ]
         read_only_fields = [
             'id', 'invited_at', 'username', 'display_name', 'avatar_url', 'can_edit',
+            'escrow_funded_amount', 'escrow_released_amount', 'escrow_remaining',
+            'escrow_funded_at', 'trust_phase', 'trust_pages_completed',
             'contract_version', 'contract_locked_at', 'contract_effective_date',
             'has_active_breach', 'current_breach_type', 'current_breach_severity',
             'breach_detected_at', 'cure_deadline', 'cure_actions_required',
@@ -671,6 +706,49 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
     def get_ui_components(self, obj):
         """Return list of UI components this role should see."""
         return obj.get_ui_components()
+
+    def get_escrow_remaining(self, obj):
+        """Calculate remaining escrow balance."""
+        if obj.contract_type == 'revenue_share':
+            return None
+        return str(obj.escrow_funded_amount - obj.escrow_released_amount)
+
+
+class EscrowTransactionSerializer(serializers.ModelSerializer):
+    """Read-only serializer for escrow transaction audit log."""
+    initiated_by_username = serializers.CharField(
+        source='initiated_by.username', read_only=True, allow_null=True
+    )
+    task_title = serializers.CharField(
+        source='contract_task.title', read_only=True, allow_null=True
+    )
+
+    class Meta:
+        from rb_core.models import EscrowTransaction
+        model = EscrowTransaction
+        fields = [
+            'id', 'collaborator_role', 'contract_task', 'task_title',
+            'transaction_type', 'amount', 'escrow_balance_after',
+            'initiated_by', 'initiated_by_username', 'notes', 'created_at',
+        ]
+        read_only_fields = fields
+
+
+class MilestoneTemplateSerializer(serializers.ModelSerializer):
+    """Read-only serializer for milestone templates."""
+    role_definition_name = serializers.CharField(
+        source='role_definition.name', read_only=True
+    )
+
+    class Meta:
+        from rb_core.models import MilestoneTemplate
+        model = MilestoneTemplate
+        fields = [
+            'id', 'role_definition', 'role_definition_name',
+            'name', 'description', 'total_pages', 'milestones',
+            'is_active', 'created_at',
+        ]
+        read_only_fields = fields
 
 
 class ProjectSectionSerializer(serializers.ModelSerializer):

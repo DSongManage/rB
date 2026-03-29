@@ -403,18 +403,36 @@ export function TeamOverview({
                       {collaborator.role} • {collaborator.revenue_percentage}%
                     </div>
                   </div>
-                  <span
-                    style={{
-                      background: '#f59e0b20',
-                      color: '#f59e0b',
-                      padding: '6px 12px',
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 500,
-                    }}
-                  >
-                    Awaiting response
-                  </span>
+                  {(collaborator.proposed_percentage != null &&
+                   Math.abs(Number(collaborator.proposed_percentage) - Number(collaborator.revenue_percentage)) > 0.001) ||
+                   collaborator.proposed_total_amount != null ||
+                   (collaborator.proposed_tasks && collaborator.proposed_tasks.length > 0) ? (
+                    <span
+                      style={{
+                        background: '#f9731620',
+                        color: '#f97316',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      Counter-proposal received
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        background: '#f59e0b20',
+                        color: '#f59e0b',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                      }}
+                    >
+                      Awaiting response
+                    </span>
+                  )}
                 </div>
               ))}
           </>
