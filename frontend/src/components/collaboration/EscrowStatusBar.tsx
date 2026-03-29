@@ -145,7 +145,15 @@ export function EscrowStatusBar({
       </div>
 
       {/* Funding status */}
-      {!isFunded && (
+      {isFunded ? (
+        <div style={{
+          marginTop: 10, padding: '6px 10px', borderRadius: 6,
+          background: '#10b98115', color: '#10b981',
+          fontSize: 11, textAlign: 'center', fontWeight: 600,
+        }}>
+          Escrow fully funded — ${total.toFixed(2)} secured
+        </div>
+      ) : (
         <div style={{
           marginTop: 10, padding: '6px 10px', borderRadius: 6,
           background: '#f59e0b15', color: '#f59e0b',

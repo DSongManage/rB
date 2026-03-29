@@ -1539,19 +1539,48 @@ class SalesAnalyticsView(APIView):
         # ========== SUMMARY STATS ==========
         total_solo_earnings = sum(c['total_earnings'] for c in solo_content)
         total_collab_earnings = sum(c['total_earnings'] for c in collab_content)
-        total_earnings = total_solo_earnings + total_collab_earnings
+
+        # ========== ESCROW EARNINGS (work-for-hire milestone payments) ==========
+        from rb_core.models import EscrowTransaction, CollaboratorRole as CR
+        escrow_roles = CR.objects.filter(user=core_user, contract_type__in=['work_for_hire', 'hybrid'])
+        escrow_earnings_list = []
+        total_escrow_earnings = Decimal('0')
+
+        for role in escrow_roles:
+            released = EscrowTransaction.objects.filter(
+                collaborator_role=role,
+                transaction_type__in=['release', 'auto_release'],
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+            if released > 0:
+                escrow_earnings_list.append({
+                    'project_title': role.project.title.replace('Collaboration Invite - ', ''),
+                    'project_id': role.project.id,
+                    'role': role.effective_role_name or role.role,
+                    'contract_type': role.contract_type,
+                    'total_contract': float(role.total_contract_amount),
+                    'total_earned': float(released),
+                    'milestones_completed': role.tasks_signed_off,
+                    'milestones_total': role.tasks_total,
+                })
+                total_escrow_earnings += released
+
+        total_earnings = total_solo_earnings + total_collab_earnings + float(total_escrow_earnings)
 
         return Response({
             'summary': {
                 'total_earnings_usdc': round(total_earnings, 2),
                 'solo_earnings': round(total_solo_earnings, 2),
                 'collaboration_earnings': round(total_collab_earnings, 2),
+                'escrow_earnings': round(float(total_escrow_earnings), 2),
                 'content_count': len(solo_content),
                 'collaboration_count': len(collab_content),
+                'escrow_count': len(escrow_earnings_list),
                 'total_sales': sum(c['sales_count'] for c in content_earnings.values()),
             },
             'content_sales': sorted(solo_content, key=lambda x: x['total_earnings'], reverse=True),
             'collaboration_sales': sorted(collab_content, key=lambda x: x['total_earnings'], reverse=True),
+            'escrow_earnings': sorted(escrow_earnings_list, key=lambda x: x['total_earned'], reverse=True),
             'recent_transactions': recent_transactions[:20],
         })
 
