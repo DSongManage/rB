@@ -165,23 +165,6 @@ export default function MarketingHome() {
             <div className="mk-section-label">How It Works</div>
             <h2 className="mk-section-title">From Idea to Income in Three Steps</h2>
           </div>
-          <div className="mk-steps">
-            <div className="mk-step">
-              <div className="mk-step-number">STEP 01</div>
-              <h3>Browse &amp; Connect</h3>
-              <p>Explore creator profiles — writers, artists, colorists. When someone's style clicks with your vision, send them a direct project proposal with your pitch and proposed revenue split.</p>
-            </div>
-            <div className="mk-step">
-              <div className="mk-step-number">STEP 02</div>
-              <h3>Collaborate &amp; Publish</h3>
-              <p>Once your partner accepts, start creating. Publish chapter by chapter to build your audience and de-risk the project for both sides.</p>
-            </div>
-            <div className="mk-step">
-              <div className="mk-step-number">STEP 03</div>
-              <h3>Publish &amp; Earn</h3>
-              <p>Every sale splits revenue automatically. Creators cash out to their bank account anytime. Simple.</p>
-            </div>
-          </div>
           <div className="mk-screenshots">
             <div className="mk-screenshot-card">
               <div className="mk-screenshot-label">Browse creators and invite collaborators</div>
