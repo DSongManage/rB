@@ -58,6 +58,11 @@ from .views.direct_crypto import (
 )
 from .views.tiers import MyTierProgressView, FoundingStatusView, CreatorTierView
 from .views.sitemap import DynamicSitemapView
+from .views.campaign import (
+    CampaignViewSet,
+    CreateCampaignContributionIntentView,
+    ConfirmCampaignContributionView,
+)
 
 # Router for collaboration and notification ViewSets
 router = DefaultRouter()
@@ -78,6 +83,8 @@ router.register(r'speech-bubbles', SpeechBubbleViewSet, basename='speech-bubble'
 router.register(r'divider-lines', DividerLineViewSet, basename='divider-line')
 # Comic series and issues
 router.register(r'comic-series', ComicSeriesViewSet, basename='comic-series')
+# Campaign ViewSet
+router.register(r'campaigns', CampaignViewSet, basename='campaign')
 router.register(r'comic-issues', ComicIssueViewSet, basename='comic-issue')
 
 urlpatterns = [
@@ -266,6 +273,8 @@ urlpatterns = [
     # Purchase Intent
     path('api/payment/intent/', CreatePurchaseIntentView.as_view(), name='create_purchase_intent'),
     path('api/payment/escrow-intent/', CreateEscrowFundingIntentView.as_view(), name='create_escrow_intent'),
+    path('api/payment/campaign-intent/', CreateCampaignContributionIntentView.as_view(), name='campaign_contribution_intent'),
+    path('api/payment/campaign-confirm/', ConfirmCampaignContributionView.as_view(), name='confirm_campaign_contribution'),
     path('api/payment/intent/<int:intent_id>/select/', SelectPaymentMethodView.as_view(), name='select_payment_method'),
     path('api/payment/intent/<int:intent_id>/pay-with-balance/', PayWithBalanceView.as_view(), name='pay_with_balance'),
     path('api/payment/intent/<int:intent_id>/submit/', SubmitSponsoredPaymentView.as_view(), name='submit_sponsored_payment'),

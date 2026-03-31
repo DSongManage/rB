@@ -13,6 +13,7 @@ import {
   CheckSquare, Square, Shield
 } from 'lucide-react';
 import ArtManageModal from '../components/ArtManageModal';
+import campaignApi, { Campaign } from '../services/campaignApi';
 import { getFollowing, unfollowUser, FollowUser } from '../services/socialApi';
 import { BridgeOnboardingBanner } from '../components/bridge';
 import { useMobile } from '../hooks/useMobile';
@@ -108,7 +109,7 @@ type SalesAnalytics = {
 };
 
 type TabType = 'content' | 'collaborations' | 'portfolio' | 'analytics' | 'following';
-type ContentFilterType = 'all' | 'book' | 'comic' | 'art';
+type ContentFilterType = 'all' | 'book' | 'comic' | 'art' | 'campaign';
 // Note: 'music' and 'film' are coming soon - not included in MVP
 type StatusFilterType = 'all' | 'published' | 'draft' | 'unpublished';
 
@@ -211,6 +212,7 @@ export default function ProfilePageRedesigned() {
   const [expandedBooks, setExpandedBooks] = useState<Set<number>>(new Set());
   const [comicProjects, setComicProjects] = useState<ComicProject[]>([]);
   const [expandedComics, setExpandedComics] = useState<Set<number>>(new Set());
+  const [myCampaigns, setMyCampaigns] = useState<Campaign[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<any>(null);
 
@@ -555,6 +557,11 @@ export default function ProfilePageRedesigned() {
         setSoloProjects(solo);
       })
       .catch(() => setSoloProjects([]));
+
+    // Fetch user's campaigns
+    campaignApi.getMyCampaigns()
+      .then(campaigns => setMyCampaigns(campaigns))
+      .catch(() => setMyCampaigns([]));
   }, [status]);
 
   const onAvatarClick = () => {
@@ -1719,8 +1726,8 @@ export default function ProfilePageRedesigned() {
             <FilterChip
               label="All"
               count={
-                // inventory + bookProjects + comicProjects + solo projects (draft only, minted shown via inventory)
-                inventory.length + bookProjects.length + comicProjects.length + soloProjects.filter(p => p.status === 'draft').length
+                // inventory + bookProjects + comicProjects + solo projects (draft only, minted shown via inventory) + campaigns
+                inventory.length + bookProjects.length + comicProjects.length + soloProjects.filter(p => p.status === 'draft').length + myCampaigns.length
               }
               active={contentFilter === 'all'}
               onClick={() => setContentFilter('all')}
@@ -1751,6 +1758,12 @@ export default function ProfilePageRedesigned() {
               }
               active={contentFilter === 'art'}
               onClick={() => setContentFilter('art')}
+            />
+            <FilterChip
+              label="Campaigns"
+              count={myCampaigns.length}
+              active={contentFilter === 'campaign'}
+              onClick={() => setContentFilter('campaign')}
             />
             {/* Music & Film coming soon - hidden from filters */}
             <div style={{ width: 1, height: 24, background: 'var(--dropdown-hover)', margin: '0 8px' }} />
@@ -1887,7 +1900,17 @@ export default function ProfilePageRedesigned() {
               }
               // statusFilter === 'draft' already handled above (only drafts included)
 
-              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0 || filteredComicProjects.length > 0 || filteredSoloProjects.length > 0;
+              // Filter campaigns
+              let filteredCampaigns = contentFilter === 'all' || contentFilter === 'campaign'
+                ? myCampaigns
+                : [];
+              if (statusFilter === 'published') {
+                filteredCampaigns = filteredCampaigns.filter(c => c.status === 'active' || c.status === 'funded' || c.status === 'transferred');
+              } else if (statusFilter === 'draft') {
+                filteredCampaigns = filteredCampaigns.filter(c => c.status === 'draft');
+              }
+
+              const hasContent = filteredInventory.length > 0 || filteredBooks.length > 0 || filteredComicProjects.length > 0 || filteredSoloProjects.length > 0 || filteredCampaigns.length > 0;
 
               const filterLabel = statusFilter !== 'all'
                 ? `${statusFilter} ${contentFilter}`
@@ -2086,6 +2109,76 @@ export default function ProfilePageRedesigned() {
                         setShowManageModal(true);
                       }}
                     />
+                  ))}
+                  {/* Render campaign cards */}
+                  {filteredCampaigns.map((campaign) => (
+                    <div key={`campaign-${campaign.id}`} style={{
+                      background: 'var(--panel)',
+                      border: '1px solid var(--panel-border)',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                    }}>
+                      {/* Cover / placeholder */}
+                      <div style={{
+                        height: 140,
+                        background: campaign.cover_image
+                          ? `url(${campaign.cover_image}) center/cover`
+                          : 'linear-gradient(135deg, #1e1b4b, #312e81)',
+                        position: 'relative',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {!campaign.cover_image && (
+                          <span style={{ fontSize: 32, opacity: 0.5 }}>
+                            {campaign.campaign_type === 'solo' ? '📖' : '👥'}
+                          </span>
+                        )}
+                        {/* Status badge */}
+                        <span style={{
+                          position: 'absolute', top: 8, right: 8,
+                          fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+                          background: campaign.status === 'draft' ? '#64748b'
+                            : campaign.status === 'active' ? '#10b981'
+                            : campaign.status === 'funded' ? '#8b5cf6'
+                            : '#f59e0b',
+                          color: '#fff',
+                          textTransform: 'uppercase',
+                        }}>
+                          {campaign.status}
+                        </span>
+                      </div>
+                      {/* Info */}
+                      <div style={{ padding: 12 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
+                          {campaign.title}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                          campaign &middot; ${parseFloat(campaign.funding_goal).toLocaleString()} goal
+                          {campaign.backer_count > 0 && ` · ${campaign.backer_count} backers`}
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{
+                          width: '100%', height: 4, background: '#1e293b', borderRadius: 2, marginBottom: 10,
+                        }}>
+                          <div style={{
+                            width: `${campaign.funding_percentage}%`, height: '100%',
+                            background: '#8b5cf6', borderRadius: 2,
+                          }} />
+                        </div>
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => navigate(`/campaigns/${campaign.id}`)}
+                            style={{
+                              flex: 1, padding: '8px 0', borderRadius: 6,
+                              background: 'var(--panel-border)', border: 'none',
+                              color: '#e2e8f0', fontSize: 12, cursor: 'pointer',
+                            }}
+                          >
+                            {campaign.status === 'draft' ? 'Edit' : 'View'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               );

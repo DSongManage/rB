@@ -26,6 +26,36 @@ TIER_FEE_RATES = {
 # Estimated Solana gas fee per mint transaction
 GAS_FEE_PER_ITEM = Decimal('0.026')
 
+# Escrow service fee (separate from content sales fees — no double taxation)
+ESCROW_FEE_BPS = 300  # 3% = 300 basis points
+
+
+def calculate_escrow_release_breakdown(milestone_amount):
+    """
+    Calculate escrow release split: artist gets 97%, platform gets 3%.
+
+    This fee is charged on PDA2 milestone releases only.
+    Campaign contributions (PDA1) have 0% fee.
+
+    Args:
+        milestone_amount (Decimal|float|str): The milestone payment amount
+
+    Returns:
+        dict: artist_net, platform_fee, fee_rate
+    """
+    milestone_amount = Decimal(str(milestone_amount))
+    fee_rate = Decimal(str(ESCROW_FEE_BPS)) / Decimal('10000')
+    platform_fee = (milestone_amount * fee_rate).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP
+    )
+    artist_net = milestone_amount - platform_fee
+    return {
+        'artist_net': artist_net,
+        'platform_fee': platform_fee,
+        'fee_rate': fee_rate,
+        'fee_bps': ESCROW_FEE_BPS,
+    }
+
 
 def get_platform_fee_rate(creator_tier=None, user=None, item=None):
     """

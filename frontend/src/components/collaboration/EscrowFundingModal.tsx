@@ -273,6 +273,7 @@ export function EscrowFundingModal({
               <div>
                 <strong>Funds go to an on-chain escrow vault.</strong> renaissBlock never holds your funds.
                 They are released to {displayName} as milestones are completed.
+                A 3% service fee applies when milestone payments are released.
               </div>
             </div>
           </>

@@ -38,6 +38,36 @@ app.conf.beat_schedule = {
         'task': 'rb_core.tasks.check_stale_onramp_transfers',
         'schedule': crontab(minute='*/15'),  # Every 15 minutes
     },
+    # Auto-approve escrow tasks past review window - every 15 minutes
+    'check-auto-approve-deadlines': {
+        'task': 'rb_core.tasks.check_auto_approve_deadlines',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Warn writers about upcoming auto-approvals - every hour
+    'send-auto-approve-warnings': {
+        'task': 'rb_core.tasks.send_auto_approve_warnings',
+        'schedule': crontab(minute=0),  # Top of every hour
+    },
+    # Campaign: check for failed campaigns past deadline - every 15 minutes
+    'check-campaign-deadlines': {
+        'task': 'rb_core.tasks.check_campaign_deadlines',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Campaign: check 60-day escrow creation window - daily at midnight
+    'check-campaign-escrow-creation': {
+        'task': 'rb_core.tasks.check_campaign_escrow_creation',
+        'schedule': crontab(hour=0, minute=0),
+    },
+    # Campaign: check solo chapter releases for fund release - every 15 minutes
+    'check-solo-chapter-releases': {
+        'task': 'rb_core.tasks.check_solo_chapter_releases',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Campaign: check escrow dormancy (90-day backstop) - daily at 1am
+    'check-escrow-dormancy': {
+        'task': 'rb_core.tasks.check_escrow_dormancy',
+        'schedule': crontab(hour=1, minute=0),
+    },
 }
 
 

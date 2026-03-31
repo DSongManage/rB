@@ -62,6 +62,9 @@ const CreatorAgreementPage = lazy(() => import('./pages/legal/CreatorAgreementPa
 // Info pages
 const HowPaymentsWorkPage = lazy(() => import('./pages/HowPaymentsWorkPage'));
 const PayoutSettingsPage = lazy(() => import('./pages/PayoutSettingsPage'));
+const CampaignsDiscoverPage = lazy(() => import('./pages/CampaignsDiscoverPage'));
+const CampaignDetailPage = lazy(() => import('./pages/CampaignDetailPage'));
+const CampaignCreatePage = lazy(() => import('./pages/CampaignCreatePage'));
 
 // Marketing pages
 const MarketingHome = lazy(() => import('./pages/marketing/MarketingHome'));
@@ -424,6 +427,9 @@ export default function App() {
                 <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
                 <Route path="/cart/success" element={<ProtectedRoute><CartSuccessPage /></ProtectedRoute>} />
                 <Route path="/studio/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
+                <Route path="/campaigns" element={<CampaignsDiscoverPage />} />
+                <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
+                <Route path="/studio/campaign/new" element={<ProtectedRoute><CampaignCreatePage /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/payout-settings" element={<ProtectedRoute><PayoutSettingsPage /></ProtectedRoute>} />
                 <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />

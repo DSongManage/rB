@@ -198,17 +198,24 @@ export function MilestoneTimeline({ tasks, trustPhase }: MilestoneTimelineProps)
                     )}
                   </div>
 
-                  {/* Payment amount */}
+                  {/* Payment amount with fee breakdown */}
                   {payment > 0 && (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 3,
-                      fontSize: 12, fontWeight: 600,
-                      color: task.escrow_release_status === 'released' ? '#10b981' : '#e2e8f0',
-                    }}>
-                      <DollarSign size={12} />
-                      {payment.toFixed(2)}
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 3,
+                        fontSize: 12, fontWeight: 600,
+                        color: task.escrow_release_status === 'released' ? '#10b981' : '#e2e8f0',
+                      }}>
+                        <DollarSign size={12} />
+                        {payment.toFixed(2)}
+                        {task.escrow_release_status === 'released' && (
+                          <Check size={12} style={{ color: '#10b981' }} />
+                        )}
+                      </div>
                       {task.escrow_release_status === 'released' && (
-                        <Check size={12} style={{ color: '#10b981' }} />
+                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
+                          ${(payment * 0.97).toFixed(2)} artist / ${(payment * 0.03).toFixed(2)} fee
+                        </div>
                       )}
                     </div>
                   )}

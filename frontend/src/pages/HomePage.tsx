@@ -3,6 +3,8 @@ import { API_URL } from '../config';
 import { VideoCard } from '../components/VideoCard';
 import { BookCard } from '../components/BookCard';
 import { ComicCard } from '../components/ComicCard';
+import { CampaignCard } from '../components/campaign/CampaignCard';
+import campaignApi, { Campaign } from '../services/campaignApi';
 
 type Collaborator = {
   username: string;
@@ -93,6 +95,7 @@ const GENRE_FILTERS = [
   { label: 'Comics', value: 'comic' },
   { label: 'Books', value: 'book' },
   { label: 'Art', value: 'art' },
+  { label: 'Campaigns', value: 'campaign' },
   { label: 'Film', value: 'film', comingSoon: true },
   { label: 'Music', value: 'music', comingSoon: true },
 ];
@@ -102,6 +105,7 @@ export default function HomePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [bookProjects, setBookProjects] = useState<BookProject[]>([]);
   const [comicProjects, setComicProjects] = useState<ComicProject[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedFilter, setSelectedFilter] = useState('comic');
 
   useEffect(()=>{
@@ -141,18 +145,24 @@ export default function HomePage() {
       .then(r=>r.json())
       .then(data => Array.isArray(data) ? data : []);
 
+    // Fetch active campaigns
+    const campaignsPromise = campaignApi.discoverCampaigns()
+      .catch(() => [] as Campaign[]);
+
     // Wait for all requests
-    Promise.all([contentPromise, booksPromise, comicsPromise])
-      .then(([contentItems, books, comics]) => {
+    Promise.all([contentPromise, booksPromise, comicsPromise, campaignsPromise])
+      .then(([contentItems, books, comics, campaignItems]) => {
         setItems(contentItems);
         setBookProjects(books);
         setComicProjects(comics);
+        setCampaigns(campaignItems);
       })
       .catch((err)=>{
         if (err.name !== 'AbortError') {
           setItems([]);
           setBookProjects([]);
           setComicProjects([]);
+          setCampaigns([]);
         }
       });
 
@@ -255,71 +265,85 @@ export default function HomePage() {
         ))}
       </div>
       <div className="page" style={{padding:0, background:'transparent', border:'none', boxShadow:'none'}}>
-        <div className="yt-grid" data-tour="content-grid">
-          {filtered.map((item) => {
-            if (item.type === 'book') {
-              const book = item.data as BookProject;
-              return (
-                <BookCard
-                  key={`book-${book.id}`}
-                  id={book.id}
-                  title={book.title}
-                  coverImageUrl={book.cover_image_url || ''}
-                  author={book.creator_username}
-                  chapters={book.chapters}
-                  publishedChapters={book.published_chapters}
-                  totalViews={book.total_views}
-                  totalLikes={book.total_likes}
-                  totalPrice={book.total_price}
-                  averageRating={book.average_rating}
-                  ratingCount={book.rating_count}
-                  timeText={getTimeAgo(book.created_at)}
-                />
-              );
-            } else if (item.type === 'comic') {
-              const comic = item.data as ComicProject;
-              return (
-                <ComicCard
-                  key={`comic-${comic.id}`}
-                  id={comic.id}
-                  title={comic.title}
-                  coverImageUrl={comic.cover_image_url || ''}
-                  author={comic.creator_username}
-                  issues={comic.issues}
-                  publishedIssues={comic.published_issues}
-                  totalViews={comic.total_views}
-                  totalLikes={comic.total_likes}
-                  totalPrice={comic.total_price}
-                  averageRating={comic.average_rating}
-                  ratingCount={comic.rating_count}
-                  timeText={getTimeAgo(comic.created_at)}
-                  isCollaborative={comic.is_collaborative}
-                />
-              );
-            } else {
-              const it = item.data as Item;
-              return (
-                <VideoCard
-                  key={`content-${it.id}`}
-                  id={it.id}
-                  title={it.title}
-                  author={it.creator_username || `Creator #${it.creator ?? 0}`}
-                  likeCount={it.like_count}
-                  viewCount={it.view_count}
-                  averageRating={it.average_rating}
-                  ratingCount={it.rating_count}
-                  timeText={getTimeAgo(it.created_at)}
-                  thumbnailUrl={it.teaser_link || ''}
-                  price={it.price_usd}
-                  editions={it.editions}
-                  owned={it.owned}
-                  isCollaborative={it.is_collaborative}
-                  collaborators={it.collaborators?.map(c => c.username)}
-                />
-              );
-            }
-          })}
-        </div>
+        {selectedFilter === 'campaign' ? (
+          <div className="yt-grid" data-tour="content-grid">
+            {campaigns.length === 0 ? (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+                No active campaigns yet. Be the first to create one!
+              </div>
+            ) : (
+              campaigns.map(campaign => (
+                <CampaignCard key={`campaign-${campaign.id}`} campaign={campaign} />
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="yt-grid" data-tour="content-grid">
+            {filtered.map((item) => {
+              if (item.type === 'book') {
+                const book = item.data as BookProject;
+                return (
+                  <BookCard
+                    key={`book-${book.id}`}
+                    id={book.id}
+                    title={book.title}
+                    coverImageUrl={book.cover_image_url || ''}
+                    author={book.creator_username}
+                    chapters={book.chapters}
+                    publishedChapters={book.published_chapters}
+                    totalViews={book.total_views}
+                    totalLikes={book.total_likes}
+                    totalPrice={book.total_price}
+                    averageRating={book.average_rating}
+                    ratingCount={book.rating_count}
+                    timeText={getTimeAgo(book.created_at)}
+                  />
+                );
+              } else if (item.type === 'comic') {
+                const comic = item.data as ComicProject;
+                return (
+                  <ComicCard
+                    key={`comic-${comic.id}`}
+                    id={comic.id}
+                    title={comic.title}
+                    coverImageUrl={comic.cover_image_url || ''}
+                    author={comic.creator_username}
+                    issues={comic.issues}
+                    publishedIssues={comic.published_issues}
+                    totalViews={comic.total_views}
+                    totalLikes={comic.total_likes}
+                    totalPrice={comic.total_price}
+                    averageRating={comic.average_rating}
+                    ratingCount={comic.rating_count}
+                    timeText={getTimeAgo(comic.created_at)}
+                    isCollaborative={comic.is_collaborative}
+                  />
+                );
+              } else {
+                const it = item.data as Item;
+                return (
+                  <VideoCard
+                    key={`content-${it.id}`}
+                    id={it.id}
+                    title={it.title}
+                    author={it.creator_username || `Creator #${it.creator ?? 0}`}
+                    likeCount={it.like_count}
+                    viewCount={it.view_count}
+                    averageRating={it.average_rating}
+                    ratingCount={it.rating_count}
+                    timeText={getTimeAgo(it.created_at)}
+                    thumbnailUrl={it.teaser_link || ''}
+                    price={it.price_usd}
+                    editions={it.editions}
+                    owned={it.owned}
+                    isCollaborative={it.is_collaborative}
+                    collaborators={it.collaborators?.map(c => c.username)}
+                  />
+                );
+              }
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

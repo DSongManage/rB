@@ -2325,22 +2325,43 @@ def process_escrow_release(task_id):
     except Exception:
         wallet_address = None
 
+    # Calculate fee breakdown (3% escrow service fee)
+    from .payment_utils import calculate_escrow_release_breakdown
+    breakdown = calculate_escrow_release_breakdown(task.payment_amount)
+
     # Mark as released
     task.escrow_release_status = 'released'
     task.save(update_fields=['escrow_release_status'])
 
+    # Create escrow transaction with fee breakdown
+    from .models import EscrowTransaction
+    EscrowTransaction.objects.create(
+        collaborator_role=role,
+        contract_task=task,
+        transaction_type='auto_release' if getattr(task, 'auto_approved', False) else 'release',
+        amount=task.payment_amount,
+        platform_fee_amount=breakdown['platform_fee'],
+        artist_net_amount=breakdown['artist_net'],
+        escrow_balance_after=(role.escrow_funded_amount or 0) - (role.escrow_released_amount or 0),
+        initiated_by=task.signed_off_by,
+        notes=f"Milestone release: ${breakdown['artist_net']} to artist, ${breakdown['platform_fee']} platform fee (3%)",
+    )
+
     # Send milestone payment notification
     from .notifications_utils import notify_milestone_payment
-    notify_milestone_payment(role, task.title, task.payment_amount)
+    notify_milestone_payment(role, task.title, breakdown['artist_net'])
 
     logger.info(
-        '[EscrowRelease] Task %s: $%s released to %s (wallet: %s)',
-        task_id, task.payment_amount, role.user.username, wallet_address or 'pending'
+        '[EscrowRelease] Task %s: $%s total ($%s to artist, $%s fee) to %s (wallet: %s)',
+        task_id, task.payment_amount, breakdown['artist_net'],
+        breakdown['platform_fee'], role.user.username, wallet_address or 'pending'
     )
 
     return {
         'task_id': task_id,
         'amount': str(task.payment_amount),
+        'artist_net': str(breakdown['artist_net']),
+        'platform_fee': str(breakdown['platform_fee']),
         'collaborator': role.user.username,
         'wallet': wallet_address,
         'status': 'released',
@@ -2469,3 +2490,238 @@ def process_escrow_funding_task(self, intent_id, transaction_signature):
         intent.failure_reason = str(e)
         intent.save()
         raise self.retry(exc=e)
+
+
+# ========== CAMPAIGN TASKS ==========
+
+
+@shared_task
+def check_campaign_deadlines():
+    """Periodic task: mark campaigns as failed if deadline passed without reaching goal.
+
+    Runs every 15 minutes. Active campaigns past their deadline with
+    current_amount < funding_goal are marked as 'failed'.
+    Backers can then reclaim their contributions.
+    """
+    from django.utils import timezone
+    from django.db.models import F
+    from .models import Campaign
+
+    now = timezone.now()
+    expired = Campaign.objects.filter(
+        status='active',
+        deadline__lte=now,
+        current_amount__lt=F('funding_goal')
+    )
+
+    results = {'failed': 0, 'errors': 0}
+
+    for campaign in expired:
+        try:
+            campaign.mark_failed()
+            results['failed'] += 1
+            logger.info(
+                '[CampaignDeadline] Campaign %s "%s" failed ($%s/$%s)',
+                campaign.id, campaign.title, campaign.current_amount, campaign.funding_goal
+            )
+        except Exception:
+            results['errors'] += 1
+            logger.exception('[CampaignDeadline] Error processing campaign %s', campaign.id)
+
+    if results['failed'] > 0:
+        logger.info('[CampaignDeadline] Results: %s', results)
+
+    return results
+
+
+@shared_task
+def check_campaign_escrow_creation():
+    """Periodic task: auto-reclaim funded campaigns where no escrow was created within 60 days.
+
+    Runs daily. Funded campaigns past their escrow_creation_deadline are
+    marked as 'reclaimable' — backers can reclaim directly, no vote needed.
+    """
+    from django.utils import timezone
+    from .models import Campaign
+
+    now = timezone.now()
+    expired = Campaign.objects.filter(
+        status='funded',
+        escrow_creation_deadline__lte=now,
+    )
+
+    results = {'reclaimable': 0, 'errors': 0}
+
+    for campaign in expired:
+        try:
+            campaign.mark_reclaimable()
+            results['reclaimable'] += 1
+            logger.info(
+                '[CampaignEscrow] Campaign %s "%s" now reclaimable (60-day safety)',
+                campaign.id, campaign.title
+            )
+        except Exception:
+            results['errors'] += 1
+            logger.exception('[CampaignEscrow] Error processing campaign %s', campaign.id)
+
+    if results['reclaimable'] > 0:
+        logger.info('[CampaignEscrow] Results: %s', results)
+
+    return results
+
+
+@shared_task
+def check_solo_chapter_releases():
+    """Periodic task: release funds for solo campaigns when chapters are published.
+
+    Runs every 15 minutes. For solo campaigns in 'transferred' status,
+    checks if new chapters have been published on rB. If so, releases
+    the per-chapter amount from PDA2 (with 3% fee).
+
+    The on-chain release_chapter instruction is called via the backend
+    as a crank, verifying the chapter publication on-platform.
+    """
+    from .models import Campaign, Content
+
+    transferred_solo = Campaign.objects.filter(
+        status='transferred',
+        campaign_type='solo',
+    ).select_related('creator')
+
+    results = {'released': 0, 'errors': 0}
+
+    for campaign in transferred_solo:
+        try:
+            # Count published chapters by this creator for this content type
+            published_count = Content.objects.filter(
+                creator=campaign.creator,
+                content_type=campaign.content_type,
+                is_minted=True,
+            ).count()
+
+            if published_count > campaign.chapters_published:
+                new_chapters = published_count - campaign.chapters_published
+                old_published = campaign.chapters_published
+                campaign.chapters_published = min(published_count, campaign.chapter_count or 0)
+
+                # Reset dormancy deadline (activity detected)
+                from datetime import timedelta
+                campaign.escrow_dormancy_deadline = timezone.now() + timedelta(days=90)
+                campaign.save(update_fields=['chapters_published', 'escrow_dormancy_deadline', 'updated_at'])
+
+                # Trigger on-chain release for each new chapter
+                from .services.campaign_solana_service import CampaignSolanaService
+                service = CampaignSolanaService()
+                for i in range(old_published, campaign.chapters_published):
+                    try:
+                        escrow_info = service.setup_solo_escrow(campaign)
+                        logger.info(
+                            '[SoloRelease] Chapter %d released for campaign %s (escrow: %s)',
+                            i + 1, campaign.id, escrow_info.get('escrow_pda', 'pending')
+                        )
+                    except Exception as e:
+                        logger.warning('[SoloRelease] On-chain release pending for chapter %d: %s', i + 1, e)
+
+                results['released'] += new_chapters
+                logger.info(
+                    '[SoloRelease] Campaign %s: %d new chapters published (%d/%d total)',
+                    campaign.id, new_chapters, campaign.chapters_published,
+                    campaign.chapter_count
+                )
+
+                # Check if all chapters are released → mark completed
+                if campaign.chapters_published >= (campaign.chapter_count or 0):
+                    campaign.mark_completed()
+                    logger.info('[SoloRelease] Campaign %s completed! All chapters delivered.', campaign.id)
+
+        except Exception:
+            results['errors'] += 1
+            logger.exception('[SoloRelease] Error processing campaign %s', campaign.id)
+
+    if results['released'] > 0:
+        logger.info('[SoloRelease] Results: %s', results)
+
+    return results
+
+
+@shared_task
+def process_campaign_transfer(campaign_id):
+    """On-demand task: orchestrate PDA1 to PDA2 transfer.
+
+    Called when the creator initiates a fund transfer from campaign
+    escrow to project escrow. For solo campaigns, auto-creates the
+    escrow vault with chapter-based milestones.
+
+    The view has already marked the campaign as 'transferred' with
+    escrow PDA info. This task handles the on-chain coordination.
+    """
+    from .models import Campaign
+    from .services.campaign_solana_service import CampaignSolanaService
+
+    try:
+        campaign = Campaign.objects.get(id=campaign_id)
+    except Campaign.DoesNotExist:
+        logger.error('[CampaignTransfer] Campaign %s not found', campaign_id)
+        return
+
+    if campaign.status != 'transferred':
+        logger.warning(
+            '[CampaignTransfer] Campaign %s status is %s, expected transferred',
+            campaign_id, campaign.status
+        )
+        return
+
+    service = CampaignSolanaService()
+    transfer_details = service.log_transfer_details(campaign)
+
+    logger.info(
+        '[CampaignTransfer] Campaign %s ($%s) on-chain transfer initiated. '
+        'Escrow PDA: %s, Type: %s',
+        campaign_id, campaign.current_amount,
+        campaign.escrow_pda or 'pending',
+        campaign.campaign_type,
+    )
+
+    return {
+        'campaign_id': campaign_id,
+        'status': 'transferred',
+        'escrow_pda': campaign.escrow_pda,
+        'details': transfer_details,
+    }
+
+
+@shared_task
+def check_escrow_dormancy():
+    """Periodic task: return funds for escrows with 90-day dormancy.
+
+    Runs daily. Finds transferred campaigns past their dormancy deadline
+    (no milestone activity in 90 days) and initiates fund return from
+    PDA2 back to PDA1 so backers can reclaim.
+    """
+    from django.utils import timezone
+    from .models import Campaign
+
+    now = timezone.now()
+    dormant = Campaign.objects.filter(
+        status='transferred',
+        escrow_dormancy_deadline__lte=now,
+    )
+
+    results = {'returned': 0, 'errors': 0}
+
+    for campaign in dormant:
+        try:
+            campaign.mark_reclaimable()
+            results['returned'] += 1
+            logger.info(
+                '[EscrowDormancy] Campaign %s "%s" dormant for 90 days — marked reclaimable',
+                campaign.id, campaign.title
+            )
+        except Exception:
+            results['errors'] += 1
+            logger.exception('[EscrowDormancy] Error processing campaign %s', campaign.id)
+
+    if results['returned'] > 0:
+        logger.info('[EscrowDormancy] Results: %s', results)
+
+    return results

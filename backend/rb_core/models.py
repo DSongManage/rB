@@ -2919,6 +2919,7 @@ class EscrowTransaction(models.Model):
         ('fund', 'Escrow Funded'),
         ('release', 'Milestone Release'),
         ('auto_release', 'Auto-Approve Release'),
+        ('platform_fee', 'Platform Fee'),
         ('refund', 'Refund to Funder'),
         ('dispute_hold', 'Held for Dispute'),
         ('dispute_release', 'Released After Dispute'),
@@ -2954,6 +2955,18 @@ class EscrowTransaction(models.Model):
         User,
         on_delete=models.SET_NULL,
         null=True
+    )
+    platform_fee_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Platform fee portion (3% escrow service fee)"
+    )
+    artist_net_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Amount artist actually receives after fee"
     )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -6213,3 +6226,308 @@ class FoundingCreatorSlot(models.Model):
 
     def __str__(self):
         return f"Founding slot: {self.user.username} via {self.project.title}"
+
+
+# ============================================================
+# Campaign / Fundraising Models
+# ============================================================
+
+
+class Campaign(models.Model):
+    """
+    Kickstarter-like fundraising campaign.
+
+    PDA1 (Campaign Escrow): Accumulates backer contributions at 0% fee.
+    If goal met → funds transfer to PDA2 (Project Escrow) for milestone/chapter-based release.
+    If goal not met → backers reclaim from PDA1 directly.
+
+    Supports two modes:
+    - Collaborative: linked to a CollaborativeProject, funds flow into escrow milestones
+    - Solo: standalone campaign for solo creators, funds released per chapter published
+    """
+
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('active', 'Active'),
+        ('funded', 'Funded'),
+        ('transferred', 'Transferred'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('reclaimable', 'Reclaimable'),
+        ('reclaimed', 'Reclaimed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    CAMPAIGN_TYPE_CHOICES = [
+        ('collaborative', 'Collaborative'),
+        ('solo', 'Solo'),
+    ]
+
+    CONTENT_TYPE_CHOICES = [
+        ('book', 'Book'),
+        ('comic', 'Comic'),
+        ('art', 'Art'),
+    ]
+
+    # Link to existing project (null for standalone solo campaigns)
+    project = models.OneToOneField(
+        CollaborativeProject,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='campaign'
+    )
+    creator = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='created_campaigns'
+    )
+
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    cover_image = models.ImageField(upload_to='campaign_covers/', null=True, blank=True)
+    content_type = models.CharField(
+        max_length=20,
+        choices=CONTENT_TYPE_CHOICES,
+        default='book',
+        help_text="Content type for solo campaigns without a linked project"
+    )
+    campaign_type = models.CharField(
+        max_length=20,
+        choices=CAMPAIGN_TYPE_CHOICES,
+        default='collaborative'
+    )
+
+    # Pitch content (rich text HTML from ReactQuill editor)
+    pitch_html = models.TextField(
+        blank=True,
+        help_text="Rich text campaign pitch (HTML). Displayed on the campaign detail page."
+    )
+
+    # Funding
+    funding_goal = models.DecimalField(max_digits=10, decimal_places=2)
+    current_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
+    backer_count = models.PositiveIntegerField(default=0)
+    deadline = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+
+    # On-chain PDA1 address
+    campaign_pda = models.CharField(max_length=64, blank=True)
+    campaign_pda_bump = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    # Timing
+    funded_at = models.DateTimeField(null=True, blank=True)
+    escrow_creation_deadline = models.DateTimeField(
+        null=True, blank=True,
+        help_text="funded_at + 60 days. Auto-reclaim if no escrow created by this date."
+    )
+
+    # PDA2 (Escrow) link — set after transfer_to_escrow
+    escrow_pda = models.CharField(max_length=64, blank=True)
+    escrow_pda_bump = models.PositiveSmallIntegerField(null=True, blank=True)
+    escrow_dormancy_deadline = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Last milestone activity + 90 days. Return to campaign if exceeded."
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Solo campaign: serialized chapter release
+    chapter_count = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="For solo campaigns: number of chapters to release"
+    )
+    chapters_published = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'deadline']),
+            models.Index(fields=['creator', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Campaign: {self.title} ({self.get_status_display()})"
+
+    @property
+    def funding_percentage(self):
+        if self.funding_goal <= 0:
+            return 0
+        return min(100, int((self.current_amount / self.funding_goal) * 100))
+
+    @property
+    def is_goal_met(self):
+        return self.current_amount >= self.funding_goal
+
+    @property
+    def amount_per_chapter(self):
+        """For solo serialized release: how much is released per chapter."""
+        if not self.chapter_count or self.chapter_count == 0:
+            return Decimal('0.00')
+        return (self.funding_goal / self.chapter_count).quantize(Decimal('0.01'))
+
+    def mark_funded(self):
+        """Transition to funded status when goal is met."""
+        from datetime import timedelta
+        self.status = 'funded'
+        self.funded_at = timezone.now()
+        self.escrow_creation_deadline = self.funded_at + timedelta(days=60)
+        self.save(update_fields=['status', 'funded_at', 'escrow_creation_deadline', 'updated_at'])
+
+    def mark_failed(self):
+        """Transition to failed when deadline passes without meeting goal."""
+        self.status = 'failed'
+        self.save(update_fields=['status', 'updated_at'])
+
+    def mark_reclaimable(self):
+        """Transition to reclaimable when 60-day escrow creation window expires."""
+        self.status = 'reclaimable'
+        self.save(update_fields=['status', 'updated_at'])
+
+    def mark_completed(self):
+        """Transition to completed when all milestones/chapters are delivered."""
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        self.save(update_fields=['status', 'completed_at', 'updated_at'])
+
+    def mark_transferred(self, escrow_pda, escrow_pda_bump=None):
+        """Transition to transferred after PDA1 → PDA2 on-chain transfer."""
+        from datetime import timedelta
+        self.status = 'transferred'
+        self.escrow_pda = escrow_pda
+        self.escrow_pda_bump = escrow_pda_bump
+        # 90-day dormancy deadline starts from transfer
+        self.escrow_dormancy_deadline = timezone.now() + timedelta(days=90)
+        self.save(update_fields=[
+            'status', 'escrow_pda', 'escrow_pda_bump',
+            'escrow_dormancy_deadline', 'updated_at'
+        ])
+
+
+class CampaignContribution(models.Model):
+    """Individual backer contribution to a campaign."""
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('reclaimed', 'Reclaimed'),
+        ('transferred', 'Transferred'),
+    ]
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name='contributions'
+    )
+    backer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='campaign_contributions'
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    # On-chain tracking
+    transaction_signature = models.CharField(max_length=128, blank=True)
+
+    # Payment intent integration
+    purchase_intent = models.ForeignKey(
+        'PurchaseIntent',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='campaign_contributions'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['campaign', 'status']),
+            models.Index(fields=['backer', 'campaign']),
+        ]
+
+    def __str__(self):
+        return f"{self.backer.username} backed {self.campaign.title}: ${self.amount}"
+
+
+class CampaignUpdate(models.Model):
+    """Creator posts updates to campaign backers."""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name='updates'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE
+    )
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Update: {self.title} ({self.campaign.title})"
+
+
+class CampaignTier(models.Model):
+    """Reward tier for campaign backers.
+
+    Each tier has a minimum contribution amount and a description
+    of what backers receive at that level (e.g., early access,
+    signed copy, credit in the book, etc.).
+    """
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name='tiers'
+    )
+    title = models.CharField(max_length=100)
+    description = models.TextField(help_text="What backers get at this tier")
+    minimum_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    max_backers = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Optional limit on how many backers can claim this tier"
+    )
+    current_backers = models.PositiveIntegerField(default=0)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'minimum_amount']
+
+    def __str__(self):
+        return f"{self.title} (${self.minimum_amount}+)"
+
+    @property
+    def is_available(self):
+        if self.max_backers is None:
+            return True
+        return self.current_backers < self.max_backers
+
+
+class CampaignMedia(models.Model):
+    """Media gallery for campaign pitch — images, previews, concept art."""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        on_delete=models.CASCADE,
+        related_name='media'
+    )
+    image = models.ImageField(upload_to='campaign_media/')
+    caption = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return f"Media for {self.campaign.title}: {self.caption or 'image'}"
