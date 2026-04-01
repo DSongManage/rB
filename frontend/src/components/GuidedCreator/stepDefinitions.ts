@@ -143,7 +143,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
       },
       {
         label: "No — help me find one",
-        description: "We'll create your project, then take you to the Collaborators page where you can browse artists, colorists, and letterers by role, genre, and style.",
+        description: "Browse the Collaborators page to find artists, colorists, and letterers by role, genre, and style. Create your project after you've found the right fit.",
         targetStep: 4,
         icon: 'Search',
         iconColor: '#3b82f6',
@@ -172,7 +172,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
   4: {
     id: 4,
     title: "Find your collaborator",
-    subtitle: "We'll create your project, then take you to browse creators. When you find someone you like, click 'Invite to Collaborate' on their profile.",
+    subtitle: "Browse creators on renaissBlock. When you find someone you like, click 'Invite to Collaborate' on their profile.",
     breadcrumb: ["Story + need team", "Find collaborator"],
     breadcrumbActive: 1,
     variant: 'outcome',

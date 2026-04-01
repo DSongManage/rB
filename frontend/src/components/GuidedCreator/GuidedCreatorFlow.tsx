@@ -72,21 +72,9 @@ export default function GuidedCreatorFlow() {
         case 'publish':
           navigate('/studio?mode=solo');
           break;
-        case 'browseCollaborators': {
-          // Create project first, then navigate to collaborators
-          const ts = new Date().toLocaleString('en-US', {
-            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-          });
-          const ctype = selectedContentType;
-          const proj = await collaborationApi.createCollaborativeProject({
-            title: `Untitled ${ctype.charAt(0).toUpperCase() + ctype.slice(1)} - ${ts}`,
-            content_type: ctype,
-            description: '',
-          });
-          // Navigate to collaborators page with project context
-          navigate(`/collaborators?fromProject=${proj.id}`);
+        case 'browseCollaborators':
+          navigate('/collaborators');
           break;
-        }
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
