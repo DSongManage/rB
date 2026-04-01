@@ -45,7 +45,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
   // ── Step 0: Content type selection (NEW) ──
   0: {
     id: 0,
-    title: "What would you like to create?",
+    title: "Start a new project",
     subtitle: "Pick your content type. You can always change this later.",
     variant: 'options',
     options: [
@@ -81,8 +81,8 @@ export const STEPS: Record<StepId, StepDefinition> = {
   // ── Step 1: Journey question (was step 0) ──
   1: {
     id: 1,
-    title: "What brings you to renaissBlock?",
-    subtitle: "We'll set up everything you need based on where you are in your creative journey.",
+    title: "Where are you in your journey?",
+    subtitle: "We'll guide you to the right tools and next steps.",
     variant: 'options',
     options: [
       {
