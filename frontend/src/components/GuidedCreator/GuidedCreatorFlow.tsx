@@ -2,18 +2,19 @@ import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collaborationApi } from '../../services/collaborationApi';
 import { STEPS, StepId, ContentType } from './stepDefinitions';
-import { Layers, BookOpen, Image, Users, Rocket, Briefcase, Pen } from 'lucide-react';
+import { Layers, BookOpen, Image, Users, Rocket, Briefcase, Pen, UserCheck, Search } from 'lucide-react';
 import './GuidedCreatorFlow.css';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
-  Layers, BookOpen, Image, Users, Rocket, Briefcase, Pen,
+  Layers, BookOpen, Image, Users, Rocket, Briefcase, Pen, UserCheck, Search,
 };
 
 type TerminalAction =
   | { type: 'campaign' }
   | { type: 'createProject' }
-  | { type: 'publish' };
+  | { type: 'publish' }
+  | { type: 'browseCollaborators' };
 
 export default function GuidedCreatorFlow() {
   const navigate = useNavigate();
@@ -71,6 +72,21 @@ export default function GuidedCreatorFlow() {
         case 'publish':
           navigate('/studio?mode=solo');
           break;
+        case 'browseCollaborators': {
+          // Create project first, then navigate to collaborators
+          const ts = new Date().toLocaleString('en-US', {
+            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+          });
+          const ctype = selectedContentType;
+          const proj = await collaborationApi.createCollaborativeProject({
+            title: `Untitled ${ctype.charAt(0).toUpperCase() + ctype.slice(1)} - ${ts}`,
+            content_type: ctype,
+            description: '',
+          });
+          // Navigate to collaborators page with project context
+          navigate(`/collaborators?fromProject=${proj.id}`);
+          break;
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
@@ -211,13 +227,11 @@ export default function GuidedCreatorFlow() {
             {step.navNext.label}
           </button>
         )}
-        {/* Direct action button (steps 9, 10) */}
+        {/* Direct action button (steps with terminal actions) */}
         {step.directAction && (
           <button
             className="guided-btn guided-btn-primary"
-            onClick={() => executeAction({
-              type: step.directAction!.action === 'createProject' ? 'createProject' : 'publish',
-            })}
+            onClick={() => executeAction({ type: step.directAction!.action })}
             disabled={creating}
           >
             {creating ? 'Setting up...' : step.directAction.label}

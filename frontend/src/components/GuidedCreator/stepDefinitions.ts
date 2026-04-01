@@ -1,4 +1,4 @@
-export type StepId = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 99;
+export type StepId = 0 | 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 99;
 
 export type ContentType = 'comic' | 'book' | 'art';
 
@@ -21,7 +21,7 @@ export interface OutcomeItem {
   text: string;
 }
 
-export type DirectAction = 'createProject' | 'publish';
+export type DirectAction = 'createProject' | 'publish' | 'browseCollaborators';
 
 export interface StepDefinition {
   id: StepId;
@@ -122,100 +122,72 @@ export const STEPS: Record<StepId, StepDefinition> = {
     ],
   },
 
-  // ── Story + need team path (steps 2-5) ──
+  // ── Story + need team path (steps 2-3) ──
 
   2: {
     id: 2,
-    title: "Let's start with your story",
-    subtitle: "Creating a project is your home base. Everything — collaborators, milestones, campaigns, published work — lives under this project.",
-    breadcrumb: ["Story + need team", "Build pitch", "Find artist"],
+    title: "Do you have a collaborator in mind?",
+    subtitle: "We'll create your project first, then help you connect with the right people.",
+    breadcrumb: ["Story + need team", "Find collaborator"],
     breadcrumbActive: 0,
-    variant: 'outcome',
-    outcomeTitle: "You'll set up:",
-    outcomeItems: [
-      { bold: "Project name", text: "the title of your comic or series" },
-      { bold: "Genre and synopsis", text: "helps collaborators evaluate fit" },
-      { bold: "Script or outline", text: "upload what you have so far" },
-      { bold: "Visual references", text: "mood boards, style inspiration" },
+    variant: 'options',
+    options: [
+      {
+        label: "Yes — I know who I want to work with",
+        description: "We'll create your project and you can invite them from the Team tab. If they're on renaissBlock, they'll get a notification instantly.",
+        tag: "Fastest path",
+        tagColor: 'green',
+        targetStep: 3,
+        icon: 'UserCheck',
+        iconColor: '#10b981',
+      },
+      {
+        label: "No — help me find one",
+        description: "We'll create your project, then take you to the Collaborators page where you can browse artists, colorists, and letterers by role, genre, and style.",
+        targetStep: 4,
+        icon: 'Search',
+        iconColor: '#3b82f6',
+      },
     ],
-    afterOutcome: "This creates your project workspace. Next, we'll help you find an artist for your first 5 pages.",
-    navNext: { label: "Next: Find an artist", stepId: 3 },
   },
 
   3: {
     id: 3,
-    title: "How do you want to pay your artist?",
-    subtitle: "This determines how the escrow contract works. You can always negotiate different terms for future collaborators.",
-    breadcrumb: ["Story + need team", "Find artist", "Payment terms"],
+    title: "Let's create your project",
+    subtitle: "Your project is the home base for everything — collaborators, milestones, content, and payments all live here.",
+    breadcrumb: ["Story + need team", "Create project"],
     breadcrumbActive: 1,
-    variant: 'options',
-    options: [
-      {
-        label: "Work-for-hire — pay per page",
-        description: "You pay a fixed rate per page through escrow. The artist is paid as milestones are approved. You own the finished work. Clean and simple.",
-        tag: "Recommended for first collaboration",
-        tagColor: 'green',
-        targetStep: 4,
-      },
-      {
-        label: "Hybrid — reduced rate + revenue share",
-        description: "Lower upfront payment per page, plus a percentage of future sales when the finished work publishes. Good when you have some budget but want to share the upside.",
-        targetStep: 4,
-      },
-      {
-        label: "Revenue share only — no upfront payment",
-        description: "No upfront cost. Your collaborator earns a percentage of all future sales on renaissBlock. Best for equal creative partnerships where both sides invest their time.",
-        targetStep: 4,
-      },
+    variant: 'outcome',
+    outcomeTitle: "AFTER CREATING YOUR PROJECT:",
+    outcomeItems: [
+      { bold: "Go to the Team tab", text: "search for your collaborator by username" },
+      { bold: "Click 'Invite to Collaborate'", text: "choose their role (artist, colorist, letterer)" },
+      { bold: "Set payment terms", text: "work-for-hire, revenue share, or hybrid — you'll negotiate directly" },
+      { bold: "Fund escrow when ready", text: "your collaborator sees locked funds before starting work" },
     ],
-    note: "Note: Revenue share applies to published content sales on renaissBlock only, not to campaign contributions or other funding. If this project is a pitch that won't be sold directly, revenue share won't generate income unless the pitch itself is published for sale.",
+    afterOutcome: "Payment terms and escrow details are configured after your collaborator accepts — no need to decide everything upfront.",
+    directAction: { label: "Create project", action: 'createProject' },
   },
 
   4: {
     id: 4,
-    title: "Produce your first 5 pages",
-    subtitle: "Most successful comics start with a 5-page sample. This proves the concept and gives you something to show backers or publishers.",
-    breadcrumb: ["Story + need team", "Find artist", "Build your pitch"],
-    breadcrumbActive: 2,
+    title: "Find your collaborator",
+    subtitle: "We'll create your project, then take you to browse creators. When you find someone you like, click 'Invite to Collaborate' on their profile.",
+    breadcrumb: ["Story + need team", "Find collaborator"],
+    breadcrumbActive: 1,
     variant: 'outcome',
-    outcomeTitle: "How it works:",
+    outcomeTitle: "HOW TO FIND THE RIGHT FIT:",
     outcomeItems: [
-      { bold: "Fund escrow", text: "deposit the full 5-page budget. Your artist sees the money is real before they start." },
-      { bold: "Page-by-page delivery", text: "artist uploads each page. You review and approve. Escrow releases per page (3% platform fee)." },
-      { bold: "Revision rounds", text: "request changes with specific feedback. Built-in limits keep things fair for both sides." },
-      { bold: "Auto-approve", text: "if you don't review within 72 hours, the milestone auto-approves. No stalling payments." },
+      { bold: "Filter by role", text: "artist, colorist, letterer, editor — find exactly what you need" },
+      { bold: "Check their portfolio", text: "every creator has published work you can preview" },
+      { bold: "Look at ratings and availability", text: "see if they're open to offers or currently booked" },
+      { bold: "Send an invite", text: "click 'Invite to Collaborate' — they'll see your project and can accept or decline" },
     ],
-    afterOutcome: "Once all 5 pages are approved, your pitch is ready. Time to decide what's next.",
-    navNext: { label: "Next: Pitch is done", stepId: 5 },
+    afterOutcome: "Once they accept, you'll set up payment terms and escrow together from your project's Team tab.",
+    directAction: { label: "Browse collaborators", action: 'browseCollaborators' },
   },
 
-  5: {
-    id: 5,
-    title: "Your 5-page pitch is complete!",
-    subtitle: "You have a finished sample. Here's what you can do with it:",
-    breadcrumb: ["Story + need team", "Build pitch", "What's next?"],
-    breadcrumbActive: 2,
-    variant: 'options',
-    options: [
-      {
-        label: "Launch a campaign to fund the full issue",
-        description: "Your pitch pages become the showcase. Backers see real art, real story, real team. Campaign funds go into production escrow — protected until work delivers.",
-        tag: "Most popular",
-        tagColor: 'green',
-        targetStep: 6,
-      },
-      {
-        label: "Self-fund the full issue",
-        description: "You have the budget to continue. Set up escrow contracts for the remaining pages, plus colorist and letterer when the time comes.",
-        targetStep: 9,
-      },
-      {
-        label: "Publish the pitch as a preview",
-        description: "Put your work on renaissBlock for readers to discover. Build an audience first, then decide about the full issue later.",
-        targetStep: 10,
-      },
-    ],
-  },
+  // Step 5 intentionally skipped (removed old pitch-complete branching step)
 
   // ── Campaign path (steps 6-8) ──
 
