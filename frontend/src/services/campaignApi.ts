@@ -173,6 +173,8 @@ export const campaignApi = {
     project_id?: number;
     cover_image?: File;
     tiers?: CampaignTier[];
+    collaborator_allocations?: { collaborator_role_id: number; username: string; role: string; amount: string }[];
+    production_costs?: string;
   }): Promise<Campaign> {
     const csrfToken = await getFreshCsrfToken();
     const formData = new FormData();
@@ -187,6 +189,8 @@ export const campaignApi = {
     if (data.project_id) formData.append('project_id', String(data.project_id));
     if (data.cover_image) formData.append('cover_image', data.cover_image);
     if (data.tiers && data.tiers.length > 0) formData.append('tiers_json', JSON.stringify(data.tiers));
+    if (data.collaborator_allocations) formData.append('collaborator_allocations', JSON.stringify(data.collaborator_allocations));
+    if (data.production_costs) formData.append('production_costs', data.production_costs);
 
     const res = await fetch(`${API_BASE}/api/campaigns/`, {
       method: 'POST',

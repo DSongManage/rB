@@ -106,6 +106,7 @@ class CampaignDetailSerializer(CampaignListSerializer):
             'completed_at',
             'contribution_count', 'user_contribution',
             'tiers', 'media',
+            'collaborator_allocations', 'production_costs',
             'updated_at',
         ]
 
@@ -130,6 +131,7 @@ class CampaignCreateSerializer(serializers.ModelSerializer):
             'content_type', 'campaign_type',
             'funding_goal', 'deadline',
             'chapter_count', 'status',
+            'collaborator_allocations', 'production_costs',
         ]
         read_only_fields = ['id', 'status']
 

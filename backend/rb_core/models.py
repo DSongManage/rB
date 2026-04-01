@@ -6338,6 +6338,17 @@ class Campaign(models.Model):
     )
     chapters_published = models.PositiveIntegerField(default=0)
 
+    # Collaborative campaign: per-collaborator funding allocations
+    # Format: [{"collaborator_role_id": 1, "username": "artist1", "role": "Artist", "amount": "3000.00"}]
+    collaborator_allocations = models.JSONField(
+        default=list, blank=True,
+        help_text="Per-collaborator funding breakdown for collaborative campaigns"
+    )
+    production_costs = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        help_text="Creator's production budget (printing, tools, etc.) — released directly to creator"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
