@@ -170,6 +170,20 @@ export default function GuidedCreatorFlow() {
         </div>
       )}
 
+      {/* Preview image */}
+      {step.previewImage && (
+        <div style={{
+          borderRadius: 12, overflow: 'hidden', marginBottom: 16,
+          border: '1px solid var(--panel-border, #334155)',
+        }}>
+          <img
+            src={step.previewImage}
+            alt="Campaign preview"
+            style={{ width: '100%', display: 'block' }}
+          />
+        </div>
+      )}
+
       {/* Outcome variant */}
       {step.variant === 'outcome' && step.outcomeItems && (
         <div className="guided-outcome">

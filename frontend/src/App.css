@@ -134,6 +134,54 @@ button:hover { background:#d97706; }
   max-width: 100% !important;
 }
 
+/* ReactQuill dark theme overrides */
+.ql-editor {
+  color: #e2e8f0 !important;
+}
+
+.ql-editor.ql-blank::before {
+  color: #64748b !important;
+  font-style: italic !important;
+}
+
+.ql-toolbar.ql-snow {
+  border-color: #334155 !important;
+}
+
+.ql-toolbar .ql-stroke {
+  stroke: #94a3b8 !important;
+}
+
+.ql-toolbar .ql-fill {
+  fill: #94a3b8 !important;
+}
+
+.ql-toolbar .ql-picker-label {
+  color: #94a3b8 !important;
+}
+
+.ql-toolbar button:hover .ql-stroke,
+.ql-toolbar .ql-picker-label:hover .ql-stroke {
+  stroke: #e2e8f0 !important;
+}
+
+.ql-toolbar button:hover .ql-fill,
+.ql-toolbar .ql-picker-label:hover .ql-fill {
+  fill: #e2e8f0 !important;
+}
+
+.ql-toolbar button.ql-active .ql-stroke {
+  stroke: #8b5cf6 !important;
+}
+
+.ql-toolbar button.ql-active .ql-fill {
+  fill: #8b5cf6 !important;
+}
+
+.ql-container.ql-snow {
+  border-color: #334155 !important;
+}
+
 /* Content display text wrapping (for reader and previews) */
 .content-display,
 .book-content,

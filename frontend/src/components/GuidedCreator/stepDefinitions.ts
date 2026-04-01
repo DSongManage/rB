@@ -39,6 +39,8 @@ export interface StepDefinition {
   startOverButton?: boolean;
   /** Direct action button on this step (not via step 99) */
   directAction?: { label: string; action: DirectAction };
+  /** Optional preview image to show instead of or before outcome items */
+  previewImage?: string;
 }
 
 export const STEPS: Record<StepId, StepDefinition> = {
@@ -217,20 +219,19 @@ export const STEPS: Record<StepId, StepDefinition> = {
   7: {
     id: 7,
     title: "Set up your team budget",
-    subtitle: "Your campaign goal will be calculated from the team costs you define here. When the campaign funds, escrow contracts are created automatically.",
+    subtitle: "During campaign creation, you'll assign budgets to each collaborator. Backers see exactly where their money goes. When funded, escrow contracts activate instantly.",
     breadcrumb: ["Launch campaign", "Team assembled", "Auto-split setup"],
     breadcrumbActive: 2,
     variant: 'outcome',
-    outcomeTitle: "Your campaign will show backers:",
+    previewImage: '/campaign-team-preview.png',
+    outcomeTitle: "HOW IT WORKS:",
     outcomeItems: [
-      { bold: "Artist", text: "@artisto — $3,000 (25 pages at $120/pg) — locked in escrow" },
-      { bold: "Colorist", text: "@colorqueen — $1,250 (25 pages at $50/pg) — locked in escrow" },
-      { bold: "Letterer", text: "@letterhead — $500 (25 pages at $20/pg) — locked in escrow" },
-      { bold: "Production costs", text: "$1,250 — released to creator for printing, shipping, tools" },
-      { bold: "Campaign goal: $6,000", text: "" },
+      { bold: "Assign budgets", text: "set a dollar amount for each collaborator during campaign setup" },
+      { bold: "Backers see the breakdown", text: "your campaign page shows exactly how funds are allocated" },
+      { bold: "Auto-fund on success", text: "when the campaign hits its goal, escrow contracts activate for each collaborator" },
+      { bold: "Milestone releases", text: "funds release as collaborators deliver approved work (3% escrow fee)" },
     ],
     afterOutcome: "Team members confirm their participation during setup. When funded, their escrow contracts activate instantly — no delay, no manual setup.",
-    note: "$4,750 locked in escrow (79%) + $1,250 to creator (21%)",
     navNext: { label: "Next: Set tiers and launch", stepId: 99 },
   },
 
@@ -328,7 +329,8 @@ export const STEPS: Record<StepId, StepDefinition> = {
     breadcrumb: ["Solo creator", "Solo campaign"],
     breadcrumbActive: 1,
     variant: 'outcome',
-    outcomeTitle: "How self-escrow works:",
+    previewImage: '/campaign-preview.png',
+    outcomeTitle: "HOW SELF-ESCROW WORKS:",
     outcomeItems: [
       { bold: "Campaign succeeds", text: "funds move to your secure project escrow" },
       { bold: "You create", text: "work at your own pace within the project deadline" },

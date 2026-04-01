@@ -93,6 +93,9 @@ export default function CampaignCreatePage() {
     }).catch(() => {}).finally(() => setLoadingProject(false));
   }, [selectedProjectId]);
 
+  // Format number with commas
+  const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   // Computed: allocation totals
   const totalAllocated = allocations.reduce((sum, a) => sum + (parseFloat(a.amount) || 0), 0);
   const prodCosts = parseFloat(productionCosts) || 0;
@@ -133,7 +136,7 @@ export default function CampaignCreatePage() {
   // Auto-suggest funding goal from allocations
   const suggestGoal = () => {
     if (totalBudget > 0) {
-      setFundingGoal(totalBudget.toFixed(2));
+      setFundingGoal(fmt(totalBudget));
     }
   };
 
@@ -445,7 +448,7 @@ export default function CampaignCreatePage() {
                 placeholder="6" style={inputStyle} />
               {chapterCount && fundingGoal && (
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                  ${(parseFloat(fundingGoal) / parseInt(chapterCount)).toFixed(2)} released per chapter
+                  ${fmt(parseFloat(fundingGoal) / parseInt(chapterCount))} released per chapter
                 </div>
               )}
             </div>
@@ -573,31 +576,31 @@ export default function CampaignCreatePage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>Collaborator escrow</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
-                ${totalAllocated.toFixed(2)} {goalNum > 0 && <span style={{ color: '#64748b', fontWeight: 400 }}>({escrowPercent}%)</span>}
+                ${fmt(totalAllocated)} {goalNum > 0 && <span style={{ color: '#64748b', fontWeight: 400 }}>({escrowPercent}%)</span>}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 13, color: '#94a3b8' }}>Production costs</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
-                ${prodCosts.toFixed(2)} {goalNum > 0 && <span style={{ color: '#64748b', fontWeight: 400 }}>({goalNum > 0 ? Math.round((prodCosts / goalNum) * 100) : 0}%)</span>}
+                ${fmt(prodCosts)} {goalNum > 0 && <span style={{ color: '#64748b', fontWeight: 400 }}>({goalNum > 0 ? Math.round((prodCosts / goalNum) * 100) : 0}%)</span>}
               </span>
             </div>
             <div style={{ borderTop: '1px solid #334155', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>Total budget</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: totalBudget > goalNum && goalNum > 0 ? '#ef4444' : '#10b981' }}>
-                ${totalBudget.toFixed(2)}
+                ${fmt(totalBudget)}
               </span>
             </div>
 
             {/* Mismatch warnings */}
             {goalNum > 0 && totalBudget > goalNum && (
               <div style={{ fontSize: 12, color: '#ef4444', marginTop: 8 }}>
-                Budget exceeds funding goal by ${(totalBudget - goalNum).toFixed(2)}. Go back and increase your goal.
+                Budget exceeds funding goal by ${fmt(totalBudget - goalNum)}. Go back and increase your goal.
               </div>
             )}
             {goalNum > 0 && totalBudget > 0 && totalBudget < goalNum && (
               <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 8 }}>
-                ${(goalNum - totalBudget).toFixed(2)} unallocated. This surplus will stay in campaign escrow.
+                ${fmt(goalNum - totalBudget)} unallocated. This surplus will stay in campaign escrow.
               </div>
             )}
 
@@ -608,7 +611,7 @@ export default function CampaignCreatePage() {
                 background: '#4f46e520', border: '1px solid #4f46e5',
                 color: '#a78bfa', fontSize: 12, cursor: 'pointer',
               }}>
-                Set funding goal to ${totalBudget.toFixed(2)}
+                Set funding goal to ${fmt(totalBudget)}
               </button>
             )}
           </div>
@@ -815,7 +818,7 @@ export default function CampaignCreatePage() {
                     <span style={{ fontSize: 13, fontWeight: 500, color: '#e2e8f0' }}>@{a.username}</span>
                     <span style={{ fontSize: 11, color: '#64748b' }}>{a.role}</span>
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>${parseFloat(a.amount).toFixed(2)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>${fmt(parseFloat(a.amount))}</span>
                 </div>
               ))}
               {prodCosts > 0 && (
@@ -824,7 +827,7 @@ export default function CampaignCreatePage() {
                   padding: '8px 0', borderBottom: '1px solid #334155',
                 }}>
                   <span style={{ fontSize: 13, color: '#94a3b8' }}>Production costs</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>${prodCosts.toFixed(2)}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>${fmt(prodCosts)}</span>
                 </div>
               )}
               <div style={{
@@ -834,7 +837,7 @@ export default function CampaignCreatePage() {
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
                   {escrowPercent}% locked in escrow
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>${totalBudget.toFixed(2)}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>${fmt(totalBudget)}</span>
               </div>
             </div>
           )}
