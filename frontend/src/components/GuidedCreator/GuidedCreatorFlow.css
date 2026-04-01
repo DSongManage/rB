@@ -1,5 +1,5 @@
 .guided-flow {
-  max-width: 700px;
+  max-width: 640px;
   margin: 0 auto;
   padding: 48px 24px;
 }
@@ -11,7 +11,7 @@
   gap: 6px;
   font-size: 12px;
   color: var(--text-secondary, #64748b);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
@@ -31,8 +31,8 @@
 
 /* Title / Subtitle */
 .guided-title {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: var(--text, #e2e8f0);
   margin: 0 0 8px;
   line-height: 1.3;
@@ -41,7 +41,7 @@
 .guided-subtitle {
   font-size: 14px;
   color: var(--text-secondary, #94a3b8);
-  margin: 0 0 24px;
+  margin: 0 0 28px;
   line-height: 1.6;
 }
 
@@ -49,7 +49,7 @@
 .guided-options {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 20px;
 }
 
@@ -57,38 +57,63 @@
   background: var(--panel, #1e293b);
   border: 1px solid var(--panel-border, #334155);
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 18px 20px;
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 
 .guided-option:hover {
-  border-color: var(--text-secondary, #64748b);
+  border-color: var(--accent, #3b82f6);
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Option header with icon */
+.guided-option-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.guided-option-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .guided-option-label {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text, #e2e8f0);
-  margin: 0 0 4px;
+  margin: 0;
 }
 
 .guided-option-desc {
   font-size: 13px;
   color: var(--text-secondary, #94a3b8);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.55;
+}
+
+/* Indent description when icon is present */
+.guided-option-header + .guided-option-desc {
+  padding-left: 48px;
 }
 
 /* Tags */
 .guided-tag {
   display: inline-block;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 2px 8px;
   border-radius: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  letter-spacing: 0.01em;
 }
 
 .guided-tag-green {
@@ -109,23 +134,27 @@
 /* Outcome Box */
 .guided-outcome {
   background: var(--panel, #1e293b);
+  border: 1px solid var(--panel-border, #334155);
   border-radius: 12px;
-  padding: 20px;
+  padding: 20px 24px;
   margin-bottom: 16px;
 }
 
 .guided-outcome-title {
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text, #e2e8f0);
-  margin: 0 0 10px;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
 }
 
 .guided-outcome-item {
   font-size: 13px;
   color: var(--text-secondary, #94a3b8);
-  margin: 6px 0;
-  line-height: 1.5;
+  margin: 8px 0;
+  line-height: 1.55;
 }
 
 .guided-outcome-item span {
@@ -150,13 +179,13 @@
 /* Navigation */
 .guided-nav {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .guided-btn {
-  padding: 8px 16px;
+  padding: 10px 20px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
@@ -173,6 +202,7 @@
 
 .guided-btn-secondary:hover {
   background: var(--panel-border, #334155);
+  color: var(--text, #e2e8f0);
 }
 
 .guided-btn-primary {
@@ -211,6 +241,10 @@
   }
 
   .guided-title {
-    font-size: 18px;
+    font-size: 20px;
+  }
+
+  .guided-option-header + .guided-option-desc {
+    padding-left: 0;
   }
 }

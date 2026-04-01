@@ -1,19 +1,25 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collaborationApi } from '../../services/collaborationApi';
-import { STEPS, StepId } from './stepDefinitions';
+import { STEPS, StepId, ContentType } from './stepDefinitions';
+import { Layers, BookOpen, Image, Users, Rocket, Briefcase, Pen } from 'lucide-react';
 import './GuidedCreatorFlow.css';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ICON_MAP: Record<string, React.ComponentType<any>> = {
+  Layers, BookOpen, Image, Users, Rocket, Briefcase, Pen,
+};
 
 type TerminalAction =
   | { type: 'campaign' }
-  | { type: 'createProject'; contentType: 'book' | 'comic' | 'art' }
-  | { type: 'publish' }
-  | { type: 'hire' };
+  | { type: 'createProject' }
+  | { type: 'publish' };
 
 export default function GuidedCreatorFlow() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<StepId>(0);
   const [history, setHistory] = useState<StepId[]>([]);
+  const [selectedContentType, setSelectedContentType] = useState<ContentType>('comic');
   const [pendingAction, setPendingAction] = useState<TerminalAction | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
@@ -53,9 +59,10 @@ export default function GuidedCreatorFlow() {
           const timestamp = new Date().toLocaleString('en-US', {
             month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
           });
+          const ct = selectedContentType;
           const project = await collaborationApi.createCollaborativeProject({
-            title: `Untitled ${action.contentType.charAt(0).toUpperCase() + action.contentType.slice(1)} - ${timestamp}`,
-            content_type: action.contentType,
+            title: `Untitled ${ct.charAt(0).toUpperCase() + ct.slice(1)} - ${timestamp}`,
+            content_type: ct,
             description: '',
           });
           navigate(`/studio/${project.id}`);
@@ -64,33 +71,26 @@ export default function GuidedCreatorFlow() {
         case 'publish':
           navigate('/studio?mode=solo');
           break;
-        case 'hire':
-          navigate('/discover');
-          break;
       }
     } catch (err: any) {
       setError(err.message || 'Something went wrong');
       setCreating(false);
     }
-  }, [navigate]);
+  }, [navigate, selectedContentType]);
 
-  const handleOptionClick = useCallback((targetStep: StepId) => {
-    // Set pending action based on which path leads to step 99
-    if (targetStep === 99) {
-      // Determine action from context — which step are we on?
-      // Steps 6, 7 → campaign; step 11 → campaign (solo)
-      // This is handled by the step that navigates to 99
+  const handleOptionClick = useCallback((targetStep: StepId, contentType?: ContentType) => {
+    // Step 0: store selected content type
+    if (contentType) {
+      setSelectedContentType(contentType);
     }
     goTo(targetStep);
   }, [goTo]);
 
-  // When navigating to step 99, determine the pending action
+  // When navigating to step 99 via navNext, determine the pending action
   const handleNavNext = useCallback((stepId: StepId) => {
     if (stepId === 99) {
-      // Determine action based on current step
-      if (currentStep === 6 || currentStep === 7) {
-        setPendingAction({ type: 'campaign' });
-      } else if (currentStep === 11) {
+      // Steps 7, 8, 12 all lead to campaign creation
+      if (currentStep === 7 || currentStep === 8 || currentStep === 12) {
         setPendingAction({ type: 'campaign' });
       }
     }
@@ -137,22 +137,32 @@ export default function GuidedCreatorFlow() {
       {/* Options variant */}
       {step.variant === 'options' && step.options && (
         <div className="guided-options">
-          {step.options.map((opt, i) => (
-            <div
-              key={i}
-              className="guided-option"
-              onClick={() => !creating && handleOptionClick(opt.targetStep)}
-              style={{ opacity: creating ? 0.6 : 1, cursor: creating ? 'wait' : 'pointer' }}
-            >
-              {opt.tag && (
-                <div className={`guided-tag guided-tag-${opt.tagColor || 'green'}`}>
-                  {opt.tag}
+          {step.options.map((opt, i) => {
+            const IconComponent = opt.icon ? ICON_MAP[opt.icon] : null;
+            return (
+              <div
+                key={i}
+                className="guided-option"
+                onClick={() => !creating && handleOptionClick(opt.targetStep, opt.contentType)}
+                style={{ opacity: creating ? 0.6 : 1, cursor: creating ? 'wait' : 'pointer' }}
+              >
+                {opt.tag && (
+                  <div className={`guided-tag guided-tag-${opt.tagColor || 'green'}`}>
+                    {opt.tag}
+                  </div>
+                )}
+                <div className="guided-option-header">
+                  {IconComponent && (
+                    <div className="guided-option-icon" style={{ background: `${opt.iconColor}18` }}>
+                      <IconComponent size={20} color={opt.iconColor} />
+                    </div>
+                  )}
+                  <p className="guided-option-label">{opt.label}</p>
                 </div>
-              )}
-              <p className="guided-option-label">{opt.label}</p>
-              <p className="guided-option-desc">{opt.description}</p>
-            </div>
-          ))}
+                <p className="guided-option-desc">{opt.description}</p>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -164,7 +174,6 @@ export default function GuidedCreatorFlow() {
           )}
           {step.outcomeItems.map((item, i) => (
             <React.Fragment key={i}>
-              {/* Insert divider before "Campaign goal" item */}
               {item.bold === "Campaign goal: $6,000" && <hr className="guided-divider" />}
               <p className="guided-outcome-item">
                 <span>{item.bold}</span>
@@ -202,14 +211,26 @@ export default function GuidedCreatorFlow() {
             {step.navNext.label}
           </button>
         )}
-        {/* Step 99: action button */}
+        {/* Direct action button (steps 9, 10) */}
+        {step.directAction && (
+          <button
+            className="guided-btn guided-btn-primary"
+            onClick={() => executeAction({
+              type: step.directAction!.action === 'createProject' ? 'createProject' : 'publish',
+            })}
+            disabled={creating}
+          >
+            {creating ? 'Setting up...' : step.directAction.label}
+          </button>
+        )}
+        {/* Step 99: campaign action button */}
         {currentStep === 99 && pendingAction && (
           <button
             className="guided-btn guided-btn-primary"
             onClick={() => executeAction(pendingAction)}
             disabled={creating}
           >
-            {creating ? 'Setting up...' : 'Get started'}
+            {creating ? 'Setting up...' : 'Launch campaign setup'}
           </button>
         )}
       </div>
