@@ -237,7 +237,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
   8: {
     id: 8,
     title: "Campaign funds go to project escrow",
-    subtitle: "Since you haven't assembled your team yet, all funds will be locked in a single project escrow (PDA2). You'll create contractor escrow contracts as you hire.",
+    subtitle: "Since you haven't assembled your team yet, all funds will be locked in a secure project escrow. You'll create contractor escrow contracts as you hire.",
     breadcrumb: ["Launch campaign", "Raising to hire", "Campaign escrow"],
     breadcrumbActive: 2,
     variant: 'outcome',
@@ -330,7 +330,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
     variant: 'outcome',
     outcomeTitle: "How self-escrow works:",
     outcomeItems: [
-      { bold: "Campaign succeeds", text: "funds move to your project escrow (PDA2)" },
+      { bold: "Campaign succeeds", text: "funds move to your secure project escrow" },
       { bold: "You create", text: "work at your own pace within the project deadline" },
       { bold: "You publish a chapter", text: "platform confirms publication, escrow releases proportional funds to your wallet (minus 3% fee)" },
       { bold: "If you don't publish", text: "after the project deadline, backers can reclaim 100% of remaining funds" },
@@ -353,7 +353,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
       { bold: "Team contracts", text: "pre-configured if team was assembled (auto-split ready)" },
       { bold: "Campaign draft", text: "with budget breakdown and tier templates" },
     ],
-    afterOutcome: "You never had to think about PDAs, escrow types, or smart contract configuration. You just answered simple questions about your creative journey.",
+    afterOutcome: "You never had to think about escrow types or smart contract configuration. You just answered simple questions about your creative journey.",
     startOverButton: true,
   },
 };

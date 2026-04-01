@@ -136,36 +136,96 @@
   background: var(--panel, #1e293b);
   border: 1px solid var(--panel-border, #334155);
   border-radius: 12px;
-  padding: 20px 24px;
+  padding: 24px;
   margin-bottom: 16px;
 }
 
 .guided-outcome-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text, #e2e8f0);
-  margin: 0 0 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #64748b);
+  margin: 0 0 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.guided-outcome-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .guided-outcome-item {
-  font-size: 13px;
-  color: var(--text-secondary, #94a3b8);
-  margin: 8px 0;
-  line-height: 1.55;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-top: 1px solid var(--panel-border, #334155);
 }
 
-.guided-outcome-item span {
+.guided-outcome-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.guided-outcome-item:last-child {
+  padding-bottom: 0;
+}
+
+.guided-outcome-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.guided-outcome-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.guided-outcome-label {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text, #e2e8f0);
-  font-weight: 500;
+  margin: 0 0 2px;
+}
+
+.guided-outcome-desc {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+  line-height: 1.5;
 }
 
 .guided-divider {
   border: none;
   border-top: 1px solid var(--panel-border, #334155);
   margin: 12px 0;
+}
+
+/* Summary row (e.g., campaign goal total) */
+.guided-outcome-summary {
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border, #334155);
+  margin-top: 4px;
+}
+
+.guided-outcome-summary .guided-outcome-label {
+  font-size: 14px;
+}
+
+.guided-outcome-summary .guided-outcome-desc {
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
 }
 
 /* Note */

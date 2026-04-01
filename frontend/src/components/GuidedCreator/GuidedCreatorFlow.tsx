@@ -176,15 +176,22 @@ export default function GuidedCreatorFlow() {
           {step.outcomeTitle && (
             <p className="guided-outcome-title">{step.outcomeTitle}</p>
           )}
-          {step.outcomeItems.map((item, i) => (
-            <React.Fragment key={i}>
-              {item.bold === "Campaign goal: $6,000" && <hr className="guided-divider" />}
-              <p className="guided-outcome-item">
-                <span>{item.bold}</span>
-                {item.text && ` — ${item.text}`}
-              </p>
-            </React.Fragment>
-          ))}
+          <div className="guided-outcome-list">
+            {step.outcomeItems.map((item, i) => {
+              const isSummary = item.bold.startsWith("Campaign goal");
+              return (
+                <div key={i} className={`guided-outcome-item ${isSummary ? 'guided-outcome-summary' : ''}`}>
+                  {!isSummary && (
+                    <div className="guided-outcome-num">{i + 1}</div>
+                  )}
+                  <div className="guided-outcome-content">
+                    <p className="guided-outcome-label">{item.bold}</p>
+                    {item.text && <p className="guided-outcome-desc">{item.text}</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
