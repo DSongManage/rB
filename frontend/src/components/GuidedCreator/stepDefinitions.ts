@@ -21,7 +21,7 @@ export interface OutcomeItem {
   text: string;
 }
 
-export type DirectAction = 'createProject' | 'publish' | 'browseCollaborators';
+export type DirectAction = 'createProject' | 'publish' | 'browseCollaborators' | 'campaign';
 
 export interface StepDefinition {
   id: StepId;
@@ -232,7 +232,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
       { bold: "Milestone releases", text: "funds release as collaborators deliver approved work (3% escrow fee)" },
     ],
     afterOutcome: "Team members confirm their participation during setup. When funded, their escrow contracts activate instantly — no delay, no manual setup.",
-    navNext: { label: "Next: Set tiers and launch", stepId: 99 },
+    directAction: { label: "Set up your campaign", action: 'campaign' },
   },
 
   8: {
