@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import {
@@ -32,12 +32,20 @@ interface CollaboratorAllocation {
 
 export default function CampaignCreatePage() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>('type');
+  const [searchParams] = useSearchParams();
+  const typeParam = searchParams.get('type');
+
+  // If ?type=collaborative or ?type=solo is passed, skip the type selection step
+  const [step, setStep] = useState<Step>(
+    typeParam === 'collaborative' || typeParam === 'solo' ? 'basics' : 'type'
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   // Form state
-  const [campaignType, setCampaignType] = useState<'collaborative' | 'solo'>('collaborative');
+  const [campaignType, setCampaignType] = useState<'collaborative' | 'solo'>(
+    typeParam === 'solo' ? 'solo' : typeParam === 'collaborative' ? 'collaborative' : 'collaborative'
+  );
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [contentType, setContentType] = useState<'book' | 'comic' | 'art'>('book');

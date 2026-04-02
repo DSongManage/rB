@@ -21,7 +21,7 @@ export interface OutcomeItem {
   text: string;
 }
 
-export type DirectAction = 'createProject' | 'publish' | 'browseCollaborators' | 'campaign';
+export type DirectAction = 'createProject' | 'publish' | 'browseCollaborators' | 'campaign' | 'campaignSolo';
 
 export interface StepDefinition {
   id: StepId;
@@ -249,7 +249,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
       { bold: "60-day activity requirement", text: "if no escrow contracts are created within 60 days, backers can reclaim" },
       { bold: "Full protection", text: "funds only leave escrow as approved work is delivered" },
     ],
-    navNext: { label: "Next: Set tiers and launch", stepId: 99 },
+    directAction: { label: "Set up your campaign", action: 'campaign' },
   },
 
   // ── Hire path (step 9) — terminal with direct action ──
@@ -338,7 +338,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
       { bold: "If you don't publish", text: "after the project deadline, backers can reclaim 100% of remaining funds" },
     ],
     afterOutcome: "This is the strongest backer protection possible. They get a finished product or they get their money back. No middle ground.",
-    navNext: { label: "Next: Set up campaign", stepId: 99 },
+    directAction: { label: "Set up your campaign", action: 'campaignSolo' },
   },
 
   // ── Terminal step 99 — campaign action only ──

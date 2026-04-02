@@ -12,6 +12,7 @@ const ICON_MAP: Record<string, React.ComponentType<any>> = {
 
 type TerminalAction =
   | { type: 'campaign' }
+  | { type: 'campaignSolo' }
   | { type: 'createProject' }
   | { type: 'publish' }
   | { type: 'browseCollaborators' };
@@ -54,7 +55,10 @@ export default function GuidedCreatorFlow() {
     try {
       switch (action.type) {
         case 'campaign':
-          navigate('/studio/campaign/new');
+          navigate('/studio/campaign/new?type=collaborative');
+          break;
+        case 'campaignSolo':
+          navigate('/studio/campaign/new?type=solo');
           break;
         case 'createProject': {
           const timestamp = new Date().toLocaleString('en-US', {
@@ -93,9 +97,10 @@ export default function GuidedCreatorFlow() {
   // When navigating to step 99 via navNext, determine the pending action
   const handleNavNext = useCallback((stepId: StepId) => {
     if (stepId === 99) {
-      // Steps 7, 8, 12 all lead to campaign creation
-      if (currentStep === 7 || currentStep === 8 || currentStep === 12) {
-        setPendingAction({ type: 'campaign' });
+      if (currentStep === 8) {
+        setPendingAction({ type: 'campaign' }); // collaborative — raising to hire
+      } else if (currentStep === 12) {
+        setPendingAction({ type: 'campaignSolo' }); // solo self-escrow
       }
     }
     goTo(stepId);
