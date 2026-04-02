@@ -238,18 +238,19 @@ export const STEPS: Record<StepId, StepDefinition> = {
   8: {
     id: 8,
     title: "Campaign funds go to project escrow",
-    subtitle: "Since you haven't assembled your team yet, all funds will be locked in a secure project escrow. You'll create contractor escrow contracts as you hire.",
+    subtitle: "Since you haven't assembled your team yet, all funds will be locked in a secure project escrow. You'll hire and set up contracts after the campaign succeeds.",
     breadcrumb: ["Launch campaign", "Raising to hire", "Campaign escrow"],
     breadcrumbActive: 2,
     variant: 'outcome',
-    outcomeTitle: "How this works for backers:",
+    previewImage: '/campaign-solo-preview.png',
+    outcomeTitle: "HOW THIS WORKS FOR BACKERS:",
     outcomeItems: [
       { bold: "All funds locked", text: "nothing is released until you hire team members and they deliver work" },
       { bold: "Transparent progress", text: "backers see when you create contracts and milestones start completing" },
       { bold: "60-day activity requirement", text: "if no escrow contracts are created within 60 days, backers can reclaim" },
       { bold: "Full protection", text: "funds only leave escrow as approved work is delivered" },
     ],
-    directAction: { label: "Set up your campaign", action: 'campaign' },
+    directAction: { label: "Set up your campaign", action: 'campaignSolo' },
   },
 
   // ── Hire path (step 9) — terminal with direct action ──
