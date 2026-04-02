@@ -7,7 +7,9 @@ export interface StepOption {
   description: string;
   tag?: string;
   tagColor?: 'green' | 'blue' | 'amber';
-  targetStep: StepId;
+  targetStep?: StepId;
+  /** Execute a direct action instead of navigating to a step */
+  action?: DirectAction;
   /** For step 0: which content type this option selects */
   contentType?: ContentType;
   /** Lucide icon name for this option */
@@ -80,7 +82,8 @@ export const STEPS: Record<StepId, StepDefinition> = {
     ],
   },
 
-  // ── Step 1: Journey question (was step 0) ──
+  // ── Step 1: Journey question — content-type aware ──
+  // Default shown below; use getStep1ForContentType() for book/art variants
   1: {
     id: 1,
     title: "Where are you in your journey?",
@@ -104,13 +107,6 @@ export const STEPS: Record<StepId, StepDefinition> = {
         targetStep: 6,
         icon: 'Rocket',
         iconColor: '#8b5cf6',
-      },
-      {
-        label: "I have funding and need to hire",
-        description: "You have a budget (self-funded or from elsewhere) and need to find and pay your creative team through secure escrow.",
-        targetStep: 9,
-        icon: 'Briefcase',
-        iconColor: '#f59e0b',
       },
       {
         label: "I create everything myself",
@@ -258,7 +254,7 @@ export const STEPS: Record<StepId, StepDefinition> = {
   9: {
     id: 9,
     title: "Hire your team through escrow",
-    subtitle: "You have a budget and you're ready to build. Create your project, then browse the marketplace, send proposals, and fund escrow contracts.",
+    subtitle: "Browse the marketplace, find creators, and send proposals. Once a creator accepts, the project auto-creates and you fund the escrow contract.",
     breadcrumb: ["Self-funded production", "Hire team"],
     breadcrumbActive: 0,
     variant: 'outcome',
@@ -266,12 +262,13 @@ export const STEPS: Record<StepId, StepDefinition> = {
     outcomeItems: [
       { bold: "Browse creators", text: "filter by role, genre, style, rating, availability" },
       { bold: "Send proposals", text: "specify role, page rate, milestone structure, timeline" },
+      { bold: "Creator accepts", text: "project auto-creates when they accept your proposal" },
       { bold: "Fund escrow", text: "deposit full project budget. Contractor sees locked funds before starting." },
       { bold: "Manage milestones", text: "review deliverables, approve, request revisions. Funds release per milestone." },
-      { bold: "Sequential pipeline", text: "art finishes, then hire colorist, then letterer. Each role gets its own contract." },
     ],
+    previewImage: '/marketplace-preview.png',
     startOverButton: true,
-    directAction: { label: "Create project", action: 'createProject' },
+    directAction: { label: "Browse creators", action: 'browseCollaborators' },
   },
 
   // ── Publish path (step 10) — terminal with direct action ──
@@ -312,13 +309,8 @@ export const STEPS: Record<StepId, StepDefinition> = {
       },
       {
         label: "Publish and sell my work",
-        description: "You have finished content ready to go. Upload it, set a price, and start earning from reader purchases.",
-        targetStep: 10,
-      },
-      {
-        label: "Actually, I need to hire some help",
-        description: "Maybe a colorist or letterer? You can hire specific roles through escrow while keeping creative control.",
-        targetStep: 9,
+        description: "You have finished content ready to go. Go straight to your studio to upload pages, set a price, and start earning.",
+        action: 'createProject',
       },
     ],
   },
@@ -360,3 +352,274 @@ export const STEPS: Record<StepId, StepDefinition> = {
     startOverButton: true,
   },
 };
+
+// ── Content-type-aware step overrides ──
+// Steps that mention comic-specific roles/language get tailored per content type.
+
+const CONTENT_LABELS: Record<ContentType, {
+  roles: string;
+  findRoles: string;
+  deliverable: string;
+  deliverablePlural: string;
+  unit: string;
+  unitPlural: string;
+  creatorNoun: string;
+}> = {
+  comic: {
+    roles: 'artists, colorists, or letterers',
+    findRoles: 'artist, colorist, letterer, editor',
+    deliverable: 'page',
+    deliverablePlural: 'pages',
+    unit: 'chapter or issue',
+    unitPlural: 'chapters',
+    creatorNoun: 'artist',
+  },
+  book: {
+    roles: 'editors, cover designers, or illustrators',
+    findRoles: 'editor, cover designer, illustrator, proofreader',
+    deliverable: 'chapter',
+    deliverablePlural: 'chapters',
+    unit: 'chapter or full book',
+    unitPlural: 'chapters',
+    creatorNoun: 'editor',
+  },
+  art: {
+    roles: 'writers, colorists, or other creative partners',
+    findRoles: 'writer, colorist, animator, designer',
+    deliverable: 'piece',
+    deliverablePlural: 'pieces',
+    unit: 'piece or collection',
+    unitPlural: 'pieces',
+    creatorNoun: 'collaborator',
+  },
+};
+
+/**
+ * Returns a content-type-aware version of any step.
+ * Comic uses defaults. Book and Art get tailored language.
+ */
+export function getStepForContentType(stepId: StepId, contentType: ContentType): StepDefinition {
+  const L = CONTENT_LABELS[contentType];
+
+  // Step 1: Journey question
+  if (stepId === 1) return getStep1ForContentType(contentType);
+
+  // Step 2: Find collaborator
+  if (stepId === 2) {
+    return {
+      ...STEPS[2],
+      options: [
+        {
+          label: "Yes — I know who I want to work with",
+          description: `We'll create your project and you can invite them from the Team tab. If they're on renaissBlock, they'll get a notification instantly.`,
+          tag: "Fastest path",
+          tagColor: 'green',
+          targetStep: 3,
+          icon: 'UserCheck',
+          iconColor: '#10b981',
+        },
+        {
+          label: "No — help me find one",
+          description: `Browse the Collaborators page to find ${L.findRoles} by role, genre, and style. Create your project after you've found the right fit.`,
+          targetStep: 4,
+          icon: 'Search',
+          iconColor: '#3b82f6',
+        },
+      ],
+    };
+  }
+
+  // Step 3: Create project (known collaborator)
+  if (stepId === 3) {
+    return {
+      ...STEPS[3],
+      outcomeItems: [
+        { bold: "Go to the Team tab", text: "search for your collaborator by username" },
+        { bold: "Click 'Invite to Collaborate'", text: `choose their role (${L.findRoles})` },
+        { bold: "Set payment terms", text: "work-for-hire, revenue share, or hybrid — you'll negotiate directly" },
+        { bold: "Fund escrow when ready", text: "your collaborator sees locked funds before starting work" },
+      ],
+    };
+  }
+
+  // Step 4: Browse collaborators
+  if (stepId === 4) {
+    return {
+      ...STEPS[4],
+      outcomeItems: [
+        { bold: "Filter by role", text: `${L.findRoles} — find exactly what you need` },
+        { bold: "Check their portfolio", text: "every creator has published work you can preview" },
+        { bold: "Look at ratings and availability", text: "see if they're open to offers or currently booked" },
+        { bold: "Send an invite", text: "click 'Invite to Collaborate' — they'll see your project and can accept or decline" },
+      ],
+    };
+  }
+
+  // Step 6: Team status for campaign
+  if (stepId === 6) {
+    return {
+      ...STEPS[6],
+      options: [
+        {
+          label: "Yes — team is assembled with agreed rates",
+          description: `You know who's handling the work and you've agreed on rates. Campaign funds will auto-split into pre-configured escrow contracts when funded. Backers see exactly where every dollar goes.`,
+          tag: "Strongest backer trust",
+          tagColor: 'green',
+          targetStep: 7,
+        },
+        {
+          label: "No — I'm raising funds to hire",
+          description: "Campaign funds will go into a project escrow. You'll hire and set up contracts after the campaign succeeds. Funds are locked until work delivers.",
+          targetStep: 8,
+        },
+      ],
+    };
+  }
+
+  // Step 9: Hire through escrow
+  if (stepId === 9) {
+    return {
+      ...STEPS[9],
+      outcomeItems: [
+        { bold: "Browse creators", text: `filter by role, genre, style, rating, availability` },
+        { bold: "Send proposals", text: `specify role, ${L.deliverable} rate, milestone structure, timeline` },
+        { bold: "Creator accepts", text: "project auto-creates when they accept your proposal" },
+        { bold: "Fund escrow", text: "deposit full project budget. Contractor sees locked funds before starting." },
+        { bold: "Manage milestones", text: "review deliverables, approve, request revisions. Funds release per milestone." },
+      ],
+    };
+  }
+
+  // Step 10: Publish
+  if (stepId === 10) {
+    return {
+      ...STEPS[10],
+      outcomeItems: [
+        { bold: `Upload finished ${L.deliverablePlural}`, text: "the platform compiles them into a readable format" },
+        { bold: "Set your price", text: `you decide what readers pay per ${L.unit}` },
+        { bold: "Revenue splits activate", text: "if any collaborators have revenue share agreements, the smart contract enforces the split on every sale automatically" },
+        { bold: "Campaign backers get access", text: "anyone who backed the project gets their tier rewards fulfilled automatically" },
+        { bold: "Sales fee: 10%", text: "platform takes 10% of each sale (1% for founding creators)" },
+      ],
+    };
+  }
+
+  // Step 11: Solo creator options
+  if (stepId === 11) {
+    return {
+      ...STEPS[11],
+      options: [
+        {
+          label: "Run a campaign to fund my project",
+          description: `Raise money from backers. Funds are locked in self-escrow and release as you publish ${L.unitPlural}. Backers get full refund if you don't deliver.`,
+          targetStep: 12,
+        },
+        {
+          label: "Publish and sell my work",
+          description: `You have finished content ready to go. Go straight to your studio to upload ${L.deliverablePlural}, set a price, and start earning.`,
+          action: 'createProject',
+        },
+      ],
+    };
+  }
+
+  // Step 12: Solo campaign
+  if (stepId === 12) {
+    return {
+      ...STEPS[12],
+      outcomeItems: [
+        { bold: "Campaign succeeds", text: "funds move to your secure project escrow" },
+        { bold: "You create", text: "work at your own pace within the project deadline" },
+        { bold: `You publish a ${L.deliverable}`, text: `platform confirms publication, escrow releases proportional funds to your wallet (minus 3% fee)` },
+        { bold: "If you don't publish", text: "after the project deadline, backers can reclaim 100% of remaining funds" },
+      ],
+    };
+  }
+
+  return STEPS[stepId];
+}
+
+/**
+ * Returns a content-type-aware version of step 1.
+ * Comic uses the default. Book and Art get tailored language.
+ */
+export function getStep1ForContentType(contentType: ContentType): StepDefinition {
+  if (contentType === 'book') {
+    return {
+      id: 1,
+      title: "Where are you in your journey?",
+      subtitle: "We'll guide you to the right tools and next steps.",
+      variant: 'options',
+      options: [
+        {
+          label: "I have a manuscript and need help",
+          description: "You've written a draft and need an editor, cover designer, or illustrator. We'll help you find collaborators and manage the project.",
+          tag: "Most common",
+          tagColor: 'green',
+          targetStep: 2,
+          icon: 'Users',
+          iconColor: '#3b82f6',
+        },
+        {
+          label: "I have a book and want to raise funds",
+          description: "You have a completed or near-complete manuscript. You're ready to launch a campaign and let your audience fund editing, design, and publishing.",
+          tag: "Ready to fund",
+          tagColor: 'blue',
+          targetStep: 6,
+          icon: 'Rocket',
+          iconColor: '#8b5cf6',
+        },
+        {
+          label: "I write everything myself",
+          description: "You're an independent author. You want to publish chapters, sell your book, or run a campaign to fund your writing.",
+          tag: "Solo author",
+          tagColor: 'amber',
+          targetStep: 11,
+          icon: 'Pen',
+          iconColor: '#10b981',
+        },
+      ],
+    };
+  }
+
+  if (contentType === 'art') {
+    return {
+      id: 1,
+      title: "Where are you in your journey?",
+      subtitle: "We'll guide you to the right tools and next steps.",
+      variant: 'options',
+      options: [
+        {
+          label: "I have artwork and need collaborators",
+          description: "You're an artist looking for a writer, colorist, or other creative partner to build a project together.",
+          tag: "Most common",
+          tagColor: 'green',
+          targetStep: 2,
+          icon: 'Users',
+          iconColor: '#3b82f6',
+        },
+        {
+          label: "I have a collection and want to raise funds",
+          description: "You have artwork ready to showcase. You're ready to launch a campaign and let your audience fund a full collection or series.",
+          tag: "Ready to fund",
+          tagColor: 'blue',
+          targetStep: 6,
+          icon: 'Rocket',
+          iconColor: '#8b5cf6',
+        },
+        {
+          label: "I create everything myself",
+          description: "You're an independent artist. You want to publish, sell prints, or run a campaign to fund your next collection.",
+          tag: "Solo artist",
+          tagColor: 'amber',
+          targetStep: 11,
+          icon: 'Pen',
+          iconColor: '#10b981',
+        },
+      ],
+    };
+  }
+
+  // Default: comic
+  return STEPS[1];
+}

@@ -6435,6 +6435,7 @@ class Campaign(models.Model):
     # On-chain PDA1 address
     campaign_pda = models.CharField(max_length=64, blank=True)
     campaign_pda_bump = models.PositiveSmallIntegerField(null=True, blank=True)
+    on_chain_initialized = models.BooleanField(default=False)
 
     # Timing
     funded_at = models.DateTimeField(null=True, blank=True)
@@ -6451,6 +6452,10 @@ class Campaign(models.Model):
         help_text="Last milestone activity + 90 days. Return to campaign if exceeded."
     )
     completed_at = models.DateTimeField(null=True, blank=True)
+
+    # On-chain tx signatures for audit
+    transfer_tx_signature = models.CharField(max_length=128, blank=True)
+    cancel_tx_signature = models.CharField(max_length=128, blank=True)
 
     # Solo campaign: serialized chapter release
     chapter_count = models.PositiveIntegerField(
@@ -6563,6 +6568,8 @@ class CampaignContribution(models.Model):
 
     # On-chain tracking
     transaction_signature = models.CharField(max_length=128, blank=True)
+    backer_record_pda = models.CharField(max_length=64, blank=True)
+    reclaim_tx_signature = models.CharField(max_length=128, blank=True)
 
     # Payment intent integration
     purchase_intent = models.ForeignKey(
@@ -6580,6 +6587,13 @@ class CampaignContribution(models.Model):
         indexes = [
             models.Index(fields=['campaign', 'status']),
             models.Index(fields=['backer', 'campaign']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['campaign', 'backer'],
+                condition=models.Q(status__in=['pending', 'confirmed', 'transferred']),
+                name='unique_active_campaign_backer',
+            ),
         ]
 
     def __str__(self):

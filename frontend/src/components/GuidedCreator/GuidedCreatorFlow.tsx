@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collaborationApi } from '../../services/collaborationApi';
-import { STEPS, StepId, ContentType } from './stepDefinitions';
+import { STEPS, StepId, ContentType, getStepForContentType } from './stepDefinitions';
 import { Layers, BookOpen, Image, Users, Rocket, Briefcase, Pen, UserCheck, Search } from 'lucide-react';
 import './GuidedCreatorFlow.css';
 
@@ -21,31 +21,30 @@ export default function GuidedCreatorFlow() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<StepId>(0);
   const [history, setHistory] = useState<StepId[]>([]);
+  const historyRef = useRef<StepId[]>([]);
   const [selectedContentType, setSelectedContentType] = useState<ContentType>('comic');
   const [pendingAction, setPendingAction] = useState<TerminalAction | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
 
   const goTo = useCallback((stepId: StepId) => {
-    setCurrentStep(prev => {
-      setHistory(h => [...h, prev]);
-      return stepId;
-    });
-  }, []);
+    historyRef.current = [...historyRef.current, currentStep];
+    setHistory(historyRef.current);
+    setCurrentStep(stepId);
+  }, [currentStep]);
 
   const goBack = useCallback(() => {
-    setHistory(h => {
-      if (h.length === 0) return h;
-      const newHistory = [...h];
-      const prev = newHistory.pop()!;
-      setCurrentStep(prev);
-      return newHistory;
-    });
+    if (historyRef.current.length === 0) return;
+    const target = historyRef.current[historyRef.current.length - 1];
+    historyRef.current = historyRef.current.slice(0, -1);
+    setHistory(historyRef.current);
+    setCurrentStep(target);
   }, []);
 
   const startOver = useCallback(() => {
-    setCurrentStep(0);
+    historyRef.current = [];
     setHistory([]);
+    setCurrentStep(0);
     setPendingAction(null);
   }, []);
 
@@ -106,7 +105,8 @@ export default function GuidedCreatorFlow() {
     goTo(stepId);
   }, [currentStep, goTo]);
 
-  const step = STEPS[currentStep];
+  // Use content-type-aware steps for all shared steps
+  const step = getStepForContentType(currentStep, selectedContentType);
 
   return (
     <div className="guided-flow">
@@ -152,7 +152,15 @@ export default function GuidedCreatorFlow() {
               <div
                 key={i}
                 className="guided-option"
-                onClick={() => !creating && handleOptionClick(opt.targetStep, opt.contentType)}
+                onClick={() => {
+                  if (creating) return;
+                  if (opt.contentType) setSelectedContentType(opt.contentType);
+                  if (opt.action) {
+                    executeAction({ type: opt.action });
+                  } else if (opt.targetStep !== undefined) {
+                    handleOptionClick(opt.targetStep, opt.contentType);
+                  }
+                }}
                 style={{ opacity: creating ? 0.6 : 1, cursor: creating ? 'wait' : 'pointer' }}
               >
                 {opt.tag && (

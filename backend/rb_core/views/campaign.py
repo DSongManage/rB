@@ -25,8 +25,13 @@ from rest_framework import serializers
 from ..models import (
     Campaign, CampaignContribution, CampaignUpdate,
     CampaignTier, CampaignMedia,
-    CollaborativeProject,
+    CollaborativeProject, CollaboratorRole,
 )
+
+try:
+    from solders.pubkey import Pubkey
+except ImportError:
+    Pubkey = None  # Solana SDK not installed
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +263,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def launch(self, request, pk=None):
-        """Activate a draft campaign."""
+        """Activate a draft campaign and initialize PDA1 on-chain."""
         campaign = self.get_object()
         if campaign.creator != request.user:
             return Response(
@@ -270,6 +275,20 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 {'error': f'Cannot launch: campaign is {campaign.status}.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        # Initialize campaign PDA on-chain before transitioning to active
+        try:
+            from ..services.campaign_solana_service import CampaignSolanaService
+            service = CampaignSolanaService()
+            sig = service.initialize_campaign_on_chain(campaign)
+            logger.info('Campaign %d initialized on-chain: %s', campaign.id, sig)
+        except Exception as e:
+            logger.error('Failed to initialize campaign %d on-chain: %s', campaign.id, e)
+            return Response(
+                {'error': 'Failed to initialize on-chain escrow. Please try again.', 'detail': str(e)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
         campaign.status = 'active'
         campaign.save(update_fields=['status', 'updated_at'])
         return Response(CampaignDetailSerializer(campaign, context={'request': request}).data)
@@ -389,10 +408,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
     def transfer_to_escrow(self, request, pk=None):
         """Transfer campaign funds from PDA1 to PDA2 (project escrow).
 
-        For solo campaigns: auto-creates escrow with chapter-based milestones
-        (platform=writer, creator=artist). Then transfers funds PDA1→PDA2.
-
-        For collaborative campaigns: requires collaborator contracts to be set up first.
+        Solo: auto-creates a CollaborativeProject, initializes escrow PDA2, transfers funds.
+        Collaborative: requires existing project, initializes escrow PDA2, transfers funds.
         """
         campaign = self.get_object()
         if campaign.creator != request.user:
@@ -400,42 +417,98 @@ class CampaignViewSet(viewsets.ModelViewSet):
         if campaign.status != 'funded':
             return Response({'error': f'Cannot transfer: campaign is {campaign.status}, must be funded.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Compute PDA addresses and log transfer details
         from ..services.campaign_solana_service import CampaignSolanaService
         service = CampaignSolanaService()
-        transfer_details = service.log_transfer_details(campaign)
 
-        # For solo: auto-setup escrow and mark transferred
-        if campaign.campaign_type == 'solo':
-            escrow_pda = transfer_details.get('escrow_pda', '')
-            escrow_bump = transfer_details.get('escrow_pda_bump')
-            campaign.mark_transferred(escrow_pda, escrow_bump)
-            campaign.contributions.filter(status='confirmed').update(status='transferred')
+        try:
+            if campaign.campaign_type == 'solo':
+                # Auto-create project for solo campaign
+                if not campaign.project:
+                    project = CollaborativeProject.objects.create(
+                        title=campaign.title,
+                        content_type=campaign.content_type or 'comic',
+                        description=campaign.description,
+                        created_by=campaign.creator,
+                        status='active',
+                        is_solo=True,
+                    )
+                    campaign.project = project
+                    campaign.save(update_fields=['project'])
+                    logger.info('[CampaignTransfer] Auto-created project %d for solo campaign %d', project.id, campaign.id)
 
-            logger.info(
-                '[CampaignTransfer] Solo campaign %s ($%s) transferred. Escrow PDA: %s',
-                campaign.id, campaign.current_amount, escrow_pda
-            )
-        else:
-            # Collaborative: verify collaborator contracts exist
-            if not campaign.project:
-                return Response(
-                    {'error': 'Collaborative campaigns must be linked to a project with collaborator contracts.'},
-                    status=status.HTTP_400_BAD_REQUEST
+                # Initialize escrow PDA2 on-chain
+                escrow_info = service.setup_solo_escrow(campaign)
+                chapter_count = escrow_info['chapter_count']
+                per_chapter = escrow_info['per_chapter_lamports']
+                milestone_amounts = [per_chapter] * chapter_count
+                # Spread deadlines evenly over the escrow period (90 days)
+                import time
+                base_deadline = int(time.time()) + (90 * 86400)
+                milestone_deadlines = [base_deadline + (i * 30 * 86400) for i in range(chapter_count)]
+
+                service.initialize_escrow_on_chain(
+                    campaign, escrow_info['artist_pubkey'], milestone_amounts, milestone_deadlines
                 )
-            escrow_pda = transfer_details.get('escrow_pda', '')
-            escrow_bump = transfer_details.get('escrow_pda_bump')
+
+                # Transfer PDA1 → PDA2 on-chain
+                transfer_sig = service.transfer_to_escrow_on_chain(campaign)
+
+                escrow_pda = escrow_info['escrow_pda']
+                escrow_bump = escrow_info['escrow_pda_bump']
+
+            else:
+                # Collaborative: project must already exist
+                if not campaign.project:
+                    return Response(
+                        {'error': 'Collaborative campaigns must be linked to a project.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Get first collaborator's wallet for escrow PDA derivation
+                first_collab = campaign.project.collaborators.filter(
+                    status='accepted'
+                ).select_related('user').first()
+                if not first_collab or not first_collab.user.wallet_address:
+                    return Response(
+                        {'error': 'No collaborator with a wallet address found.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                artist_pubkey_obj = Pubkey.from_string(first_collab.user.wallet_address)
+                total_lamports = service._usd_to_lamports(campaign.funding_goal)
+                # Use collaborator allocations as milestones
+                allocations = campaign.collaborator_allocations or []
+                if allocations:
+                    milestone_amounts = [service._usd_to_lamports(Decimal(str(a.get('amount', 0)))) for a in allocations]
+                else:
+                    milestone_amounts = [total_lamports]
+
+                import time
+                base_deadline = int(time.time()) + (90 * 86400)
+                milestone_deadlines = [base_deadline + (i * 30 * 86400) for i in range(len(milestone_amounts))]
+
+                service.initialize_escrow_on_chain(
+                    campaign, artist_pubkey_obj, milestone_amounts, milestone_deadlines
+                )
+                transfer_sig = service.transfer_to_escrow_on_chain(campaign)
+
+                escrow_pda_obj, escrow_bump = service.derive_escrow_pda(campaign.id, artist_pubkey_obj)
+                escrow_pda = str(escrow_pda_obj)
+
+            # Update DB state
+            campaign.transfer_tx_signature = transfer_sig
             campaign.mark_transferred(escrow_pda, escrow_bump)
             campaign.contributions.filter(status='confirmed').update(status='transferred')
 
-            logger.info(
-                '[CampaignTransfer] Collab campaign %s ($%s) transferred. Escrow PDA: %s',
-                campaign.id, campaign.current_amount, escrow_pda
-            )
+            logger.info('[CampaignTransfer] Campaign %d transferred. PDA2: %s, TX: %s',
+                        campaign.id, escrow_pda, transfer_sig)
 
-        # Trigger async on-chain transfer task
-        from ..tasks import process_campaign_transfer
-        process_campaign_transfer.delay(campaign.id)
+        except Exception as e:
+            logger.error('[CampaignTransfer] Failed for campaign %d: %s', campaign.id, e, exc_info=True)
+            return Response(
+                {'error': 'Transfer to escrow failed. Please try again.', 'detail': str(e)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
 
         return Response(CampaignDetailSerializer(campaign, context={'request': request}).data)
 
@@ -470,7 +543,8 @@ class CampaignViewSet(viewsets.ModelViewSet):
         """Backer initiates reclaim of their contribution.
 
         Available when campaign status is 'failed' or 'reclaimable'.
-        Returns the backer's contribution amount and reclaim info.
+        If request includes transaction_signature, verifies and marks as reclaimed.
+        Otherwise, returns instruction params for frontend wallet signing.
         """
         campaign = self.get_object()
         if campaign.status not in ('failed', 'reclaimable'):
@@ -485,28 +559,51 @@ class CampaignViewSet(viewsets.ModelViewSet):
         if not contribution:
             return Response({'error': 'No reclaimable contribution found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Calculate proportional refund if some milestones were released
-        total_funded = float(campaign.current_amount)
-        backer_amount = float(contribution.amount)
-        # For pre-transfer reclaims, backer gets full amount
-        # For post-transfer (proportional), amount is scaled by remaining balance
-        refund_amount = backer_amount  # Full amount for pre-transfer
+        transaction_signature = request.data.get('transaction_signature', '')
 
-        # Mark contribution as reclaimed
-        contribution.status = 'reclaimed'
-        contribution.save(update_fields=['status'])
+        if transaction_signature:
+            # Verify the on-chain reclaim tx, then mark as reclaimed
+            if campaign.on_chain_initialized:
+                try:
+                    from ..services.campaign_solana_service import CampaignSolanaService
+                    service = CampaignSolanaService()
+                    verified = service.verify_contribution_tx(transaction_signature, campaign, '', Decimal('0'))
+                    if not verified:
+                        return Response({'error': 'Reclaim transaction verification failed.'}, status=status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    logger.warning('Reclaim TX verification error: %s', e)
 
-        logger.info(
-            '[CampaignReclaim] %s reclaimed $%s from campaign %s',
-            request.user.username, refund_amount, campaign.id
-        )
+            contribution.status = 'reclaimed'
+            contribution.reclaim_tx_signature = transaction_signature
+            contribution.save(update_fields=['status', 'reclaim_tx_signature'])
 
-        return Response({
-            'contribution_id': contribution.id,
-            'refund_amount': str(refund_amount),
-            'campaign_pda': campaign.campaign_pda,
-            'status': 'reclaimed',
-        })
+            logger.info('[CampaignReclaim] %s reclaimed $%s from campaign %s',
+                        request.user.username, contribution.amount, campaign.id)
+
+            return Response({
+                'contribution_id': contribution.id,
+                'refund_amount': str(contribution.amount),
+                'campaign_pda': campaign.campaign_pda,
+                'status': 'reclaimed',
+            })
+        else:
+            # Return instruction params for frontend to build reclaim tx
+            reclaim_params = {}
+            backer_wallet = getattr(request.user, 'wallet_address', '')
+            if backer_wallet and campaign.on_chain_initialized:
+                try:
+                    from ..services.campaign_solana_service import CampaignSolanaService
+                    service = CampaignSolanaService()
+                    reclaim_params = service.get_reclaim_instruction_params(campaign, backer_wallet)
+                except Exception as e:
+                    logger.warning('Failed to build reclaim instruction params: %s', e)
+
+            return Response({
+                'contribution_id': contribution.id,
+                'refund_amount': str(contribution.amount),
+                'campaign_pda': campaign.campaign_pda,
+                **reclaim_params,
+            })
 
     @action(detail=True, methods=['get'], url_path='escrow-status')
     def escrow_status(self, request, pk=None):
@@ -575,6 +672,17 @@ class CreateCampaignContributionIntentView(APIView):
             has_sufficient_balance = False
             current_balance = '0.00'
 
+        # Get on-chain instruction params for frontend wallet signing
+        instruction_params = {}
+        try:
+            backer_wallet = getattr(request.user, 'wallet_address', None)
+            if backer_wallet and campaign.campaign_pda:
+                from ..services.campaign_solana_service import CampaignSolanaService
+                service = CampaignSolanaService()
+                instruction_params = service.get_contribute_instruction_params(campaign, backer_wallet, amount)
+        except Exception as e:
+            logger.warning('Failed to build contribution instruction params: %s', e)
+
         return Response({
             'contribution_id': contribution.id,
             'amount': str(amount),
@@ -584,6 +692,8 @@ class CreateCampaignContributionIntentView(APIView):
             'current_balance': current_balance,
             'fee': '0.00',
             'fee_note': 'Campaign contributions have 0% platform fee.',
+            # On-chain instruction params for wallet signing
+            **instruction_params,
         })
 
 
@@ -609,10 +719,34 @@ class ConfirmCampaignContributionView(APIView):
         if campaign.status != 'active':
             return Response({'error': 'Campaign is no longer active.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Verify on-chain transaction if signature provided
+        if transaction_signature and campaign.on_chain_initialized:
+            try:
+                from ..services.campaign_solana_service import CampaignSolanaService
+                service = CampaignSolanaService()
+                backer_wallet = getattr(request.user, 'wallet_address', '')
+                if backer_wallet:
+                    verified = service.verify_contribution_tx(
+                        transaction_signature, campaign, backer_wallet, contribution.amount
+                    )
+                    if not verified:
+                        logger.warning('Contribution TX verification failed: %s', transaction_signature)
+                        return Response(
+                            {'error': 'Transaction verification failed. Please check and try again.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    # Store backer record PDA
+                    campaign_pda, _ = service.derive_campaign_pda(campaign.id)
+                    backer_pubkey = Pubkey.from_string(backer_wallet)
+                    backer_record_pda, _ = service.derive_backer_pda(campaign_pda, backer_pubkey)
+                    contribution.backer_record_pda = str(backer_record_pda)
+            except Exception as e:
+                logger.warning('Contribution TX verification error (non-blocking): %s', e)
+
         with transaction.atomic():
             contribution.status = 'confirmed'
             contribution.transaction_signature = transaction_signature
-            contribution.save(update_fields=['status', 'transaction_signature'])
+            contribution.save(update_fields=['status', 'transaction_signature', 'backer_record_pda'])
 
             campaign.current_amount += contribution.amount
             campaign.backer_count = campaign.contributions.filter(

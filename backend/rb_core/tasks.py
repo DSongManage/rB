@@ -2518,6 +2518,15 @@ def check_campaign_deadlines():
 
     for campaign in expired:
         try:
+            # Cancel on-chain so backers can reclaim from PDA
+            if campaign.on_chain_initialized:
+                try:
+                    from .services.campaign_solana_service import CampaignSolanaService
+                    service = CampaignSolanaService()
+                    service.cancel_campaign_on_chain(campaign)
+                except Exception as e:
+                    logger.warning('[CampaignDeadline] On-chain cancel failed for %s: %s', campaign.id, e)
+
             campaign.mark_failed()
             results['failed'] += 1
             logger.info(
@@ -2609,18 +2618,24 @@ def check_solo_chapter_releases():
                 campaign.escrow_dormancy_deadline = timezone.now() + timedelta(days=90)
                 campaign.save(update_fields=['chapters_published', 'escrow_dormancy_deadline', 'updated_at'])
 
-                # Trigger on-chain release for each new chapter
-                from .services.campaign_solana_service import CampaignSolanaService
-                service = CampaignSolanaService()
-                for i in range(old_published, campaign.chapters_published):
-                    try:
-                        escrow_info = service.setup_solo_escrow(campaign)
-                        logger.info(
-                            '[SoloRelease] Chapter %d released for campaign %s (escrow: %s)',
-                            i + 1, campaign.id, escrow_info.get('escrow_pda', 'pending')
-                        )
-                    except Exception as e:
-                        logger.warning('[SoloRelease] On-chain release pending for chapter %d: %s', i + 1, e)
+                # Trigger on-chain milestone submit + approve for each new chapter
+                if campaign.on_chain_initialized and campaign.escrow_pda:
+                    from .services.campaign_solana_service import CampaignSolanaService
+                    service = CampaignSolanaService()
+                    for i in range(old_published, campaign.chapters_published):
+                        try:
+                            # Platform submits milestone (as writer for solo)
+                            service.submit_milestone_on_chain(campaign, i)
+                            # Platform auto-approves (releases funds minus 3% fee)
+                            service.approve_milestone_on_chain(campaign, i)
+                            logger.info(
+                                '[SoloRelease] Chapter %d milestone approved on-chain for campaign %s',
+                                i + 1, campaign.id
+                            )
+                        except Exception as e:
+                            logger.warning('[SoloRelease] On-chain milestone %d failed for campaign %s: %s', i + 1, campaign.id, e)
+                else:
+                    logger.info('[SoloRelease] Campaign %s not on-chain, skipping milestone release', campaign.id)
 
                 results['released'] += new_chapters
                 logger.info(
@@ -2711,6 +2726,15 @@ def check_escrow_dormancy():
 
     for campaign in dormant:
         try:
+            # Return funds from PDA2 back to PDA1 on-chain
+            if campaign.on_chain_initialized and campaign.escrow_pda:
+                try:
+                    from .services.campaign_solana_service import CampaignSolanaService
+                    service = CampaignSolanaService()
+                    service.return_to_campaign_on_chain(campaign)
+                except Exception as e:
+                    logger.warning('[EscrowDormancy] On-chain return failed for %s: %s', campaign.id, e)
+
             campaign.mark_reclaimable()
             results['returned'] += 1
             logger.info(

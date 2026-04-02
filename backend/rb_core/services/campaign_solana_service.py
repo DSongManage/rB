@@ -141,35 +141,47 @@ class CampaignSolanaService:
     # Campaign Instructions
     # ============================================================
 
-    def initialize_campaign_on_chain(self, campaign) -> str:
-        """Call initialize_campaign instruction. Creates PDA1 on-chain.
+    # USDC mint (devnet / mainnet — configure via settings)
+    @property
+    def usdc_mint(self) -> Pubkey:
+        mint_str = getattr(settings, 'USDC_MINT', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU')  # devnet
+        return Pubkey.from_string(mint_str)
 
+    def _usd_to_lamports(self, amount: Decimal) -> int:
+        """Convert USD amount to USDC lamports (6 decimals)."""
+        return int(Decimal(str(amount)) * 1_000_000)
+
+    # ============================================================
+    # Phase 1: Initialize Campaign (PDA1)
+    # ============================================================
+
+    def initialize_campaign_on_chain(self, campaign) -> str:
+        """Create PDA1 on-chain. Called when campaign launches.
+
+        Uses campaign.id as the on-chain project_id seed.
         Returns transaction signature.
         """
-        project_id = campaign.id
-        funding_goal = int(Decimal(str(campaign.funding_goal)) * 1_000_000)  # USDC decimals
+        campaign_id = campaign.id
+        funding_goal = self._usd_to_lamports(campaign.funding_goal)
         deadline = int(campaign.deadline.timestamp())
-        campaign_type = 1 if campaign.campaign_type == 'solo' else 0  # Solo=1, Collaborative=0
+        campaign_type = 1 if campaign.campaign_type == 'solo' else 0
         chapter_count = campaign.chapter_count or 0
-        fee_bps = 300  # 3%
+        fee_bps = 300  # 3% escrow release fee
 
-        campaign_pda, _ = self.derive_campaign_pda(project_id)
+        campaign_pda, campaign_bump = self.derive_campaign_pda(campaign_id)
 
-        # Instruction data: discriminator + project_id(u64) + funding_goal(u64) + deadline(i64)
-        #                    + campaign_type(u8) + chapter_count(u8) + fee_bps(u16)
         data = DISC_INITIALIZE_CAMPAIGN
-        data += struct.pack('<Q', project_id)      # u64 project_id
-        data += struct.pack('<Q', funding_goal)     # u64 funding_goal
-        data += struct.pack('<q', deadline)         # i64 deadline
-        data += struct.pack('<B', campaign_type)    # CampaignType enum (0=Collaborative, 1=Solo)
-        data += struct.pack('<B', chapter_count)    # u8 chapter_count
-        data += struct.pack('<H', fee_bps)          # u16 fee_bps
+        data += struct.pack('<Q', campaign_id)
+        data += struct.pack('<Q', funding_goal)
+        data += struct.pack('<q', deadline)
+        data += struct.pack('<B', campaign_type)
+        data += struct.pack('<B', chapter_count)
+        data += struct.pack('<H', fee_bps)
 
-        # Accounts: creator, platform_wallet, campaign_vault, token_program, system_program
         accounts = [
-            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),  # creator (payer)
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),   # creator/payer
             AccountMeta(self.platform_pubkey, is_signer=False, is_writable=False),  # platform_wallet
-            AccountMeta(campaign_pda, is_signer=False, is_writable=True),  # campaign_vault (PDA, init)
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),           # campaign_vault (PDA, init)
             AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
         ]
@@ -177,22 +189,178 @@ class CampaignSolanaService:
         ix = Instruction(PROGRAM_ID, data, accounts)
         sig = self._build_and_send([ix], [self.platform_keypair])
 
-        # Store PDA in DB
+        # Store PDA + bump in DB
         campaign.campaign_pda = str(campaign_pda)
-        campaign.save(update_fields=['campaign_pda'])
+        campaign.campaign_pda_bump = campaign_bump
+        campaign.on_chain_initialized = True
+        campaign.save(update_fields=['campaign_pda', 'campaign_pda_bump', 'on_chain_initialized'])
 
-        logger.info(
-            '[CampaignSolana] Campaign %d initialized on-chain. PDA: %s, TX: %s',
-            campaign.id, campaign_pda, sig
-        )
+        logger.info('[CampaignSolana] Campaign %d initialized. PDA: %s, TX: %s', campaign_id, campaign_pda, sig)
         return sig
 
-    def get_campaign_pda_for_db(self, campaign) -> dict:
-        pda, bump = self.derive_campaign_pda(campaign.id)
-        return {'campaign_pda': str(pda), 'campaign_pda_bump': bump}
+    # ============================================================
+    # Phase 2: Contribute (client-side signed, backend verifies)
+    # ============================================================
+
+    def get_contribute_instruction_params(self, campaign, backer_wallet: str, amount: Decimal) -> dict:
+        """Return instruction data + accounts for frontend to build the contribute tx.
+
+        The backer signs client-side. Backend calls this to provide the params.
+        """
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+        backer_pubkey = Pubkey.from_string(backer_wallet)
+        backer_record_pda, _ = self.derive_backer_pda(campaign_pda, backer_pubkey)
+        vault_ata = self.derive_ata(campaign_pda, self.usdc_mint)
+        backer_ata = self.derive_ata(backer_pubkey, self.usdc_mint)
+
+        amount_lamports = self._usd_to_lamports(amount)
+
+        # Instruction data: discriminator + amount(u64)
+        data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
+
+        # Accounts the frontend must include when building the ix
+        accounts = [
+            {'pubkey': str(backer_pubkey), 'is_signer': True, 'is_writable': True},     # backer
+            {'pubkey': str(campaign_pda), 'is_signer': False, 'is_writable': True},      # campaign_vault
+            {'pubkey': str(backer_record_pda), 'is_signer': False, 'is_writable': True}, # backer_record (init)
+            {'pubkey': str(backer_ata), 'is_signer': False, 'is_writable': True},        # backer_token_account
+            {'pubkey': str(vault_ata), 'is_signer': False, 'is_writable': True},         # vault_token_account
+            {'pubkey': str(self.usdc_mint), 'is_signer': False, 'is_writable': False},   # mint
+            {'pubkey': str(TOKEN_PROGRAM_ID), 'is_signer': False, 'is_writable': False},
+            {'pubkey': str(SYSTEM_PROGRAM_ID), 'is_signer': False, 'is_writable': False},
+        ]
+
+        return {
+            'program_id': str(PROGRAM_ID),
+            'instruction_data': data.hex(),
+            'accounts': accounts,
+            'campaign_pda': str(campaign_pda),
+            'vault_ata': str(vault_ata),
+            'backer_record_pda': str(backer_record_pda),
+            'amount_lamports': amount_lamports,
+        }
+
+    def verify_contribution_tx(self, signature: str, campaign, backer_wallet: str, expected_amount: Decimal) -> bool:
+        """Verify a contribution transaction on-chain.
+
+        Fetches the tx, checks it invoked our program, and that the amount matches.
+        Returns True if valid.
+        """
+        try:
+            from solders.signature import Signature
+            sig = Signature.from_string(signature)
+            resp = self.client.get_transaction(sig, commitment=Confirmed, max_supported_transaction_version=0)
+            if resp.value is None:
+                logger.warning('[CampaignSolana] TX not found: %s', signature)
+                return False
+
+            # Verify the transaction includes our program
+            tx_meta = resp.value
+            account_keys = tx_meta.transaction.transaction.message.account_keys
+            program_found = any(str(key) == str(PROGRAM_ID) for key in account_keys)
+            if not program_found:
+                logger.warning('[CampaignSolana] TX %s does not invoke our program', signature)
+                return False
+
+            # Check for errors
+            if tx_meta.transaction.meta and tx_meta.transaction.meta.err:
+                logger.warning('[CampaignSolana] TX %s has errors: %s', signature, tx_meta.transaction.meta.err)
+                return False
+
+            logger.info('[CampaignSolana] Contribution TX verified: %s', signature)
+            return True
+        except Exception as e:
+            logger.error('[CampaignSolana] Failed to verify TX %s: %s', signature, e)
+            return False
+
+    # ============================================================
+    # Phase 3: Transfer PDA1 → PDA2
+    # ============================================================
+
+    def initialize_escrow_on_chain(self, campaign, artist_pubkey: Pubkey,
+                                    milestone_amounts: list, milestone_deadlines: list) -> str:
+        """Create PDA2 (escrow vault) on-chain. Called before transfer.
+
+        Uses campaign.id as project_id seed so it matches PDA1.
+        """
+        campaign_id = campaign.id
+        escrow_pda, escrow_bump = self.derive_escrow_pda(campaign_id, artist_pubkey)
+
+        # Instruction data: discriminator + project_id(u64) + milestone_count(u8) +
+        #   [milestone_amount(u64)]... + [milestone_deadline(i64)]... + fee_bps(u16)
+        data = DISC_INITIALIZE_ESCROW
+        data += struct.pack('<Q', campaign_id)
+        data += struct.pack('<B', len(milestone_amounts))
+        for amt in milestone_amounts:
+            data += struct.pack('<Q', amt)
+        for dl in milestone_deadlines:
+            data += struct.pack('<q', dl)
+        data += struct.pack('<H', 300)  # 3% fee
+
+        accounts = [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),   # writer/payer
+            AccountMeta(artist_pubkey, is_signer=False, is_writable=False),         # artist
+            AccountMeta(self.platform_pubkey, is_signer=False, is_writable=False),  # platform_wallet
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # escrow_vault (init)
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        logger.info('[CampaignSolana] Escrow initialized for campaign %d. PDA2: %s, TX: %s',
+                    campaign_id, escrow_pda, sig)
+        return sig
+
+    def transfer_to_escrow_on_chain(self, campaign) -> str:
+        """Transfer funds from PDA1 (campaign vault) to PDA2 (escrow vault).
+
+        Must be called after initialize_escrow_on_chain.
+        """
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+
+        # Determine artist pubkey for escrow PDA derivation
+        if campaign.campaign_type == 'solo':
+            creator_wallet = campaign.creator.wallet_address
+            if not creator_wallet:
+                raise ValueError(f"Creator {campaign.creator.username} has no wallet address")
+            artist_pubkey = Pubkey.from_string(creator_wallet)
+        else:
+            # Collaborative: use the first collaborator or project creator
+            project = campaign.project
+            if not project:
+                raise ValueError("Collaborative campaign has no linked project")
+            first_collab = project.collaborators.filter(status='accepted').first()
+            if first_collab and first_collab.user.wallet_address:
+                artist_pubkey = Pubkey.from_string(first_collab.user.wallet_address)
+            else:
+                raise ValueError("No collaborator with wallet address found")
+
+        escrow_pda, _ = self.derive_escrow_pda(campaign.id, artist_pubkey)
+        campaign_vault_ata = self.derive_ata(campaign_pda, self.usdc_mint)
+        escrow_vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
+
+        data = DISC_TRANSFER_TO_ESCROW
+
+        accounts = [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),    # creator/signer
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),            # campaign_vault
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),              # escrow_vault
+            AccountMeta(campaign_vault_ata, is_signer=False, is_writable=True),      # campaign_token_account
+            AccountMeta(escrow_vault_ata, is_signer=False, is_writable=True),        # escrow_token_account
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        logger.info('[CampaignSolana] Transferred PDA1→PDA2 for campaign %d. TX: %s', campaign.id, sig)
+        return sig
 
     def setup_solo_escrow(self, campaign) -> dict:
-        """Get escrow setup info for a solo campaign."""
+        """Get escrow setup info for a solo campaign (derivation only, no on-chain call)."""
         creator_wallet = campaign.creator.wallet_address
         if not creator_wallet:
             raise ValueError(f"Creator {campaign.creator.username} has no wallet address")
@@ -200,7 +368,7 @@ class CampaignSolanaService:
         artist_pubkey = Pubkey.from_string(creator_wallet)
         escrow_pda, escrow_bump = self.derive_escrow_pda(campaign.id, artist_pubkey)
         chapter_count = campaign.chapter_count or 1
-        total_lamports = int(Decimal(str(campaign.funding_goal)) * 1_000_000)
+        total_lamports = self._usd_to_lamports(campaign.funding_goal)
         per_chapter = total_lamports // chapter_count
 
         return {
@@ -210,7 +378,152 @@ class CampaignSolanaService:
             'per_chapter_lamports': per_chapter,
             'total_lamports': total_lamports,
             'artist_wallet': creator_wallet,
+            'artist_pubkey': artist_pubkey,
         }
+
+    # ============================================================
+    # Phase 4: Cancel + Reclaim
+    # ============================================================
+
+    def cancel_campaign_on_chain(self, campaign) -> str:
+        """Mark campaign as cancelled/reclaimable on-chain so backers can reclaim."""
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+
+        data = _anchor_discriminator("cancel_campaign")
+
+        accounts = [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),  # creator
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),          # campaign_vault
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        campaign.cancel_tx_signature = sig
+        campaign.save(update_fields=['cancel_tx_signature'])
+
+        logger.info('[CampaignSolana] Campaign %d cancelled on-chain. TX: %s', campaign.id, sig)
+        return sig
+
+    def return_to_campaign_on_chain(self, campaign) -> str:
+        """Return dormant escrow funds (PDA2) back to campaign vault (PDA1)."""
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+
+        # Determine escrow PDA
+        if campaign.campaign_type == 'solo':
+            escrow_info = self.setup_solo_escrow(campaign)
+            escrow_pda = Pubkey.from_string(escrow_info['escrow_pda'])
+        else:
+            # Collaborative — use stored escrow_pda
+            if not campaign.escrow_pda:
+                raise ValueError("No escrow PDA stored for campaign")
+            escrow_pda = Pubkey.from_string(campaign.escrow_pda)
+
+        campaign_vault_ata = self.derive_ata(campaign_pda, self.usdc_mint)
+        escrow_vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
+
+        data = _anchor_discriminator("return_to_campaign")
+
+        accounts = [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),
+            AccountMeta(campaign_vault_ata, is_signer=False, is_writable=True),
+            AccountMeta(escrow_vault_ata, is_signer=False, is_writable=True),
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        logger.info('[CampaignSolana] Returned escrow→campaign for campaign %d. TX: %s', campaign.id, sig)
+        return sig
+
+    def get_reclaim_instruction_params(self, campaign, backer_wallet: str) -> dict:
+        """Return instruction params for frontend to build the reclaim tx (backer signs)."""
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+        backer_pubkey = Pubkey.from_string(backer_wallet)
+        backer_record_pda, _ = self.derive_backer_pda(campaign_pda, backer_pubkey)
+        vault_ata = self.derive_ata(campaign_pda, self.usdc_mint)
+        backer_ata = self.derive_ata(backer_pubkey, self.usdc_mint)
+
+        data = DISC_RECLAIM_CONTRIBUTION
+
+        accounts = [
+            {'pubkey': str(backer_pubkey), 'is_signer': True, 'is_writable': True},
+            {'pubkey': str(campaign_pda), 'is_signer': False, 'is_writable': True},
+            {'pubkey': str(backer_record_pda), 'is_signer': False, 'is_writable': True},
+            {'pubkey': str(vault_ata), 'is_signer': False, 'is_writable': True},
+            {'pubkey': str(backer_ata), 'is_signer': False, 'is_writable': True},
+            {'pubkey': str(self.usdc_mint), 'is_signer': False, 'is_writable': False},
+            {'pubkey': str(TOKEN_PROGRAM_ID), 'is_signer': False, 'is_writable': False},
+        ]
+
+        return {
+            'program_id': str(PROGRAM_ID),
+            'instruction_data': data.hex(),
+            'accounts': accounts,
+        }
+
+    # ============================================================
+    # Phase 5: Milestone Submit + Approve (solo chapter releases)
+    # ============================================================
+
+    def submit_milestone_on_chain(self, campaign, milestone_index: int) -> str:
+        """Submit a milestone for approval (platform submits on behalf of solo creator)."""
+        escrow_info = self.setup_solo_escrow(campaign)
+        escrow_pda = Pubkey.from_string(escrow_info['escrow_pda'])
+
+        data = DISC_SUBMIT_MILESTONE + struct.pack('<B', milestone_index)
+
+        accounts = [
+            AccountMeta(escrow_info['artist_pubkey'], is_signer=False, is_writable=False),  # artist
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),                      # escrow_vault
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),             # writer/submitter
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        logger.info('[CampaignSolana] Milestone %d submitted for campaign %d. TX: %s',
+                    milestone_index, campaign.id, sig)
+        return sig
+
+    def approve_milestone_on_chain(self, campaign, milestone_index: int) -> str:
+        """Approve a milestone and release funds from escrow (platform auto-approves for solo)."""
+        escrow_info = self.setup_solo_escrow(campaign)
+        escrow_pda = Pubkey.from_string(escrow_info['escrow_pda'])
+        artist_pubkey = escrow_info['artist_pubkey']
+        escrow_vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
+        artist_ata = self.derive_ata(artist_pubkey, self.usdc_mint)
+        platform_ata = self.derive_ata(self.platform_pubkey, self.usdc_mint)
+
+        data = DISC_APPROVE_MILESTONE + struct.pack('<B', milestone_index)
+
+        accounts = [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),   # writer/approver
+            AccountMeta(artist_pubkey, is_signer=False, is_writable=False),         # artist
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # escrow_vault
+            AccountMeta(escrow_vault_ata, is_signer=False, is_writable=True),       # escrow_token_account
+            AccountMeta(artist_ata, is_signer=False, is_writable=True),             # artist_token_account
+            AccountMeta(platform_ata, is_signer=False, is_writable=True),           # platform_fee_account
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        logger.info('[CampaignSolana] Milestone %d approved for campaign %d. TX: %s',
+                    milestone_index, campaign.id, sig)
+        return sig
+
+    # ============================================================
+    # Helpers
+    # ============================================================
+
+    def get_campaign_pda_for_db(self, campaign) -> dict:
+        pda, bump = self.derive_campaign_pda(campaign.id)
+        return {'campaign_pda': str(pda), 'campaign_pda_bump': bump}
 
     def log_transfer_details(self, campaign) -> dict:
         """Log PDA1 → PDA2 transfer details for audit."""
@@ -227,7 +540,7 @@ class CampaignSolanaService:
         if campaign.campaign_type == 'solo':
             try:
                 escrow_info = self.setup_solo_escrow(campaign)
-                details.update(escrow_info)
+                details.update({k: v for k, v in escrow_info.items() if k != 'artist_pubkey'})
             except Exception as e:
                 details['escrow_error'] = str(e)
 
