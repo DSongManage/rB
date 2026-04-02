@@ -3368,6 +3368,14 @@ class ProjectComment(models.Model):
         blank=True,
         help_text="Optional: specific section this comment refers to"
     )
+    comic_page = models.ForeignKey(
+        'ComicPage',
+        on_delete=models.CASCADE,
+        related_name='page_comments',
+        null=True,
+        blank=True,
+        help_text="Optional: specific comic page this comment refers to"
+    )
     author = models.ForeignKey(User, on_delete=models.CASCADE)
     content = models.TextField()
     parent_comment = models.ForeignKey(
@@ -3403,6 +3411,7 @@ class ProjectComment(models.Model):
         indexes = [
             models.Index(fields=['project', '-created_at']),
             models.Index(fields=['section', '-created_at']),
+            models.Index(fields=['comic_page', '-created_at']),
             models.Index(fields=['parent_comment', '-created_at']),
         ]
 
@@ -3751,6 +3760,21 @@ class ComicPage(models.Model):
         help_text="Structured script data for this page (description, panel scripts)"
     )
 
+    # Workspace workflow status
+    PAGE_STATUS_CHOICES = [
+        ('script_only', 'Script Only'),
+        ('in_progress', 'In Progress'),
+        ('art_delivered', 'Art Delivered'),
+        ('revision_requested', 'Revision Requested'),
+        ('approved', 'Approved'),
+    ]
+    page_status = models.CharField(
+        max_length=20,
+        choices=PAGE_STATUS_CHOICES,
+        default='script_only',
+        help_text="Current workflow status of this page"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -3777,6 +3801,103 @@ class ComicPage(models.Model):
         elif self.project:
             return f"{self.project.title} - Page {self.page_number}"
         return f"Page {self.page_number}"
+
+
+class PageReferenceImage(models.Model):
+    """Reference images uploaded by the author to communicate vision to the artist.
+
+    - Mood boards, sketches, mock panels to help artist understand the page
+    - Each image can have a caption explaining what it represents
+    """
+
+    page = models.ForeignKey(
+        ComicPage,
+        on_delete=models.CASCADE,
+        related_name='reference_images'
+    )
+    file = models.FileField(upload_to='page_references/%Y/%m/')
+    thumbnail = models.FileField(
+        upload_to='page_references/thumbs/%Y/%m/',
+        blank=True,
+        null=True
+    )
+    caption = models.CharField(max_length=500, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_reference_images'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'created_at']
+
+    def __str__(self):
+        return f"Reference for {self.page} - {self.caption[:50] if self.caption else 'No caption'}"
+
+
+class PageArtDelivery(models.Model):
+    """Finished artwork delivered by the artist for a specific page.
+
+    - Tracks version history (each upload increments version)
+    - Author can approve or request revision with notes
+    - Status changes auto-update the parent page's page_status
+    """
+
+    STATUS_CHOICES = [
+        ('delivered', 'Delivered'),
+        ('revision_requested', 'Revision Requested'),
+        ('approved', 'Approved'),
+    ]
+
+    page = models.ForeignKey(
+        ComicPage,
+        on_delete=models.CASCADE,
+        related_name='art_deliveries'
+    )
+    file = models.FileField(upload_to='art_deliveries/%Y/%m/')
+    filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(default=0)
+    file_type = models.CharField(max_length=100, blank=True)
+    version = models.PositiveIntegerField(default=1)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='delivered'
+    )
+    revision_notes = models.TextField(
+        blank=True,
+        help_text="Author's notes when requesting revision"
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_art_deliveries'
+    )
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_art_deliveries'
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-version']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['page', 'version'],
+                name='unique_page_art_version'
+            )
+        ]
+
+    def __str__(self):
+        return f"Art v{self.version} for {self.page} ({self.status})"
 
 
 class ComicPanel(models.Model):

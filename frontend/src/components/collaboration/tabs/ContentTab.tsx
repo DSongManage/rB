@@ -10,7 +10,7 @@ import CollaborativeBookEditor from '../CollaborativeBookEditor';
 import CollaborativeArtEditor from '../CollaborativeArtEditor';
 import CollaborativeMusicEditor from '../CollaborativeMusicEditor';
 import CollaborativeVideoEditor from '../CollaborativeVideoEditor';
-import CollaborativeComicEditor from '../CollaborativeComicEditor';
+// CollaborativeComicEditor removed - comic projects use UnifiedWorkspaceEditor now
 import ReviewerInterface from '../ReviewerInterface';
 import { CommentsPanel } from '../CommentsPanel';
 import { Eye, Palette, Music, Video, FileText, AlertCircle } from 'lucide-react';
@@ -166,12 +166,11 @@ export default function ContentTab({
   const renderEditorByProjectType = () => {
     switch (project.content_type) {
       case 'comic':
+        // Comic projects now use the unified Workspace tab
         return (
-          <CollaborativeComicEditor
-            project={project}
-            currentUser={currentUser}
-            onProjectUpdate={onProjectUpdate}
-          />
+          <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+            Comic projects use the Workspace tab.
+          </div>
         );
 
       case 'art':
@@ -277,12 +276,11 @@ function renderByProjectType(
       );
 
     case 'comic':
+      // Comic projects now use the unified Workspace tab
       return (
-        <CollaborativeComicEditor
-          project={project}
-          currentUser={currentUser}
-          onProjectUpdate={onProjectUpdate}
-        />
+        <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          Comic projects use the Workspace tab.
+        </div>
       );
 
     default:

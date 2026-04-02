@@ -8,6 +8,7 @@ import ActivityTab from '../components/collaboration/tabs/ActivityTab';
 import PublishTab from '../components/collaboration/tabs/PublishTab';
 import ContentTab from '../components/collaboration/tabs/ContentTab';
 import CollaborativeScriptEditor from '../components/collaboration/CollaborativeScriptEditor';
+import UnifiedWorkspaceEditor from '../components/collaboration/UnifiedWorkspaceEditor';
 import {
   collaborationApi,
   CollaborativeProject,
@@ -55,6 +56,11 @@ export default function CollaborativeProjectPage() {
   useEffect(() => {
     if (project && !searchParams.get('tab') && project.content_type === 'art' && project.is_solo) {
       setSearchParams({ tab: 'content' }, { replace: true });
+    }
+    // Redirect legacy ?tab=script or ?tab=content (for comic) to workspace
+    const currentTab = searchParams.get('tab');
+    if (project && project.content_type === 'comic' && (currentTab === 'script' || currentTab === 'content')) {
+      setSearchParams({ tab: 'workspace' }, { replace: true });
     }
   }, [project]);
 
@@ -247,7 +253,7 @@ export default function CollaborativeProjectPage() {
 
   return (
     <div className="page" style={{
-      maxWidth: activeTab === 'content' ? 'none' : 1400,
+      maxWidth: (activeTab === 'content' || activeTab === 'workspace') ? 'none' : 1400,
       width: '100%',
       margin: '0 auto',
       padding: isMobile
@@ -454,6 +460,14 @@ export default function CollaborativeProjectPage() {
       <div style={{ minHeight: '60vh' }}>
         {activeTab === 'overview' && (
           <OverviewTab
+            project={project}
+            currentUser={currentUser}
+            onProjectUpdate={handleProjectUpdate}
+          />
+        )}
+
+        {activeTab === 'workspace' && (
+          <UnifiedWorkspaceEditor
             project={project}
             currentUser={currentUser}
             onProjectUpdate={handleProjectUpdate}

@@ -234,6 +234,7 @@ export interface ProjectComment {
   content: string;
   parent_comment?: number;
   section?: number;
+  comic_page?: number;
   section_title?: string;
   resolved: boolean;
   resolved_by?: number;
@@ -374,6 +375,7 @@ export interface CreateCommentData {
   project: number;
   content: string;
   section?: number;
+  comic_page?: number;
   parent_comment?: number;
   mentions?: number[];
   attachments?: File[];
@@ -956,10 +958,13 @@ export const collaborationApi = {
   /**
    * Get comments for a project or section
    */
-  async getComments(projectId: number, sectionId?: number): Promise<ProjectComment[]> {
+  async getComments(projectId: number, sectionId?: number, comicPageId?: number): Promise<ProjectComment[]> {
     let url = `${API_BASE}/api/project-comments/?project=${projectId}`;
     if (sectionId) {
       url += `&section=${sectionId}`;
+    }
+    if (comicPageId) {
+      url += `&comic_page=${comicPageId}`;
     }
 
     const response = await fetch(url, {
@@ -1563,6 +1568,129 @@ export const collaborationApi = {
       body: JSON.stringify({ new_position: newPosition }),
     });
     return handleResponse(response);
+  },
+
+  // ===== Workspace: Reference Images =====
+
+  async getPageReferenceImages(pageId: number): Promise<PageReferenceImage[]> {
+    const response = await fetch(
+      `${API_BASE}/api/page-reference-images/?page=${pageId}`,
+      { method: 'GET', credentials: 'include' }
+    );
+    return handleResponse<PageReferenceImage[]>(response);
+  },
+
+  async uploadPageReferenceImage(pageId: number, file: File, caption: string = ''): Promise<PageReferenceImage> {
+    const formData = new FormData();
+    formData.append('page', String(pageId));
+    formData.append('file', file);
+    if (caption) formData.append('caption', caption);
+
+    const response = await fetch(`${API_BASE}/api/page-reference-images/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData,
+    });
+    return handleResponse<PageReferenceImage>(response);
+  },
+
+  async updatePageReferenceImage(id: number, data: { caption?: string; sort_order?: number }): Promise<PageReferenceImage> {
+    const response = await fetch(`${API_BASE}/api/page-reference-images/${id}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse<PageReferenceImage>(response);
+  },
+
+  async deletePageReferenceImage(id: number): Promise<void> {
+    const response = await fetch(`${API_BASE}/api/page-reference-images/${id}/`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    if (!response.ok) throw new Error(`Failed to delete reference image: ${response.statusText}`);
+  },
+
+  // ===== Workspace: Art Deliveries =====
+
+  async getPageArtDeliveries(pageId: number): Promise<PageArtDelivery[]> {
+    const response = await fetch(
+      `${API_BASE}/api/page-art-deliveries/?page=${pageId}`,
+      { method: 'GET', credentials: 'include' }
+    );
+    return handleResponse<PageArtDelivery[]>(response);
+  },
+
+  async uploadPageArtDelivery(pageId: number, file: File): Promise<PageArtDelivery> {
+    const formData = new FormData();
+    formData.append('page', String(pageId));
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE}/api/page-art-deliveries/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData,
+    });
+    return handleResponse<PageArtDelivery>(response);
+  },
+
+  async approveArtDelivery(id: number): Promise<PageArtDelivery> {
+    const response = await fetch(`${API_BASE}/api/page-art-deliveries/${id}/approve/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    });
+    return handleResponse<PageArtDelivery>(response);
+  },
+
+  async requestArtRevision(id: number, revisionNotes: string): Promise<PageArtDelivery> {
+    const response = await fetch(`${API_BASE}/api/page-art-deliveries/${id}/request_revision/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ revision_notes: revisionNotes }),
+    });
+    return handleResponse<PageArtDelivery>(response);
+  },
+
+  // ===== Workspace: Page Status =====
+
+  async updatePageStatus(pageId: number, pageStatus: PageStatus): Promise<ComicPage> {
+    const response = await fetch(`${API_BASE}/api/comic-pages/${pageId}/`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': await getFreshCsrfToken(),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ page_status: pageStatus }),
+    });
+    return handleResponse<ComicPage>(response);
   },
 
   // ===== Comic Panel Management =====
@@ -2567,11 +2695,50 @@ export interface ComicPage {
   layout_version: number;
   // Script data for writer-artist collaboration
   script_data: ScriptData;
+  // Workspace workflow
+  page_status: PageStatus;
   // Content
   panels: ComicPanel[];
   divider_lines: DividerLine[];
+  // Workspace data
+  reference_images: PageReferenceImage[];
+  art_deliveries: PageArtDelivery[];
   created_at: string;
   updated_at: string;
+}
+
+// ===== Workspace Types =====
+
+export type PageStatus = 'script_only' | 'in_progress' | 'art_delivered' | 'revision_requested' | 'approved';
+
+export interface PageReferenceImage {
+  id: number;
+  page: number;
+  file: string;
+  thumbnail?: string;
+  caption: string;
+  sort_order: number;
+  uploaded_by: number;
+  uploaded_by_username: string;
+  created_at: string;
+}
+
+export interface PageArtDelivery {
+  id: number;
+  page: number;
+  file: string;
+  filename: string;
+  file_size: number;
+  file_type: string;
+  version: number;
+  status: 'delivered' | 'revision_requested' | 'approved';
+  revision_notes: string;
+  uploaded_by: number;
+  uploaded_by_username: string;
+  reviewed_by?: number;
+  reviewed_by_username?: string;
+  reviewed_at?: string;
+  created_at: string;
 }
 
 export interface ComicPageListItem {

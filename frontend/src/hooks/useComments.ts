@@ -13,6 +13,7 @@ import {
 interface UseCommentsOptions {
   projectId: number;
   sectionId?: number;
+  comicPageId?: number;
   includeResolved?: boolean;
   pollingInterval?: number; // Auto-refresh interval in ms
 }
@@ -112,6 +113,7 @@ export function useComments(options: UseCommentsOptions): UseCommentsReturn {
   const {
     projectId,
     sectionId,
+    comicPageId,
     includeResolved = false,
     pollingInterval = 0, // 0 means no polling
   } = options;
@@ -149,6 +151,9 @@ export function useComments(options: UseCommentsOptions): UseCommentsReturn {
       if (sectionId) {
         // Get comments for specific section
         fetchedComments = await collaborationApi.getComments(projectId, sectionId);
+      } else if (comicPageId) {
+        // Get comments for specific comic page
+        fetchedComments = await collaborationApi.getComments(projectId, undefined, comicPageId);
       } else {
         // Get all comments
         fetchedComments = await collaborationApi.getComments(projectId);
@@ -166,7 +171,7 @@ export function useComments(options: UseCommentsOptions): UseCommentsReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, sectionId, includeResolved]);
+  }, [projectId, sectionId, comicPageId, includeResolved]);
 
   // Add comment with optimistic update
   const addComment = useCallback(
@@ -184,6 +189,7 @@ export function useComments(options: UseCommentsOptions): UseCommentsReturn {
         attachments,
         parent_comment: parentCommentId,
         section: commentSectionId || sectionId,
+        comic_page: comicPageId,
       };
 
       try {
@@ -199,7 +205,7 @@ export function useComments(options: UseCommentsOptions): UseCommentsReturn {
         throw err;
       }
     },
-    [projectId, sectionId]
+    [projectId, sectionId, comicPageId]
   );
 
   // Update comment

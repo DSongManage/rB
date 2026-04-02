@@ -774,7 +774,7 @@ class ProjectCommentSerializer(serializers.ModelSerializer):
         model = ProjectComment
         fields = [
             'id', 'project', 'author', 'author_username', 'author_avatar', 'content',
-            'parent_comment', 'resolved', 'created_at', 'replies_count'
+            'parent_comment', 'comic_page', 'resolved', 'created_at', 'replies_count'
         ]
         read_only_fields = ['id', 'created_at', 'author_username', 'author_avatar', 'replies_count', 'author']
 
@@ -1767,10 +1767,48 @@ class ArtworkLibraryItemSerializer(serializers.ModelSerializer):
         return self.get_file_url(obj)
 
 
+class PageReferenceImageSerializer(serializers.ModelSerializer):
+    """Serializer for page reference images uploaded by authors."""
+    uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True, allow_null=True)
+
+    class Meta:
+        from .models import PageReferenceImage
+        model = PageReferenceImage
+        fields = [
+            'id', 'page', 'file', 'thumbnail', 'caption', 'sort_order',
+            'uploaded_by', 'uploaded_by_username', 'created_at'
+        ]
+        read_only_fields = ['id', 'uploaded_by', 'uploaded_by_username', 'created_at']
+
+
+class PageArtDeliverySerializer(serializers.ModelSerializer):
+    """Serializer for artist art deliveries per page."""
+    uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True, allow_null=True)
+    reviewed_by_username = serializers.CharField(source='reviewed_by.username', read_only=True, default='')
+
+    class Meta:
+        from .models import PageArtDelivery
+        model = PageArtDelivery
+        fields = [
+            'id', 'page', 'file', 'filename', 'file_size', 'file_type',
+            'version', 'status', 'revision_notes',
+            'uploaded_by', 'uploaded_by_username',
+            'reviewed_by', 'reviewed_by_username', 'reviewed_at',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'version', 'filename', 'file_size', 'file_type',
+                            'uploaded_by', 'uploaded_by_username',
+                            'reviewed_by_username', 'created_at']
+        # Skip unique_together validation on (page, version) since version is auto-set in perform_create
+        validators = []
+
+
 class ComicPageSerializer(serializers.ModelSerializer):
     """Serializer for comic pages with nested panels and divider lines."""
     panels = ComicPanelSerializer(many=True, read_only=True)
     divider_lines = DividerLineSerializer(many=True, read_only=True)
+    reference_images = PageReferenceImageSerializer(many=True, read_only=True)
+    art_deliveries = PageArtDeliverySerializer(many=True, read_only=True)
 
     class Meta:
         model = ComicPage
@@ -1783,11 +1821,15 @@ class ComicPageSerializer(serializers.ModelSerializer):
             'default_line_color', 'layout_version',
             # Script data for writer-artist collaboration
             'script_data',
+            # Workspace workflow
+            'page_status',
             # Nested content
             'panels', 'divider_lines',
+            'reference_images', 'art_deliveries',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'page_number', 'created_at', 'updated_at', 'panels', 'divider_lines']
+        read_only_fields = ['id', 'page_number', 'created_at', 'updated_at',
+                            'panels', 'divider_lines', 'reference_images', 'art_deliveries']
         extra_kwargs = {
             'project': {'required': False, 'allow_null': True},
             'issue': {'required': False, 'allow_null': True},

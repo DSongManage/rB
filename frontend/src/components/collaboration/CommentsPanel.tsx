@@ -19,12 +19,14 @@ interface User {
 interface CommentsPanelProps {
   project: CollaborativeProject;
   currentUser: User;
+  comicPageId?: number;
   defaultExpanded?: boolean;
 }
 
 export function CommentsPanel({
   project,
   currentUser,
+  comicPageId,
   defaultExpanded = false,
 }: CommentsPanelProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -45,6 +47,7 @@ export function CommentsPanel({
     removeReaction,
   } = useComments({
     projectId: project.id,
+    comicPageId,
     includeResolved: showResolved,
     pollingInterval: 30000,
   });

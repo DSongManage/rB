@@ -1,7 +1,7 @@
 import React from 'react';
-import { LayoutDashboard, FileText, Users, MessageSquare, Rocket, ScrollText, Layers, Image, BookOpen } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, MessageSquare, Rocket, ScrollText, Layers, Image, BookOpen, Hammer } from 'lucide-react';
 
-export type TabId = 'overview' | 'script' | 'content' | 'team' | 'activity' | 'publish';
+export type TabId = 'overview' | 'workspace' | 'script' | 'content' | 'team' | 'activity' | 'publish';
 
 interface Tab {
   id: TabId;
@@ -29,10 +29,9 @@ function getTabs(contentType?: 'comic' | 'book' | 'art', isSolo?: boolean): Tab[
 
   // Add content-specific tabs based on content type
   if (contentType === 'comic') {
-    // Comic: has Script tab AND Comic tab
+    // Comic: unified Workspace tab (replaces separate Script + Comic tabs)
     baseTabs.push(
-      { id: 'script', label: 'Script', icon: <ScrollText size={18} /> },
-      { id: 'content', label: 'Comic', icon: <Layers size={18} /> }
+      { id: 'workspace', label: 'Workspace', icon: <Hammer size={18} /> }
     );
   } else if (contentType === 'book') {
     // Book: has Editor tab (writer's editor) - no Script
@@ -45,10 +44,9 @@ function getTabs(contentType?: 'comic' | 'book' | 'art', isSolo?: boolean): Tab[
       { id: 'content', label: 'Gallery', icon: <Image size={18} /> }
     );
   } else {
-    // Fallback - show all tabs for unknown content types
+    // Fallback - show workspace for unknown content types
     baseTabs.push(
-      { id: 'script', label: 'Script', icon: <ScrollText size={18} /> },
-      { id: 'content', label: 'Comic', icon: <Layers size={18} /> }
+      { id: 'workspace', label: 'Workspace', icon: <Hammer size={18} /> }
     );
   }
 

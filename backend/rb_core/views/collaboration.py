@@ -2544,6 +2544,11 @@ class ProjectCommentViewSet(viewsets.ModelViewSet):
         if project_id:
             queryset = queryset.filter(project_id=project_id)
 
+        # Filter by comic page if provided
+        comic_page_id = self.request.query_params.get('comic_page')
+        if comic_page_id:
+            queryset = queryset.filter(comic_page_id=comic_page_id)
+
         return queryset
 
     def perform_create(self, serializer):

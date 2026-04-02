@@ -1,6 +1,6 @@
 export { default as CollaborativeEditor } from './CollaborativeEditor';
 export { default as CollaborativeBookEditor } from './CollaborativeBookEditor';
-export { default as CollaborativeComicEditor } from './CollaborativeComicEditor';
+export { default as UnifiedWorkspaceEditor } from './UnifiedWorkspaceEditor';
 export { default as RevenueSplitChart } from './RevenueSplitChart';
 export { default as InviteResponseModal } from './InviteResponseModal';
 export { default as PendingInviteCard } from './PendingInviteCard';

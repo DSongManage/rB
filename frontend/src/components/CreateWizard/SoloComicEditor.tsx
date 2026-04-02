@@ -5,7 +5,7 @@ import {
   collaborationApi,
   CollaborativeProject,
 } from '../../services/collaborationApi';
-import CollaborativeComicEditor from '../collaboration/CollaborativeComicEditor';
+import UnifiedWorkspaceEditor from '../collaboration/UnifiedWorkspaceEditor';
 import { ArrowLeft, Loader2, Pencil, Trash2, Image, X } from 'lucide-react';
 
 interface SoloComicEditorProps {
@@ -465,7 +465,7 @@ export default function SoloComicEditor({
 
       {/* Comic Editor */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        <CollaborativeComicEditor
+        <UnifiedWorkspaceEditor
           project={project}
           currentUser={currentUser}
           onProjectUpdate={handleProjectUpdate}

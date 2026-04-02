@@ -16,14 +16,16 @@ from django.db import models, transaction
 from ..models import (
     ComicPage, ComicPanel, SpeechBubble, DividerLine,
     CollaborativeProject, CollaboratorRole,
-    ComicSeries, ComicIssue, Content, ArtworkLibraryItem
+    ComicSeries, ComicIssue, Content, ArtworkLibraryItem,
+    PageReferenceImage, PageArtDelivery
 )
 from ..serializers import (
     ComicPageSerializer,
     ComicPanelSerializer, SpeechBubbleSerializer, DividerLineSerializer,
     ComicSeriesSerializer, ComicSeriesListSerializer,
     ComicIssueSerializer, ComicIssueListSerializer,
-    ArtworkLibraryItemSerializer
+    ArtworkLibraryItemSerializer,
+    PageReferenceImageSerializer, PageArtDeliverySerializer
 )
 
 
@@ -49,7 +51,9 @@ class ComicPageViewSet(viewsets.ModelViewSet):
         # For detail views (retrieve, update, destroy), allow lookup by ID
         # with permission check in get_object
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy', 'reorder']:
-            return ComicPage.objects.all().prefetch_related('panels__speech_bubbles')
+            return ComicPage.objects.all().prefetch_related(
+                'panels__speech_bubbles', 'reference_images', 'art_deliveries'
+            )
 
         # For list views, support filtering by issue or project
         issue_id = self.request.query_params.get('issue')
@@ -69,7 +73,7 @@ class ComicPageViewSet(viewsets.ModelViewSet):
                 if not user_role and issue.project.created_by != self.request.user:
                     return ComicPage.objects.none()
             return ComicPage.objects.filter(issue_id=issue_id).prefetch_related(
-                'panels__speech_bubbles'
+                'panels__speech_bubbles', 'reference_images', 'art_deliveries'
             ).order_by('page_number')
 
         # Filter by project (legacy/fallback)
@@ -84,7 +88,7 @@ class ComicPageViewSet(viewsets.ModelViewSet):
                 return ComicPage.objects.none()
 
             return ComicPage.objects.filter(project_id=project_id).prefetch_related(
-                'panels__speech_bubbles'
+                'panels__speech_bubbles', 'reference_images', 'art_deliveries'
             ).order_by('page_number')
 
         return ComicPage.objects.none()
@@ -132,8 +136,9 @@ class ComicPageViewSet(viewsets.ModelViewSet):
 
         serializer.save(page_number=next_page_number)
 
-    def perform_destroy(self, instance):
+    def destroy(self, request, *args, **kwargs):
         """Delete page and reorder remaining pages."""
+        instance = self.get_object()
         issue = instance.issue
         project = instance.project
         page_number = instance.page_number
@@ -156,6 +161,8 @@ class ComicPageViewSet(viewsets.ModelViewSet):
                 for page in pages_to_update:
                     page.page_number = page.page_number - 1
                     page.save(update_fields=['page_number'])
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'])
     def reorder(self, request, pk=None):
@@ -1313,3 +1320,171 @@ class ArtworkLibraryViewSet(viewsets.ModelViewSet):
             return True
 
         return False
+
+
+class PageReferenceImageViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing page reference images.
+
+    Authors upload reference images (mood boards, sketches, mock art)
+    to communicate their vision to artists.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = PageReferenceImageSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    pagination_class = None
+
+    def get_queryset(self):
+        """Filter reference images by page."""
+        queryset = PageReferenceImage.objects.all()
+        page_id = self.request.query_params.get('page')
+        if page_id:
+            queryset = queryset.filter(page_id=page_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        """Create reference image with access check before validation."""
+        page_id = request.data.get('page')
+        page = get_object_or_404(ComicPage, id=page_id)
+        project = page.issue.project if page.issue else page.project
+        if project and not self._has_project_access(project):
+            return Response(
+                {'error': 'You do not have access to this project'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        """Create reference image with uploader set."""
+        serializer.save(uploaded_by=self.request.user)
+
+    def _has_project_access(self, project):
+        user = self.request.user
+        if project.created_by == user:
+            return True
+        return project.collaborators.filter(user=user, status='accepted').exists()
+
+
+class PageArtDeliveryViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing art deliveries.
+
+    Artists upload finished artwork per page. Authors can approve
+    or request revisions. Version numbers auto-increment.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = PageArtDeliverySerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    pagination_class = None
+
+    def get_queryset(self):
+        """Filter art deliveries by page."""
+        queryset = PageArtDelivery.objects.all()
+        page_id = self.request.query_params.get('page')
+        if page_id:
+            queryset = queryset.filter(page_id=page_id)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        """Create art delivery with access check before validation."""
+        page_id = request.data.get('page')
+        page = get_object_or_404(ComicPage, id=page_id)
+
+        # Check project access before processing
+        project = page.issue.project if page.issue else page.project
+        if project and not self._has_project_access(project):
+            return Response(
+                {'error': 'You do not have access to this project'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        """Create art delivery with auto-incrementing version and status update."""
+        page_id = self.request.data.get('page')
+        page = get_object_or_404(ComicPage, id=page_id)
+
+        # Auto-increment version
+        latest = PageArtDelivery.objects.filter(page=page).order_by('-version').first()
+        next_version = (latest.version + 1) if latest else 1
+
+        # Extract file metadata
+        uploaded_file = self.request.FILES.get('file')
+        filename = uploaded_file.name if uploaded_file else ''
+        file_size = uploaded_file.size if uploaded_file else 0
+        file_type = uploaded_file.content_type if uploaded_file else ''
+
+        serializer.save(
+            uploaded_by=self.request.user,
+            version=next_version,
+            filename=filename,
+            file_size=file_size,
+            file_type=file_type,
+        )
+
+        # Auto-update page status
+        page.page_status = 'art_delivered'
+        page.save(update_fields=['page_status'])
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Author approves the art delivery."""
+        delivery = self.get_object()
+        page = delivery.page
+        project = page.issue.project if page.issue else page.project
+
+        # Only project creator can approve
+        if project and project.created_by != request.user:
+            return Response(
+                {'error': 'Only the project creator can approve art'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        from django.utils import timezone
+        delivery.status = 'approved'
+        delivery.reviewed_by = request.user
+        delivery.reviewed_at = timezone.now()
+        delivery.save()
+
+        page.page_status = 'approved'
+        page.save(update_fields=['page_status'])
+
+        return Response(PageArtDeliverySerializer(delivery).data)
+
+    @action(detail=True, methods=['post'])
+    def request_revision(self, request, pk=None):
+        """Author requests revision with notes."""
+        delivery = self.get_object()
+        page = delivery.page
+        project = page.issue.project if page.issue else page.project
+
+        # Only project creator can request revision
+        if project and project.created_by != request.user:
+            return Response(
+                {'error': 'Only the project creator can request revisions'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        revision_notes = request.data.get('revision_notes', '')
+        if not revision_notes:
+            return Response(
+                {'error': 'Revision notes are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from django.utils import timezone
+        delivery.status = 'revision_requested'
+        delivery.revision_notes = revision_notes
+        delivery.reviewed_by = request.user
+        delivery.reviewed_at = timezone.now()
+        delivery.save()
+
+        page.page_status = 'revision_requested'
+        page.save(update_fields=['page_status'])
+
+        return Response(PageArtDeliverySerializer(delivery).data)
+
+    def _has_project_access(self, project):
+        user = self.request.user
+        if project.created_by == user:
+            return True
+        return project.collaborators.filter(user=user, status='accepted').exists()

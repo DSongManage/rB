@@ -23,7 +23,11 @@ from .views.collaboration import (
     ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet,
     MilestoneTemplateViewSet
 )
-from .views.comic import ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet, ComicSeriesViewSet, ComicIssueViewSet, DividerLineViewSet, ArtworkLibraryViewSet
+from .views.comic import (
+    ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet,
+    ComicSeriesViewSet, ComicIssueViewSet, DividerLineViewSet,
+    ArtworkLibraryViewSet, PageReferenceImageViewSet, PageArtDeliveryViewSet
+)
 from .views.notifications import NotificationViewSet
 from .views.social import (
     ContentLikeView, ContentCommentViewSet, ContentRatingViewSet, CreatorReviewViewSet,
@@ -81,6 +85,9 @@ router.register(r'comic-pages', ComicPageViewSet, basename='comic-page')
 router.register(r'comic-panels', ComicPanelViewSet, basename='comic-panel')
 router.register(r'speech-bubbles', SpeechBubbleViewSet, basename='speech-bubble')
 router.register(r'divider-lines', DividerLineViewSet, basename='divider-line')
+# Workspace: reference images and art deliveries
+router.register(r'page-reference-images', PageReferenceImageViewSet, basename='page-reference-image')
+router.register(r'page-art-deliveries', PageArtDeliveryViewSet, basename='page-art-delivery')
 # Comic series and issues
 router.register(r'comic-series', ComicSeriesViewSet, basename='comic-series')
 # Campaign ViewSet
