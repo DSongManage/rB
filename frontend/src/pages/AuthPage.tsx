@@ -251,7 +251,7 @@ export default function AuthPage() {
           setStep('wallet');
         } else {
           // No wallet setup - go to home
-          window.location.href = '/';
+          window.location.href = '/profile';
         }
       } else {
         // Handle errors from DRF
@@ -310,7 +310,7 @@ export default function AuthPage() {
         // Wait a moment for session to be fully established, then hard reload to home
         // Hard reload ensures fresh auth state check
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = '/profile';
         }, 500);
       } else {
         // Show error from backend
@@ -422,7 +422,7 @@ export default function AuthPage() {
       if (res.ok) {
         setWalletStatus('✅ Wallet created and linked successfully!');
         // Redirect to home after wallet setup
-        setTimeout(() => window.location.href = '/', 1500);
+        setTimeout(() => window.location.href = '/profile', 1500);
       } else {
         const t = await res.text();
         setWalletStatus(`Error linking wallet: ${t}`);
@@ -512,7 +512,7 @@ export default function AuthPage() {
           } catch {}
         }
         setWalletStatus('✅ Signed in successfully!');
-        setTimeout(() => window.location.href = '/', 1000);
+        setTimeout(() => window.location.href = '/profile', 1000);
       } else {
         setWalletStatus('Signed in, but session not detected yet. Please refresh the page.');
       }
@@ -533,7 +533,7 @@ export default function AuthPage() {
     if (res.ok) {
       setWalletStatus('Wallet linked');
       // Redirect to home after wallet setup
-      setTimeout(() => window.location.href = '/', 500);
+      setTimeout(() => window.location.href = '/profile', 500);
     } else {
       const t = await res.text();
       setWalletStatus(`Failed: ${t}`);
@@ -713,8 +713,8 @@ export default function AuthPage() {
           Your account is ready. You can link a wallet anytime from your profile to receive NFTs and payments.
         </div>
         <div style={{display:'flex', gap:8, justifyContent:'center'}}>
-          <button onClick={()=> window.location.href = '/'}>Go to Home</button>
           <button onClick={()=> window.location.href = '/profile'}>Go to Profile</button>
+          <button onClick={()=> window.location.href = '/store'}>Browse Store</button>
         </div>
       </div>
     </div>

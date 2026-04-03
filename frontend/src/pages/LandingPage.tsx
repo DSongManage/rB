@@ -196,13 +196,28 @@ export default function LandingPage() {
           <span style={{ fontFamily: 'var(--font-body)', fontSize: 20, fontWeight: 500, color: '#1a1816', letterSpacing: '-0.01em' }}>renaissBlock</span>
         </Link>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }} className="nav-links-desktop">
-          <a href="#how" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>How It Works</a>
-          <Link to="/collaborators" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Find Creators</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 28 }} className="nav-links-desktop">
           {isAuthenticated ? (
-            <Link to="/store" style={{ fontSize: 14, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Store</Link>
+            <>
+              <Link to="/studio" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Studio</Link>
+              <Link to="/store" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Store</Link>
+              <Link to="/collaborators" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Creators</Link>
+              <Link to="/profile" style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 32, borderRadius: '50%', background: '#E8981F', color: '#fff',
+                textDecoration: 'none', fontSize: 14, fontWeight: 700,
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                </svg>
+              </Link>
+            </>
           ) : (
-            <Link to="/auth" style={{ fontSize: 14, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Log In</Link>
+            <>
+              <a href="#how" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>How It Works</a>
+              <Link to="/collaborators" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Find Creators</Link>
+              <Link to="/auth" style={{ fontSize: 14, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Log In</Link>
+            </>
           )}
         </div>
 
@@ -226,9 +241,20 @@ export default function LandingPage() {
           display: 'flex', flexDirection: 'column', gap: 20,
           borderBottom: '1px solid rgba(58,54,50,0.08)',
         }}>
-          <a href="#how" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>How It Works</a>
-          <Link to="/collaborators" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Find Creators</Link>
-          <Link to="/auth" style={{ fontSize: 16, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Log In</Link>
+          {isAuthenticated ? (
+            <>
+              <Link to="/studio" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Studio</Link>
+              <Link to="/store" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Store</Link>
+              <Link to="/collaborators" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Creators</Link>
+              <Link to="/profile" style={{ fontSize: 16, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Profile</Link>
+            </>
+          ) : (
+            <>
+              <a href="#how" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>How It Works</a>
+              <Link to="/collaborators" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Find Creators</Link>
+              <Link to="/auth" style={{ fontSize: 16, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Log In</Link>
+            </>
+          )}
         </div>
       )}
 
