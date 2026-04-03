@@ -184,7 +184,7 @@ function Header() {
   const isStorePage = location.pathname === '/store' || location.pathname === '/search';
 
   return (
-    <nav className="rb-header">
+    <nav className={`rb-header ${!isStorePage ? 'rb-header-no-search' : ''}`}>
       <div className="rb-header-left">
         <Link to="/" className="rb-logo-link">
           <img src="/rb-logo.png" alt="renaissBlock" className="rb-logo-img"/>

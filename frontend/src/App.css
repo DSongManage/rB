@@ -49,6 +49,7 @@ body { font-family: 'DM Sans', 'Inter', system-ui, -apple-system, Segoe UI, Robo
 }
 h1, h2, h3 { font-family: var(--font-heading); }
 .rb-header { display:grid; grid-template-columns: auto minmax(200px, 720px) auto; align-items:center; gap:12px; padding:14px 22px; background:var(--header-bg); color:var(--text); position:sticky; top:0; border-bottom:1px solid var(--header-border); z-index: 50; width: 100%; box-sizing: border-box; }
+.rb-header.rb-header-no-search { grid-template-columns: auto 1fr; }
 .rb-header-left { display:flex; align-items:center; gap:12px; }
 .rb-header-center { display:flex; justify-content:center; z-index: 1; }
 .rb-header-right { display:flex; justify-content:flex-end; align-items:center; gap:14px; position: relative; z-index: 2; }
