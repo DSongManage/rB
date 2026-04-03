@@ -12,6 +12,7 @@ import {
   Settings,
   HelpCircle,
   LogOut,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface ProfileDropdownProps {
@@ -217,6 +218,19 @@ export function ProfileDropdown({
               <span>Studio</span>
             </button>
             <button
+              onClick={() => handleNavigate('/store')}
+              style={menuItemStyle}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--dropdown-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <ShoppingBag size={20} color="var(--text-muted)" />
+              <span>Store</span>
+            </button>
+            <button
               onClick={() => handleNavigate('/wallet-info')}
               style={{
                 ...menuItemStyle,
@@ -231,7 +245,7 @@ export function ProfileDropdown({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <Wallet size={20} color="var(--text-muted)" />
-                <span>Wallet</span>
+                <span>Wallet & Payments</span>
               </div>
               {balance && (
                 <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>

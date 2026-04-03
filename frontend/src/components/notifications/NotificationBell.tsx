@@ -80,7 +80,6 @@ export function NotificationBell() {
             </span>
           )}
         </span>
-        <span>Alerts</span>
       </button>
 
       <NotificationDropdown

@@ -216,9 +216,6 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
-            <Link to="/store" className="rb-nav-link" title="Store">
-              <ShoppingBag size={20} />
-            </Link>
             {isStorePage && (
               <span>
                 <CartIcon />
