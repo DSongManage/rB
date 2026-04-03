@@ -554,6 +554,15 @@ export default function AuthPage() {
             {inviteValid === false && (
               <div style={{fontSize:12, color:'#ef4444'}}>✗ Invalid or expired invite code</div>
             )}
+            <div style={{fontSize:12, color:'var(--text-muted, #94a3b8)', marginTop:4}}>
+              Don't have a code?{' '}
+              <a
+                href="mailto:support@renaissblock.com?subject=Beta Access Request&body=I'd like to request beta access to renaissBlock."
+                style={{color:'#E8981F', textDecoration:'none', fontWeight:600}}
+              >
+                Request access
+              </a>
+            </div>
           </div>
 
           <input value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="Username" required />

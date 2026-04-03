@@ -182,18 +182,28 @@ function Header() {
     // Re-check server state after navigation
     setTimeout(() => checkAuth(), 100);
   };
+  const isAuthPage = location.pathname === '/auth';
+
   return (
     <nav className="rb-header">
       <div className="rb-header-left">
         <Link to="/" className="rb-logo-link">
           <img src="/rb-logo.png" alt="renaissBlock" className="rb-logo-img"/>
         </Link>
-        <BetaBadge variant="header" showTestMode={true} />
-        {isAuthed && <TourMenu />}
+        {isAuthPage ? (
+          <span style={{ fontFamily: 'var(--font-body, "DM Sans")', fontSize: 18, fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>renaissBlock</span>
+        ) : (
+          <>
+            <BetaBadge variant="header" showTestMode={true} />
+            {isAuthed && <TourMenu />}
+          </>
+        )}
       </div>
-      <div className="rb-header-center" data-tour="search-bar">
-        <SearchAutocomplete />
-      </div>
+      {!isAuthPage && (
+        <div className="rb-header-center" data-tour="search-bar">
+          <SearchAutocomplete />
+        </div>
+      )}
 
       {/* Mobile Menu Toggle */}
       <button
