@@ -19,13 +19,11 @@ import { Footer } from './components/legal/Footer';
 import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
 import { CartProvider } from './contexts/CartContext';
-import { TourProvider } from './contexts/TourContext';
+// Tour system removed — guided creator flow replaces it
 import { BalanceProvider } from './contexts/BalanceContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ProfileDropdown } from './components/profile/ProfileDropdown';
 import { SettingsModal } from './components/settings/SettingsModal';
-import { TourRenderer } from './components/Tour/TourProvider';
-import { TourMenu } from './components/Tour/TourMenu';
 import CartIcon from './components/CartIcon';
 import {
   User, Menu, X, Users, ShoppingBag
@@ -196,12 +194,11 @@ function Header() {
         ) : (
           <>
             <BetaBadge variant="header" showTestMode={true} />
-            {isAuthed && <TourMenu />}
           </>
         )}
       </div>
       {isStorePage && (
-        <div className="rb-header-center" data-tour="search-bar">
+        <div className="rb-header-center">
           <SearchAutocomplete />
         </div>
       )}
@@ -211,8 +208,7 @@ function Header() {
         className="rb-mobile-menu-toggle"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         aria-label="Toggle menu"
-        data-tour="mobile-menu-toggle"
-      >
+             >
         {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
@@ -220,22 +216,22 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
-            <Link to="/store" className="rb-nav-link" title="Store" data-tour="store-link">
+            <Link to="/store" className="rb-nav-link" title="Store">
               <ShoppingBag size={20} />
             </Link>
             {isStorePage && (
-              <span data-tour="cart-button">
+              <span>
                 <CartIcon />
               </span>
             )}
-            <span data-tour="notifications-button">
+            <span>
               <NotificationBell />
             </span>
-            <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators" data-tour="collaborators-link">
+            <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
               <Users size={20} />
             </Link>
             {/* Profile Dropdown */}
-            <div style={{ position: 'relative' }} data-tour="profile-link">
+            <div style={{ position: 'relative' }}>
               <button
                 ref={profileButtonRef}
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -403,7 +399,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
-    <TourProvider>
+    <>
     <CartProvider>
     <BalanceProvider>
     <div className="rb-app">
@@ -470,11 +466,10 @@ export default function App() {
       <CookieBanner />
       <TestModeBanner />
       <BetaOnboarding />
-      <TourRenderer />
     </div>
     </BalanceProvider>
     </CartProvider>
-    </TourProvider>
+    </>
     </ThemeProvider>
   );
 }

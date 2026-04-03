@@ -4,33 +4,13 @@ import CreateWizard from '../components/CreateWizard/CreateWizard';
 import BookEditor from '../components/BookEditor/BookEditor';
 import { CreatorAgreementGate } from '../components/legal/CreatorAgreementGate';
 import GuidedCreatorFlow from '../components/GuidedCreator/GuidedCreatorFlow';
-import { useTour } from '../contexts/TourContext';
 
 export default function StudioPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { startTour, hasCompletedTour } = useTour();
   const [editContentId, setEditContentId] = useState<number | null>(null);
   const [editBookProjectId, setEditBookProjectId] = useState<number | null>(null);
   const [showChoice, setShowChoice] = useState(true);
-
-  // Trigger creator intro tour on first visit to studio choice screen
-  useEffect(() => {
-    const modeParam = searchParams.get('mode');
-    const mintContentParam = searchParams.get('mintContent');
-    const editContentParam = searchParams.get('editContent');
-    const editBookProjectParam = searchParams.get('editBookProject');
-
-    // Only show tour on the choice screen (no params)
-    if (!modeParam && !mintContentParam && !editContentParam && !editBookProjectParam) {
-      if (!hasCompletedTour('creator-intro')) {
-        // Small delay to let the page render
-        setTimeout(() => {
-          startTour('creator-intro');
-        }, 500);
-      }
-    }
-  }, [searchParams, hasCompletedTour, startTour]);
 
   useEffect(() => {
     const contentIdParam = searchParams.get('editContent');
