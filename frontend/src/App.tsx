@@ -183,6 +183,7 @@ function Header() {
     setTimeout(() => checkAuth(), 100);
   };
   const isAuthPage = location.pathname === '/auth';
+  const isStorePage = location.pathname === '/store' || location.pathname === '/search';
 
   return (
     <nav className="rb-header">
@@ -199,7 +200,7 @@ function Header() {
           </>
         )}
       </div>
-      {!isAuthPage && (
+      {isStorePage && (
         <div className="rb-header-center" data-tour="search-bar">
           <SearchAutocomplete />
         </div>
@@ -222,9 +223,11 @@ function Header() {
             <Link to="/store" className="rb-nav-link" title="Store" data-tour="store-link">
               <ShoppingBag size={20} />
             </Link>
-            <span data-tour="cart-button">
-              <CartIcon />
-            </span>
+            {isStorePage && (
+              <span data-tour="cart-button">
+                <CartIcon />
+              </span>
+            )}
             <span data-tour="notifications-button">
               <NotificationBell />
             </span>
