@@ -282,7 +282,7 @@ function Header() {
             </div>
           </>
         )}
-        {!isAuthed && (
+        {!isAuthed && !isAuthPage && (
           <button onClick={goLogin} className="rb-nav-link rb-signin-btn">
             <User size={20} />
             <span>Sign in</span>
