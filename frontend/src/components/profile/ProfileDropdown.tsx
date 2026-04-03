@@ -231,7 +231,7 @@ export function ProfileDropdown({
               <span>Store</span>
             </button>
             <button
-              onClick={() => handleNavigate('/wallet-info')}
+              onClick={() => handleNavigate('/profile?section=wallet')}
               style={{
                 ...menuItemStyle,
                 justifyContent: 'space-between',
