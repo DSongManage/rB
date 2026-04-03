@@ -38,6 +38,35 @@ export default function AuthPage() {
   const [validatingInvite, setValidatingInvite] = useState(false);
   const [tosAccepted, setTosAccepted] = useState(false);
 
+  // Beta access request
+  const [betaEmail, setBetaEmail] = useState('');
+  const [betaRequesting, setBetaRequesting] = useState(false);
+  const [betaRequested, setBetaRequested] = useState(false);
+  const [betaRequestError, setBetaRequestError] = useState('');
+
+  const handleBetaRequest = async () => {
+    if (!betaEmail.includes('@')) return;
+    setBetaRequesting(true);
+    setBetaRequestError('');
+    try {
+      const res = await fetch(`${API_URL}/api/beta/request-access/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: betaEmail }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBetaRequested(true);
+      } else {
+        setBetaRequestError(data.error || 'Request failed. Try again.');
+      }
+    } catch {
+      setBetaRequestError('Network error. Try again.');
+    } finally {
+      setBetaRequesting(false);
+    }
+  };
+
   const refreshCsrf = async () => {
     try {
       const r = await fetch(`${API_URL}/api/auth/csrf/`, { credentials:'include' });
@@ -554,15 +583,39 @@ export default function AuthPage() {
             {inviteValid === false && (
               <div style={{fontSize:12, color:'#ef4444'}}>✗ Invalid or expired invite code</div>
             )}
-            <div style={{fontSize:12, color:'var(--text-muted, #94a3b8)', marginTop:4}}>
-              Don't have a code?{' '}
-              <a
-                href="mailto:support@renaissblock.com?subject=Beta Access Request&body=I'd like to request beta access to renaissBlock."
-                style={{color:'#E8981F', textDecoration:'none', fontWeight:600}}
-              >
-                Request access
-              </a>
-            </div>
+            {!betaRequested ? (
+              <div style={{marginTop:8}}>
+                <div style={{fontSize:12, color:'var(--text-muted, #94a3b8)', marginBottom:6}}>
+                  Don't have a code? Request access:
+                </div>
+                <div style={{display:'flex', gap:6}}>
+                  <input
+                    type="email"
+                    value={betaEmail}
+                    onChange={e => setBetaEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    style={{flex:1, padding:'8px 10px', fontSize:13, borderRadius:6, border:'1px solid var(--panel-border, #334155)', background:'var(--bg)', color:'var(--text)'}}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBetaRequest}
+                    disabled={betaRequesting || !betaEmail.includes('@')}
+                    style={{
+                      padding:'8px 14px', fontSize:12, fontWeight:700, borderRadius:6, border:'none',
+                      background:'#E8981F', color:'#fff', cursor:'pointer',
+                      opacity: betaRequesting || !betaEmail.includes('@') ? 0.5 : 1,
+                    }}
+                  >
+                    {betaRequesting ? '...' : 'Request'}
+                  </button>
+                </div>
+                {betaRequestError && <div style={{fontSize:11, color:'#ef4444', marginTop:4}}>{betaRequestError}</div>}
+              </div>
+            ) : (
+              <div style={{fontSize:12, color:'#10b981', marginTop:6}}>
+                Request sent! We'll email you an invite code shortly.
+              </div>
+            )}
           </div>
 
           <input value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="Username" required />
