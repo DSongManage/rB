@@ -11,11 +11,30 @@ function EscrowFlowDiagram() {
     return () => clearInterval(interval);
   }, []);
 
+  const stepIcons = [
+    // Handshake
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.42 4.58a5.4 5.4 0 0 0-7.65 0l-.77.78-.77-.78a5.4 5.4 0 0 0-7.65 0C1.46 6.7 1.33 10.28 4 13l8 8 8-8c2.67-2.72 2.54-6.3.42-8.42z" />
+    </svg>,
+    // Lock
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>,
+    // Upload/file
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><polyline points="9 15 12 12 15 15" />
+    </svg>,
+    // Zap
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>,
+  ];
+
   const steps = [
-    { label: 'Agree', sublabel: 'Set terms & milestones', icon: '\u{1F91D}' },
-    { label: 'Fund', sublabel: 'USDC locked in escrow', icon: '\u{1F512}' },
-    { label: 'Deliver', sublabel: 'Upload & review work', icon: '\u{1F4C4}' },
-    { label: 'Release', sublabel: 'Instant payment', icon: '\u26A1' },
+    { label: 'Agree', sublabel: 'Set terms & milestones', icon: stepIcons[0] },
+    { label: 'Fund', sublabel: 'USDC locked in escrow', icon: stepIcons[1] },
+    { label: 'Deliver', sublabel: 'Upload & review work', icon: stepIcons[2] },
+    { label: 'Release', sublabel: 'Instant payment', icon: stepIcons[3] },
   ];
 
   return (
@@ -30,8 +49,9 @@ function EscrowFlowDiagram() {
           }}>
             <div style={{
               width: 48, height: 48, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-              background: i <= activeStep ? (i === activeStep ? '#E8981F' : 'rgba(232,152,31,0.15)') : 'rgba(58,54,50,0.08)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: i === activeStep ? '#fff' : '#E8981F',
+              background: i <= activeStep ? (i === activeStep ? '#E8981F' : 'rgba(232,152,31,0.12)') : 'rgba(58,54,50,0.06)',
               border: i === activeStep ? '2px solid #E8981F' : '2px solid transparent',
               boxShadow: i === activeStep ? '0 0 20px rgba(232,152,31,0.3)' : 'none',
               transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
