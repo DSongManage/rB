@@ -26,7 +26,7 @@ import { ProfileDropdown } from './components/profile/ProfileDropdown';
 import { SettingsModal } from './components/settings/SettingsModal';
 import CartIcon from './components/CartIcon';
 import {
-  User, Menu, X, Users, ShoppingBag
+  User, Menu, X, Users, ShoppingBag, Rocket
 } from 'lucide-react';
 import { SearchAutocomplete } from './components/SearchAutocomplete';
 
@@ -224,6 +224,9 @@ function Header() {
             <span>
               <NotificationBell />
             </span>
+            <Link to="/campaigns" className="rb-nav-link" title="Campaigns">
+              <Rocket size={20} />
+            </Link>
             <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
               <Users size={20} />
             </Link>
@@ -310,7 +313,7 @@ export default function App() {
   const showFooter = !showLibrarySidebar;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/', '/legal', '/how-payments-work', '/content/'];
+  const publicRoutes = ['/auth', '/terms', '/wallet-info', '/beta', '/profile/', '/legal', '/how-payments-work', '/content/', '/campaigns', '/collaborators'];
   const isPublicRoute = publicRoutes.some(route => location.pathname.startsWith(route));
 
   // Marketing pages (accessible to everyone, rendered without app chrome)

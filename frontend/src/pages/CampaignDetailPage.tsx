@@ -31,6 +31,7 @@ export default function CampaignDetailPage() {
   const [updateTitle, setUpdateTitle] = useState('');
   const [updateBody, setUpdateBody] = useState('');
   const [postingUpdate, setPostingUpdate] = useState(false);
+  const [showAuthGate, setShowAuthGate] = useState(false);
 
   const loadCampaign = async () => {
     if (!id) return;
@@ -80,7 +81,7 @@ export default function CampaignDetailPage() {
 
   if (loading) {
     return (
-      <div className="page" style={{ textAlign: 'center', padding: 64, color: '#64748b' }}>
+      <div className="page" style={{ textAlign: 'center', padding: 64, color: 'var(--text-muted)' }}>
         Loading campaign...
       </div>
     );
@@ -88,7 +89,7 @@ export default function CampaignDetailPage() {
 
   if (!campaign) {
     return (
-      <div className="page" style={{ textAlign: 'center', padding: 64, color: '#64748b' }}>
+      <div className="page" style={{ textAlign: 'center', padding: 64, color: 'var(--text-muted)' }}>
         Campaign not found.
       </div>
     );
@@ -105,7 +106,7 @@ export default function CampaignDetailPage() {
         onClick={() => navigate('/campaigns')}
         style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          background: 'none', border: 'none', color: '#64748b',
+          background: 'none', border: 'none', color: 'var(--text-muted)',
           fontSize: 13, cursor: 'pointer', marginBottom: 24,
         }}
       >
@@ -120,7 +121,7 @@ export default function CampaignDetailPage() {
           textAlign: 'center', border: '1px solid #4f46e540',
         }}>
           <PartyPopper size={28} style={{ color: '#8b5cf6', marginBottom: 8 }} />
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#e2e8f0' }}>Campaign Funded!</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Campaign Funded!</div>
           <div style={{ fontSize: 13, color: '#a78bfa', marginTop: 4 }}>
             {isCreator
               ? 'Your campaign reached its goal. Transfer funds to escrow to begin production.'
@@ -149,16 +150,16 @@ export default function CampaignDetailPage() {
           <CampaignStatusBadge status={campaign.status} size="md" />
           <span style={{
             fontSize: 11, padding: '4px 12px', borderRadius: 4,
-            background: '#1e293b', color: '#94a3b8',
+            background: 'var(--chip-bg)', color: 'var(--text-dim)',
           }}>
             {campaign.campaign_type} / {campaign.content_type}
           </span>
         </div>
 
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: '#e2e8f0', marginBottom: 8 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>
           {campaign.title}
         </h1>
-        <div style={{ fontSize: 14, color: '#64748b' }}>
+        <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
           by {campaign.creator_display_name || campaign.creator_username}
         </div>
       </div>
@@ -176,14 +177,14 @@ export default function CampaignDetailPage() {
 
         <div style={{
           display: 'flex', justifyContent: 'space-between',
-          marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155',
+          marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--panel-border)',
           fontSize: 13,
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-dim)' }}>
             <Users size={14} />
             {campaign.backer_count} backer{campaign.backer_count !== 1 ? 's' : ''}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-dim)' }}>
             <Clock size={14} />
             {formatDeadline(campaign.deadline)}
           </div>
@@ -192,8 +193,8 @@ export default function CampaignDetailPage() {
         {/* Solo chapter tracker */}
         {campaign.campaign_type === 'solo' && campaign.chapter_count && (
           <div style={{
-            marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155',
-            fontSize: 13, color: '#94a3b8',
+            marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--panel-border)',
+            fontSize: 13, color: 'var(--text-dim)',
           }}>
             Chapters: {campaign.chapters_published || 0}/{campaign.chapter_count}
             {' '}({campaign.amount_per_chapter && `$${campaign.amount_per_chapter} per chapter`})
@@ -203,11 +204,18 @@ export default function CampaignDetailPage() {
         {/* Action buttons */}
         {campaign.status === 'active' && (
           <button
-            onClick={() => setShowContribute(true)}
+            onClick={() => {
+              if (!user) {
+                setShowAuthGate(true);
+              } else {
+                setShowContribute(true);
+              }
+            }}
             style={{
               width: '100%', padding: '14px 16px', borderRadius: 8,
-              background: '#4f46e5', border: 'none', color: '#fff',
+              background: '#E8981F', border: 'none', color: '#fff',
               fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 16,
+              boxShadow: '0 2px 8px rgba(232,152,31,0.25)',
             }}
           >
             Back this Project
@@ -228,7 +236,7 @@ export default function CampaignDetailPage() {
             >
               <Rocket size={16} /> Begin Production — Transfer to Escrow
             </button>
-            <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center', marginTop: 6 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 6 }}>
               {campaign.campaign_type === 'solo'
                 ? 'Funds will auto-release as you publish chapters on renaissBlock.'
                 : 'Set up collaborator contracts, then funds release per milestone.'}
@@ -249,7 +257,7 @@ export default function CampaignDetailPage() {
         {/* Escrow PDA link (transferred/completed) */}
         {campaign.escrow_pda && (campaign.status === 'transferred' || campaign.status === 'completed') && (
           <div style={{
-            marginTop: 12, fontSize: 11, color: '#64748b', textAlign: 'center',
+            marginTop: 12, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
           }}>
             Escrow: {campaign.escrow_pda.slice(0, 8)}...{campaign.escrow_pda.slice(-4)}
@@ -278,10 +286,10 @@ export default function CampaignDetailPage() {
         background: 'var(--panel)', border: '1px solid var(--panel-border)',
         borderRadius: 12, padding: 24, marginBottom: 24,
       }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
           About this Campaign
         </h2>
-        <div style={{ fontSize: 14, color: '#94a3b8', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+        <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
           {campaign.description}
         </div>
       </div>
@@ -292,10 +300,10 @@ export default function CampaignDetailPage() {
           background: 'var(--panel)', border: '1px solid var(--panel-border)',
           borderRadius: 12, padding: 24, marginBottom: 24,
         }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: 12 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
             The Pitch
           </h2>
-          <div className="ql-editor" style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 1.7, padding: 0 }}
+          <div className="ql-editor" style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.7, padding: 0 }}
             dangerouslySetInnerHTML={{ __html: campaign.pitch_html }} />
         </div>
       )}
@@ -306,24 +314,24 @@ export default function CampaignDetailPage() {
           background: 'var(--panel)', border: '1px solid var(--panel-border)',
           borderRadius: 12, padding: 24, marginBottom: 24,
         }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
             Reward Tiers
           </h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {campaign.tiers.map((tier, i) => (
               <div key={tier.id || i} style={{
                 padding: 16, borderRadius: 10,
-                border: `1px solid ${tier.is_available ? '#334155' : '#ef444440'}`,
+                border: `1px solid ${tier.is_available ? 'var(--panel-border)' : '#ef444440'}`,
                 background: tier.is_available ? 'transparent' : '#1c1917',
                 opacity: tier.is_available ? 1 : 0.6,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0' }}>{tier.title}</span>
+                  <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{tier.title}</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#10b981' }}>${tier.minimum_amount}+</span>
                 </div>
-                <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>{tier.description}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>{tier.description}</div>
                 {tier.max_backers && (
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                     {tier.current_backers || 0}/{tier.max_backers} claimed
                     {!tier.is_available && <span style={{ color: '#ef4444', marginLeft: 6 }}>Sold out</span>}
                   </div>
@@ -340,12 +348,12 @@ export default function CampaignDetailPage() {
           background: 'var(--panel)', border: '1px solid var(--panel-border)',
           borderRadius: 12, padding: 24, marginBottom: 24,
         }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: 16 }}>Gallery</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>Gallery</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
             {campaign.media.map(m => (
               <div key={m.id} style={{ borderRadius: 8, overflow: 'hidden' }}>
                 <img src={m.image} alt={m.caption} style={{ width: '100%', display: 'block' }} />
-                {m.caption && <div style={{ fontSize: 12, color: '#64748b', padding: '6px 0' }}>{m.caption}</div>}
+                {m.caption && <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>{m.caption}</div>}
               </div>
             ))}
           </div>
@@ -354,7 +362,7 @@ export default function CampaignDetailPage() {
 
       {/* Fee info */}
       <div style={{
-        background: '#1e3b2f', borderRadius: 8, padding: 12,
+        background: 'rgba(16,185,129,0.06)', borderRadius: 8, padding: 12, border: '1px solid rgba(16,185,129,0.15)',
         display: 'flex', gap: 10, fontSize: 12, color: '#4ade80',
         lineHeight: 1.5, marginBottom: 24,
       }}>
@@ -368,7 +376,7 @@ export default function CampaignDetailPage() {
       {/* User's contribution */}
       {campaign.user_contribution && parseFloat(campaign.user_contribution) > 0 && (
         <div style={{
-          background: '#1e3a5f', borderRadius: 8, padding: 12,
+          background: 'rgba(59,130,246,0.06)', borderRadius: 8, padding: 12, border: '1px solid rgba(59,130,246,0.15)',
           fontSize: 13, color: '#93c5fd', marginBottom: 24,
         }}>
           You've contributed <strong>${campaign.user_contribution}</strong> to this campaign.
@@ -380,14 +388,14 @@ export default function CampaignDetailPage() {
         background: 'var(--panel)', border: '1px solid var(--panel-border)',
         borderRadius: 12, padding: 24,
       }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: 16 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
           Updates ({updates.length})
         </h2>
 
         {/* Post update (creator only) */}
         {isCreator && campaign.status !== 'cancelled' && (
           <div style={{
-            background: '#1e293b', borderRadius: 8, padding: 12,
+            background: 'var(--chip-bg)', borderRadius: 8, padding: 12,
             marginBottom: 16, border: '1px dashed #4f46e540',
           }}>
             <div style={{ fontSize: 11, color: '#8b5cf6', marginBottom: 8, fontWeight: 600 }}>
@@ -399,8 +407,8 @@ export default function CampaignDetailPage() {
               placeholder="Update title"
               style={{
                 width: '100%', padding: '8px 0', marginBottom: 8,
-                background: 'transparent', border: 'none', borderBottom: '1px solid #334155',
-                color: '#e2e8f0', fontSize: 14, outline: 'none',
+                background: 'transparent', border: 'none', borderBottom: '1px solid var(--panel-border)',
+                color: 'var(--text)', fontSize: 14, outline: 'none',
               }}
             />
             <textarea
@@ -411,7 +419,7 @@ export default function CampaignDetailPage() {
               style={{
                 width: '100%', padding: '8px 0',
                 background: 'transparent', border: 'none',
-                color: '#e2e8f0', fontSize: 13, outline: 'none', resize: 'none',
+                color: 'var(--text)', fontSize: 13, outline: 'none', resize: 'none',
               }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -421,7 +429,7 @@ export default function CampaignDetailPage() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '6px 14px', borderRadius: 6,
-                  background: updateTitle && updateBody ? '#4f46e5' : '#334155',
+                  background: updateTitle && updateBody ? '#4f46e5' : 'var(--panel-border)',
                   border: 'none', color: '#fff', fontSize: 12, cursor: 'pointer',
                 }}
               >
@@ -432,7 +440,7 @@ export default function CampaignDetailPage() {
         )}
 
         {updates.length === 0 ? (
-          <div style={{ fontSize: 13, color: '#64748b', textAlign: 'center', padding: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 16 }}>
             No updates yet.
           </div>
         ) : (
@@ -440,15 +448,15 @@ export default function CampaignDetailPage() {
             {updates.map(update => (
               <div key={update.id} style={{
                 padding: 12, borderRadius: 8,
-                border: '1px solid #334155',
+                border: '1px solid var(--panel-border)',
               }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
                   {update.title}
                 </div>
-                <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>
                   {update.body}
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
                   {new Date(update.created_at).toLocaleDateString()} by {update.author_username}
                 </div>
               </div>
@@ -464,6 +472,67 @@ export default function CampaignDetailPage() {
         onContributed={loadCampaign}
         campaign={campaign}
       />
+
+      {/* Auth gate for unauthenticated backers */}
+      {showAuthGate && (
+        <div
+          onClick={() => setShowAuthGate(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 20, padding: '40px 36px',
+              maxWidth: 420, width: '90%', textAlign: 'center',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
+            }}
+          >
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%', background: 'rgba(232,152,31,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px', color: '#E8981F',
+            }}>
+              <Rocket size={28} />
+            </div>
+            <h3 style={{
+              fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 400,
+              color: '#1a1816', margin: '0 0 8px', letterSpacing: '-0.02em',
+            }}>
+              Back this project
+            </h3>
+            <p style={{ fontSize: 15, color: '#6b6560', lineHeight: 1.6, margin: '0 0 28px' }}>
+              Create a free account to back <strong>{campaign.title}</strong>. Your funds are protected by smart contract escrow.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button
+                onClick={() => navigate('/auth', { state: { from: `/campaigns/${campaign.id}` } })}
+                style={{
+                  display: 'block', width: '100%', padding: '14px 24px', background: '#E8981F',
+                  color: '#fff', borderRadius: 12, fontSize: 15, fontWeight: 700,
+                  border: 'none', cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(232,152,31,0.25)',
+                }}
+              >
+                Sign up to back — it's free
+              </button>
+              <button
+                onClick={() => navigate('/auth', { state: { from: `/campaigns/${campaign.id}` } })}
+                style={{
+                  display: 'block', width: '100%', padding: '12px 24px', background: 'transparent',
+                  color: '#6b6560', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                  border: '1px solid rgba(58,54,50,0.12)', cursor: 'pointer',
+                }}
+              >
+                Already have an account? Sign in
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

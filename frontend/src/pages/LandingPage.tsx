@@ -200,7 +200,7 @@ export default function LandingPage() {
           {isAuthenticated ? (
             <>
               <Link to="/studio" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Studio</Link>
-              <Link to="/store" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Store</Link>
+              <Link to="/campaigns" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Campaigns</Link>
               <Link to="/collaborators" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Creators</Link>
               <Link to="/profile" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -215,6 +215,7 @@ export default function LandingPage() {
           ) : (
             <>
               <a href="#how" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>How It Works</a>
+              <Link to="/campaigns" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Campaigns</Link>
               <Link to="/collaborators" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Find Creators</Link>
               <Link to="/auth" style={{ fontSize: 14, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Log In</Link>
             </>
@@ -384,14 +385,17 @@ export default function LandingPage() {
         {/* Pipeline steps */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 640, margin: '0 auto 40px' }}>
           {[
-            { icon: '\u{270F}\u{FE0F}', title: 'Pitch', tag: 'ESCROW', tagColor: '#E8981F', desc: 'Writer hires artist through escrow to create 5 pitch pages. Safe, milestone-based.' },
-            { icon: '\u{1F680}', title: 'Campaign', tag: 'FUNDRAISE', tagColor: '#10b981', desc: 'Use those pitch pages to launch a campaign. Backers fund the full issue directly on renaissBlock.' },
-            { icon: '\u{1F4E6}', title: 'Production', tag: 'ESCROW', tagColor: '#E8981F', desc: 'Campaign funds flow into escrow milestones. Full issue gets produced page by page, payment by payment.' },
+            { title: 'Pitch', tag: 'ESCROW', tagColor: '#E8981F', desc: 'Writer hires artist through escrow to create 5 pitch pages. Safe, milestone-based.',
+              icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg> },
+            { title: 'Campaign', tag: 'FUNDRAISE', tagColor: '#10b981', desc: 'Use those pitch pages to launch a campaign. Backers fund the full issue directly on renaissBlock.',
+              icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> },
+            { title: 'Production', tag: 'ESCROW', tagColor: '#E8981F', desc: 'Campaign funds flow into escrow milestones. Full issue gets produced page by page, payment by payment.',
+              icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> },
           ].map((step, i) => (
             <div key={i} style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
               <div style={{
                 width: 52, height: 52, borderRadius: '50%', background: 'rgba(232,152,31,0.08)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E8981F', flexShrink: 0,
               }}>{step.icon}</div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
