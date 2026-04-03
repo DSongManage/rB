@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BetaWelcomeModal } from './BetaBadge';
 import { useAuth } from '../hooks/useAuth';
-import { useTour } from '../contexts/TourContext';
 import { API_URL } from '../config';
 
 /**
@@ -9,12 +8,9 @@ import { API_URL } from '../config';
  *
  * Shows welcome modal to new beta users on first login
  * Uses server-side flag (has_seen_beta_welcome) to track completion
- * This ensures users don't see the modal again even on different browsers/devices
- * Triggers the welcome tour after the modal is closed
  */
 export function BetaOnboarding() {
   const { isAuthenticated, user, refreshAuth } = useAuth();
-  const { startTour, hasCompletedTour } = useTour();
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
@@ -59,14 +55,6 @@ export function BetaOnboarding() {
       } catch (error) {
         console.error('[BetaOnboarding] Failed to mark welcome as seen:', error);
       }
-    }
-
-    // Start the welcome tour after closing the modal (if not already completed)
-    if (!hasCompletedTour('welcome')) {
-      // Small delay to let the modal close animation finish
-      setTimeout(() => {
-        startTour('welcome');
-      }, 500);
     }
   };
 
