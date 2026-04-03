@@ -268,7 +268,7 @@ export default function HomePage() {
         {selectedFilter === 'campaign' ? (
           <div className="yt-grid" data-tour="content-grid">
             {campaigns.length === 0 ? (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
                 No active campaigns yet. Be the first to create one!
               </div>
             ) : (

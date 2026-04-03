@@ -63,7 +63,7 @@ export function ContentCommentsSection({
 
   return (
     <div style={{
-      background: '#0f172a',
+      background: 'var(--dropdown-bg)',
       borderRadius: 16,
       border: '1px solid #1e293b',
       overflow: 'hidden',
@@ -87,8 +87,8 @@ export function ContentCommentsSection({
         </h3>
         {totalCount > 0 && (
           <span style={{
-            background: '#1e293b',
-            color: '#94a3b8',
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-muted)',
             padding: '4px 10px',
             borderRadius: 12,
             fontSize: 13,
@@ -144,8 +144,8 @@ export function ContentCommentsSection({
                 style={{
                   width: '100%',
                   padding: '12px 14px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 12,
                   color: '#f1f5f9',
                   fontSize: 14,
@@ -216,7 +216,7 @@ export function ContentCommentsSection({
           <div style={{
             textAlign: 'center',
             padding: '32px 0',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             Loading comments...
@@ -225,7 +225,7 @@ export function ContentCommentsSection({
           <div style={{
             textAlign: 'center',
             padding: '32px 0',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             No comments yet. Be the first to comment!
@@ -262,7 +262,7 @@ export function ContentCommentsSection({
                   marginTop: 16,
                   padding: '12px',
                   background: 'transparent',
-                  border: '1px solid #334155',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   color: '#8b5cf6',
                   fontSize: 14,

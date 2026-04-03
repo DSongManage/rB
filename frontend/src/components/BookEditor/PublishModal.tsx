@@ -57,7 +57,7 @@ export default function PublishModal({ open, onClose, project, currentChapter, o
         </h2>
 
         <div style={{ marginBottom: 24 }}>
-          <div style={{ color: '#94a3b8', fontSize: 14, marginBottom: 16 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 16 }}>
             Choose how you want to publish:
           </div>
 
@@ -88,10 +88,10 @@ export default function PublishModal({ open, onClose, project, currentChapter, o
                 <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
                   Publish This Chapter
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
                   {currentChapter.title || 'Untitled Chapter'} • {currentChapterWords} words
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   Mint this chapter as a standalone NFT. Readers can collect individual chapters.
                 </div>
               </div>
@@ -123,10 +123,10 @@ export default function PublishModal({ open, onClose, project, currentChapter, o
               <div style={{ fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
                 Publish Entire Book
               </div>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
                 {project.title} • {project.chapters.length} chapters • {totalWords} words
               </div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 Combine all chapters into one complete book NFT. Perfect for finished works.
               </div>
             </div>

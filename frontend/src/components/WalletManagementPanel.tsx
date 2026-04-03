@@ -265,7 +265,7 @@ export function WalletManagementPanel({
         <div style={{ fontWeight: 600, color: '#f1f5f9', fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Wallet size={20} /> Wallet Setup
         </div>
-        <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
           Connect a wallet to receive USDC payments and own NFTs.
         </div>
 
@@ -335,8 +335,8 @@ export function WalletManagementPanel({
             disabled={loading}
             style={{
               background: 'transparent',
-              border: '1px solid #334155',
-              color: '#cbd5e1',
+              border: '1px solid var(--border)',
+              color: 'var(--text-dim)',
               padding: '10px 20px',
               borderRadius: 8,
               fontWeight: 600,
@@ -369,13 +369,13 @@ export function WalletManagementPanel({
 
         <div style={{
           fontSize: 12,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           padding: 12,
-          background: '#0b1220',
+          background: 'var(--bg-input)',
           borderRadius: 8,
           border: '1px solid #1f2937',
         }}>
-          <div style={{ marginBottom: 6, fontWeight: 600, color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ marginBottom: 6, fontWeight: 600, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Info size={14} /> Web3Auth (Recommended)
           </div>
           <div>
@@ -450,9 +450,9 @@ export function WalletManagementPanel({
           }}>
             <div style={{
               fontSize: 14,
-              color: '#e5e7eb',
+              color: 'var(--text)',
               fontFamily: 'monospace',
-              background: '#0b1220',
+              background: 'var(--bg-input)',
               padding: '6px 12px',
               borderRadius: 6,
               border: '1px solid #1f2937',
@@ -465,7 +465,7 @@ export function WalletManagementPanel({
               style={{
                 background: '#1f2937',
                 border: '1px solid #374151',
-                color: '#cbd5e1',
+                color: 'var(--text-dim)',
                 padding: '6px 12px',
                 borderRadius: 6,
                 fontSize: 12,
@@ -490,7 +490,7 @@ export function WalletManagementPanel({
               style={{
                 background: '#1f2937',
                 border: '1px solid #374151',
-                color: '#cbd5e1',
+                color: 'var(--text-dim)',
                 padding: '6px 12px',
                 borderRadius: 6,
                 fontSize: 12,
@@ -515,7 +515,7 @@ export function WalletManagementPanel({
                 style={{
                   background: '#1f2937',
                   border: '1px solid #374151',
-                  color: '#cbd5e1',
+                  color: 'var(--text-dim)',
                   padding: '6px 12px',
                   borderRadius: 6,
                   fontSize: 12,
@@ -541,8 +541,8 @@ export function WalletManagementPanel({
                   top: '100%',
                   right: 0,
                   marginTop: 8,
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: 8,
                   minWidth: 220,
@@ -555,7 +555,7 @@ export function WalletManagementPanel({
                       width: '100%',
                       background: 'transparent',
                       border: 'none',
-                      color: '#cbd5e1',
+                      color: 'var(--text-dim)',
                       padding: '8px 12px',
                       borderRadius: 6,
                       fontSize: 13,
@@ -675,8 +675,8 @@ export function WalletManagementPanel({
           zIndex: 2000,
         }}>
           <div style={{
-            background: '#1e293b',
-            border: '1px solid #334155',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
             borderRadius: 12,
             padding: 24,
             maxWidth: 500,
@@ -696,7 +696,7 @@ export function WalletManagementPanel({
 
             <div style={{
               fontSize: 14,
-              color: '#cbd5e1',
+              color: 'var(--text-dim)',
               marginBottom: 16,
               lineHeight: 1.6,
             }}>
@@ -708,16 +708,16 @@ export function WalletManagementPanel({
                 New purchases and payments will go to the new wallet address.
               </p>
               <div style={{
-                background: '#0b1220',
-                border: '1px solid #334155',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 12,
                 fontFamily: 'monospace',
                 marginTop: 12,
               }}>
-                <div style={{ color: '#94a3b8', marginBottom: 4 }}>Current wallet:</div>
-                <div style={{ color: '#e5e7eb' }}>{walletAddress}</div>
+                <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>Current wallet:</div>
+                <div style={{ color: 'var(--text)' }}>{walletAddress}</div>
               </div>
             </div>
 
@@ -746,7 +746,7 @@ export function WalletManagementPanel({
                   flex: 1,
                   background: 'transparent',
                   border: '1px solid #475569',
-                  color: '#cbd5e1',
+                  color: 'var(--text-dim)',
                   padding: '10px 20px',
                   borderRadius: 8,
                   fontWeight: 600,
@@ -799,7 +799,7 @@ export function WalletManagementPanel({
           zIndex: 2000,
         }}>
           <div style={{
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             border: '2px solid #ef4444',
             borderRadius: 12,
             padding: 24,
@@ -820,7 +820,7 @@ export function WalletManagementPanel({
 
             <div style={{
               fontSize: 14,
-              color: '#cbd5e1',
+              color: 'var(--text-dim)',
               marginBottom: 16,
               lineHeight: 1.6,
             }}>
@@ -837,16 +837,16 @@ export function WalletManagementPanel({
                 Your library of owned NFTs will disappear until you reconnect a wallet.
               </p>
               <div style={{
-                background: '#0b1220',
-                border: '1px solid #334155',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 12,
                 fontFamily: 'monospace',
                 marginTop: 12,
               }}>
-                <div style={{ color: '#94a3b8', marginBottom: 4 }}>Your NFTs will remain in:</div>
-                <div style={{ color: '#e5e7eb' }}>{walletAddress}</div>
+                <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>Your NFTs will remain in:</div>
+                <div style={{ color: 'var(--text)' }}>{walletAddress}</div>
               </div>
             </div>
 
@@ -875,7 +875,7 @@ export function WalletManagementPanel({
                   flex: 1,
                   background: 'transparent',
                   border: '1px solid #475569',
-                  color: '#cbd5e1',
+                  color: 'var(--text-dim)',
                   padding: '10px 20px',
                   borderRadius: 8,
                   fontWeight: 600,

@@ -53,7 +53,7 @@ export default function CopyrightPreview({ authorName, year }: CopyrightPreviewP
         </p>
 
         <p style={{
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           fontSize: 12,
           lineHeight: 1.6,
           margin: 0,
@@ -65,7 +65,7 @@ export default function CopyrightPreview({ authorName, year }: CopyrightPreviewP
 
       <div style={{
         fontSize: 11,
-        color: '#64748b',
+        color: 'var(--text-muted)',
         marginTop: 8,
         textAlign: 'center',
       }}>

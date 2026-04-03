@@ -119,7 +119,7 @@ function ArtViewer({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 20px',
-          background: '#111827',
+          background: 'var(--chip-bg)',
           borderBottom: '1px solid #1f2937',
           zIndex: 10,
         }}
@@ -130,7 +130,7 @@ function ArtViewer({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: 8,
               borderRadius: 8,
@@ -143,13 +143,13 @@ function ArtViewer({
           </button>
           <div>
             <div style={{ color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>{displayTitle}</div>
-            <div style={{ color: '#64748b', fontSize: 13 }}>by {creator}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>by {creator}</div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {hasGallery && (
-            <span style={{ color: '#94a3b8', fontSize: 13, marginRight: 8 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 13, marginRight: 8 }}>
               {currentIndex + 1} / {galleryImages.length}
             </span>
           )}
@@ -172,7 +172,7 @@ function ArtViewer({
           </button>
           <span
             style={{
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 13,
               minWidth: 50,
               textAlign: 'center',
@@ -206,7 +206,7 @@ function ArtViewer({
             style={{
               background: '#1f2937',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: 8,
               borderRadius: 8,
@@ -225,7 +225,7 @@ function ArtViewer({
             style={{
               background: '#1f2937',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: 8,
               borderRadius: 8,
@@ -261,7 +261,7 @@ function ArtViewer({
               top: '50%',
               transform: 'translateY(-50%)',
               background: 'rgba(17, 24, 39, 0.8)',
-              border: '1px solid #334155',
+              border: '1px solid var(--border)',
               color: '#f8fafc',
               cursor: 'pointer',
               padding: 12,
@@ -298,7 +298,7 @@ function ArtViewer({
               top: '50%',
               transform: 'translateY(-50%)',
               background: 'rgba(17, 24, 39, 0.8)',
-              border: '1px solid #334155',
+              border: '1px solid var(--border)',
               color: '#f8fafc',
               cursor: 'pointer',
               padding: 12,
@@ -323,7 +323,7 @@ function ArtViewer({
             gap: 8,
             padding: '8px 20px',
             overflowX: 'auto',
-            background: '#111827',
+            background: 'var(--chip-bg)',
             borderTop: '1px solid #1f2937',
           }}
         >
@@ -340,7 +340,7 @@ function ArtViewer({
                 border: idx === currentIndex ? '2px solid #f59e0b' : '2px solid transparent',
                 cursor: 'pointer',
                 padding: 0,
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 opacity: idx === currentIndex ? 1 : 0.6,
                 transition: 'opacity 0.15s, border-color 0.15s',
               }}
@@ -358,7 +358,7 @@ function ArtViewer({
       {/* Footer with copyright and keyboard hints */}
       <div
         style={{
-          background: '#111827',
+          background: 'var(--chip-bg)',
           borderTop: '1px solid #1f2937',
         }}
       >
@@ -371,7 +371,7 @@ function ArtViewer({
           style={{
             padding: '8px 20px',
             textAlign: 'center',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 12,
           }}
         >
@@ -424,7 +424,7 @@ function MediaPlaceholder({
           left: 20,
           background: '#1f2937',
           border: 'none',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           cursor: 'pointer',
           padding: '8px 16px',
           borderRadius: 8,
@@ -459,8 +459,8 @@ function MediaPlaceholder({
           {contentType === 'music' ? '🎵' : '🎬'}
         </div>
         <h2 style={{ color: '#f8fafc', fontSize: 24, marginBottom: 8 }}>{title}</h2>
-        <p style={{ color: '#64748b', marginBottom: 4 }}>by {creator}</p>
-        <p style={{ color: '#94a3b8', marginTop: 16 }}>
+        <p style={{ color: 'var(--text-muted)', marginBottom: 4 }}>by {creator}</p>
+        <p style={{ color: 'var(--text-muted)', marginTop: 16 }}>
           {contentType === 'music' ? 'Music' : 'Film'} playback coming soon
         </p>
       </div>
@@ -537,7 +537,7 @@ export function ReaderPage() {
           alignItems: 'center',
           justifyContent: 'center',
           background: '#0a0f1a',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           fontSize: 16,
         }}
       >
@@ -597,7 +597,7 @@ export function ReaderPage() {
           >
             {error || 'Content not found'}
           </div>
-          <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 16 }}>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16 }}>
             You may not have access to this content.
           </div>
           <button
@@ -653,7 +653,7 @@ export function ReaderPage() {
             <div style={{ color: '#f8fafc', fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
               {content.title}
             </div>
-            <div style={{ color: '#94a3b8', marginBottom: 24 }}>
+            <div style={{ color: 'var(--text-muted)', marginBottom: 24 }}>
               {error || 'Comic pages not available'}
             </div>
             <button
@@ -710,7 +710,7 @@ export function ReaderPage() {
             <div style={{ color: '#f8fafc', fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
               {content.title}
             </div>
-            <div style={{ color: '#94a3b8', marginBottom: 24 }}>
+            <div style={{ color: 'var(--text-muted)', marginBottom: 24 }}>
               Image not available
             </div>
             <button

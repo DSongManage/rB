@@ -161,14 +161,14 @@ export function MobileLibrary() {
               style={{
                 fontSize: 16,
                 fontWeight: 700,
-                color: '#e5e7eb',
+                color: 'var(--text)',
                 margin: 0,
               }}
             >
               My Library
             </h2>
             {isCollapsed && (
-              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 {totalItems} {totalItems === 1 ? 'item' : 'items'} • Tap to expand
               </div>
             )}
@@ -178,7 +178,7 @@ export function MobileLibrary() {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
         }}>
           {!isCollapsed && (
             <span style={{ fontSize: 12 }}>
@@ -202,7 +202,7 @@ export function MobileLibrary() {
             alignItems: 'center',
           }}
         >
-          <Search size={16} style={{ position: 'absolute', left: 12, color: '#64748b' }} />
+          <Search size={16} style={{ position: 'absolute', left: 12, color: 'var(--text-muted)' }} />
           <input
             type="text"
             placeholder="Search library..."
@@ -210,12 +210,12 @@ export function MobileLibrary() {
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               width: '100%',
-              background: '#111827',
+              background: 'var(--chip-bg)',
               border: '1px solid #2a3444',
               borderRadius: 10,
               padding: '10px 36px 10px 40px',
               fontSize: 14,
-              color: '#e5e7eb',
+              color: 'var(--text)',
               outline: 'none',
             }}
           />
@@ -227,7 +227,7 @@ export function MobileLibrary() {
                 right: 10,
                 background: 'transparent',
                 border: 'none',
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 padding: 4,
                 display: 'flex',
@@ -340,17 +340,17 @@ export function MobileLibrary() {
           marginBottom: 16,
         }}
       >
-        <ArrowUpDown size={14} style={{ color: '#64748b' }} />
+        <ArrowUpDown size={14} style={{ color: 'var(--text-muted)' }} />
         <select
           value={sortBy}
           onChange={(e) => handleSortChange(e.target.value as SortOption)}
           style={{
-            background: '#111827',
+            background: 'var(--chip-bg)',
             border: '1px solid #2a3444',
             borderRadius: 8,
             padding: '6px 10px',
             fontSize: 13,
-            color: '#cbd5e1',
+            color: 'var(--text-dim)',
             cursor: 'pointer',
           }}
         >
@@ -366,7 +366,7 @@ export function MobileLibrary() {
           style={{
             textAlign: 'center',
             padding: 32,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}
         >
@@ -411,7 +411,7 @@ export function MobileLibrary() {
           style={{
             textAlign: 'center',
             padding: 32,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}
         >

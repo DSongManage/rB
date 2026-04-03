@@ -39,7 +39,7 @@ export default function CampaignsDiscoverPage() {
         <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>
           Discover Campaigns
         </h1>
-        <p style={{ fontSize: 15, color: '#94a3b8' }}>
+        <p style={{ fontSize: 15, color: 'var(--text-muted)' }}>
           Back creative projects. Funds are protected by escrow until work is delivered.
         </p>
       </div>
@@ -51,17 +51,17 @@ export default function CampaignsDiscoverPage() {
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          background: '#1e293b', borderRadius: 8, padding: '8px 12px',
-          flex: 1, minWidth: 200, border: '1px solid #334155',
+          background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 12px',
+          flex: 1, minWidth: 200, border: '1px solid var(--border)',
         }}>
-          <Search size={16} style={{ color: '#64748b' }} />
+          <Search size={16} style={{ color: 'var(--text-muted)' }} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search campaigns..."
             style={{
               background: 'transparent', border: 'none', outline: 'none',
-              color: '#e2e8f0', fontSize: 14, width: '100%',
+              color: 'var(--text)', fontSize: 14, width: '100%',
             }}
           />
         </div>
@@ -70,8 +70,8 @@ export default function CampaignsDiscoverPage() {
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
           style={{
-            background: '#1e293b', border: '1px solid #334155', borderRadius: 8,
-            padding: '8px 12px', color: '#e2e8f0', fontSize: 13,
+            background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8,
+            padding: '8px 12px', color: 'var(--text)', fontSize: 13,
           }}
         >
           <option value="">All Types</option>
@@ -83,8 +83,8 @@ export default function CampaignsDiscoverPage() {
           value={contentFilter}
           onChange={(e) => setContentFilter(e.target.value)}
           style={{
-            background: '#1e293b', border: '1px solid #334155', borderRadius: 8,
-            padding: '8px 12px', color: '#e2e8f0', fontSize: 13,
+            background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8,
+            padding: '8px 12px', color: 'var(--text)', fontSize: 13,
           }}
         >
           <option value="">All Content</option>
@@ -96,11 +96,11 @@ export default function CampaignsDiscoverPage() {
 
       {/* Campaign grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
+        <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>
           Loading campaigns...
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 48, color: '#64748b' }}>
+        <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>
           No campaigns found. Be the first to create one!
         </div>
       ) : (

@@ -34,7 +34,7 @@ export default function CopyrightNotice({ authorName, year, compact = false }: C
           {copyrightLine}
         </p>
         <p style={{
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           fontSize: 10,
           margin: 0,
           fontStyle: 'italic',
@@ -50,7 +50,7 @@ export default function CopyrightNotice({ authorName, year, compact = false }: C
     <div style={{
       marginTop: 24,
       paddingTop: 16,
-      borderTop: '1px solid #334155',
+      borderTop: '1px solid var(--border)',
     }}>
       <div style={{
         display: 'flex',
@@ -70,14 +70,14 @@ export default function CopyrightNotice({ authorName, year, compact = false }: C
         </span>
       </div>
       <p style={{
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
         fontSize: 13,
         margin: '0 0 4px 0',
       }}>
         {copyrightLine}
       </p>
       <p style={{
-        color: '#64748b',
+        color: 'var(--text-muted)',
         fontSize: 11,
         margin: 0,
         fontStyle: 'italic',

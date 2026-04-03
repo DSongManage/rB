@@ -97,7 +97,7 @@ export default function CheckoutButton({ contentId, price, editions }: Props) {
       </button>
 
       {editions > 0 && (
-        <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
           {editions} edition{editions !== 1 ? 's' : ''} available
         </div>
       )}

@@ -55,7 +55,7 @@ export function ApprovalStatus({
         <div
           style={{
             height: 8,
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 4,
             overflow: 'hidden',
           }}
@@ -112,7 +112,7 @@ export function ApprovalStatus({
                       @{collab.username}
                       {collab.user === currentUserId && ' (you)'}
                     </div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {collab.role}
                     </div>
                   </div>
@@ -167,7 +167,7 @@ export function ApprovalStatus({
                       @{collab.username}
                       {collab.user === currentUserId && ' (you)'}
                     </div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {collab.role}
                     </div>
                   </div>
@@ -309,7 +309,7 @@ export function ApprovalStatus({
           border: '1px solid rgba(59, 130, 246, 0.3)',
           borderRadius: 8,
           fontSize: 12,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           lineHeight: 1.5,
         }}
       >

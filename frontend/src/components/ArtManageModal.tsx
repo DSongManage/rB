@@ -153,8 +153,8 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
     >
       <div
         style={{
-          background: '#0f172a',
-          border: '1px solid #334155',
+          background: 'var(--dropdown-bg)',
+          border: '1px solid var(--border)',
           borderRadius: '16px',
           maxWidth: '500px',
           width: '100%',
@@ -168,7 +168,7 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
         <div
           style={{
             padding: '20px',
-            borderBottom: '1px solid #334155',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -182,7 +182,7 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: '24px',
               cursor: 'pointer',
               padding: '0',
@@ -225,11 +225,11 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
           <div
             style={{
               display: 'inline-block',
-              background: '#1e293b',
+              background: 'var(--bg-secondary)',
               padding: '4px 10px',
               borderRadius: '6px',
               fontSize: '12px',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               textTransform: 'capitalize',
               marginBottom: '20px',
             }}
@@ -241,7 +241,7 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
           {item.is_collaborative && item.collaborators && item.collaborators.length > 0 && (
             <div
               style={{
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 borderRadius: '10px',
                 padding: '16px',
                 marginBottom: '20px',
@@ -272,8 +272,8 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
                       fontSize: '13px',
                     }}
                   >
-                    <span style={{ color: '#e2e8f0' }}>@{collab.username}</span>
-                    <span style={{ color: '#64748b' }}>
+                    <span style={{ color: 'var(--text)' }}>@{collab.username}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>
                       {collab.role} • {collab.revenue_percentage}%
                     </span>
                   </div>
@@ -376,8 +376,8 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
             ) : (
               <div
                 style={{
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: '10px',
                   padding: '16px',
                 }}
@@ -397,7 +397,7 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
                         ? 'Request Unpublish Approval'
                         : 'Confirm Unpublish'}
                     </div>
-                    <div style={{ color: '#94a3b8', fontSize: '13px', lineHeight: 1.5 }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1.5 }}>
                       {item.is_collaborative
                         ? 'This will create a proposal that requires unanimous approval from all collaborators.'
                         : 'This will remove your content from the marketplace. This action can be undone by republishing.'}
@@ -413,9 +413,9 @@ export function ArtManageModal({ isOpen, onClose, item, onUnpublished }: ArtMana
                       flex: 1,
                       padding: '12px',
                       borderRadius: '8px',
-                      border: '1px solid #334155',
+                      border: '1px solid var(--border)',
                       background: 'transparent',
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       fontSize: '14px',
                       fontWeight: 600,
                       cursor: 'pointer',

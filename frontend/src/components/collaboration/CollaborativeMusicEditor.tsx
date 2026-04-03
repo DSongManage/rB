@@ -210,7 +210,7 @@ export default function CollaborativeMusicEditor({
       {/* Track List Sidebar */}
       <div style={{
         width: 320,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 16,
         display: 'flex',
@@ -251,7 +251,7 @@ export default function CollaborativeMusicEditor({
             <div style={{
               padding: 24,
               textAlign: 'center',
-              color: '#64748b',
+              color: 'var(--text-muted)',
               fontSize: 13,
               border: '1px dashed #334155',
               borderRadius: 8,
@@ -301,7 +301,7 @@ export default function CollaborativeMusicEditor({
                   }}>
                     {track.title}
                   </div>
-                  <div style={{ color: '#64748b', fontSize: 11 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                     @{track.owner_username}
                     {track.duration && ` - ${formatTime(track.duration)}`}
                   </div>
@@ -315,7 +315,7 @@ export default function CollaborativeMusicEditor({
       {/* Main Player Area */}
       <div style={{
         flex: 1,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 20,
         display: 'flex',
@@ -354,7 +354,7 @@ export default function CollaborativeMusicEditor({
               alignItems: 'center',
               marginBottom: 24,
               paddingBottom: 16,
-              borderBottom: '1px solid #334155',
+              borderBottom: '1px solid var(--border)',
             }}>
               <div style={{ flex: 1 }}>
                 {canEditSelectedTrack ? (
@@ -378,7 +378,7 @@ export default function CollaborativeMusicEditor({
                     {selectedTrack.title}
                   </h2>
                 )}
-                <div style={{ color: '#64748b', fontSize: 13, marginTop: 4 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
                   Uploaded by @{selectedTrack.owner_username}
                 </div>
               </div>
@@ -454,7 +454,7 @@ export default function CollaborativeMusicEditor({
 
                 {/* Progress Bar */}
                 <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ color: '#94a3b8', fontSize: 12, minWidth: 40 }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12, minWidth: 40 }}>
                     {formatTime(currentTime)}
                   </span>
                   <input
@@ -468,7 +468,7 @@ export default function CollaborativeMusicEditor({
                       accentColor: '#f59e0b',
                     }}
                   />
-                  <span style={{ color: '#94a3b8', fontSize: 12, minWidth: 40, textAlign: 'right' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12, minWidth: 40, textAlign: 'right' }}>
                     {formatTime(duration)}
                   </span>
                 </div>
@@ -481,7 +481,7 @@ export default function CollaborativeMusicEditor({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             {tracks.length === 0

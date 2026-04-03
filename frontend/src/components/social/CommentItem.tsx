@@ -111,7 +111,7 @@ export function CommentItem({
     padding: '4px 8px',
     borderRadius: 6,
     fontSize: 12,
-    color: '#64748b',
+    color: 'var(--text-muted)',
     cursor: 'pointer',
     transition: 'all 0.15s ease',
   };
@@ -169,11 +169,11 @@ export function CommentItem({
               >
                 @{comment.author_username}
               </Link>
-              <span style={{ fontSize: 11, color: '#64748b' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {timeAgo(comment.created_at)}
               </span>
               {comment.edited && (
-                <span style={{ fontSize: 11, color: '#475569' }}>(edited)</span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>(edited)</span>
               )}
             </div>
 
@@ -187,8 +187,8 @@ export function CommentItem({
                   style={{
                     width: '100%',
                     padding: '10px 12px',
-                    background: '#0f172a',
-                    border: '1px solid #334155',
+                    background: 'var(--dropdown-bg)',
+                    border: '1px solid var(--border)',
                     borderRadius: 8,
                     color: '#f1f5f9',
                     fontSize: 13,
@@ -225,7 +225,7 @@ export function CommentItem({
                       background: '#334155',
                       border: 'none',
                       borderRadius: 6,
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       fontSize: 12,
                       fontWeight: 500,
                       cursor: 'pointer',
@@ -237,7 +237,7 @@ export function CommentItem({
               </form>
             ) : (
               <p style={{
-                color: '#cbd5e1',
+                color: 'var(--text-dim)',
                 fontSize: 14,
                 lineHeight: 1.6,
                 margin: 0,
@@ -321,8 +321,8 @@ export function CommentItem({
                     style={{
                       flex: 1,
                       padding: '10px 12px',
-                      background: '#0f172a',
-                      border: '1px solid #334155',
+                      background: 'var(--dropdown-bg)',
+                      border: '1px solid var(--border)',
                       borderRadius: 8,
                       color: '#f1f5f9',
                       fontSize: 13,
@@ -354,7 +354,7 @@ export function CommentItem({
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#64748b',
+                    color: 'var(--text-muted)',
                     fontSize: 12,
                     cursor: 'pointer',
                     marginTop: 6,

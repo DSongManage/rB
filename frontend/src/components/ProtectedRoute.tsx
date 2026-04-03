@@ -32,7 +32,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         alignItems: 'center',
         justifyContent: 'center',
         height: '60vh',
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
         fontSize: 16,
       }}>
         Checking authentication...

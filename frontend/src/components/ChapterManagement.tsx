@@ -223,7 +223,7 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
   }
 
   return (
-    <div style={{ padding: 16, background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}>
+    <div style={{ padding: 16, background: 'var(--dropdown-bg)', border: '1px solid #1e293b', borderRadius: 8 }}>
       {/* Status Messages */}
       {message && (
         <div style={{
@@ -248,7 +248,7 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: '#94a3b8' }}>Status:</span>
+            <span style={{ color: 'var(--text-muted)' }}>Status:</span>
             {status.is_listed ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981' }}>
                 <Eye size={16} /> Listed on marketplace
@@ -260,13 +260,13 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: '#94a3b8' }}>NFTs sold:</span>
+            <span style={{ color: 'var(--text-muted)' }}>NFTs sold:</span>
             <span style={{ fontWeight: 600 }}>{status.purchase_count}</span>
           </div>
           {status.is_collaborative && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Info size={16} style={{ color: '#3b82f6' }} />
-              <span style={{ color: '#94a3b8' }}>Collaborative content (requires unanimous approval)</span>
+              <span style={{ color: 'var(--text-muted)' }}>Collaborative content (requires unanimous approval)</span>
             </div>
           )}
         </div>
@@ -277,8 +277,8 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
         <div style={{
           padding: 12,
           marginBottom: 16,
-          background: '#1e293b',
-          border: '1px solid #334155',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
           borderRadius: 8
         }}>
           <div style={{ fontSize: 14, marginBottom: 4 }}>
@@ -308,7 +308,7 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
             <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
             <strong>Pending Delist Request</strong>
           </div>
-          <div style={{ fontSize: 14, color: '#94a3b8' }}>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
             <div>Requested by: <strong>{status.pending_delist_request.requested_by}</strong></div>
             <div>Approvals: {status.pending_delist_request.approvals_count} / {status.pending_delist_request.total_collaborators}</div>
             <div>Reason: {status.pending_delist_request.reason}</div>
@@ -402,7 +402,7 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
           zIndex: 1000
         }}>
           <div style={{
-            background: '#0f172a',
+            background: 'var(--dropdown-bg)',
             border: '1px solid #1e293b',
             borderRadius: 16,
             padding: 24,
@@ -413,11 +413,11 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
               <AlertTriangle style={{ color: '#ef4444' }} />
               Permanently Remove Chapter
             </h2>
-            <p style={{ marginBottom: 16, color: '#94a3b8' }}>
+            <p style={{ marginBottom: 16, color: 'var(--text-muted)' }}>
               This will <strong>permanently delete</strong> this chapter from the database.
               This action cannot be undone.
             </p>
-            <p style={{ marginBottom: 16, color: '#94a3b8' }}>
+            <p style={{ marginBottom: 16, color: 'var(--text-muted)' }}>
               Are you sure you want to remove "{chapter.title}"?
             </p>
             <textarea
@@ -428,8 +428,8 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
                 width: '100%',
                 minHeight: 80,
                 padding: 12,
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 color: 'white',
                 marginBottom: 16,
@@ -442,8 +442,8 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
                 disabled={actionLoading}
                 style={{
                   padding: '10px 20px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   color: 'white',
                   cursor: actionLoading ? 'not-allowed' : 'pointer'
@@ -485,7 +485,7 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
           zIndex: 1000
         }}>
           <div style={{
-            background: '#0f172a',
+            background: 'var(--dropdown-bg)',
             border: '1px solid #1e293b',
             borderRadius: 16,
             padding: 24,
@@ -496,7 +496,7 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
               <EyeOff style={{ color: '#f59e0b' }} />
               Delist from Marketplace
             </h2>
-            <p style={{ marginBottom: 16, color: '#94a3b8' }}>
+            <p style={{ marginBottom: 16, color: 'var(--text-muted)' }}>
               This will <strong>hide</strong> this chapter from the marketplace, but NFT holders
               will still have access to their purchased content.
             </p>
@@ -514,7 +514,7 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
                 width: '100%',
                 minHeight: 80,
                 padding: 12,
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 border: `1px solid ${!reason.trim() ? '#ef4444' : '#334155'}`,
                 borderRadius: 8,
                 color: 'white',
@@ -531,8 +531,8 @@ const ChapterManagement: React.FC<ChapterManagementProps> = ({ chapter, onStatus
                 disabled={actionLoading}
                 style={{
                   padding: '10px 20px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   color: 'white',
                   cursor: actionLoading ? 'not-allowed' : 'pointer'

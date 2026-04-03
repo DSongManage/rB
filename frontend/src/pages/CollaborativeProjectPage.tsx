@@ -192,7 +192,7 @@ export default function CollaborativeProjectPage() {
           alignItems: 'center',
           justifyContent: 'center',
           height: '60vh',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           fontSize: 16,
         }}>
           Loading project...
@@ -333,7 +333,7 @@ export default function CollaborativeProjectPage() {
                   border: '1px solid var(--panel-border)',
                   borderRadius: 8,
                   padding: '10px 20px',
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer',
                 }}
               >
@@ -360,7 +360,7 @@ export default function CollaborativeProjectPage() {
                     padding: 4,
                     cursor: 'pointer',
                     fontSize: 18,
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                   }}
                 >
                   <Pencil size={16} />
@@ -532,7 +532,7 @@ export default function CollaborativeProjectPage() {
             width: '90%',
           }}>
             <h3 style={{ margin: '0 0 16px 0', color: 'var(--text)' }}>Delete Project?</h3>
-            <p style={{ margin: '0 0 16px 0', color: '#94a3b8', fontSize: 14 }}>
+            <p style={{ margin: '0 0 16px 0', color: 'var(--text-muted)', fontSize: 14 }}>
               This action cannot be undone. All project data will be permanently deleted.
             </p>
             <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>

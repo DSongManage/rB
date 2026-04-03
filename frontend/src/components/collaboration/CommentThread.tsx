@@ -155,7 +155,7 @@ export function CommentThread({
                     style={{
                       marginLeft: 6,
                       fontSize: 11,
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       cursor: comment.edit_history ? 'pointer' : 'default',
                     }}
                     onClick={() => comment.edit_history && setShowEditHistory(!showEditHistory)}
@@ -166,19 +166,19 @@ export function CommentThread({
                 )}
               </div>
 
-              <span style={{ fontSize: 11, color: '#64748b' }}>•</span>
-              <span style={{ fontSize: 11, color: '#64748b' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>•</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {getTimeAgo(comment.created_at)}
               </span>
 
               {/* Section indicator */}
               {comment.section_title && (
                 <>
-                  <span style={{ fontSize: 11, color: '#64748b' }}>•</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>•</span>
                   <span
                     style={{
                       fontSize: 10,
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       background: 'rgba(59, 130, 246, 0.1)',
                       padding: '2px 6px',
                       borderRadius: 4,
@@ -218,7 +218,7 @@ export function CommentThread({
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer',
                   fontSize: 18,
                   padding: '2px 6px',
@@ -236,8 +236,8 @@ export function CommentThread({
                     top: '100%',
                     right: 0,
                     marginTop: 4,
-                    background: '#1e293b',
-                    border: '1px solid #334155',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
                     borderRadius: 8,
                     boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
                     minWidth: 150,
@@ -255,7 +255,7 @@ export function CommentThread({
                           width: '100%',
                           background: 'transparent',
                           border: 'none',
-                          color: '#e5e7eb',
+                          color: 'var(--text)',
                           padding: '8px 12px',
                           textAlign: 'left',
                           cursor: 'pointer',
@@ -326,16 +326,16 @@ export function CommentThread({
                 marginBottom: 8,
                 padding: 8,
                 background: 'rgba(100, 116, 139, 0.1)',
-                border: '1px solid #334155',
+                border: '1px solid var(--border)',
                 borderRadius: 6,
                 fontSize: 11,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
               }}
             >
               <div style={{ fontWeight: 600, marginBottom: 4 }}>Edit History:</div>
               {comment.edit_history.map((edit) => (
                 <div key={edit.edited_at} style={{ marginBottom: 4 }}>
-                  <span style={{ color: '#64748b' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>
                     {new Date(edit.edited_at).toLocaleString()}:
                   </span>{' '}
                   {edit.content}
@@ -361,7 +361,7 @@ export function CommentThread({
             <div
               style={{
                 fontSize: 13,
-                color: '#cbd5e1',
+                color: 'var(--text-dim)',
                 lineHeight: 1.6,
                 marginBottom: 8,
                 whiteSpace: 'pre-wrap',
@@ -410,7 +410,7 @@ export function CommentThread({
                 >
                   <span>📎</span>
                   <span style={{ flex: 1 }}>{attachment.filename}</span>
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     {(attachment.file_size / 1024).toFixed(1)} KB
                   </span>
                 </a>

@@ -40,7 +40,7 @@ export function EscrowStatusBar({
   const isFunded = funded >= total && total > 0;
 
   const trustPhaseLabels: Record<string, { label: string; color: string }> = {
-    not_started: { label: 'Not Started', color: '#94a3b8' },
+    not_started: { label: 'Not Started', color: 'var(--text-muted)' },
     trust_building: { label: `Trust Phase (${trustPagesCompleted}/5 pages)`, color: '#f59e0b' },
     production: { label: 'Production', color: '#3b82f6' },
     completed: { label: 'Completed', color: '#10b981' },
@@ -52,16 +52,16 @@ export function EscrowStatusBar({
     return (
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
-        fontSize: 12, color: '#94a3b8',
+        fontSize: 12, color: 'var(--text-muted)',
       }}>
         <DollarSign size={14} />
-        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>
+        <span style={{ color: 'var(--text)', fontWeight: 600 }}>
           ${released.toFixed(2)}
         </span>
         <span>/</span>
         <span>${total.toFixed(2)}</span>
         <div style={{
-          flex: 1, height: 4, background: '#1e293b',
+          flex: 1, height: 4, background: 'var(--bg-secondary)',
           borderRadius: 2, minWidth: 60, overflow: 'hidden',
         }}>
           <div style={{
@@ -76,7 +76,7 @@ export function EscrowStatusBar({
 
   return (
     <div style={{
-      background: '#0f172a',
+      background: 'var(--dropdown-bg)',
       border: '1px solid #1e293b',
       borderRadius: 12,
       padding: 16,
@@ -92,7 +92,7 @@ export function EscrowStatusBar({
           ) : (
             <Lock size={16} style={{ color: '#f59e0b' }} />
           )}
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
             {contractType === 'hybrid' ? 'Hybrid Escrow' : 'Escrow'}
           </span>
         </div>
@@ -106,7 +106,7 @@ export function EscrowStatusBar({
 
       {/* Progress bar */}
       <div style={{
-        height: 8, background: '#1e293b', borderRadius: 4,
+        height: 8, background: 'var(--bg-secondary)', borderRadius: 4,
         overflow: 'hidden', marginBottom: 12, position: 'relative',
       }}>
         {/* Funded background */}
@@ -131,15 +131,15 @@ export function EscrowStatusBar({
         gap: 8, fontSize: 12,
       }}>
         <div>
-          <div style={{ color: '#64748b', marginBottom: 2 }}>Total</div>
-          <div style={{ color: '#e2e8f0', fontWeight: 600 }}>${total.toFixed(2)}</div>
+          <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Total</div>
+          <div style={{ color: 'var(--text)', fontWeight: 600 }}>${total.toFixed(2)}</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ color: '#64748b', marginBottom: 2 }}>Released</div>
+          <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Released</div>
           <div style={{ color: '#10b981', fontWeight: 600 }}>${released.toFixed(2)}</div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ color: '#64748b', marginBottom: 2 }}>Remaining</div>
+          <div style={{ color: 'var(--text-muted)', marginBottom: 2 }}>Remaining</div>
           <div style={{ color: '#f59e0b', fontWeight: 600 }}>${rem.toFixed(2)}</div>
         </div>
       </div>

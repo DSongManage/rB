@@ -191,7 +191,7 @@ export default function PurchaseStatusTracker({
         textAlign: 'center',
       }}>
         <div style={{ fontSize: '24px', marginBottom: '12px' }}>⏳</div>
-        <div style={{ color: '#94a3b8' }}>Loading purchase status...</div>
+        <div style={{ color: 'var(--text-muted)' }}>Loading purchase status...</div>
       </div>
     );
   }
@@ -260,7 +260,7 @@ export default function PurchaseStatusTracker({
         {status?.status === 'bridge_converting' && (
           <p style={{
             fontSize: '14px',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             margin: 0,
           }}>
             This typically takes 5-30 minutes. You can leave this page.
@@ -349,7 +349,7 @@ export default function PurchaseStatusTracker({
           justifyContent: 'space-between',
           marginBottom: '8px',
         }}>
-          <span style={{ color: '#94a3b8' }}>Status:</span>
+          <span style={{ color: 'var(--text-muted)' }}>Status:</span>
           <span style={{ color: currentConfig.color, fontWeight: 600 }}>
             {status?.status_display || status?.status}
           </span>
@@ -361,7 +361,7 @@ export default function PurchaseStatusTracker({
             justifyContent: 'space-between',
             marginBottom: '8px',
           }}>
-            <span style={{ color: '#94a3b8' }}>NFT Address:</span>
+            <span style={{ color: 'var(--text-muted)' }}>NFT Address:</span>
             <a
               href={`https://solscan.io/token/${status.nft_mint_address}`}
               target="_blank"
@@ -383,7 +383,7 @@ export default function PurchaseStatusTracker({
             display: 'flex',
             justifyContent: 'space-between',
           }}>
-            <span style={{ color: '#94a3b8' }}>Transaction:</span>
+            <span style={{ color: 'var(--text-muted)' }}>Transaction:</span>
             <a
               href={`https://solscan.io/tx/${status.transaction_signature}`}
               target="_blank"
@@ -405,7 +405,7 @@ export default function PurchaseStatusTracker({
       <div style={{
         marginTop: '16px',
         fontSize: '12px',
-        color: '#64748b',
+        color: 'var(--text-muted)',
         textAlign: 'center',
       }}>
         Auto-refreshing every 5 seconds {pollCount > 0 && `(${pollCount} checks)`}

@@ -27,7 +27,7 @@ const groupStyles: Record<string, { color: string; bgColor: string }> = {
   this_week: { color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' },
   this_month: { color: '#06b6d4', bgColor: 'rgba(6, 182, 212, 0.1)' },
   future: { color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)' },
-  older: { color: '#64748b', bgColor: 'rgba(100, 116, 139, 0.1)' },
+  older: { color: 'var(--text-muted)', bgColor: 'rgba(100, 116, 139, 0.1)' },
 };
 
 export function UnifiedTimeline({ items, isLoading = false, onTaskClick }: UnifiedTimelineProps) {
@@ -47,7 +47,7 @@ export function UnifiedTimeline({ items, isLoading = false, onTaskClick }: Unifi
           alignItems: 'center',
           justifyContent: 'center',
           padding: 60,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
         }}
       >
         Loading timeline...
@@ -83,7 +83,7 @@ export function UnifiedTimeline({ items, isLoading = false, onTaskClick }: Unifi
         <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
           No Timeline Items
         </h3>
-        <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>
           Tasks and activities will appear here as your team collaborates.
         </p>
       </div>
@@ -130,7 +130,7 @@ export function UnifiedTimeline({ items, isLoading = false, onTaskClick }: Unifi
           }}
         >
           <ListTodo size={16} style={{ color: '#3b82f6' }} />
-          <span style={{ fontSize: 13, color: '#94a3b8' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             {taskCount} task{taskCount !== 1 ? 's' : ''}
           </span>
         </div>
@@ -146,7 +146,7 @@ export function UnifiedTimeline({ items, isLoading = false, onTaskClick }: Unifi
           }}
         >
           <ActivityIcon size={16} style={{ color: '#8b5cf6' }} />
-          <span style={{ fontSize: 13, color: '#94a3b8' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             {activityCount} activit{activityCount !== 1 ? 'ies' : 'y'}
           </span>
         </div>
@@ -207,7 +207,7 @@ function TimelineGroup({ group, onTaskClick }: TimelineGroupProps) {
             background: 'var(--panel-border)',
           }}
         />
-        <span style={{ fontSize: 12, color: '#64748b' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {group.items.length} item{group.items.length !== 1 ? 's' : ''}
         </span>
       </div>

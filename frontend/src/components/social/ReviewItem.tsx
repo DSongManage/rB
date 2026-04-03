@@ -146,14 +146,14 @@ export function ReviewItem({
             marginBottom: 8,
           }}>
             <StarRating rating={review.rating} size="sm" readonly />
-            <span style={{ fontSize: 12, color: '#64748b' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {timeAgo(review.created_at)}
             </span>
           </div>
 
           {review.review_text && (
             <p style={{
-              color: '#cbd5e1',
+              color: 'var(--text-dim)',
               fontSize: 14,
               lineHeight: 1.6,
               margin: 0,
@@ -194,7 +194,7 @@ export function ReviewItem({
               {review.response_at && (
                 <span style={{
                   fontSize: 11,
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   marginTop: 8,
                   display: 'block',
                 }}>
@@ -219,8 +219,8 @@ export function ReviewItem({
                     style={{
                       width: '100%',
                       padding: '12px 14px',
-                      background: '#0f172a',
-                      border: '1px solid #334155',
+                      background: 'var(--dropdown-bg)',
+                      border: '1px solid var(--border)',
                       borderRadius: 10,
                       color: '#f1f5f9',
                       fontSize: 14,
@@ -260,7 +260,7 @@ export function ReviewItem({
                         background: '#334155',
                         border: 'none',
                         borderRadius: 8,
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                         fontSize: 13,
                         fontWeight: 500,
                         cursor: 'pointer',

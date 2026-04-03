@@ -19,7 +19,7 @@ export function CampaignProductionTracker({ campaign }: CampaignProductionTracke
       background: 'var(--panel)', border: '1px solid var(--panel-border)',
       borderRadius: 12, padding: 24, marginBottom: 24,
     }}>
-      <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: 16 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
         <BookOpen size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
         Production Progress
       </h2>
@@ -28,7 +28,7 @@ export function CampaignProductionTracker({ campaign }: CampaignProductionTracke
       <div style={{ marginBottom: 16 }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between', marginBottom: 6,
-          fontSize: 13, color: '#94a3b8',
+          fontSize: 13, color: 'var(--text-muted)',
         }}>
           <span>{published} of {chapters} chapters released</span>
           <span>{isComplete ? '100%' : `${Math.round((published / Math.max(chapters, 1)) * 100)}%`}</span>
@@ -59,7 +59,7 @@ export function CampaignProductionTracker({ campaign }: CampaignProductionTracke
                 {isReleased ? (
                   <Check size={14} style={{ color: '#10b981' }} />
                 ) : (
-                  <Clock size={14} style={{ color: '#64748b' }} />
+                  <Clock size={14} style={{ color: 'var(--text-muted)' }} />
                 )}
                 <span style={{ fontSize: 13, color: isReleased ? '#e2e8f0' : '#94a3b8' }}>
                   Chapter {i + 1}
@@ -79,11 +79,11 @@ export function CampaignProductionTracker({ campaign }: CampaignProductionTracke
       {/* Summary */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', marginTop: 16,
-        paddingTop: 12, borderTop: '1px solid #334155',
-        fontSize: 12, color: '#64748b',
+        paddingTop: 12, borderTop: '1px solid var(--border)',
+        fontSize: 12, color: 'var(--text-muted)',
       }}>
         <span>Released: <strong style={{ color: '#10b981' }}>${released.toFixed(0)}</strong></span>
-        <span>Remaining in escrow: <strong style={{ color: '#e2e8f0' }}>${remaining.toFixed(0)}</strong></span>
+        <span>Remaining in escrow: <strong style={{ color: 'var(--text)' }}>${remaining.toFixed(0)}</strong></span>
       </div>
     </div>
   );

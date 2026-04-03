@@ -36,14 +36,14 @@ export function ActivityFeed({
         style={{
           padding: compact ? 16 : 32,
           textAlign: 'center',
-          color: '#64748b',
+          color: 'var(--text-muted)',
         }}
       >
         <div style={{ fontSize: compact ? 32 : 48, marginBottom: 8 }}>📋</div>
         <div style={{ fontSize: compact ? 12 : 14, fontWeight: 600, marginBottom: 4 }}>
           No activity yet
         </div>
-        <div style={{ fontSize: compact ? 11 : 12, color: '#64748b' }}>
+        <div style={{ fontSize: compact ? 11 : 12, color: 'var(--text-muted)' }}>
           Project activities will appear here
         </div>
       </div>
@@ -187,14 +187,14 @@ function ActivityItem({ activity, showAvatar = true, compact = false }: Activity
             alignItems: 'center',
             gap: 8,
             fontSize: compact ? 10 : 11,
-            color: '#64748b',
+            color: 'var(--text-muted)',
           }}
         >
           <span>@{activity.username}</span>
           {activity.section_title && (
             <>
               <span>•</span>
-              <span style={{ color: '#94a3b8' }}>{activity.section_title}</span>
+              <span style={{ color: 'var(--text-muted)' }}>{activity.section_title}</span>
             </>
           )}
           <span>•</span>
@@ -307,7 +307,7 @@ export function ActivityFeedPanel({
               border: '1px solid var(--panel-border)',
               borderRadius: 6,
               padding: '4px 12px',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: isLoading ? 'not-allowed' : 'pointer',
               fontSize: 11,
               fontWeight: 600,
@@ -397,7 +397,7 @@ export function ActivitySummary({ activities, maxItems = 5 }: ActivitySummaryPro
         style={{
           padding: 12,
           textAlign: 'center',
-          color: '#64748b',
+          color: 'var(--text-muted)',
           fontSize: 11,
         }}
       >
@@ -427,7 +427,7 @@ export function ActivitySummary({ activities, maxItems = 5 }: ActivitySummaryPro
               alignItems: 'center',
               gap: 8,
               fontSize: 11,
-              color: '#cbd5e1',
+              color: 'var(--text-dim)',
               lineHeight: 1.4,
             }}
           >
@@ -436,10 +436,10 @@ export function ActivitySummary({ activities, maxItems = 5 }: ActivitySummaryPro
               <span style={{ fontWeight: 600, color: color }}>
                 @{activity.username}
               </span>{' '}
-              <span style={{ color: '#94a3b8' }}>
+              <span style={{ color: 'var(--text-muted)' }}>
                 {activity.description.toLowerCase()}
               </span>
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
                 {timeAgo}
               </div>
             </div>

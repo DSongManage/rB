@@ -220,7 +220,7 @@ export default function CollaborativeVideoEditor({
       {/* Clip List Sidebar */}
       <div style={{
         width: 320,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 16,
         display: 'flex',
@@ -261,7 +261,7 @@ export default function CollaborativeVideoEditor({
             <div style={{
               padding: 24,
               textAlign: 'center',
-              color: '#64748b',
+              color: 'var(--text-muted)',
               fontSize: 13,
               border: '1px dashed #334155',
               borderRadius: 8,
@@ -308,7 +308,7 @@ export default function CollaborativeVideoEditor({
                   }}>
                     {clip.title}
                   </div>
-                  <div style={{ color: '#64748b', fontSize: 11 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                     @{clip.owner_username}
                     {clip.duration && ` - ${formatTime(clip.duration)}`}
                   </div>
@@ -322,7 +322,7 @@ export default function CollaborativeVideoEditor({
       {/* Main Video Player Area */}
       <div style={{
         flex: 1,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 20,
         display: 'flex',
@@ -352,7 +352,7 @@ export default function CollaborativeVideoEditor({
               alignItems: 'center',
               marginBottom: 16,
               paddingBottom: 16,
-              borderBottom: '1px solid #334155',
+              borderBottom: '1px solid var(--border)',
             }}>
               <div style={{ flex: 1 }}>
                 {canEditSelectedClip ? (
@@ -376,7 +376,7 @@ export default function CollaborativeVideoEditor({
                     {selectedClip.title}
                   </h2>
                 )}
-                <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
                   Uploaded by @{selectedClip.owner_username}
                 </div>
               </div>
@@ -408,7 +408,7 @@ export default function CollaborativeVideoEditor({
             }}>
               <div style={{
                 flex: 1,
-                background: '#0f172a',
+                background: 'var(--dropdown-bg)',
                 borderRadius: 8,
                 overflow: 'hidden',
                 display: 'flex',
@@ -431,7 +431,7 @@ export default function CollaborativeVideoEditor({
                     }}
                   />
                 ) : (
-                  <div style={{ color: '#64748b', fontSize: 14 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>
                     No video available
                   </div>
                 )}
@@ -443,7 +443,7 @@ export default function CollaborativeVideoEditor({
                 alignItems: 'center',
                 gap: 16,
                 padding: '12px 16px',
-                background: '#0f172a',
+                background: 'var(--dropdown-bg)',
                 borderRadius: 8,
               }}>
                 <button
@@ -465,7 +465,7 @@ export default function CollaborativeVideoEditor({
                   {playing ? '⏸️' : '▶️'}
                 </button>
 
-                <span style={{ color: '#94a3b8', fontSize: 12, minWidth: 40 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12, minWidth: 40 }}>
                   {formatTime(currentTime)}
                 </span>
 
@@ -481,7 +481,7 @@ export default function CollaborativeVideoEditor({
                   }}
                 />
 
-                <span style={{ color: '#94a3b8', fontSize: 12, minWidth: 40 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12, minWidth: 40 }}>
                   {formatTime(duration)}
                 </span>
 
@@ -490,8 +490,8 @@ export default function CollaborativeVideoEditor({
                   disabled={!selectedClip.media_file}
                   style={{
                     background: 'transparent',
-                    border: '1px solid #334155',
-                    color: '#94a3b8',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-muted)',
                     padding: '8px 12px',
                     borderRadius: 6,
                     cursor: selectedClip.media_file ? 'pointer' : 'not-allowed',
@@ -509,7 +509,7 @@ export default function CollaborativeVideoEditor({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             {clips.length === 0

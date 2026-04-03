@@ -73,7 +73,7 @@ export default function PurchaseSuccessPage() {
 
         <p style={{
           fontSize: '16px',
-          color: '#64748b',
+          color: 'var(--text-muted)',
           marginBottom: '24px',
           lineHeight: '1.6',
         }}>
@@ -87,12 +87,12 @@ export default function PurchaseSuccessPage() {
             padding: '12px',
             marginBottom: '24px',
           }}>
-            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
               Session ID
             </p>
             <p style={{
               fontSize: '11px',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontFamily: 'monospace',
               wordBreak: 'break-all',
             }}>
@@ -104,7 +104,7 @@ export default function PurchaseSuccessPage() {
         {/* Redirect countdown */}
         <p style={{
           fontSize: '14px',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           marginBottom: '24px',
         }}>
           Redirecting to home in {countdown} second{countdown !== 1 ? 's' : ''}...

@@ -77,7 +77,7 @@ export function VotingModal({
     if (proposal.proposal_type === 'revenue_split' && data.splits) {
       return (
         <div style={{ marginBottom: 20 }}>
-          <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
             PROPOSED REVENUE SPLITS
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -89,20 +89,20 @@ export function VotingModal({
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '8px 12px',
-                  background: '#1e293b',
+                  background: 'var(--bg-secondary)',
                   borderRadius: 6,
                 }}
               >
-                <span style={{ color: '#e2e8f0', fontSize: 13 }}>
+                <span style={{ color: 'var(--text)', fontSize: 13 }}>
                   @{split.username}
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {split.old_percentage !== undefined && (
                     <>
-                      <span style={{ color: '#64748b', fontSize: 12 }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                         {split.old_percentage}%
                       </span>
-                      <span style={{ color: '#64748b' }}>→</span>
+                      <span style={{ color: 'var(--text-muted)' }}>→</span>
                     </>
                   )}
                   <span
@@ -136,19 +136,19 @@ export function VotingModal({
       return (
         <div
           style={{
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 8,
             padding: 16,
             marginBottom: 20,
           }}
         >
-          <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
             NEW COLLABORATOR
           </div>
           <div style={{ color: '#f8fafc', fontSize: 14, fontWeight: 500 }}>
             @{data.invitee.username}
           </div>
-          <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
             Role: {data.invitee.role} • {data.invitee.revenue_percentage}% revenue
           </div>
         </div>
@@ -183,20 +183,20 @@ export function VotingModal({
       return (
         <div
           style={{
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 8,
             padding: 16,
             marginBottom: 20,
           }}
         >
-          <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
             DEADLINE EXTENSION REQUEST
           </div>
           <div style={{ color: '#f8fafc', fontSize: 14 }}>
             Extend by: <span style={{ color: '#f59e0b', fontWeight: 600 }}>{data.extension.days} days</span>
           </div>
           {data.extension.reason && (
-            <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 8 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>
               "{data.extension.reason}"
             </div>
           )}
@@ -227,8 +227,8 @@ export function VotingModal({
     >
       <div
         style={{
-          background: '#0f172a',
-          border: '1px solid #334155',
+          background: 'var(--dropdown-bg)',
+          border: '1px solid var(--border)',
           borderRadius: 16,
           width: '100%',
           maxWidth: 500,
@@ -241,7 +241,7 @@ export function VotingModal({
         <div
           style={{
             padding: 20,
-            borderBottom: '1px solid #334155',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'flex-start',
@@ -250,14 +250,14 @@ export function VotingModal({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 24 }}>{typeInfo.icon}</span>
-              <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
                 {typeInfo.label}
               </span>
             </div>
             <h2 style={{ margin: 0, color: '#f8fafc', fontSize: 18, fontWeight: 600 }}>
               {proposal.title}
             </h2>
-            <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
               Proposed by @{proposal.proposer_username}
             </div>
           </div>
@@ -267,7 +267,7 @@ export function VotingModal({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 24,
               cursor: submitting ? 'not-allowed' : 'pointer',
               padding: 4,
@@ -283,13 +283,13 @@ export function VotingModal({
           {proposal.description && (
             <div
               style={{
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 borderRadius: 8,
                 padding: 16,
                 marginBottom: 20,
               }}
             >
-              <p style={{ margin: 0, color: '#cbd5e1', fontSize: 14, lineHeight: 1.6 }}>
+              <p style={{ margin: 0, color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.6 }}>
                 {proposal.description}
               </p>
             </div>
@@ -300,7 +300,7 @@ export function VotingModal({
 
           {/* Current votes */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
               CURRENT VOTES ({proposal.vote_counts.total}/{proposal.total_voters})
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
@@ -327,10 +327,10 @@ export function VotingModal({
                   textAlign: 'center',
                 }}
               >
-                <div style={{ color: '#94a3b8', fontSize: 20, fontWeight: 700 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 20, fontWeight: 700 }}>
                   {proposal.vote_counts.abstain}
                 </div>
-                <div style={{ color: '#64748b', fontSize: 11 }}>Abstain</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Abstain</div>
               </div>
               <div
                 style={{
@@ -351,7 +351,7 @@ export function VotingModal({
 
           {/* Vote selection */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
               CAST YOUR VOTE
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -409,7 +409,7 @@ export function VotingModal({
             <label
               style={{
                 display: 'block',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 12,
                 fontWeight: 600,
                 marginBottom: 8,
@@ -424,8 +424,8 @@ export function VotingModal({
               style={{
                 width: '100%',
                 minHeight: 80,
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
                 color: '#f8fafc',
@@ -461,9 +461,9 @@ export function VotingModal({
                 flex: 1,
                 padding: '14px 20px',
                 borderRadius: 10,
-                border: '1px solid #334155',
+                border: '1px solid var(--border)',
                 background: 'transparent',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: submitting ? 'not-allowed' : 'pointer',

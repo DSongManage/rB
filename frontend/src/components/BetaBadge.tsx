@@ -76,10 +76,10 @@ export function BetaBadge({ variant = 'header', showTestMode = true }: BetaBadge
           BETA
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#e5e7eb', marginBottom: '4px' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>
             You're in the Beta!
           </div>
-          <div style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.4 }}>
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
             Help us improve by{' '}
             <a
               href="mailto:feedback@renaissblock.com"
@@ -192,10 +192,10 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
           >
             BETA TESTER
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#e5e7eb', margin: '0 0 8px 0' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text)', margin: '0 0 8px 0' }}>
             Welcome to renaissBlock Beta!
           </h2>
-          <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0 }}>
+          <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>
             You're one of the first creators to experience the future
           </p>
         </div>
@@ -206,7 +206,7 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#f59e0b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <FlaskConical size={16} /> Test Mode Active
             </div>
-            <ul style={{ fontSize: '13px', color: '#cbd5e1', margin: '0', paddingLeft: '20px', lineHeight: 1.6 }}>
+            <ul style={{ fontSize: '13px', color: 'var(--text-dim)', margin: '0', paddingLeft: '20px', lineHeight: 1.6 }}>
               <li>No real money charged (use test card: 4242 4242 4242 4242)</li>
               <li>Blockchain features use Solana devnet (fake SOL)</li>
               <li>Some features still being polished</li>
@@ -217,7 +217,7 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
             <div style={{ fontSize: '14px', fontWeight: 600, color: '#f59e0b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Lightbulb size={16} /> What to Try
             </div>
-            <ul style={{ fontSize: '13px', color: '#cbd5e1', margin: '0', paddingLeft: '20px', lineHeight: 1.6 }}>
+            <ul style={{ fontSize: '13px', color: 'var(--text-dim)', margin: '0', paddingLeft: '20px', lineHeight: 1.6 }}>
               <li>Create and publish your first content</li>
               <li>Collaborate with other beta testers</li>
               <li>Test the purchase and reading experience</li>
@@ -236,7 +236,7 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
             <div style={{ fontSize: '13px', color: '#fbbf24', fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Gift size={14} /> Beta Perks
             </div>
-            <p style={{ fontSize: '12px', color: '#cbd5e1', margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
               As a beta tester, you'll get early access to new features and special recognition when we launch!
             </p>
           </div>
@@ -261,7 +261,7 @@ export function BetaWelcomeModal({ onClose }: { onClose: () => void }) {
           >
             Let's Go! <Rocket size={16} style={{ marginLeft: 4 }} />
           </button>
-          <div style={{ fontSize: '12px', color: '#64748b' }}>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Questions?{' '}
             <a
               href="mailto:feedback@renaissblock.com"

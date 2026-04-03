@@ -154,7 +154,7 @@ export function PendingInviteCard({
           >
             {project.title?.replace(/^Collaboration Invite - /, '') || project.title}
           </h3>
-          <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 2 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 2 }}>
             from <span style={{ color: '#f59e0b' }}>@{creator?.username}</span>
           </div>
         </div>
@@ -167,15 +167,15 @@ export function PendingInviteCard({
           gap: 16,
           marginBottom: 12,
           padding: '10px 12px',
-          background: '#0f172a',
+          background: 'var(--dropdown-bg)',
           borderRadius: 8,
         }}
       >
         <div style={{ flex: 1 }}>
-          <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>
             Your Role
           </div>
-          <div style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 500 }}>
+          <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 500 }}>
             {myInvite.role}
           </div>
         </div>
@@ -186,7 +186,7 @@ export function PendingInviteCard({
           }}
         />
         <div style={{ flex: 1 }}>
-          <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>
             {myInvite.contract_type === 'work_for_hire' ? 'Fixed Rate' :
              myInvite.contract_type === 'hybrid' ? 'Upfront' : 'Revenue'}
           </div>
@@ -222,7 +222,7 @@ export function PendingInviteCard({
           {warrantyAcknowledged ? (
             <CheckSquare size={18} style={{ color: '#10b981' }} />
           ) : (
-            <Square size={18} style={{ color: '#64748b' }} />
+            <Square size={18} style={{ color: 'var(--text-muted)' }} />
           )}
         </div>
         <div>
@@ -241,7 +241,7 @@ export function PendingInviteCard({
               Warranty of Originality
             </span>
           </div>
-          <div style={{ color: '#94a3b8', fontSize: 11, lineHeight: 1.4 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.4 }}>
             I acknowledge that my contributions will be original work and do not infringe on any third-party rights.
           </div>
         </div>
@@ -274,7 +274,7 @@ export function PendingInviteCard({
             borderRadius: 8,
             border: '1px solid #64748b',
             background: 'transparent',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             fontSize: 13,
             fontWeight: 600,
             cursor: loading ? 'not-allowed' : 'pointer',
@@ -350,7 +350,7 @@ export function PendingInviteCard({
       </div>
 
       {/* Time ago */}
-      <div style={{ textAlign: 'center', marginTop: 10, color: '#64748b', fontSize: 11 }}>
+      <div style={{ textAlign: 'center', marginTop: 10, color: 'var(--text-muted)', fontSize: 11 }}>
         Invited {formatTimeAgo(myInvite.invited_at)}
       </div>
     </div>

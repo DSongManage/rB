@@ -75,7 +75,7 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
     >
       <div
         style={{
-          background: '#1e293b',
+          background: 'var(--bg-secondary)',
           borderRadius: 12,
           padding: 24,
           maxWidth: 480,
@@ -94,7 +94,7 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
             alignItems: 'center',
             marginBottom: 20,
             paddingBottom: 16,
-            borderBottom: '1px solid #334155',
+            borderBottom: '1px solid var(--border)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -108,7 +108,7 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: 4,
               borderRadius: 4,
@@ -152,7 +152,7 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
                   margin: '0 0 10px 0',
                   fontSize: 13,
                   fontWeight: 600,
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}
@@ -170,24 +170,24 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
                       padding: '6px 0',
                     }}
                   >
-                    <span style={{ color: '#e2e8f0', fontSize: 14 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 14 }}>
                       {shortcut.description}
                     </span>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {shortcut.keys.map((key, keyIdx) => (
                         <React.Fragment key={keyIdx}>
                           {keyIdx > 0 && (
-                            <span style={{ color: '#64748b', fontSize: 12 }}>or</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>or</span>
                           )}
                           <kbd
                             style={{
-                              background: '#0f172a',
+                              background: 'var(--dropdown-bg)',
                               padding: '4px 8px',
                               borderRadius: 4,
                               fontSize: 12,
                               fontFamily: 'monospace',
                               color: '#f8fafc',
-                              border: '1px solid #334155',
+                              border: '1px solid var(--border)',
                               minWidth: 28,
                               textAlign: 'center',
                             }}
@@ -209,13 +209,13 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
           style={{
             marginTop: 20,
             paddingTop: 16,
-            borderTop: '1px solid #334155',
+            borderTop: '1px solid var(--border)',
             fontSize: 12,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             textAlign: 'center',
           }}
         >
-          Press <kbd style={{ background: '#0f172a', padding: '2px 6px', borderRadius: 4 }}>?</kbd>{' '}
+          Press <kbd style={{ background: 'var(--dropdown-bg)', padding: '2px 6px', borderRadius: 4 }}>?</kbd>{' '}
           anytime to show this help
         </div>
       </div>

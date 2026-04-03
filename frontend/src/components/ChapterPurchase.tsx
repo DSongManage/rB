@@ -102,7 +102,7 @@ export default function ChapterPurchase({
         <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
           Purchase Chapter
         </h3>
-        <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0 }}>
+        <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>
           {chapterTitle}
         </p>
       </div>
@@ -112,7 +112,7 @@ export default function ChapterPurchase({
         padding: '16px',
         backgroundColor: '#1e293b',
         borderRadius: '8px',
-        border: '1px solid #334155',
+        border: '1px solid var(--border)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
           <span style={{ fontSize: '16px', fontWeight: 600 }}>Price:</span>
@@ -132,7 +132,7 @@ export default function ChapterPurchase({
                 backgroundColor: '#334155',
                 border: 'none',
                 borderRadius: '6px',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: '13px',
                 cursor: 'pointer',
                 transition: 'background-color 0.2s',
@@ -152,19 +152,19 @@ export default function ChapterPurchase({
               <div style={{
                 marginTop: '16px',
                 paddingTop: '16px',
-                borderTop: '1px solid #334155',
+                borderTop: '1px solid var(--border)',
                 fontSize: '14px',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>Creator receives:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Creator receives:</span>
                   <span style={{ fontWeight: 500, color: '#10b981' }}>{breakdown.creator_receives}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ color: '#94a3b8' }}>Platform fee ({breakdown.platform_fee_percent}):</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Platform fee ({breakdown.platform_fee_percent}):</span>
                   <span style={{ fontWeight: 500 }}>{breakdown.platform_receives}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#94a3b8' }}>Network fee:</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Network fee:</span>
                   <span style={{ fontWeight: 500 }}>{breakdown.gas_fee}</span>
                 </div>
               </div>
@@ -187,7 +187,7 @@ export default function ChapterPurchase({
             justifyContent: 'space-between',
             marginBottom: '8px'
           }}>
-            <span style={{ color: '#94a3b8' }}>Current balance:</span>
+            <span style={{ color: 'var(--text-muted)' }}>Current balance:</span>
             <span style={{ fontWeight: 500 }}>{displayBalance || '$0.00'}</span>
           </div>
           <div style={{
@@ -257,7 +257,7 @@ export default function ChapterPurchase({
       {/* Help Text */}
       <div style={{
         fontSize: '12px',
-        color: '#64748b',
+        color: 'var(--text-muted)',
         textAlign: 'center',
         lineHeight: '1.4',
       }}>

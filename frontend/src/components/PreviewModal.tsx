@@ -247,7 +247,7 @@ export default function PreviewModal({
         {/* Preview Content */}
         <div style={{
           flex: 1,
-          background: '#0f172a',
+          background: 'var(--dropdown-bg)',
           borderRadius: '16px 0 0 16px',
           overflow: 'hidden',
           display: 'flex',
@@ -261,7 +261,7 @@ export default function PreviewModal({
             justifyContent: 'space-between',
             padding: '16px 20px',
             borderBottom: '1px solid #1e293b',
-            background: '#0b1220',
+            background: 'var(--bg-input)',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 16 }}>
@@ -285,7 +285,7 @@ export default function PreviewModal({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 padding: 8,
                 borderRadius: 8,
@@ -306,12 +306,12 @@ export default function PreviewModal({
                 height: '100%',
                 overflow: 'auto',
                 padding: 16,
-                background: '#0b1220',
+                background: 'var(--bg-input)',
                 borderRadius: 8,
                 position: 'relative',
               }}>
                 {loading ? (
-                  <div style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>
                     Loading preview...
                   </div>
                 ) : safe ? (
@@ -348,7 +348,7 @@ export default function PreviewModal({
                     </div>
                   </>
                 ) : (
-                  <div style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>
                     No preview available
                   </div>
                 )}
@@ -358,7 +358,7 @@ export default function PreviewModal({
               galleryPreview && galleryPreview.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12, padding: 12 }}>
                   {totalPieces && previewCount && (
-                    <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
                       Preview ({previewCount} of {totalPieces} piece{totalPieces > 1 ? 's' : ''})
                     </div>
                   )}
@@ -371,7 +371,7 @@ export default function PreviewModal({
                     alignContent: 'start',
                   }}>
                     {galleryPreview.map((img) => (
-                      <div key={img.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: '#1e293b' }}>
+                      <div key={img.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-secondary)' }}>
                         <img
                           src={img.media_file}
                           alt={img.title || 'Art piece'}
@@ -408,7 +408,7 @@ export default function PreviewModal({
                             right: 0,
                             padding: '6px 8px',
                             background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
-                            color: '#e2e8f0',
+                            color: 'var(--text)',
                             fontSize: 11,
                             fontWeight: 500,
                           }}>{img.title}</div>
@@ -420,17 +420,17 @@ export default function PreviewModal({
                       Array.from({ length: Math.min(totalPieces - previewCount, 6) }).map((_, i) => (
                         <div key={`locked-${i}`} style={{
                           borderRadius: 8,
-                          background: '#1e293b',
+                          background: 'var(--bg-secondary)',
                           aspectRatio: '1',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 8,
-                          border: '1px solid #334155',
+                          border: '1px solid var(--border)',
                         }}>
-                          <Lock size={20} style={{ color: '#475569' }} />
-                          <span style={{ color: '#475569', fontSize: 11 }}>Locked</span>
+                          <Lock size={20} style={{ color: 'var(--text-secondary)' }} />
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>Locked</span>
                         </div>
                       ))
                     )}
@@ -487,7 +487,7 @@ export default function PreviewModal({
                 position: 'relative',
               }}>
                 {loading ? (
-                  <div style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>
                     Loading comic preview...
                   </div>
                 ) : comicPreview && comicPreview.pages.length > 0 ? (
@@ -607,7 +607,7 @@ export default function PreviewModal({
                       borderRadius: 8,
                       marginTop: 12,
                     }}>
-                      <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
                         Page {currentComicPage + 1} of {comicPreview.preview_pages}
                       </span>
                       <span style={{
@@ -620,7 +620,7 @@ export default function PreviewModal({
                     </div>
                   </>
                 ) : (
-                  <div style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>
                     No comic preview available
                   </div>
                 )}
@@ -633,7 +633,7 @@ export default function PreviewModal({
             <div style={{
               padding: '16px 20px',
               borderTop: '1px solid #1e293b',
-              background: '#0b1220',
+              background: 'var(--bg-input)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -672,7 +672,7 @@ export default function PreviewModal({
         {/* Right Sidebar - YouTube Style */}
         <div style={{
           width: showComments ? 380 : 72,
-          background: '#0b1220',
+          background: 'var(--bg-input)',
           borderRadius: '0 16px 16px 0',
           borderLeft: '1px solid #1e293b',
           display: 'flex',
@@ -702,7 +702,7 @@ export default function PreviewModal({
                   showCount={false}
                 />
               )}
-              <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>
                 {likeCount > 0 ? likeCount.toLocaleString() : 'Like'}
               </span>
             </div>
@@ -749,7 +749,7 @@ export default function PreviewModal({
               }}
             >
               <Share2 size={28} color="#94a3b8" />
-              <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>Share</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>Share</span>
             </button>
           </div>
 
@@ -806,7 +806,7 @@ export default function PreviewModal({
                   alignItems: 'center',
                   gap: 8,
                 }}>
-                  <span style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
                     Collaborators
                   </span>
                   {collaborators.slice(0, 3).map((c) => (
@@ -824,7 +824,7 @@ export default function PreviewModal({
                     </Link>
                   ))}
                   {collaborators.length > 3 && (
-                    <span style={{ fontSize: 11, color: '#64748b' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       +{collaborators.length - 3} more
                     </span>
                   )}

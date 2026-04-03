@@ -92,7 +92,7 @@ export function AvailableToEdit({ canEdit }: AvailableToEditProps) {
           border: '1px solid #64748b',
           borderRadius: 8,
           fontSize: 12,
-          color: '#64748b',
+          color: 'var(--text-muted)',
           fontWeight: 600,
         }}
       >
@@ -292,7 +292,7 @@ export function CurrentlyEditingList({
         style={{
           padding: 16,
           textAlign: 'center',
-          color: '#64748b',
+          color: 'var(--text-muted)',
           fontSize: 12,
         }}
       >
@@ -347,7 +347,7 @@ export function CurrentlyEditingList({
             <div
               style={{
                 fontSize: 11,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -360,7 +360,7 @@ export function CurrentlyEditingList({
           <div
             style={{
               fontSize: 10,
-              color: '#64748b',
+              color: 'var(--text-muted)',
             }}
           >
             {getTimeAgo(editor.started_at)}

@@ -182,7 +182,7 @@ export default function CollaborativeArtEditor({
       {/* Gallery Sidebar */}
       <div style={{
         width: 280,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 16,
         display: 'flex',
@@ -223,7 +223,7 @@ export default function CollaborativeArtEditor({
             <div style={{
               padding: 24,
               textAlign: 'center',
-              color: '#64748b',
+              color: 'var(--text-muted)',
               fontSize: 13,
               border: '1px dashed #334155',
               borderRadius: 8,
@@ -271,7 +271,7 @@ export default function CollaborativeArtEditor({
                   }}>
                     {piece.title || 'Untitled'}
                   </div>
-                  <div style={{ color: '#64748b', fontSize: 11 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                     @{piece.owner_username}
                   </div>
                 </div>
@@ -284,7 +284,7 @@ export default function CollaborativeArtEditor({
       {/* Main Preview Area */}
       <div style={{
         flex: 1,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 20,
         display: 'flex',
@@ -314,7 +314,7 @@ export default function CollaborativeArtEditor({
               alignItems: 'center',
               marginBottom: 16,
               paddingBottom: 16,
-              borderBottom: '1px solid #334155',
+              borderBottom: '1px solid var(--border)',
             }}>
               <div style={{ flex: 1 }}>
                 {canEditSelectedPiece ? (
@@ -350,7 +350,7 @@ export default function CollaborativeArtEditor({
                     <PenLine
                       size={14}
                       style={{
-                        color: '#64748b',
+                        color: 'var(--text-muted)',
                         flexShrink: 0,
                         opacity: hoveredTitleId === selectedPiece.id ? 1 : 0.4,
                         transition: 'opacity 0.2s ease',
@@ -362,7 +362,7 @@ export default function CollaborativeArtEditor({
                     {selectedPiece.title}
                   </h2>
                 )}
-                <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
                   Uploaded by @{selectedPiece.owner_username}
                 </div>
               </div>
@@ -391,7 +391,7 @@ export default function CollaborativeArtEditor({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#0f172a',
+              background: 'var(--dropdown-bg)',
               borderRadius: 8,
               overflow: 'hidden',
             }}>
@@ -406,7 +406,7 @@ export default function CollaborativeArtEditor({
                   }}
                 />
               ) : (
-                <div style={{ color: '#64748b', fontSize: 14 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>
                   No image available
                 </div>
               )}
@@ -418,7 +418,7 @@ export default function CollaborativeArtEditor({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             {artPieces.length === 0

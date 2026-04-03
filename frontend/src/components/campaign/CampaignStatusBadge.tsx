@@ -2,15 +2,15 @@ import React from 'react';
 import { CheckCircle, Rocket, Clock, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon?: any }> = {
-  draft: { label: 'Draft', color: '#94a3b8', bg: '#94a3b820' },
+  draft: { label: 'Draft', color: 'var(--text-muted)', bg: '#94a3b820' },
   active: { label: 'Active', color: '#10b981', bg: '#10b98120', icon: Rocket },
   funded: { label: 'Funded!', color: '#8b5cf6', bg: '#8b5cf620', icon: CheckCircle },
   transferred: { label: 'In Production', color: '#3b82f6', bg: '#3b82f620', icon: Clock },
   completed: { label: 'Completed', color: '#f59e0b', bg: '#f59e0b20', icon: CheckCircle },
   failed: { label: 'Goal Not Met', color: '#ef4444', bg: '#ef444420', icon: XCircle },
   reclaimable: { label: 'Refund Available', color: '#f59e0b', bg: '#f59e0b20', icon: RefreshCw },
-  reclaimed: { label: 'Refunded', color: '#64748b', bg: '#64748b20' },
-  cancelled: { label: 'Cancelled', color: '#64748b', bg: '#64748b20', icon: XCircle },
+  reclaimed: { label: 'Refunded', color: 'var(--text-muted)', bg: '#64748b20' },
+  cancelled: { label: 'Cancelled', color: 'var(--text-muted)', bg: '#64748b20', icon: XCircle },
 };
 
 interface CampaignStatusBadgeProps {

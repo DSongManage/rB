@@ -56,7 +56,7 @@ export function RatingForm({
           display: 'block',
           fontSize: 13,
           fontWeight: 500,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           marginBottom: 12,
         }}>
           Your Rating
@@ -75,7 +75,7 @@ export function RatingForm({
             display: 'block',
             fontSize: 13,
             fontWeight: 500,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             marginBottom: 8,
           }}>
             Review (optional)
@@ -90,8 +90,8 @@ export function RatingForm({
             style={{
               width: '100%',
               padding: '12px 14px',
-              background: '#0f172a',
-              border: '1px solid #334155',
+              background: 'var(--dropdown-bg)',
+              border: '1px solid var(--border)',
               borderRadius: 10,
               color: '#f1f5f9',
               fontSize: 14,
@@ -104,7 +104,7 @@ export function RatingForm({
           />
           <p style={{
             fontSize: 11,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             marginTop: 6,
             textAlign: 'right',
           }}>

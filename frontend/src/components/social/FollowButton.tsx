@@ -130,8 +130,8 @@ export function FollowButton({
       return {
         ...baseStyle,
         background: 'transparent',
-        border: '1px solid #334155',
-        color: '#94a3b8',
+        border: '1px solid var(--border)',
+        color: 'var(--text-muted)',
       };
     }
 

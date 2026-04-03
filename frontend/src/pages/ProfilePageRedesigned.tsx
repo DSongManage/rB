@@ -1456,7 +1456,7 @@ export default function ProfilePageRedesigned() {
                       )}
                       <div>
                         <span style={{ color: 'var(--subtle)' }}>Team:</span>{' '}
-                        <span style={{ color: '#e2e8f0' }}>{project.total_collaborators} people</span>
+                        <span style={{ color: 'var(--text)' }}>{project.total_collaborators} people</span>
                       </div>
                     </div>
                   </div>
@@ -2078,7 +2078,7 @@ export default function ProfilePageRedesigned() {
                             margin: 0,
                             fontSize: 16,
                             fontWeight: 700,
-                            color: '#e2e8f0',
+                            color: 'var(--text)',
                             marginBottom: 4,
                           }}>
                             {project.title}
@@ -2148,16 +2148,16 @@ export default function ProfilePageRedesigned() {
                       </div>
                       {/* Info */}
                       <div style={{ padding: 12 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', marginBottom: 4 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
                           {campaign.title}
                         </div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
                           campaign &middot; ${parseFloat(campaign.funding_goal).toLocaleString()} goal
                           {campaign.backer_count > 0 && ` · ${campaign.backer_count} backers`}
                         </div>
                         {/* Progress bar */}
                         <div style={{
-                          width: '100%', height: 4, background: '#1e293b', borderRadius: 2, marginBottom: 10,
+                          width: '100%', height: 4, background: 'var(--bg-secondary)', borderRadius: 2, marginBottom: 10,
                         }}>
                           <div style={{
                             width: `${campaign.funding_percentage}%`, height: '100%',
@@ -2171,7 +2171,7 @@ export default function ProfilePageRedesigned() {
                             style={{
                               flex: 1, padding: '8px 0', borderRadius: 6,
                               background: 'var(--panel-border)', border: 'none',
-                              color: '#e2e8f0', fontSize: 12, cursor: 'pointer',
+                              color: 'var(--text)', fontSize: 12, cursor: 'pointer',
                             }}
                           >
                             {campaign.status === 'draft' ? 'Edit' : 'View'}
@@ -2199,7 +2199,7 @@ export default function ProfilePageRedesigned() {
           {/* Active Collaborations Section - includes both pending invites and active projects */}
           {!collaborationsLoading && (pendingInvites.length > 0 || collaborations.length > 0) && (
             <div style={{ marginBottom: 24 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#e2e8f0', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>
                 Active Collaborations ({pendingInvites.length + collaborations.length})
               </h3>
               <div style={{ display: 'grid', gap: 12 }}>
@@ -2892,7 +2892,7 @@ export default function ProfilePageRedesigned() {
                                     {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </div>
                                   {tx.tx_signature && (
-                                    <div style={{ fontSize: 10, color: '#475569', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
                                   )}
                                 </div>
                                 <div style={{ fontSize: 14, fontWeight: 600, color: '#10b981' }}>+${tx.amount.toFixed(2)}</div>
@@ -2979,7 +2979,7 @@ export default function ProfilePageRedesigned() {
                                     {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </div>
                                   {tx.tx_signature && (
-                                    <div style={{ fontSize: 10, color: '#475569', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
+                                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
                                   )}
                                 </div>
                                 <div style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b' }}>+${tx.amount.toFixed(2)}</div>
@@ -3058,7 +3058,7 @@ export default function ProfilePageRedesigned() {
                         Bought by @{tx.buyer} • {tx.role} ({tx.percentage}%) • {new Date(tx.date).toLocaleDateString()}
                       </div>
                       {tx.tx_signature && (
-                        <div style={{ fontSize: 11, color: '#475569', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
                       )}
                     </div>
                     <div style={{
@@ -3083,7 +3083,7 @@ export default function ProfilePageRedesigned() {
               border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
             }}>
-              <BarChart3 size={48} style={{ color: '#475569', marginBottom: 16 }} />
+              <BarChart3 size={48} style={{ color: 'var(--text-secondary)', marginBottom: 16 }} />
               <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>
                 No sales yet
               </div>
@@ -3130,7 +3130,7 @@ export default function ProfilePageRedesigned() {
               border: '1px solid var(--panel-border-strong)',
               borderRadius: 16,
             }}>
-              <UserCheck size={48} style={{ color: '#475569', marginBottom: 16 }} />
+              <UserCheck size={48} style={{ color: 'var(--text-secondary)', marginBottom: 16 }} />
               <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>
                 Not following anyone yet
               </div>
@@ -4279,7 +4279,7 @@ function EmptyState({ icon, title, description, actionLabel, onAction }: {
       textAlign: 'center',
       padding: '80px 24px',
     }}>
-      <div style={{ color: '#475569', marginBottom: 24 }}>{icon}</div>
+      <div style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>{icon}</div>
       <div style={{
         fontSize: 24,
         fontWeight: 600,

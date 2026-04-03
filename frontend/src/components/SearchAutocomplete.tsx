@@ -173,12 +173,12 @@ export function SearchAutocomplete({ onSearch }: Props) {
           left: 0,
           right: 0,
           marginTop: 4,
-          background: '#1e293b',
+          background: 'var(--bg-secondary)',
           borderRadius: 8,
           boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
           zIndex: 1000,
           overflow: 'hidden',
-          border: '1px solid #334155',
+          border: '1px solid var(--border)',
         }}>
           {query.length >= 2 ? (
             // Show search suggestions
@@ -197,7 +197,7 @@ export function SearchAutocomplete({ onSearch }: Props) {
                   }}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
-                  <Search size={16} style={{ color: '#64748b', flexShrink: 0 }} />
+                  <Search size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       color: '#f1f5f9',
@@ -209,7 +209,7 @@ export function SearchAutocomplete({ onSearch }: Props) {
                       {item.title}
                     </div>
                     {item.creator_username && (
-                      <div style={{ color: '#64748b', fontSize: 12 }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                         by {item.creator_username}
                       </div>
                     )}
@@ -220,7 +220,7 @@ export function SearchAutocomplete({ onSearch }: Props) {
                       padding: '2px 6px',
                       background: '#334155',
                       borderRadius: 4,
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       textTransform: 'capitalize',
                     }}>
                       {item.content_type}
@@ -235,8 +235,8 @@ export function SearchAutocomplete({ onSearch }: Props) {
               <div style={{
                 padding: '8px 16px',
                 fontSize: 12,
-                color: '#64748b',
-                borderBottom: '1px solid #334155',
+                color: 'var(--text-muted)',
+                borderBottom: '1px solid var(--border)',
               }}>
                 Recent searches
               </div>
@@ -254,7 +254,7 @@ export function SearchAutocomplete({ onSearch }: Props) {
                   }}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
-                  <Clock size={16} style={{ color: '#64748b', flexShrink: 0 }} />
+                  <Clock size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                   <span style={{ flex: 1, color: '#f1f5f9', fontSize: 14 }}>
                     {search}
                   </span>
@@ -265,7 +265,7 @@ export function SearchAutocomplete({ onSearch }: Props) {
                       border: 'none',
                       padding: 4,
                       cursor: 'pointer',
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       display: 'flex',
                       alignItems: 'center',
                     }}

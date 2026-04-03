@@ -133,7 +133,7 @@ export default function CollaborationDashboard() {
           <p style={{
             margin: 0,
             fontSize: isMobile ? 13 : 14,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
           }}>
             {isPhone ? 'Manage your creative projects' : 'Manage your creative projects'}
           </p>
@@ -306,7 +306,7 @@ export default function CollaborationDashboard() {
               <p style={{
                 margin: 0,
                 fontSize: 14,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 marginBottom: 24,
                 maxWidth: 500,
                 marginLeft: 'auto',
@@ -590,7 +590,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'draft':
-        return { text: 'Draft', color: '#64748b' };
+        return { text: 'Draft', color: 'var(--text-muted)' };
       case 'active':
         return { text: 'Active', color: '#3b82f6' };
       case 'ready_for_mint':
@@ -602,7 +602,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
       case 'cancelled':
         return { text: 'Cancelled', color: '#ef4444' };
       default:
-        return { text: status, color: '#64748b' };
+        return { text: status, color: 'var(--text-muted)' };
     }
   };
 
@@ -687,7 +687,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
 
           <div style={{
             fontSize: 13,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             marginBottom: 8,
           }}>
             With {project.total_collaborators} collaborator{project.total_collaborators !== 1 ? 's' : ''}
@@ -721,7 +721,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
       }}>
         <div style={{
           fontSize: 12,
-          color: '#64748b',
+          color: 'var(--text-muted)',
         }}>
           Created {formatTimeAgo(new Date(project.created_at))}
         </div>
@@ -849,7 +849,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
               margin: 0,
               marginBottom: 16,
               fontSize: 14,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               Are you sure you want to delete "{project.title}"? This will permanently remove the project and all its content.
@@ -886,7 +886,7 @@ function ProjectCard({ project, onRefresh, currentUserId }: ProjectCardProps) {
               margin: 0,
               marginBottom: 24,
               fontSize: 13,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               This action cannot be undone.
@@ -1098,7 +1098,7 @@ function NewProjectModal({ onClose, onCreated }: NewProjectModalProps) {
                   border: '1px solid var(--panel-border)',
                   borderRadius: 8,
                   padding: '12px 16px',
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   cursor: 'not-allowed',
                   fontSize: 14,
                   fontWeight: 600,

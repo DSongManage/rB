@@ -109,7 +109,7 @@ export default function ArtDeliverySection({
         marginBottom: 12,
         fontSize: 13,
         fontWeight: 600,
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
       }}>
         <FileIcon size={14} />
         Art Delivery {deliveries.length > 0 && `(${deliveries.length} version${deliveries.length > 1 ? 's' : ''})`}
@@ -176,7 +176,7 @@ export default function ArtDeliverySection({
               </a>
             </div>
 
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
               {latestDelivery.filename} ({formatFileSize(latestDelivery.file_size)})
               &middot; by {latestDelivery.uploaded_by_username}
               &middot; {formatDate(latestDelivery.created_at)}
@@ -268,7 +268,7 @@ export default function ArtDeliverySection({
                     style={{
                       padding: '6px 12px',
                       background: 'transparent', border: '1px solid var(--panel-border)',
-                      borderRadius: 6, color: '#64748b', fontSize: 12, cursor: 'pointer',
+                      borderRadius: 6, color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer',
                     }}
                   >
                     Cancel
@@ -296,7 +296,7 @@ export default function ArtDeliverySection({
             background: 'var(--bg)',
             border: '2px dashed var(--panel-border)',
             borderRadius: 10,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             marginBottom: 12,
           }}
@@ -314,7 +314,7 @@ export default function ArtDeliverySection({
                   ? 'Upload new version'
                   : 'Drop your finished artwork here or click to upload'}
               </span>
-              <span style={{ fontSize: 11, color: '#475569' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                 PNG, JPG, PDF, PSD, or any image format
               </span>
             </>
@@ -337,7 +337,7 @@ export default function ArtDeliverySection({
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               background: 'none', border: 'none', cursor: 'pointer',
-              color: '#64748b', fontSize: 12, padding: 0,
+              color: 'var(--text-muted)', fontSize: 12, padding: 0,
             }}
           >
             {showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -367,7 +367,7 @@ export default function ArtDeliverySection({
                         : 'approved'}
                       size="small"
                     />
-                    <span style={{ color: '#64748b' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>
                       {d.filename} &middot; {formatDate(d.created_at)}
                     </span>
                   </div>

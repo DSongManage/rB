@@ -152,7 +152,7 @@ export default function RevenueSplitChart({
               </div>
               <div style={{
                 fontSize: 11,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
               }}>
                 {slice.role}
               </div>

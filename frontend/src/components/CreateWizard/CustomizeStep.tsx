@@ -57,11 +57,11 @@ export default function CustomizeStep({ onNext, registerSubmit }: Props) {
       <label title="Show a watermark overlay on the teaser only (original remains clean)"><input type="checkbox" checked={watermark} onChange={(e) => setWatermark(e.target.checked)} /> Show watermark on teaser</label>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div style={{ display: 'grid', gap: 6 }}>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>Price per edition (USD)</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Price per edition (USD)</div>
           <input type="number" min={0} step={0.01} value={price} onChange={(e) => setPrice(parseFloat(e.target.value || '0'))} />
         </div>
         <div style={{ display: 'grid', gap: 6 }}>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>Number of editions</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Number of editions</div>
           <input type="number" min={1} value={editions} onChange={(e) => setEditions(parseInt(e.target.value || '1'))} />
         </div>
       </div>
@@ -69,7 +69,7 @@ export default function CustomizeStep({ onNext, registerSubmit }: Props) {
       {/* Author's Note */}
       <div style={{ display: 'grid', gap: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>Author's Note (optional)</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Author's Note (optional)</div>
           <div style={{ fontSize: 11, color: isOverLimit ? '#ef4444' : '#64748b' }}>
             {wordCount}/{maxWords} words
           </div>
@@ -98,7 +98,7 @@ export default function CustomizeStep({ onNext, registerSubmit }: Props) {
         )}
       </div>
 
-      <div style={{ fontSize: 12, color: '#94a3b8' }}>Platform fee applies per terms</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Platform fee applies per terms</div>
     </div>
   );
 }

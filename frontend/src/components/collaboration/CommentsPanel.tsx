@@ -103,15 +103,15 @@ export function CommentsPanel({
               {unresolvedCount}
             </span>
           )}
-          <span style={{ fontSize: 13, color: '#64748b' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             ({totalCount} total)
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {isExpanded ? (
-            <ChevronUp size={20} style={{ color: '#94a3b8' }} />
+            <ChevronUp size={20} style={{ color: 'var(--text-muted)' }} />
           ) : (
-            <ChevronDown size={20} style={{ color: '#94a3b8' }} />
+            <ChevronDown size={20} style={{ color: 'var(--text-muted)' }} />
           )}
         </div>
       </button>
@@ -155,7 +155,7 @@ export function CommentsPanel({
                 borderRadius: 6,
                 cursor: 'pointer',
                 fontSize: 12,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
               }}
             >
               {showResolved ? (
@@ -174,7 +174,7 @@ export function CommentsPanel({
 
           {/* Comments list */}
           {isLoading ? (
-            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
               Loading comments...
             </div>
           ) : comments.length > 0 ? (
@@ -215,12 +215,12 @@ export function CommentsPanel({
               style={{
                 textAlign: 'center',
                 padding: 32,
-                color: '#64748b',
+                color: 'var(--text-muted)',
               }}
             >
               <MessageSquare
                 size={32}
-                style={{ color: '#475569', marginBottom: 12 }}
+                style={{ color: 'var(--text-secondary)', marginBottom: 12 }}
               />
               <div style={{ fontSize: 14, fontWeight: 500 }}>
                 {showResolved ? 'No comments yet' : 'No unresolved comments'}

@@ -102,7 +102,7 @@ export default function ReviewerInterface({
 
   if (loading) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
         Loading content...
       </div>
     );
@@ -112,7 +112,7 @@ export default function ReviewerInterface({
     <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 300px', gap: 20, height: '100%' }}>
       {/* Section list */}
       <div style={{
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 16,
         overflow: 'auto',
@@ -129,12 +129,12 @@ export default function ReviewerInterface({
           Review Content
         </div>
 
-        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
           You have read-only access to review the following content types: {reviewableTypes.join(', ')}
         </div>
 
         {sections.length === 0 ? (
-          <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: 20 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>
             No content available for review yet.
           </div>
         ) : (
@@ -169,7 +169,7 @@ export default function ReviewerInterface({
                   }}>
                     {section.title}
                   </div>
-                  <div style={{ color: '#64748b', fontSize: 11 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                     by @{section.owner_username}
                   </div>
                 </div>
@@ -181,7 +181,7 @@ export default function ReviewerInterface({
 
       {/* Content viewer */}
       <div style={{
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 20,
         overflow: 'auto',
@@ -194,13 +194,13 @@ export default function ReviewerInterface({
               justifyContent: 'space-between',
               marginBottom: 16,
               paddingBottom: 16,
-              borderBottom: '1px solid #334155',
+              borderBottom: '1px solid var(--border)',
             }}>
               <div>
                 <h3 style={{ color: '#f8fafc', margin: 0, fontSize: 18 }}>
                   {selectedSection.title}
                 </h3>
-                <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
                   Written by @{selectedSection.owner_username}
                 </div>
               </div>
@@ -224,7 +224,7 @@ export default function ReviewerInterface({
             {selectedSection.section_type === 'text' && (
               <div
                 style={{
-                  color: '#cbd5e1',
+                  color: 'var(--text-dim)',
                   fontSize: 15,
                   lineHeight: 1.8,
                 }}
@@ -257,7 +257,7 @@ export default function ReviewerInterface({
             )}
           </>
         ) : (
-          <div style={{ color: '#64748b', textAlign: 'center', padding: 40 }}>
+          <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 40 }}>
             Select a section to review
           </div>
         )}
@@ -265,7 +265,7 @@ export default function ReviewerInterface({
 
       {/* Comments panel */}
       <div style={{
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 16,
         display: 'flex',
@@ -286,7 +286,7 @@ export default function ReviewerInterface({
         {/* Comment list */}
         <div style={{ flex: 1, overflow: 'auto', marginBottom: 16 }}>
           {sectionComments.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: 20 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>
               No comments yet. Be the first to leave feedback!
             </div>
           ) : (
@@ -296,7 +296,7 @@ export default function ReviewerInterface({
                   key={comment.id}
                   style={{
                     padding: 12,
-                    background: '#0f172a',
+                    background: 'var(--dropdown-bg)',
                     borderRadius: 8,
                     borderLeft: comment.resolved ? '3px solid #10b981' : '3px solid #334155',
                   }}
@@ -323,10 +323,10 @@ export default function ReviewerInterface({
                       </span>
                     )}
                   </div>
-                  <div style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.5 }}>
+                  <div style={{ color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.5 }}>
                     {comment.content}
                   </div>
-                  <div style={{ color: '#64748b', fontSize: 10, marginTop: 6 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 6 }}>
                     {new Date(comment.created_at).toLocaleString()}
                   </div>
                 </div>
@@ -337,7 +337,7 @@ export default function ReviewerInterface({
 
         {/* New comment input */}
         <div style={{
-          borderTop: '1px solid #334155',
+          borderTop: '1px solid var(--border)',
           paddingTop: 16,
         }}>
           <textarea
@@ -346,8 +346,8 @@ export default function ReviewerInterface({
             placeholder="Leave feedback or suggestions..."
             style={{
               width: '100%',
-              background: '#0f172a',
-              border: '1px solid #334155',
+              background: 'var(--dropdown-bg)',
+              border: '1px solid var(--border)',
               borderRadius: 8,
               padding: 12,
               color: '#f8fafc',

@@ -36,7 +36,7 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
       }}>
         <div>
           <div style={{ fontWeight: 700, color: 'var(--text)', fontSize: 15 }}>Chapters</div>
-          <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{chapters.length} chapters • {totalWords} words</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{chapters.length} chapters • {totalWords} words</div>
         </div>
         <button
           onClick={onAddChapter}
@@ -69,7 +69,7 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
       }}>
         {chapters.length === 0 && (
           <div style={{
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 13,
             textAlign: 'center',
             padding: '24px 12px',
@@ -111,7 +111,7 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
               gap: 8,
             }}>
               <span style={{
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 fontSize: 12,
                 minWidth: 20,
               }}>{chapter.order + 1}.</span>
@@ -133,7 +133,7 @@ export default function ChapterList({ chapters, selectedChapterId, onSelectChapt
             </div>
             <div style={{
               fontSize: 11,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               marginTop: 4,
               marginLeft: 28,
             }}>

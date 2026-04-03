@@ -150,9 +150,9 @@ export function EscrowFundingModal({
     >
       <div
         style={{
-          background: '#1e293b', borderRadius: 16, padding: 24,
+          background: 'var(--bg-secondary)', borderRadius: 16, padding: 24,
           width: '100%', maxWidth: 440,
-          border: '1px solid #334155',
+          border: '1px solid var(--border)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -163,7 +163,7 @@ export function EscrowFundingModal({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Shield size={20} style={{ color: '#8b5cf6' }} />
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#e2e8f0' }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>
               Fund Escrow
             </h3>
           </div>
@@ -171,7 +171,7 @@ export function EscrowFundingModal({
             onClick={onClose}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: '#64748b', padding: 4,
+              color: 'var(--text-muted)', padding: 4,
             }}
           >
             <X size={20} />
@@ -180,26 +180,26 @@ export function EscrowFundingModal({
 
         {/* Contract details */}
         <div style={{
-          background: '#0f172a', borderRadius: 12,
+          background: 'var(--dropdown-bg)', borderRadius: 12,
           padding: 16, marginBottom: 16,
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ color: '#94a3b8', fontSize: 13 }}>Collaborator</span>
-            <span style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 500 }}>@{collaborator.username}</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Collaborator</span>
+            <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500 }}>@{collaborator.username}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ color: '#94a3b8', fontSize: 13 }}>Role</span>
-            <span style={{ color: '#e2e8f0', fontSize: 13 }}>{roleName}</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Role</span>
+            <span style={{ color: 'var(--text)', fontSize: 13 }}>{roleName}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ color: '#94a3b8', fontSize: 13 }}>Milestones</span>
-            <span style={{ color: '#e2e8f0', fontSize: 13 }}>{collaborator.tasks_total} tasks</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Milestones</span>
+            <span style={{ color: 'var(--text)', fontSize: 13 }}>{collaborator.tasks_total} tasks</span>
           </div>
           <div style={{
-            borderTop: '1px solid #334155', paddingTop: 12,
+            borderTop: '1px solid var(--border)', paddingTop: 12,
             display: 'flex', justifyContent: 'space-between',
           }}>
-            <span style={{ color: '#e2e8f0', fontSize: 14, fontWeight: 600 }}>Amount to Fund</span>
+            <span style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>Amount to Fund</span>
             <span style={{
               color: '#10b981', fontSize: 18, fontWeight: 700,
               display: 'flex', alignItems: 'center', gap: 2,
@@ -212,7 +212,7 @@ export function EscrowFundingModal({
 
         {/* Step: Loading */}
         {step === 'loading' && (
-          <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
             <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
             <div>Checking your balance...</div>
           </div>
@@ -223,12 +223,12 @@ export function EscrowFundingModal({
           <>
             {/* Balance info */}
             <div style={{
-              background: '#0f172a', borderRadius: 8, padding: 12, marginBottom: 16,
+              background: 'var(--dropdown-bg)', borderRadius: 8, padding: 12, marginBottom: 16,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Wallet size={16} style={{ color: '#94a3b8' }} />
-                <span style={{ color: '#94a3b8', fontSize: 13 }}>Your Balance</span>
+                <Wallet size={16} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Your Balance</span>
               </div>
               <span style={{
                 color: intent.balance.sufficient ? '#10b981' : '#f59e0b',
@@ -282,7 +282,7 @@ export function EscrowFundingModal({
         {/* Step: Confirm Balance Payment */}
         {step === 'confirming' && (
           <div style={{ textAlign: 'center', padding: 16 }}>
-            <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, color: 'var(--text)', marginBottom: 16 }}>
               Confirm payment of <strong style={{ color: '#10b981' }}>${amountToFund.toFixed(2)}</strong> from your balance to fund escrow for @{collaborator.username}?
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -291,7 +291,7 @@ export function EscrowFundingModal({
                 style={{
                   flex: 1, padding: '10px 16px', borderRadius: 8,
                   background: '#334155', border: 'none',
-                  color: '#e2e8f0', fontSize: 13, cursor: 'pointer',
+                  color: 'var(--text)', fontSize: 13, cursor: 'pointer',
                 }}
               >
                 Back
@@ -312,7 +312,7 @@ export function EscrowFundingModal({
 
         {/* Step: Signing */}
         {step === 'signing' && (
-          <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
             <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
             <div>Please approve the transaction in your wallet...</div>
           </div>
@@ -320,7 +320,7 @@ export function EscrowFundingModal({
 
         {/* Step: Processing */}
         {step === 'processing' && (
-          <div style={{ textAlign: 'center', padding: 24, color: '#94a3b8' }}>
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>
             <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
             <div>Processing escrow funding on Solana...</div>
           </div>
@@ -333,7 +333,7 @@ export function EscrowFundingModal({
             <div style={{ color: '#10b981', fontSize: 16, fontWeight: 600 }}>
               Escrow Funded!
             </div>
-            <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 8 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>
               ${amountToFund.toFixed(2)} is now locked in escrow for @{collaborator.username}.
             </div>
           </div>
@@ -362,7 +362,7 @@ export function EscrowFundingModal({
               style={{
                 padding: '10px 24px', borderRadius: 8,
                 background: '#334155', border: 'none',
-                color: '#e2e8f0', fontSize: 13, cursor: 'pointer',
+                color: 'var(--text)', fontSize: 13, cursor: 'pointer',
               }}
             >
               Try Again

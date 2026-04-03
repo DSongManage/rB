@@ -223,12 +223,12 @@ export default function CampaignCreatePage() {
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    background: '#1e293b', border: '1px solid #334155',
-    color: '#e2e8f0', fontSize: 14, outline: 'none',
+    background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+    color: 'var(--text)', fontSize: 14, outline: 'none',
   };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 12, color: '#94a3b8', marginBottom: 6, display: 'block', fontWeight: 500,
+    fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, display: 'block', fontWeight: 500,
   };
 
   // Eligible projects: not minted, not solo, with accepted collaborators
@@ -241,7 +241,7 @@ export default function CampaignCreatePage() {
       {/* Back button */}
       <button onClick={goBack} style={{
         display: 'flex', alignItems: 'center', gap: 6,
-        background: 'none', border: 'none', color: '#64748b',
+        background: 'none', border: 'none', color: 'var(--text-muted)',
         fontSize: 13, cursor: 'pointer', marginBottom: 24,
       }}>
         <ArrowLeft size={16} /> Back
@@ -251,7 +251,7 @@ export default function CampaignCreatePage() {
       <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
         Create Campaign
       </h1>
-      <p style={{ fontSize: 14, color: '#94a3b8', marginBottom: 24 }}>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
         Raise funds for your creative project. 0% platform fee on contributions.
       </p>
 
@@ -279,7 +279,7 @@ export default function CampaignCreatePage() {
       {/* ========== Step 1: Type ========== */}
       {step === 'type' && (
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
             What kind of campaign?
           </h2>
           {[
@@ -298,9 +298,9 @@ export default function CampaignCreatePage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <Icon size={20} style={{ color }} />
-                <span style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0' }}>{t}</span>
+                <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{t}</span>
               </div>
-              <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>{desc}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>{desc}</div>
             </div>
           ))}
         </div>
@@ -309,7 +309,7 @@ export default function CampaignCreatePage() {
       {/* ========== Step 2: Basics ========== */}
       {step === 'basics' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', margin: 0 }}>Campaign Basics</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Campaign Basics</h2>
 
           {/* Project selector (collaborative only) */}
           {campaignType === 'collaborative' && (
@@ -330,10 +330,10 @@ export default function CampaignCreatePage() {
                 </select>
               ) : (
                 <div style={{
-                  padding: 16, borderRadius: 8, background: '#1e293b',
+                  padding: 16, borderRadius: 8, background: 'var(--bg-secondary)',
                   border: '1px dashed #334155', textAlign: 'center',
                 }}>
-                  <p style={{ color: '#94a3b8', fontSize: 13, margin: '0 0 8px' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 8px' }}>
                     No collaborative projects with team members found.
                   </p>
                   <button onClick={() => navigate('/studio')} style={{
@@ -376,8 +376,8 @@ export default function CampaignCreatePage() {
             >
               {!coverPreview && (
                 <>
-                  <Upload size={24} style={{ color: '#64748b' }} />
-                  <span style={{ fontSize: 13, color: '#64748b' }}>Click to upload cover image</span>
+                  <Upload size={24} style={{ color: 'var(--text-muted)' }} />
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Click to upload cover image</span>
                 </>
               )}
               {coverPreview && (
@@ -408,7 +408,7 @@ export default function CampaignCreatePage() {
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                   background: contentType === type ? '#4f46e520' : '#1e293b',
                   border: `1px solid ${contentType === type ? '#4f46e5' : '#334155'}`,
-                  color: '#e2e8f0', fontSize: 12, cursor: 'pointer',
+                  color: 'var(--text)', fontSize: 12, cursor: 'pointer',
                 }}>
                   <Icon size={16} /> {label}
                 </button>
@@ -436,7 +436,7 @@ export default function CampaignCreatePage() {
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Funding Goal (USDC)</label>
               <div style={{ display: 'flex', alignItems: 'center', ...inputStyle, padding: 0, overflow: 'hidden' }}>
-                <span style={{ padding: '0 10px', color: '#64748b' }}>$</span>
+                <span style={{ padding: '0 10px', color: 'var(--text-muted)' }}>$</span>
                 <input type="number" min="10" value={fundingGoal} onChange={e => setFundingGoal(e.target.value)}
                   placeholder="1000" style={{ ...inputStyle, border: 'none', borderRadius: 0 }} />
               </div>
@@ -455,7 +455,7 @@ export default function CampaignCreatePage() {
               <input type="number" min="1" value={chapterCount} onChange={e => setChapterCount(e.target.value)}
                 placeholder="6" style={inputStyle} />
               {chapterCount && fundingGoal && (
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
                   ${fmt(parseFloat(fundingGoal) / parseInt(chapterCount))} released per chapter
                 </div>
               )}
@@ -478,8 +478,8 @@ export default function CampaignCreatePage() {
       {step === 'team' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', margin: '0 0 4px' }}>Team Budget</h2>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px' }}>Team Budget</h2>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
               Assign how much each collaborator will be paid. When the campaign is funded, these amounts are automatically locked in escrow.
             </p>
           </div>
@@ -502,16 +502,16 @@ export default function CampaignCreatePage() {
                   {alloc.avatar_url ? (
                     <img src={alloc.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <User size={16} style={{ color: '#64748b' }} />
+                    <User size={16} style={{ color: 'var(--text-muted)' }} />
                   )}
                 </div>
 
                 {/* Name + role */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                     @{alloc.username}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'capitalize' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
                     {alloc.role}
                   </div>
                 </div>
@@ -519,10 +519,10 @@ export default function CampaignCreatePage() {
                 {/* Amount input */}
                 <div style={{
                   display: 'flex', alignItems: 'center',
-                  background: '#0f172a', border: '1px solid #334155',
+                  background: 'var(--dropdown-bg)', border: '1px solid var(--border)',
                   borderRadius: 8, overflow: 'hidden', width: 140, flexShrink: 0,
                 }}>
-                  <span style={{ padding: '0 8px', color: '#64748b', fontSize: 13 }}>$</span>
+                  <span style={{ padding: '0 8px', color: 'var(--text-muted)', fontSize: 13 }}>$</span>
                   <input
                     type="number"
                     min="0"
@@ -531,7 +531,7 @@ export default function CampaignCreatePage() {
                     placeholder="0"
                     style={{
                       width: '100%', padding: '8px 8px 8px 0', border: 'none',
-                      background: 'transparent', color: '#e2e8f0', fontSize: 14, outline: 'none',
+                      background: 'transparent', color: 'var(--text)', fontSize: 14, outline: 'none',
                     }}
                   />
                 </div>
@@ -542,25 +542,25 @@ export default function CampaignCreatePage() {
             <div style={{
               display: 'flex', alignItems: 'center', gap: 14,
               padding: '14px 16px', borderRadius: 10,
-              background: '#0f172a', border: '1px dashed #334155',
+              background: 'var(--dropdown-bg)', border: '1px dashed #334155',
             }}>
               <div style={{
                 width: 36, height: 36, borderRadius: '50%',
-                background: '#1e293b', display: 'flex',
+                background: 'var(--bg-secondary)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
                 <DollarSign size={16} style={{ color: '#f59e0b' }} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>Production costs</div>
-                <div style={{ fontSize: 11, color: '#64748b' }}>Printing, shipping, tools — released to you</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Production costs</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Printing, shipping, tools — released to you</div>
               </div>
               <div style={{
                 display: 'flex', alignItems: 'center',
-                background: '#0f172a', border: '1px solid #334155',
+                background: 'var(--dropdown-bg)', border: '1px solid var(--border)',
                 borderRadius: 8, overflow: 'hidden', width: 140, flexShrink: 0,
               }}>
-                <span style={{ padding: '0 8px', color: '#64748b', fontSize: 13 }}>$</span>
+                <span style={{ padding: '0 8px', color: 'var(--text-muted)', fontSize: 13 }}>$</span>
                 <input
                   type="number"
                   min="0"
@@ -569,7 +569,7 @@ export default function CampaignCreatePage() {
                   placeholder="0"
                   style={{
                     width: '100%', padding: '8px 8px 8px 0', border: 'none',
-                    background: 'transparent', color: '#e2e8f0', fontSize: 14, outline: 'none',
+                    background: 'transparent', color: 'var(--text)', fontSize: 14, outline: 'none',
                   }}
                 />
               </div>
@@ -582,19 +582,19 @@ export default function CampaignCreatePage() {
             background: 'var(--panel)', border: '1px solid var(--panel-border)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>Collaborator escrow</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
-                ${fmt(totalAllocated)} {goalNum > 0 && <span style={{ color: '#64748b', fontWeight: 400 }}>({escrowPercent}%)</span>}
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Collaborator escrow</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                ${fmt(totalAllocated)} {goalNum > 0 && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({escrowPercent}%)</span>}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>Production costs</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
-                ${fmt(prodCosts)} {goalNum > 0 && <span style={{ color: '#64748b', fontWeight: 400 }}>({goalNum > 0 ? Math.round((prodCosts / goalNum) * 100) : 0}%)</span>}
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Production costs</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                ${fmt(prodCosts)} {goalNum > 0 && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({goalNum > 0 ? Math.round((prodCosts / goalNum) * 100) : 0}%)</span>}
               </span>
             </div>
-            <div style={{ borderTop: '1px solid #334155', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>Total budget</span>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Total budget</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: totalBudget > goalNum && goalNum > 0 ? '#ef4444' : '#10b981' }}>
                 ${fmt(totalBudget)}
               </span>
@@ -636,7 +636,7 @@ export default function CampaignCreatePage() {
           <div style={{ display: 'flex', gap: 12 }}>
             <button onClick={goBack} style={{
               flex: 1, padding: '12px 16px', borderRadius: 8,
-              background: '#334155', border: 'none', color: '#e2e8f0', fontSize: 14, cursor: 'pointer',
+              background: '#334155', border: 'none', color: 'var(--text)', fontSize: 14, cursor: 'pointer',
             }}>Back</button>
             <button onClick={goNext} disabled={!canProceed()} style={{
               flex: 2, padding: '12px 16px', borderRadius: 8,
@@ -654,12 +654,12 @@ export default function CampaignCreatePage() {
       {/* ========== Step 3: Pitch ========== */}
       {step === 'pitch' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', margin: 0 }}>Your Pitch</h2>
-          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Your Pitch</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             Tell backers why they should support your project. This is displayed on your campaign page.
           </p>
 
-          <div style={{ background: '#0f172a', borderRadius: 8, border: '1px solid #334155' }}>
+          <div style={{ background: 'var(--dropdown-bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
             <ReactQuill
               theme="snow"
               value={pitchHtml}
@@ -673,7 +673,7 @@ export default function CampaignCreatePage() {
           <div style={{ display: 'flex', gap: 12 }}>
             <button onClick={goBack} style={{
               flex: 1, padding: '12px 16px', borderRadius: 8,
-              background: '#334155', border: 'none', color: '#e2e8f0', fontSize: 14, cursor: 'pointer',
+              background: '#334155', border: 'none', color: 'var(--text)', fontSize: 14, cursor: 'pointer',
             }}>Back</button>
             <button onClick={goNext} style={{
               flex: 2, padding: '12px 16px', borderRadius: 8,
@@ -689,8 +689,8 @@ export default function CampaignCreatePage() {
       {/* ========== Step 4: Tiers ========== */}
       {step === 'tiers' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', margin: 0 }}>Reward Tiers</h2>
-          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Reward Tiers</h2>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             Define what backers get at different contribution levels. Tiers are optional.
           </p>
 
@@ -703,12 +703,12 @@ export default function CampaignCreatePage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <Gift size={14} style={{ color: '#8b5cf6' }} />
-                  <span style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>{tier.title}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{tier.title}</span>
                   <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>${tier.minimum_amount}+</span>
                 </div>
-                <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>{tier.description}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>{tier.description}</div>
                 {tier.max_backers && (
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Limited to {tier.max_backers} backers</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Limited to {tier.max_backers} backers</div>
                 )}
               </div>
               <button onClick={() => removeTier(i)} style={{
@@ -721,9 +721,9 @@ export default function CampaignCreatePage() {
 
           <div style={{
             padding: 16, borderRadius: 10,
-            background: '#0f172a', border: '1px dashed #334155',
+            background: 'var(--dropdown-bg)', border: '1px dashed #334155',
           }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12 }}>
               <Plus size={14} style={{ verticalAlign: 'middle', marginRight: 4 }} />
               Add a Reward Tier
             </div>
@@ -734,7 +734,7 @@ export default function CampaignCreatePage() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', ...inputStyle, padding: 0, overflow: 'hidden' }}>
-                  <span style={{ padding: '0 8px', color: '#64748b', fontSize: 13 }}>$</span>
+                  <span style={{ padding: '0 8px', color: 'var(--text-muted)', fontSize: 13 }}>$</span>
                   <input type="number" min="1" value={tierAmount} onChange={e => setTierAmount(e.target.value)}
                     placeholder="10" style={{ ...inputStyle, border: 'none', borderRadius: 0 }} />
                 </div>
@@ -745,7 +745,7 @@ export default function CampaignCreatePage() {
               style={{ ...inputStyle, resize: 'none', marginBottom: 10 }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: '#64748b' }}>Max backers:</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Max backers:</span>
                 <input type="number" min="1" value={tierMaxBackers} onChange={e => setTierMaxBackers(e.target.value)}
                   placeholder="Unlimited" style={{ ...inputStyle, width: 100, padding: '6px 8px', fontSize: 12 }} />
               </div>
@@ -763,7 +763,7 @@ export default function CampaignCreatePage() {
           <div style={{ display: 'flex', gap: 12 }}>
             <button onClick={goBack} style={{
               flex: 1, padding: '12px 16px', borderRadius: 8,
-              background: '#334155', border: 'none', color: '#e2e8f0', fontSize: 14, cursor: 'pointer',
+              background: '#334155', border: 'none', color: 'var(--text)', fontSize: 14, cursor: 'pointer',
             }}>Back</button>
             <button onClick={goNext} style={{
               flex: 2, padding: '12px 16px', borderRadius: 8,
@@ -779,7 +779,7 @@ export default function CampaignCreatePage() {
       {/* ========== Step 5: Review ========== */}
       {step === 'review' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0', margin: 0 }}>Review & Launch</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Review & Launch</h2>
 
           {/* Preview card */}
           <div style={{
@@ -792,17 +792,17 @@ export default function CampaignCreatePage() {
               <div style={{ height: 100, background: 'linear-gradient(135deg, #1e1b4b, #312e81)' }} />
             )}
             <div style={{ padding: 20 }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>{title}</div>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>{description}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{title}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>{description}</div>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13 }}>
-                <div><span style={{ color: '#64748b' }}>Goal: </span><strong style={{ color: '#10b981' }}>${fundingGoal}</strong></div>
-                <div><span style={{ color: '#64748b' }}>Type: </span><span style={{ color: '#e2e8f0' }}>{campaignType}</span></div>
-                <div><span style={{ color: '#64748b' }}>Content: </span><span style={{ color: '#e2e8f0' }}>{contentType}</span></div>
+                <div><span style={{ color: 'var(--text-muted)' }}>Goal: </span><strong style={{ color: '#10b981' }}>${fundingGoal}</strong></div>
+                <div><span style={{ color: 'var(--text-muted)' }}>Type: </span><span style={{ color: 'var(--text)' }}>{campaignType}</span></div>
+                <div><span style={{ color: 'var(--text-muted)' }}>Content: </span><span style={{ color: 'var(--text)' }}>{contentType}</span></div>
                 {campaignType === 'solo' && chapterCount && (
-                  <div><span style={{ color: '#64748b' }}>Chapters: </span><span style={{ color: '#e2e8f0' }}>{chapterCount}</span></div>
+                  <div><span style={{ color: 'var(--text-muted)' }}>Chapters: </span><span style={{ color: 'var(--text)' }}>{chapterCount}</span></div>
                 )}
                 {tiers.length > 0 && (
-                  <div><span style={{ color: '#64748b' }}>Tiers: </span><span style={{ color: '#e2e8f0' }}>{tiers.length}</span></div>
+                  <div><span style={{ color: 'var(--text-muted)' }}>Tiers: </span><span style={{ color: 'var(--text)' }}>{tiers.length}</span></div>
                 )}
               </div>
             </div>
@@ -814,17 +814,17 @@ export default function CampaignCreatePage() {
               background: 'var(--panel)', border: '1px solid var(--panel-border)',
               borderRadius: 12, padding: 20,
             }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
                 Team Budget Breakdown
               </div>
               {allocations.filter(a => parseFloat(a.amount) > 0).map(a => (
                 <div key={a.collaborator_role_id} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '8px 0', borderBottom: '1px solid #334155',
+                  padding: '8px 0', borderBottom: '1px solid var(--border)',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: '#e2e8f0' }}>@{a.username}</span>
-                    <span style={{ fontSize: 11, color: '#64748b' }}>{a.role}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>@{a.username}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.role}</span>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>${fmt(parseFloat(a.amount))}</span>
                 </div>
@@ -832,9 +832,9 @@ export default function CampaignCreatePage() {
               {prodCosts > 0 && (
                 <div style={{
                   display: 'flex', justifyContent: 'space-between',
-                  padding: '8px 0', borderBottom: '1px solid #334155',
+                  padding: '8px 0', borderBottom: '1px solid var(--border)',
                 }}>
-                  <span style={{ fontSize: 13, color: '#94a3b8' }}>Production costs</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Production costs</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>${fmt(prodCosts)}</span>
                 </div>
               )}
@@ -842,10 +842,10 @@ export default function CampaignCreatePage() {
                 display: 'flex', justifyContent: 'space-between',
                 padding: '10px 0 0',
               }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                   {escrowPercent}% locked in escrow
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>${fmt(totalBudget)}</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>${fmt(totalBudget)}</span>
               </div>
             </div>
           )}
@@ -856,8 +856,8 @@ export default function CampaignCreatePage() {
               background: 'var(--panel)', border: '1px solid var(--panel-border)',
               borderRadius: 12, padding: 20,
             }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', marginBottom: 8 }}>Pitch Preview</div>
-              <div className="ql-editor" style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 1.7 }}
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8 }}>Pitch Preview</div>
+              <div className="ql-editor" style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.7 }}
                 dangerouslySetInnerHTML={{ __html: pitchHtml }} />
             </div>
           )}
@@ -878,7 +878,7 @@ export default function CampaignCreatePage() {
           <div style={{ display: 'flex', gap: 12 }}>
             <button onClick={goBack} style={{
               flex: 1, padding: '12px 16px', borderRadius: 8,
-              background: '#334155', border: 'none', color: '#e2e8f0', fontSize: 14, cursor: 'pointer',
+              background: '#334155', border: 'none', color: 'var(--text)', fontSize: 14, cursor: 'pointer',
             }}>Edit</button>
             <button onClick={handleCreate} disabled={submitting} style={{
               flex: 2, padding: '12px 16px', borderRadius: 8,

@@ -79,7 +79,7 @@ export function CampaignContributionModal({
       background: 'rgba(0,0,0,0.7)',
     }} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div style={{
-        background: '#0f172a', border: '1px solid #334155',
+        background: 'var(--dropdown-bg)', border: '1px solid var(--border)',
         borderRadius: 16, padding: 24, maxWidth: 480, width: '90%',
         maxHeight: '85vh', overflowY: 'auto',
       }}>
@@ -90,12 +90,12 @@ export function CampaignContributionModal({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <DollarSign size={20} style={{ color: '#8b5cf6' }} />
-            <span style={{ fontSize: 16, fontWeight: 600, color: '#e2e8f0' }}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>
               Back this Campaign
             </span>
           </div>
           <button onClick={onClose} style={{
-            background: 'none', border: 'none', cursor: 'pointer', color: '#64748b',
+            background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)',
           }}>
             <X size={20} />
           </button>
@@ -104,7 +104,7 @@ export function CampaignContributionModal({
         {/* Amount Selection */}
         {step === 'amount' && (
           <>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
               {campaign.title}
             </div>
 
@@ -133,7 +133,7 @@ export function CampaignContributionModal({
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Gift size={14} style={{ color: isSelected ? '#8b5cf6' : '#64748b' }} />
-                          <span style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                             {tier.title}
                           </span>
                         </div>
@@ -144,7 +144,7 @@ export function CampaignContributionModal({
                           ${tierAmount.toFixed(0)}+
                         </span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.5 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
                         {tier.description}
                       </div>
                       {tier.max_backers && (
@@ -172,7 +172,7 @@ export function CampaignContributionModal({
                     textAlign: 'center',
                   }}
                 >
-                  <span style={{ fontSize: 12, color: '#64748b' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                     Or enter a custom amount
                   </span>
                 </div>
@@ -190,7 +190,7 @@ export function CampaignContributionModal({
                       flex: 1, padding: '8px 4px', borderRadius: 8,
                       background: amount === String(preset) ? '#4f46e520' : '#1e293b',
                       border: `1px solid ${amount === String(preset) ? '#4f46e5' : '#334155'}`,
-                      color: '#e2e8f0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                     }}
                   >
                     ${preset}
@@ -203,10 +203,10 @@ export function CampaignContributionModal({
             {(!hasTiers || !selectedTier) && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                background: '#1e293b', borderRadius: 8, padding: '8px 12px',
-                border: '1px solid #334155', marginBottom: 16,
+                background: 'var(--bg-secondary)', borderRadius: 8, padding: '8px 12px',
+                border: '1px solid var(--border)', marginBottom: 16,
               }}>
-                <span style={{ color: '#64748b', fontSize: 16 }}>$</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 16 }}>$</span>
                 <input
                   type="number"
                   min="1"
@@ -216,7 +216,7 @@ export function CampaignContributionModal({
                   placeholder="Enter amount"
                   style={{
                     background: 'transparent', border: 'none', outline: 'none',
-                    color: '#e2e8f0', fontSize: 16, width: '100%',
+                    color: 'var(--text)', fontSize: 16, width: '100%',
                   }}
                 />
               </div>
@@ -225,21 +225,21 @@ export function CampaignContributionModal({
             {/* Selected tier summary */}
             {selectedTier && (
               <div style={{
-                background: '#1e293b', borderRadius: 8, padding: 12,
+                background: 'var(--bg-secondary)', borderRadius: 8, padding: 12,
                 marginBottom: 16, border: '1px solid #4f46e540',
               }}>
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   marginBottom: 4,
                 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                     {selectedTier.title}
                   </span>
                   <span style={{ fontSize: 15, fontWeight: 700, color: '#10b981' }}>
                     ${parseFloat(amount).toFixed(2)}
                   </span>
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   {selectedTier.description}
                 </div>
               </div>
@@ -285,7 +285,7 @@ export function CampaignContributionModal({
         {step === 'loading' && (
           <div style={{ textAlign: 'center', padding: 24 }}>
             <Loader2 size={32} style={{ color: '#8b5cf6', animation: 'spin 1s linear infinite' }} />
-            <div style={{ color: '#94a3b8', marginTop: 12, fontSize: 14 }}>
+            <div style={{ color: 'var(--text-muted)', marginTop: 12, fontSize: 14 }}>
               Preparing contribution...
             </div>
           </div>
@@ -295,7 +295,7 @@ export function CampaignContributionModal({
         {step === 'confirm' && intent && (
           <div style={{ padding: 16 }}>
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 14, color: '#e2e8f0', marginBottom: 8 }}>
+              <div style={{ fontSize: 14, color: 'var(--text)', marginBottom: 8 }}>
                 Contribute <strong style={{ color: '#10b981' }}>${intent.amount}</strong> to {campaign.title}?
               </div>
               {selectedTier && (
@@ -318,7 +318,7 @@ export function CampaignContributionModal({
                   <div style={{ fontSize: 13, color: '#4ade80' }}>
                     Balance: <strong>${intent.current_balance}</strong>
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                     After contribution: ${(parseFloat(intent.current_balance) - parseFloat(intent.amount)).toFixed(2)}
                   </div>
                 </div>
@@ -327,7 +327,7 @@ export function CampaignContributionModal({
                     onClick={() => { setStep('amount'); setIntent(null); }}
                     style={{
                       flex: 1, padding: '10px 16px', borderRadius: 8,
-                      background: '#334155', border: 'none', color: '#e2e8f0',
+                      background: '#334155', border: 'none', color: 'var(--text)',
                       fontSize: 13, cursor: 'pointer',
                     }}
                   >
@@ -349,14 +349,14 @@ export function CampaignContributionModal({
               <>
                 {/* Insufficient balance — show payment options */}
                 <div style={{
-                  background: '#1e293b', borderRadius: 8, padding: 12,
+                  background: 'var(--bg-secondary)', borderRadius: 8, padding: 12,
                   marginBottom: 16, textAlign: 'center',
                 }}>
                   <div style={{ fontSize: 13, color: '#f59e0b' }}>
                     Your balance: <strong>${intent.current_balance}</strong>
                   </div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
-                    Need <strong style={{ color: '#e2e8f0' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Need <strong style={{ color: 'var(--text)' }}>
                       ${(parseFloat(intent.amount) - parseFloat(intent.current_balance)).toFixed(2)}
                     </strong> more to back this campaign
                   </div>
@@ -367,7 +367,7 @@ export function CampaignContributionModal({
                   onClick={() => navigate('/wallet-info')}
                   style={{
                     padding: 14, borderRadius: 10, cursor: 'pointer', marginBottom: 10,
-                    background: '#1e293b', border: '2px solid #334155',
+                    background: 'var(--bg-secondary)', border: '2px solid #334155',
                     transition: 'all 0.2s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = '#8b5cf6'}
@@ -382,36 +382,36 @@ export function CampaignContributionModal({
                       <CreditCard size={18} style={{ color: '#8b5cf6' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                         Add Funds with Card
                       </div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         Apple Pay, debit card ($5 minimum)
                       </div>
                     </div>
-                    <ExternalLink size={14} style={{ color: '#64748b' }} />
+                    <ExternalLink size={14} style={{ color: 'var(--text-muted)' }} />
                   </div>
                 </div>
 
                 {/* Payment method: Pay with Crypto Wallet (coming soon) */}
                 <div style={{
                   padding: 14, borderRadius: 10, marginBottom: 16,
-                  background: '#1e293b', border: '1px solid #334155',
+                  background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                   opacity: 0.5, cursor: 'not-allowed',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: 8,
-                      background: '#1e293b', display: 'flex',
+                      background: 'var(--bg-secondary)', display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <Wallet size={18} style={{ color: '#64748b' }} />
+                      <Wallet size={18} style={{ color: 'var(--text-muted)' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8' }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>
                         Pay with Crypto Wallet
                       </div>
-                      <div style={{ fontSize: 11, color: '#475569' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                         Phantom, Solflare — coming soon
                       </div>
                     </div>
@@ -423,7 +423,7 @@ export function CampaignContributionModal({
                   <button
                     onClick={() => navigate('/wallet-info')}
                     style={{
-                      background: 'none', border: 'none', color: '#64748b',
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
                       fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
                     }}
                   >
@@ -435,7 +435,7 @@ export function CampaignContributionModal({
                   onClick={() => { setStep('amount'); setIntent(null); }}
                   style={{
                     width: '100%', padding: '10px 16px', borderRadius: 8,
-                    background: '#334155', border: 'none', color: '#e2e8f0',
+                    background: '#334155', border: 'none', color: 'var(--text)',
                     fontSize: 13, cursor: 'pointer',
                   }}
                 >
@@ -450,7 +450,7 @@ export function CampaignContributionModal({
         {step === 'processing' && (
           <div style={{ textAlign: 'center', padding: 24 }}>
             <Loader2 size={32} style={{ color: '#10b981', animation: 'spin 1s linear infinite' }} />
-            <div style={{ color: '#94a3b8', marginTop: 12, fontSize: 14 }}>
+            <div style={{ color: 'var(--text-muted)', marginTop: 12, fontSize: 14 }}>
               Processing contribution...
             </div>
           </div>
@@ -460,10 +460,10 @@ export function CampaignContributionModal({
         {step === 'success' && (
           <div style={{ textAlign: 'center', padding: 24 }}>
             <CheckCircle size={40} style={{ color: '#10b981' }} />
-            <div style={{ color: '#e2e8f0', marginTop: 12, fontSize: 16, fontWeight: 600 }}>
+            <div style={{ color: 'var(--text)', marginTop: 12, fontSize: 16, fontWeight: 600 }}>
               Thank you!
             </div>
-            <div style={{ color: '#94a3b8', marginTop: 4, fontSize: 13 }}>
+            <div style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: 13 }}>
               {selectedTier
                 ? `You're now a ${selectedTier.title} backer!`
                 : 'Your contribution has been recorded.'}
@@ -479,7 +479,7 @@ export function CampaignContributionModal({
               onClick={() => { setStep('amount'); setError(''); }}
               style={{
                 padding: '10px 24px', borderRadius: 8,
-                background: '#334155', border: 'none', color: '#e2e8f0',
+                background: '#334155', border: 'none', color: 'var(--text)',
                 fontSize: 13, cursor: 'pointer',
               }}
             >

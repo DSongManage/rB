@@ -176,10 +176,10 @@ export function TaskTimelineItem({ task, onViewDetails }: TaskTimelineItemProps)
 
           {/* Collaborator info */}
           <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               @{task.collaborator_username}
             </span>
-            <span style={{ fontSize: 12, color: '#64748b' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {task.collaborator_role}
             </span>
           </div>
@@ -190,7 +190,7 @@ export function TaskTimelineItem({ task, onViewDetails }: TaskTimelineItemProps)
               style={{
                 margin: '8px 0 0',
                 fontSize: 13,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 lineHeight: 1.4,
               }}
             >

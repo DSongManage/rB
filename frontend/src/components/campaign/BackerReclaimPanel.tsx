@@ -40,7 +40,7 @@ export function BackerReclaimPanel({ campaign, userContribution, onReclaimed }: 
         <div style={{ fontSize: 15, fontWeight: 600, color: '#10b981' }}>
           Funds Reclaimed
         </div>
-        <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
           ${contributionAmount.toFixed(2)} has been returned to your wallet.
         </div>
       </div>
@@ -55,12 +55,12 @@ export function BackerReclaimPanel({ campaign, userContribution, onReclaimed }: 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <AlertTriangle size={20} style={{ color: '#f59e0b' }} />
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
             {campaign.status === 'failed'
               ? 'Campaign did not reach its funding goal'
               : 'Funds are available for reclaim'}
           </div>
-          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
             {campaign.status === 'failed'
               ? 'The deadline passed before the goal was met. You can reclaim your full contribution.'
               : 'The escrow creation window expired. Your contribution is available for reclaim.'}
@@ -69,12 +69,12 @@ export function BackerReclaimPanel({ campaign, userContribution, onReclaimed }: 
       </div>
 
       <div style={{
-        background: '#1e293b', borderRadius: 8, padding: 12,
+        background: 'var(--bg-secondary)', borderRadius: 8, padding: 12,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: 12,
       }}>
-        <span style={{ fontSize: 13, color: '#94a3b8' }}>Your contribution</span>
-        <span style={{ fontSize: 16, fontWeight: 700, color: '#e2e8f0' }}>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Your contribution</span>
+        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
           ${contributionAmount.toFixed(2)}
         </span>
       </div>

@@ -51,7 +51,7 @@ const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; bo
   },
   standard: {
     label: 'Standard',
-    color: '#94a3b8',
+    color: 'var(--text-muted)',
     bg: 'linear-gradient(135deg, rgba(148,163,184,0.1), rgba(100,116,139,0.05))',
     border: 'rgba(148,163,184,0.3)',
     icon: <Award size={16} color="#94a3b8" />,

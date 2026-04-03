@@ -161,7 +161,7 @@ export function ApprovalRequestModal({
                     >
                       @{collab.username}
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                       {collab.role}
                     </div>
                   </div>
@@ -261,7 +261,7 @@ export function ApprovalRequestModal({
             border: '1px solid rgba(59, 130, 246, 0.3)',
             borderRadius: 8,
             fontSize: 12,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             lineHeight: 1.5,
           }}
         >

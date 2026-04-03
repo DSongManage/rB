@@ -183,7 +183,7 @@ export function MintingProgressModal({
             style={{
               margin: 0,
               fontSize: 14,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
             }}
           >
             {STAGES[currentStage].description}
@@ -196,7 +196,7 @@ export function MintingProgressModal({
             <div
               style={{
                 height: 8,
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 borderRadius: 4,
                 overflow: 'hidden',
                 marginBottom: 8,
@@ -214,7 +214,7 @@ export function MintingProgressModal({
             <div
               style={{
                 fontSize: 12,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 textAlign: 'center',
               }}
             >
@@ -345,7 +345,7 @@ export function MintingProgressModal({
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 12 }}>
-                <span style={{ color: '#94a3b8' }}>Token ID:</span>{' '}
+                <span style={{ color: 'var(--text-muted)' }}>Token ID:</span>{' '}
                 <span
                   style={{
                     color: 'var(--text)',
@@ -357,7 +357,7 @@ export function MintingProgressModal({
                 </span>
               </div>
               <div style={{ fontSize: 12 }}>
-                <span style={{ color: '#94a3b8' }}>Contract:</span>{' '}
+                <span style={{ color: 'var(--text-muted)' }}>Contract:</span>{' '}
                 <span
                   style={{
                     color: 'var(--text)',
@@ -370,7 +370,7 @@ export function MintingProgressModal({
                 </span>
               </div>
               <div style={{ fontSize: 12 }}>
-                <span style={{ color: '#94a3b8' }}>IPFS:</span>{' '}
+                <span style={{ color: 'var(--text-muted)' }}>IPFS:</span>{' '}
                 <span
                   style={{
                     color: 'var(--text)',
@@ -495,7 +495,7 @@ export function MintingProgressModal({
               border: '1px solid rgba(59, 130, 246, 0.3)',
               borderRadius: 8,
               fontSize: 12,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               textAlign: 'center',
               lineHeight: 1.5,
             }}

@@ -285,7 +285,7 @@ export function PreviewExport({ project }: PreviewExportProps) {
               Share Preview Link
             </h3>
 
-            <p style={{ margin: 0, marginBottom: 16, fontSize: 14, color: '#94a3b8' }}>
+            <p style={{ margin: 0, marginBottom: 16, fontSize: 14, color: 'var(--text-muted)' }}>
               Share this private preview link with others. They'll be able to view the project without editing access.
             </p>
 

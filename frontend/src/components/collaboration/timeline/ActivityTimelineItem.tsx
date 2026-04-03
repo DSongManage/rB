@@ -29,7 +29,7 @@ const activityConfig: Record<ActivityType, { icon: React.ElementType; color: str
   section_updated: { icon: FileEdit, color: '#3b82f6', label: 'Section Updated' },
   comment_added: { icon: MessageCircle, color: '#06b6d4', label: 'Comment Added' },
   collaborator_joined: { icon: UserPlus, color: '#10b981', label: 'Joined' },
-  collaborator_left: { icon: UserMinus, color: '#64748b', label: 'Left' },
+  collaborator_left: { icon: UserMinus, color: 'var(--text-muted)', label: 'Left' },
   approval_given: { icon: CheckCircle, color: '#10b981', label: 'Approved' },
   approval_requested: { icon: Bell, color: '#f59e0b', label: 'Approval Requested' },
   ready_for_mint: { icon: Sparkles, color: '#ec4899', label: 'Ready for Mint' },
@@ -41,7 +41,7 @@ const activityConfig: Record<ActivityType, { icon: React.ElementType; color: str
 export function ActivityTimelineItem({ activity, compact = false }: ActivityTimelineItemProps) {
   const config = activityConfig[activity.activity_type] || {
     icon: ActivityIcon,
-    color: '#64748b',
+    color: 'var(--text-muted)',
     label: 'Activity',
   };
 
@@ -130,7 +130,7 @@ export function ActivityTimelineItem({ activity, compact = false }: ActivityTime
             alignItems: 'center',
             gap: 8,
             fontSize: compact ? 10 : 11,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             flexWrap: 'wrap',
           }}
         >
@@ -139,11 +139,11 @@ export function ActivityTimelineItem({ activity, compact = false }: ActivityTime
           </span>
           {activity.section_title && (
             <>
-              <span style={{ color: '#475569' }}>in</span>
-              <span style={{ color: '#94a3b8' }}>{activity.section_title}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>in</span>
+              <span style={{ color: 'var(--text-muted)' }}>{activity.section_title}</span>
             </>
           )}
-          <span style={{ color: '#475569' }}>•</span>
+          <span style={{ color: 'var(--text-secondary)' }}>•</span>
           <span>{timeAgo}</span>
         </div>
       </div>

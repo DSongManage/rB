@@ -263,7 +263,7 @@ export default function SoloComicEditor({
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
         <Loader2 size={32} className="animate-spin" style={{ color: '#f59e0b' }} />
-        <span style={{ marginLeft: 12, color: '#94a3b8' }}>Loading comic editor...</span>
+        <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>Loading comic editor...</span>
       </div>
     );
   }
@@ -313,7 +313,7 @@ export default function SoloComicEditor({
             gap: 8,
             background: 'none',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             cursor: 'pointer',
             fontSize: 14,
           }}
@@ -336,7 +336,7 @@ export default function SoloComicEditor({
                   background: 'var(--bg-secondary, #1e293b)',
                   border: '1px solid #3b82f6',
                   borderRadius: 4,
-                  color: '#e2e8f0',
+                  color: 'var(--text)',
                   fontSize: 13,
                   padding: '4px 8px',
                   minWidth: 150,
@@ -354,7 +354,7 @@ export default function SoloComicEditor({
                 gap: 6,
                 background: 'none',
                 border: 'none',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: 13,
                 padding: '4px 8px',
@@ -504,7 +504,7 @@ export default function SoloComicEditor({
               marginBottom: 16,
               fontSize: 18,
               fontWeight: 700,
-              color: '#e2e8f0',
+              color: 'var(--text)',
             }}>
               Delete "{project.title}"?
             </h3>
@@ -512,7 +512,7 @@ export default function SoloComicEditor({
               margin: 0,
               marginBottom: 24,
               fontSize: 14,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               This will permanently delete this comic and all its pages. This action cannot be undone.
@@ -523,10 +523,10 @@ export default function SoloComicEditor({
                 disabled={deleting}
                 style={{
                   background: 'transparent',
-                  border: '1px solid #334155',
+                  border: '1px solid var(--border)',
                   borderRadius: 6,
                   padding: '10px 20px',
-                  color: '#e2e8f0',
+                  color: 'var(--text)',
                   fontWeight: 600,
                   cursor: deleting ? 'not-allowed' : 'pointer',
                   fontSize: 13,
@@ -596,7 +596,7 @@ export default function SoloComicEditor({
                 margin: 0,
                 fontSize: 18,
                 fontWeight: 700,
-                color: '#e2e8f0',
+                color: 'var(--text)',
               }}>
                 Cover Image
               </h3>
@@ -605,7 +605,7 @@ export default function SoloComicEditor({
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer',
                   padding: 4,
                 }}
@@ -617,7 +617,7 @@ export default function SoloComicEditor({
             {/* Current Cover Preview */}
             {project.cover_image && (
               <div style={{ marginBottom: 16 }}>
-                <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>Current cover:</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>Current cover:</p>
                 <img
                   src={project.cover_image}
                   alt="Current cover"
@@ -626,7 +626,7 @@ export default function SoloComicEditor({
                     maxHeight: 200,
                     objectFit: 'contain',
                     borderRadius: 8,
-                    background: '#0f172a',
+                    background: 'var(--dropdown-bg)',
                   }}
                 />
               </div>
@@ -653,15 +653,15 @@ export default function SoloComicEditor({
               {uploadingCover ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <Loader2 size={24} className="animate-spin" style={{ color: '#3b82f6' }} />
-                  <span style={{ color: '#94a3b8' }}>Uploading...</span>
+                  <span style={{ color: 'var(--text-muted)' }}>Uploading...</span>
                 </div>
               ) : (
                 <>
-                  <Image size={32} style={{ color: '#64748b', marginBottom: 12 }} />
-                  <p style={{ margin: 0, fontSize: 14, color: '#94a3b8', marginBottom: 4 }}>
+                  <Image size={32} style={{ color: 'var(--text-muted)', marginBottom: 12 }} />
+                  <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)', marginBottom: 4 }}>
                     Click to upload cover image
                   </p>
-                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
                     PNG, JPG, WebP, or GIF (max 10MB)
                   </p>
                 </>
@@ -672,7 +672,7 @@ export default function SoloComicEditor({
               margin: 0,
               marginTop: 12,
               fontSize: 12,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               textAlign: 'center',
             }}>
               Recommended size: 800x1200 pixels (portrait orientation)

@@ -114,7 +114,7 @@ export default function OverviewTab({
         <h3 style={{ margin: '0 0 4px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
           {project.content_type === 'art' ? 'Cover Image' : 'Cover Art'}
         </h3>
-        <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: 13 }}>
+        <p style={{ margin: '0 0 16px', color: 'var(--text-muted)', fontSize: 13 }}>
           This image represents your project in the marketplace
         </p>
         <input
@@ -247,7 +247,7 @@ export default function OverviewTab({
                 border: '1px solid var(--panel-border)',
                 borderRadius: 6,
                 padding: '6px 12px',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: 12,
               }}
@@ -305,7 +305,7 @@ export default function OverviewTab({
                   border: '1px solid var(--panel-border)',
                   borderRadius: 6,
                   padding: '8px 16px',
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   cursor: 'pointer',
                   fontSize: 13,
                 }}
@@ -561,7 +561,7 @@ export default function OverviewTab({
               justifyContent: 'space-between',
               alignItems: 'center',
             }}>
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>Total</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total</span>
               <span style={{
                 fontSize: 16,
                 fontWeight: 700,
@@ -596,7 +596,7 @@ export default function OverviewTab({
               justifyContent: 'space-between',
               marginBottom: 8,
             }}>
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                 {totalApproved} of {acceptedCollaborators.length} approved
               </span>
               <span style={{
@@ -667,10 +667,10 @@ export default function OverviewTab({
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                         @{collab.username}
                         {collab.user === currentUser.id && (
-                          <span style={{ color: '#94a3b8', fontWeight: 400 }}> (you)</span>
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> (you)</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {collab.role}
                       </div>
                     </div>
@@ -719,7 +719,7 @@ export default function OverviewTab({
               <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>
                 Not ready to mint:
               </div>
-              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: '#94a3b8' }}>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: 'var(--text-muted)' }}>
                 {mintBlockers.slice(0, 3).map((blocker, i) => (
                   <li key={i}>{blocker}</li>
                 ))}
@@ -785,7 +785,7 @@ function StatCard({ label, value, icon }: { label: string; value: string | numbe
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
       }}>
         {icon}
       </div>
@@ -793,7 +793,7 @@ function StatCard({ label, value, icon }: { label: string; value: string | numbe
         <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
           {value}
         </div>
-        <div style={{ fontSize: 12, color: '#94a3b8' }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {label}
         </div>
       </div>

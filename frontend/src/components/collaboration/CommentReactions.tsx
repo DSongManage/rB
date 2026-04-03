@@ -140,11 +140,11 @@ export function CommentReactions({
           style={{
             padding: '4px 8px',
             background: 'transparent',
-            border: '1px solid #334155',
+            border: '1px solid var(--border)',
             borderRadius: 12,
             cursor: isAdding ? 'not-allowed' : 'pointer',
             fontSize: 14,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
@@ -170,8 +170,8 @@ export function CommentReactions({
               bottom: '100%',
               left: 0,
               marginBottom: 4,
-              background: '#1e293b',
-              border: '1px solid #334155',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
               borderRadius: 12,
               padding: 8,
               boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',

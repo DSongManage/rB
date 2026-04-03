@@ -58,7 +58,7 @@ export function NotificationToast({
       aria-atomic="true"
       style={{
         width: 380,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         border: `1px solid ${color}40`,
         borderLeft: `4px solid ${color}`,
         borderRadius: 8,
@@ -104,7 +104,7 @@ export function NotificationToast({
               style={{
                 fontSize: 14,
                 fontWeight: 700,
-                color: '#e5e7eb',
+                color: 'var(--text)',
                 marginBottom: 4,
                 lineHeight: 1.3,
               }}
@@ -114,7 +114,7 @@ export function NotificationToast({
             <div
               style={{
                 fontSize: 13,
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 lineHeight: 1.4,
               }}
             >
@@ -128,7 +128,7 @@ export function NotificationToast({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#64748b',
+              color: 'var(--text-muted)',
               cursor: 'pointer',
               padding: 4,
               fontSize: 20,
@@ -178,8 +178,8 @@ export function NotificationToast({
             onClick={handleDismiss}
             style={{
               background: 'transparent',
-              color: '#94a3b8',
-              border: '1px solid #334155',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
               borderRadius: 6,
               padding: '6px 16px',
               fontSize: 13,

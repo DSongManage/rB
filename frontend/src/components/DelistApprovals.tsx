@@ -132,7 +132,7 @@ const DelistApprovals: React.FC = () => {
         gap: 16
       }}>
         <Loader size={32} style={{ animation: 'spin 1s linear infinite' }} />
-        <p style={{ color: '#94a3b8' }}>Loading pending requests...</p>
+        <p style={{ color: 'var(--text-muted)' }}>Loading pending requests...</p>
       </div>
     );
   }
@@ -142,7 +142,7 @@ const DelistApprovals: React.FC = () => {
       <div style={{
         padding: 32,
         textAlign: 'center',
-        background: '#0f172a',
+        background: 'var(--dropdown-bg)',
         border: '1px solid #1e293b',
         borderRadius: 12
       }}>
@@ -150,7 +150,7 @@ const DelistApprovals: React.FC = () => {
         <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
           No Pending Approvals
         </h3>
-        <p style={{ color: '#94a3b8', fontSize: 14 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
           You have no pending delist requests to review.
         </p>
       </div>
@@ -164,7 +164,7 @@ const DelistApprovals: React.FC = () => {
         <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>
           Pending Delist Approvals
         </h2>
-        <p style={{ color: '#94a3b8', fontSize: 14 }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
           Review requests from collaborators to delist content from the marketplace.
         </p>
       </div>
@@ -192,7 +192,7 @@ const DelistApprovals: React.FC = () => {
           <div
             key={request.id}
             style={{
-              background: '#0f172a',
+              background: 'var(--dropdown-bg)',
               border: '1px solid #1e293b',
               borderRadius: 12,
               padding: 20,
@@ -205,7 +205,7 @@ const DelistApprovals: React.FC = () => {
                 <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
                   {request.chapter.title}
                 </h3>
-                <p style={{ color: '#94a3b8', fontSize: 14 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
                   {request.chapter.book_project}
                 </p>
               </div>
@@ -245,21 +245,21 @@ const DelistApprovals: React.FC = () => {
             {/* Request Details */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-                <span style={{ color: '#94a3b8' }}>Requested by:</span>
+                <span style={{ color: 'var(--text-muted)' }}>Requested by:</span>
                 <span style={{ fontWeight: 600 }}>{request.requested_by.username}</span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-                <Users size={16} style={{ color: '#94a3b8' }} />
-                <span style={{ color: '#94a3b8' }}>Progress:</span>
+                <Users size={16} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ color: 'var(--text-muted)' }}>Progress:</span>
                 <span style={{ fontWeight: 600 }}>
                   {request.approvals_count} / {request.total_collaborators} approved
                 </span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-                <Clock size={16} style={{ color: '#94a3b8' }} />
-                <span style={{ color: '#94a3b8' }}>
+                <Clock size={16} style={{ color: 'var(--text-muted)' }} />
+                <span style={{ color: 'var(--text-muted)' }}>
                   {new Date(request.created_at).toLocaleDateString()}
                 </span>
               </div>
@@ -267,12 +267,12 @@ const DelistApprovals: React.FC = () => {
               {/* Reason */}
               <div style={{
                 padding: 12,
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 fontSize: 14
               }}>
-                <div style={{ color: '#94a3b8', marginBottom: 4, fontSize: 12, textTransform: 'uppercase' }}>
+                <div style={{ color: 'var(--text-muted)', marginBottom: 4, fontSize: 12, textTransform: 'uppercase' }}>
                   Reason for Delisting
                 </div>
                 <div style={{ color: 'white' }}>{request.reason}</div>
@@ -282,12 +282,12 @@ const DelistApprovals: React.FC = () => {
               {request.user_has_responded && request.user_response_note && (
                 <div style={{
                   padding: 12,
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   fontSize: 14
                 }}>
-                  <div style={{ color: '#94a3b8', marginBottom: 4, fontSize: 12, textTransform: 'uppercase' }}>
+                  <div style={{ color: 'var(--text-muted)', marginBottom: 4, fontSize: 12, textTransform: 'uppercase' }}>
                     Your Response Note
                   </div>
                   <div style={{ color: 'white' }}>{request.user_response_note}</div>
@@ -359,7 +359,7 @@ const DelistApprovals: React.FC = () => {
           zIndex: 1000
         }}>
           <div style={{
-            background: '#0f172a',
+            background: 'var(--dropdown-bg)',
             border: '1px solid #1e293b',
             borderRadius: 16,
             padding: 24,
@@ -370,10 +370,10 @@ const DelistApprovals: React.FC = () => {
               <CheckCircle style={{ color: '#10b981' }} />
               Approve Delist Request
             </h2>
-            <p style={{ marginBottom: 16, color: '#94a3b8' }}>
+            <p style={{ marginBottom: 16, color: 'var(--text-muted)' }}>
               You are approving the request to delist "{showResponseModal.chapter.title}" from the marketplace.
             </p>
-            <p style={{ marginBottom: 16, color: '#94a3b8', fontSize: 14 }}>
+            <p style={{ marginBottom: 16, color: 'var(--text-muted)', fontSize: 14 }}>
               If all collaborators approve, the chapter will be hidden from the marketplace but NFT holders will retain access.
             </p>
             <textarea
@@ -384,8 +384,8 @@ const DelistApprovals: React.FC = () => {
                 width: '100%',
                 minHeight: 80,
                 padding: 12,
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 color: 'white',
                 marginBottom: 16,
@@ -401,8 +401,8 @@ const DelistApprovals: React.FC = () => {
                 disabled={actionLoading !== null}
                 style={{
                   padding: '10px 20px',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   color: 'white',
                   cursor: actionLoading !== null ? 'not-allowed' : 'pointer'

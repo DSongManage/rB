@@ -76,7 +76,7 @@ export function ComicThumbnailSidebar({
               border: 'none',
               padding: 8,
               cursor: 'pointer',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               borderRadius: 4,
               display: 'flex',
               alignItems: 'center',

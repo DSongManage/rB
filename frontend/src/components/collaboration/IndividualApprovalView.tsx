@@ -98,7 +98,7 @@ export function IndividualApprovalView({
             margin: 0,
             marginBottom: 24,
             fontSize: 14,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
           }}
         >
           {hasAlreadyApproved
@@ -130,13 +130,13 @@ export function IndividualApprovalView({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* Content type */}
-            <div style={{ fontSize: 13, color: '#94a3b8' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               <span style={{ fontWeight: 600 }}>Type:</span>{' '}
               {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)}
             </div>
 
             {/* Sections */}
-            <div style={{ fontSize: 13, color: '#94a3b8' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               <span style={{ fontWeight: 600 }}>Sections:</span> {completedSections} / {totalSections} completed
               {completedSections === totalSections && totalSections > 0 && (
                 <span style={{ color: '#10b981', marginLeft: 8 }}>✓</span>
@@ -144,7 +144,7 @@ export function IndividualApprovalView({
             </div>
 
             {/* Collaborators */}
-            <div style={{ fontSize: 13, color: '#94a3b8' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
               <span style={{ fontWeight: 600 }}>Collaborators:</span>{' '}
               {project.collaborators?.filter(c => c.status === 'accepted').length || 0}
             </div>
@@ -204,7 +204,7 @@ export function IndividualApprovalView({
                         @{collab.username}
                         {isCurrentUser && ' (you)'}
                       </span>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                         {collab.role}
                       </div>
                     </div>
@@ -312,7 +312,7 @@ export function IndividualApprovalView({
                 >
                   I approve the current version of the content
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   I have reviewed all sections and am satisfied with the quality and content.
                 </div>
               </div>
@@ -346,7 +346,7 @@ export function IndividualApprovalView({
                 >
                   I approve the revenue split
                 </div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                   I agree to the revenue distribution shown above ({currentUserCollab?.revenue_percentage}% for me).
                 </div>
               </div>

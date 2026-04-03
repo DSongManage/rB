@@ -2,7 +2,7 @@ import React from 'react';
 import { PageStatus } from '../../../services/collaborationApi';
 
 const STATUS_CONFIG: Record<PageStatus, { label: string; color: string; bg: string }> = {
-  script_only: { label: 'Script Only', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)' },
+  script_only: { label: 'Script Only', color: 'var(--text-muted)', bg: 'rgba(148, 163, 184, 0.15)' },
   in_progress: { label: 'In Progress', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
   art_delivered: { label: 'Art Delivered', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
   revision_requested: { label: 'Revision Requested', color: '#f97316', bg: 'rgba(249, 115, 22, 0.15)' },

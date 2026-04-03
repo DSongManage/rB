@@ -99,7 +99,7 @@ export function CreatorReviewsSection({
 
   return (
     <div style={{
-      background: '#0f172a',
+      background: 'var(--dropdown-bg)',
       borderRadius: 16,
       border: '1px solid #1e293b',
       overflow: 'hidden',
@@ -124,8 +124,8 @@ export function CreatorReviewsSection({
           </h3>
           {displayCount > 0 && (
             <span style={{
-              background: '#1e293b',
-              color: '#94a3b8',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-muted)',
               padding: '4px 10px',
               borderRadius: 12,
               fontSize: 13,
@@ -168,7 +168,7 @@ export function CreatorReviewsSection({
             alignItems: 'center',
             gap: 16,
             padding: '16px 20px',
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 12,
             marginBottom: 24,
           }}>
@@ -186,7 +186,7 @@ export function CreatorReviewsSection({
               </div>
               <div style={{
                 fontSize: 12,
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 marginTop: 4,
               }}>
                 {displayCount} {displayCount === 1 ? 'review' : 'reviews'}
@@ -200,7 +200,7 @@ export function CreatorReviewsSection({
           <div style={{ marginBottom: 24 }}>
             {showForm ? (
               <div style={{
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 borderRadius: 12,
                 padding: 20,
               }}>
@@ -226,7 +226,7 @@ export function CreatorReviewsSection({
                     style={{
                       background: 'transparent',
                       border: 'none',
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       fontSize: 13,
                       cursor: 'pointer',
                     }}
@@ -250,7 +250,7 @@ export function CreatorReviewsSection({
                   background: 'transparent',
                   border: '2px dashed #334155',
                   borderRadius: 12,
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   fontSize: 14,
                   fontWeight: 500,
                   cursor: 'pointer',
@@ -281,10 +281,10 @@ export function CreatorReviewsSection({
           <div style={{
             marginBottom: 24,
             padding: '14px 16px',
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 10,
             fontSize: 14,
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
           }}>
             {canReviewReason}
           </div>
@@ -309,7 +309,7 @@ export function CreatorReviewsSection({
           <div style={{
             textAlign: 'center',
             padding: '32px 0',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             Loading reviews...
@@ -318,7 +318,7 @@ export function CreatorReviewsSection({
           <div style={{
             textAlign: 'center',
             padding: '32px 0',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             No reviews yet.
@@ -352,7 +352,7 @@ export function CreatorReviewsSection({
                   marginTop: 16,
                   padding: '12px',
                   background: 'transparent',
-                  border: '1px solid #334155',
+                  border: '1px solid var(--border)',
                   borderRadius: 10,
                   color: '#f59e0b',
                   fontSize: 14,

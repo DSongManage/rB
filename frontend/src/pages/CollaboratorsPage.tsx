@@ -14,7 +14,7 @@ const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; bo
   level_3: { label: 'Level 3', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)' },
   level_2: { label: 'Level 2', color: '#14b8a6', bg: 'rgba(20,184,166,0.15)', border: 'rgba(20,184,166,0.4)' },
   level_1: { label: 'Level 1', color: '#22c55e', bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.4)' },
-  standard: { label: 'Standard', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)' },
+  standard: { label: 'Standard', color: 'var(--text-muted)', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.3)' },
 };
 
 const TIER_OPTIONS = [
@@ -24,7 +24,7 @@ const TIER_OPTIONS = [
   { key: 'level_3', label: 'Level 3', color: '#3b82f6' },
   { key: 'level_2', label: 'Level 2', color: '#14b8a6' },
   { key: 'level_1', label: 'Level 1', color: '#22c55e' },
-  { key: 'standard', label: 'Standard', color: '#94a3b8' },
+  { key: 'standard', label: 'Standard', color: 'var(--text-muted)' },
 ];
 
 interface FeaturedCreator {

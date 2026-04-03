@@ -69,7 +69,7 @@ export default function MintButton({ contentId }: Props) {
       )}
 
       <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 12, color: '#94a3b8' }}>
+        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           Sale amount (lamports):
           <input
             value={amount}

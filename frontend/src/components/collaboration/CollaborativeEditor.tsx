@@ -365,7 +365,7 @@ export default function CollaborativeEditor({
           <div style={{
             marginTop: 4,
             fontSize: 14,
-            color: '#94a3b8'
+            color: 'var(--text-muted)'
           }}>
             {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} Project
             {' • '}
@@ -500,7 +500,7 @@ export default function CollaborativeEditor({
                     border: '1px solid var(--panel-border)',
                     borderRadius: 6,
                     padding: '4px 8px',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     cursor: 'pointer',
                     fontSize: 11,
                   }}
@@ -544,7 +544,7 @@ export default function CollaborativeEditor({
                       </div>
                       <div style={{
                         fontSize: 11,
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                       }}>
                         {collab.role} • {collab.revenue_percentage}%
                       </div>
@@ -553,7 +553,7 @@ export default function CollaborativeEditor({
 
                   {/* Approval Status */}
                   {collab.status === 'accepted' && (
-                    <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8' }}>
+                    <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)' }}>
                       {collab.approved_current_version && collab.approved_revenue_split ? (
                         <span style={{ color: '#10b981' }}>✓ Approved</span>
                       ) : (
@@ -583,7 +583,7 @@ export default function CollaborativeEditor({
             }}>
               {isFullyApproved ? '✓ Fully Approved' : '⏳ Awaiting Approvals'}
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {approvalStatus.approved} of {approvalStatus.total} collaborators approved
             </div>
           </div>
@@ -703,7 +703,7 @@ export default function CollaborativeEditor({
                       border: '1px solid var(--panel-border)',
                       borderRadius: 6,
                       padding: '6px 12px',
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       cursor: 'pointer',
                       fontSize: 10,
                       fontWeight: 600,
@@ -758,7 +758,7 @@ export default function CollaborativeEditor({
                     <div style={{
                       padding: 20,
                       textAlign: 'center',
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       fontSize: 12,
                     }}>
                       Loading comments...
@@ -767,12 +767,12 @@ export default function CollaborativeEditor({
                     <div style={{
                       padding: 20,
                       textAlign: 'center',
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       fontSize: 12,
                     }}>
                       <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
                       <div>No comments yet</div>
-                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                         Be the first to comment!
                       </div>
                     </div>
@@ -842,7 +842,7 @@ export default function CollaborativeEditor({
               borderRadius: 12,
               padding: 32,
               textAlign: 'center',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
             }}>
               <div style={{ fontSize: 16, marginBottom: 16 }}>
                 No sections yet. Add your first section to get started!
@@ -1062,7 +1062,7 @@ function SectionEditor({
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               Owner: @{section.owner_username}
             </div>
           </div>
@@ -1112,7 +1112,7 @@ function SectionEditor({
           padding: 16,
           opacity: 0.6,
         }}>
-          <div style={{ fontSize: 13, color: '#94a3b8' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             {section.section_type === 'text' && (
               <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content_html) || 'No content yet' }} />
             )}
@@ -1219,7 +1219,7 @@ function SectionEditor({
                   textAlign: 'center',
                   marginBottom: 12,
                 }}>
-                  <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 12 }}>
                     No {section.section_type} uploaded
                   </div>
                 </div>

@@ -446,8 +446,8 @@ export default function ProfilePage() {
               alignItems: 'center',
               gap: 6,
               background: 'transparent',
-              color: '#94a3b8',
-              border: '1px solid #334155',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border)',
               padding: isPhone ? '6px 10px' : '8px 14px',
               borderRadius: 8,
               fontSize: isPhone ? 12 : 13,
@@ -612,7 +612,7 @@ export default function ProfilePage() {
         </div>
         <div style={{background:'var(--panel)', border:'1px solid var(--panel-border)', borderRadius:12, padding:24}}>
           {/* Tabbed Interface */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid #334155', paddingBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
             {[
               { key: 'content', label: 'My Content', count: inventory.length },
               { key: 'collaborations', label: 'Collaborations', count: 0 },
@@ -711,7 +711,7 @@ export default function ProfilePage() {
 
           {/* Collaborations Tab */}
           {activeTab === 'collaborations' && (
-            <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
               <p style={{ marginBottom: 16 }}>View and manage your collaborations</p>
               <Link
                 to="/studio"
@@ -736,7 +736,7 @@ export default function ProfilePage() {
           {activeTab === 'portfolio' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <p style={{ color: '#94a3b8', fontSize: 13, margin: 0 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
                   Showcase your past work and external projects
                 </p>
                 <button
@@ -760,7 +760,7 @@ export default function ProfilePage() {
                 </button>
               </div>
               {externalPortfolio.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>
+                <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
                   <p style={{ marginBottom: 8 }}>No external portfolio items yet</p>
                   <p style={{ fontSize: 13 }}>Add your past work to showcase on your public profile</p>
                 </div>
@@ -773,9 +773,9 @@ export default function ProfilePage() {
                       gap: 16,
                       alignItems: 'center',
                       padding: 12,
-                      background: '#1e293b',
+                      background: 'var(--bg-secondary)',
                       borderRadius: 8,
-                      border: '1px solid #334155'
+                      border: '1px solid var(--border)'
                     }}>
                       <div style={{
                         width: 80,
@@ -794,7 +794,7 @@ export default function ProfilePage() {
                         <div style={{ color: '#f1f5f9', fontWeight: 600, marginBottom: 4 }}>{item.title}</div>
                         {item.role && <div style={{ color: '#f59e0b', fontSize: 13, marginBottom: 4 }}>{item.role}</div>}
                         {item.description && (
-                          <div style={{ color: '#94a3b8', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.description}
                           </div>
                         )}
@@ -944,21 +944,21 @@ function PortfolioItemModal({
       zIndex: 1000
     }}>
       <div style={{
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 16,
         padding: 24,
         width: '100%',
         maxWidth: 500,
         maxHeight: '90vh',
         overflow: 'auto',
-        border: '1px solid #334155'
+        border: '1px solid var(--border)'
       }}>
         <h2 style={{ color: '#f1f5f9', fontSize: 20, fontWeight: 700, margin: '0 0 20px' }}>
           {item ? 'Edit Portfolio Item' : 'Add Portfolio Item'}
         </h2>
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, marginBottom: 6 }}>
               Title *
             </label>
             <input
@@ -968,8 +968,8 @@ function PortfolioItemModal({
               required
               style={{
                 width: '100%',
-                background: '#0f172a',
-                border: '1px solid #334155',
+                background: 'var(--dropdown-bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: '10px 12px',
                 color: '#f1f5f9',
@@ -980,7 +980,7 @@ function PortfolioItemModal({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, marginBottom: 6 }}>
               Project Type
             </label>
             <select
@@ -988,8 +988,8 @@ function PortfolioItemModal({
               onChange={e => setProjectType(e.target.value)}
               style={{
                 width: '100%',
-                background: '#0f172a',
-                border: '1px solid #334155',
+                background: 'var(--dropdown-bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: '10px 12px',
                 color: '#f1f5f9',
@@ -1006,7 +1006,7 @@ function PortfolioItemModal({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, marginBottom: 6 }}>
               Your Role
             </label>
             <input
@@ -1015,8 +1015,8 @@ function PortfolioItemModal({
               onChange={e => setRole(e.target.value)}
               style={{
                 width: '100%',
-                background: '#0f172a',
-                border: '1px solid #334155',
+                background: 'var(--dropdown-bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: '10px 12px',
                 color: '#f1f5f9',
@@ -1027,7 +1027,7 @@ function PortfolioItemModal({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, marginBottom: 6 }}>
               Description
             </label>
             <textarea
@@ -1036,8 +1036,8 @@ function PortfolioItemModal({
               rows={3}
               style={{
                 width: '100%',
-                background: '#0f172a',
-                border: '1px solid #334155',
+                background: 'var(--dropdown-bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: '10px 12px',
                 color: '#f1f5f9',
@@ -1049,7 +1049,7 @@ function PortfolioItemModal({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, marginBottom: 6 }}>
               External URL
             </label>
             <input
@@ -1058,8 +1058,8 @@ function PortfolioItemModal({
               onChange={e => setExternalUrl(e.target.value)}
               style={{
                 width: '100%',
-                background: '#0f172a',
-                border: '1px solid #334155',
+                background: 'var(--dropdown-bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: '10px 12px',
                 color: '#f1f5f9',
@@ -1070,7 +1070,7 @@ function PortfolioItemModal({
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, marginBottom: 6 }}>
               Date (optional)
             </label>
             <input
@@ -1079,8 +1079,8 @@ function PortfolioItemModal({
               onChange={e => setCreatedDate(e.target.value)}
               style={{
                 width: '100%',
-                background: '#0f172a',
-                border: '1px solid #334155',
+                background: 'var(--dropdown-bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: '10px 12px',
                 color: '#f1f5f9',
@@ -1096,8 +1096,8 @@ function PortfolioItemModal({
               style={{
                 flex: 1,
                 background: 'transparent',
-                color: '#94a3b8',
-                border: '1px solid #334155',
+                color: 'var(--text-muted)',
+                border: '1px solid var(--border)',
                 padding: '12px 20px',
                 borderRadius: 8,
                 fontWeight: 600,

@@ -119,13 +119,13 @@ export function MilestoneTimeline({ tasks, trustPhase }: MilestoneTimelineProps)
 
   return (
     <div style={{
-      background: '#0f172a',
+      background: 'var(--dropdown-bg)',
       border: '1px solid #1e293b',
       borderRadius: 12,
       padding: 16,
     }}>
       <div style={{
-        fontSize: 13, fontWeight: 600, color: '#e2e8f0',
+        fontSize: 13, fontWeight: 600, color: 'var(--text)',
         marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <TrendingUp size={16} style={{ color: '#8b5cf6' }} />
@@ -179,7 +179,7 @@ export function MilestoneTimeline({ tasks, trustPhase }: MilestoneTimelineProps)
                   <div style={{ flex: 1 }}>
                     <div style={{
                       display: 'flex', alignItems: 'center', gap: 6,
-                      fontSize: 13, fontWeight: 500, color: '#e2e8f0',
+                      fontSize: 13, fontWeight: 500, color: 'var(--text)',
                     }}>
                       {task.title}
                       {typeLabel && (
@@ -192,7 +192,7 @@ export function MilestoneTimeline({ tasks, trustPhase }: MilestoneTimelineProps)
                       )}
                     </div>
                     {task.page_range_start && task.page_range_end && (
-                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                         Pages {task.page_range_start}-{task.page_range_end}
                       </div>
                     )}
@@ -213,7 +213,7 @@ export function MilestoneTimeline({ tasks, trustPhase }: MilestoneTimelineProps)
                         )}
                       </div>
                       {task.escrow_release_status === 'released' && (
-                        <div style={{ fontSize: 10, color: '#64748b', marginTop: 1 }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
                           ${(payment * 0.97).toFixed(2)} artist / ${(payment * 0.03).toFixed(2)} fee
                         </div>
                       )}

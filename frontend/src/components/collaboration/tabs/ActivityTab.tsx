@@ -79,7 +79,7 @@ export default function ActivityTab({
               boxShadow: isPolling ? '0 0 6px rgba(16, 185, 129, 0.5)' : 'none',
             }}
           />
-          <span style={{ fontSize: 13, color: '#94a3b8' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
             {onlineUsers.length} collaborator{onlineUsers.length !== 1 ? 's' : ''} online
           </span>
         </div>
@@ -98,7 +98,7 @@ export default function ActivityTab({
             borderRadius: 10,
           }}
         >
-          <span style={{ fontSize: 12, color: '#64748b', marginRight: 8 }}>Online now:</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 8 }}>Online now:</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {onlineUsers.map((user) => (
               <div

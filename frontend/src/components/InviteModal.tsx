@@ -548,8 +548,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
       <div
         className="invite-modal-scroll"
         style={{
-          background: '#0f172a',
-          border: '1px solid #334155',
+          background: 'var(--dropdown-bg)',
+          border: '1px solid var(--border)',
           borderRadius: 16,
           width: '100%',
           maxWidth: 1000,
@@ -561,7 +561,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
         {/* Header */}
         <div style={{
           padding: 24,
-          borderBottom: '1px solid #334155',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           alignItems: 'center',
           gap: 16,
@@ -601,7 +601,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               )}
             </div>
             {recipient.display_name && (
-              <div style={{ color: '#cbd5e1', fontSize: 14, marginBottom: 8 }}>{recipient.display_name}</div>
+              <div style={{ color: 'var(--text-dim)', fontSize: 14, marginBottom: 8 }}>{recipient.display_name}</div>
             )}
             {recipientTier && recipientTier.tier !== 'standard' && (
               <div style={{
@@ -654,7 +654,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 24,
               cursor: 'pointer',
               padding: 8,
@@ -687,7 +687,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               <BookOpen size={20} />
             </div>
             <div>
-              <div style={{ color: '#94a3b8', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Project
               </div>
               <div style={{ color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>
@@ -702,7 +702,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           {/* Project Title Input - for new collaborations (first field) */}
           {!projectId && (
             <div>
-              <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              <label style={{ display: 'block', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
                 Project Title <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <input
@@ -712,15 +712,15 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                 placeholder="Enter a title for your project..."
                 style={{
                   width: '100%',
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: 12,
                   color: '#f8fafc',
                   fontSize: 14,
                 }}
               />
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                 Give your project a name that describes what you're creating together
               </div>
             </div>
@@ -729,7 +729,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           {/* Project Type Selector - REQUIRED for new collaborations */}
           {!projectId && (
             <div>
-              <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
                 Project Type <span style={{ color: '#ef4444' }}>*</span>
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
@@ -784,7 +784,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                       {option.label}
                     </span>
                     <span style={{
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       fontSize: 11,
                       textAlign: 'center',
                       lineHeight: 1.3
@@ -799,12 +799,12 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
           {/* Role Selection */}
           <div>
-            <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+            <label style={{ display: 'block', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
               Their Role <span style={{ color: '#ef4444' }}>*</span>
             </label>
 
             {loadingRoles ? (
-              <div style={{ color: '#64748b', fontSize: 13, padding: 12 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: 12 }}>
                 Loading roles...
               </div>
             ) : (
@@ -872,7 +872,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                         {roleDef.name}
                       </span>
                       <span style={{
-                        color: '#64748b',
+                        color: 'var(--text-muted)',
                         fontSize: 9,
                         textAlign: 'center',
                         lineHeight: 1.2,
@@ -911,7 +911,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                     }}>
                       <Plus size={20} strokeWidth={1.5} />
                     </div>
@@ -923,7 +923,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                       Custom Role
                     </span>
                     <span style={{
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       fontSize: 9,
                       textAlign: 'center',
                     }}>
@@ -941,7 +941,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                     placeholder="Enter custom role name..."
                     style={{
                       width: '100%',
-                      background: '#1e293b',
+                      background: 'var(--bg-secondary)',
                       border: '1px solid #f59e0b',
                       borderRadius: 8,
                       padding: 12,
@@ -967,7 +967,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                           <div style={{ color: '#f59e0b', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                             {selectedRole.name}
                           </div>
-                          <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 8 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
                             {selectedRole.description}
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1016,7 +1016,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
           {/* Payment Structure */}
           <div>
-            <label style={{ display: 'block', fontSize: 13, color: '#cbd5e1', marginBottom: 8, fontWeight: 600 }}>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--text-dim)', marginBottom: 8, fontWeight: 600 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Shield size={14} style={{ color: '#8b5cf6' }} />
                 Payment Structure
@@ -1044,7 +1044,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                   <div style={{ fontSize: 12, fontWeight: 600, color: contractType === opt.value ? '#a78bfa' : '#f8fafc' }}>
                     {opt.label}
                   </div>
-                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{opt.desc}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</div>
                 </button>
               ))}
             </div>
@@ -1052,7 +1052,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             {/* Total Contract Amount (for escrow types) */}
             {contractType !== 'revenue_share' && (
               <div style={{ marginTop: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
                   <DollarSign size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Total Contract Amount (USD)
                 </label>
                 <input
@@ -1064,7 +1064,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                   placeholder="e.g., 1500.00"
                   style={{
                     width: '100%', boxSizing: 'border-box',
-                    background: '#1e293b', border: '1px solid #334155',
+                    background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                     borderRadius: 6, padding: 10, color: '#f8fafc', fontSize: 13,
                   }}
                 />
@@ -1072,7 +1072,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                 {/* Milestone Template Selector */}
                 {milestoneTemplates.length > 0 && (
                   <div style={{ marginTop: 10 }}>
-                    <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
                       Milestone Template (auto-generates tasks)
                     </label>
                     <select
@@ -1080,7 +1080,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                       onChange={(e) => setSelectedTemplateId(e.target.value ? Number(e.target.value) : null)}
                       style={{
                         width: '100%', boxSizing: 'border-box',
-                        background: '#1e293b', border: '1px solid #334155',
+                        background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                         borderRadius: 6, padding: 10, color: '#f8fafc', fontSize: 13,
                       }}
                     >
@@ -1114,7 +1114,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
                 {/* Start Date / Escrow Funding Deadline */}
                 <div style={{ marginTop: 12 }}>
-                  <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
                     Project Start Date (escrow funding deadline)
                   </label>
                   <input
@@ -1123,11 +1123,11 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                     onChange={(e) => setEscrowStartDate(e.target.value)}
                     style={{
                       width: '100%', boxSizing: 'border-box',
-                      background: '#1e293b', border: '1px solid #334155',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                       borderRadius: 6, padding: 10, color: '#f8fafc', fontSize: 13,
                     }}
                   />
-                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
                     Escrow must be funded by this date. Work begins after funding.
                   </div>
                 </div>
@@ -1137,7 +1137,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
           {/* Project Pitch */}
           <div>
-            <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+            <label style={{ display: 'block', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
               Project Pitch
             </label>
             <textarea
@@ -1147,8 +1147,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               style={{
                 width: '100%',
                 minHeight: 150,
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
                 color: '#f8fafc',
@@ -1157,7 +1157,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                 resize: 'vertical',
               }}
             />
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
               {message.length}/1000 characters
             </div>
           </div>
@@ -1165,8 +1165,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           {/* Contract Tasks Section - hidden when milestone template selected */}
           {!selectedTemplateId && (
           <div style={{
-            background: '#1e293b',
-            border: '1px solid #334155',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
             borderRadius: 12,
             padding: 20,
           }}>
@@ -1175,7 +1175,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                 <div style={{ color: '#f8fafc', fontSize: 15, fontWeight: 600 }}>
                   Contract Tasks
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
                   Define specific deliverables with deadlines. These become binding after acceptance.
                 </div>
               </div>
@@ -1200,7 +1200,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               <div style={{
                 padding: 24,
                 textAlign: 'center',
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 border: '1px dashed #334155',
                 borderRadius: 8,
@@ -1211,8 +1211,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {tasks.map((task, index) => (
                   <div key={task.id} style={{
-                    background: '#0f172a',
-                    border: '1px solid #334155',
+                    background: 'var(--dropdown-bg)',
+                    border: '1px solid var(--border)',
                     borderRadius: 8,
                     padding: 16,
                   }}>
@@ -1220,7 +1220,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                       <div style={{ flex: 1, display: 'grid', gap: 12 }}>
                         <div style={{ display: 'flex', gap: 12 }}>
                           <div style={{ flex: 2 }}>
-                            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
                               Task {index + 1}: Title *
                             </label>
                             <input
@@ -1230,8 +1230,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                               placeholder="e.g., Character designs for Chapter 1"
                               style={{
                                 width: '100%',
-                                background: '#1e293b',
-                                border: '1px solid #334155',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border)',
                                 borderRadius: 6,
                                 padding: 10,
                                 color: '#f8fafc',
@@ -1240,7 +1240,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                             />
                           </div>
                           <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
                               Deadline *
                             </label>
                             <input
@@ -1249,8 +1249,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                               onChange={(e) => updateTask(task.id, 'deadline', e.target.value)}
                               style={{
                                 width: '100%',
-                                background: '#1e293b',
-                                border: '1px solid #334155',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border)',
                                 borderRadius: 6,
                                 padding: 10,
                                 color: '#f8fafc',
@@ -1260,7 +1260,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                           </div>
                         </div>
                         <div>
-                          <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
                             Description (optional)
                           </label>
                           <textarea
@@ -1270,8 +1270,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                             rows={2}
                             style={{
                               width: '100%',
-                              background: '#1e293b',
-                              border: '1px solid #334155',
+                              background: 'var(--bg-secondary)',
+                              border: '1px solid var(--border)',
                               borderRadius: 6,
                               padding: 10,
                               color: '#f8fafc',
@@ -1283,7 +1283,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                         </div>
                         {contractType !== 'revenue_share' && (
                           <div>
-                            <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
+                            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
                               <DollarSign size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> Payment Amount (USD) *
                             </label>
                             <input
@@ -1295,8 +1295,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                               placeholder="e.g., 300.00"
                               style={{
                                 width: '200px',
-                                background: '#1e293b',
-                                border: '1px solid #334155',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border)',
                                 borderRadius: 6,
                                 padding: 10,
                                 color: '#f8fafc',
@@ -1369,7 +1369,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           {/* Permissions */}
           {projectId && (
             <div>
-              <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+              <label style={{ display: 'block', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
                 Editing Permissions
               </label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -1406,7 +1406,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
           {/* Equity Slider */}
           <div>
-            <label style={{ display: 'block', color: '#cbd5e1', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+            <label style={{ display: 'block', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
               Revenue Split for @{recipient.username}: {equityPercent}%
             </label>
             <input
@@ -1418,7 +1418,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               onChange={(e) => setEquityPercent(parseInt(e.target.value))}
               style={{ width: '100%' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#64748b', marginTop: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
               <span>You keep: {100 - equityPercent}%</span>
               <span>They get: {equityPercent}%</span>
             </div>
@@ -1426,12 +1426,12 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
           {/* Preview Pane */}
           <div style={{
-            background: '#1e293b',
-            border: '1px solid #334155',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
             borderRadius: 8,
             padding: 16,
           }}>
-            <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               Preview
             </div>
 
@@ -1440,7 +1440,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               <div style={{
                 marginBottom: 12,
                 paddingBottom: 12,
-                borderBottom: '1px solid #334155',
+                borderBottom: '1px solid var(--border)',
               }}>
                 <div style={{ color: '#f59e0b', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   Project
@@ -1451,27 +1451,27 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               </div>
             )}
 
-            <div style={{ color: '#cbd5e1', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
               {message || '(Your pitch will appear here)'}
             </div>
 
             {/* Tasks Preview */}
             {tasks.length > 0 && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600, marginBottom: 8 }}>
                   Contract Tasks ({tasks.length})
                 </div>
                 {tasks.map((task, i) => (
                   <div key={task.id} style={{
                     padding: 10,
-                    background: '#0f172a',
+                    background: 'var(--dropdown-bg)',
                     borderRadius: 6,
                     marginBottom: 8,
                     borderLeft: '3px solid #f59e0b',
                   }}>
                     <div style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600 }}>{task.title || '(Untitled)'}</div>
                     {task.description && (
-                      <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>{task.description}</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>{task.description}</div>
                     )}
                     <div style={{ color: '#f59e0b', fontSize: 11, marginTop: 6 }}>
                       Due: {task.deadline ? new Date(task.deadline).toLocaleDateString() : '(No deadline)'}
@@ -1483,22 +1483,22 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
             {/* Escrow Amount in Preview */}
             {contractType !== 'revenue_share' && totalContractAmount && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
-                <div style={{ fontSize: 12, color: '#94a3b8' }}>Payment Structure</div>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Payment Structure</div>
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <DollarSign size={16} style={{ color: '#10b981' }} />
                   <span style={{ color: '#f8fafc', fontSize: 15, fontWeight: 600 }}>
                     ${parseFloat(totalContractAmount).toFixed(2)} USD
                   </span>
-                  <span style={{ color: '#64748b', fontSize: 12 }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                     ({contractType === 'work_for_hire' ? 'Work for Hire' : 'Hybrid'} via Escrow)
                   </span>
                 </div>
               </div>
             )}
 
-            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #334155' }}>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>Revenue Split</div>
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Revenue Split</div>
               <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
                 <div style={{
                   flex: 100 - equityPercent,
@@ -1507,7 +1507,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                   borderRadius: 6,
                   display: 'grid',
                   placeItems: 'center',
-                  color: '#cbd5e1',
+                  color: 'var(--text-dim)',
                   fontSize: 12,
                   fontWeight: 600,
                 }}>
@@ -1562,8 +1562,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               onClick={onClose}
               style={{
                 background: 'transparent',
-                border: '1px solid #334155',
-                color: '#cbd5e1',
+                border: '1px solid var(--border)',
+                color: 'var(--text-dim)',
                 padding: '10px 20px',
                 borderRadius: 8,
                 fontWeight: 600,
@@ -1608,7 +1608,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
           padding: 20,
         }}>
           <div style={{
-            background: '#0f172a',
+            background: 'var(--dropdown-bg)',
             border: '2px solid #f59e0b',
             borderRadius: 16,
             padding: 32,
@@ -1642,7 +1642,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             </h3>
 
             <div style={{
-              color: '#cbd5e1',
+              color: 'var(--text-dim)',
               fontSize: 14,
               lineHeight: 1.6,
               marginBottom: 24,
@@ -1693,8 +1693,8 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                 onClick={() => setShowVotingPowerWarning(false)}
                 style={{
                   background: 'transparent',
-                  border: '1px solid #334155',
-                  color: '#cbd5e1',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-dim)',
                   padding: '12px 24px',
                   borderRadius: 8,
                   fontWeight: 600,

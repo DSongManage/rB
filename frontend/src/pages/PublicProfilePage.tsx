@@ -114,7 +114,7 @@ const socialPlatforms: Record<string, { icon: React.ReactNode; color: string; la
   youtube: { icon: <Film size={18} />, color: '#ff0000', label: 'YouTube' },
   deviantart: { icon: <Palette size={18} />, color: '#00e59b', label: 'DeviantArt' },
   linkedin: { icon: <Linkedin size={18} />, color: '#0077b5', label: 'LinkedIn' },
-  website: { icon: <Globe size={18} />, color: '#64748b', label: 'Website' },
+  website: { icon: <Globe size={18} />, color: 'var(--text-muted)', label: 'Website' },
   twitter: { icon: <Twitter size={18} />, color: '#1da1f2', label: 'Twitter' },
   instagram: { icon: <Instagram size={18} />, color: '#e4405f', label: 'Instagram' },
 };
@@ -188,7 +188,7 @@ export default function PublicProfilePage() {
   if (loading) {
     return (
       <div className="page" style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 20px', textAlign: 'center' }}>
-        <div style={{ color: '#94a3b8', fontSize: 16 }}>Loading profile...</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 16 }}>Loading profile...</div>
       </div>
     );
   }
@@ -251,7 +251,7 @@ export default function PublicProfilePage() {
       </Helmet>
       {/* Hero Section */}
       <div style={{
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 16,
         overflow: 'hidden',
         marginBottom: 24,
@@ -456,7 +456,7 @@ export default function PublicProfilePage() {
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#f1f5f9' }}>
                     {stats.works_count}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Works</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Works</div>
                 </div>
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -467,7 +467,7 @@ export default function PublicProfilePage() {
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#f59e0b' }}>
                     {followerCount.toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Followers</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Followers</div>
                 </div>
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -478,7 +478,7 @@ export default function PublicProfilePage() {
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>
                     {stats.total_views.toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Views</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Views</div>
                 </div>
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -492,7 +492,7 @@ export default function PublicProfilePage() {
                       {stats.average_rating ? stats.average_rating.toFixed(1) : '-'}
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Rating</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Rating</div>
                 </div>
               </div>
 
@@ -548,7 +548,7 @@ export default function PublicProfilePage() {
         display: 'flex',
         gap: 8,
         marginBottom: 24,
-        borderBottom: '1px solid #334155',
+        borderBottom: '1px solid var(--border)',
         paddingBottom: 16
       }}>
         {[
@@ -598,7 +598,7 @@ export default function PublicProfilePage() {
             <div
               key={`book-${book.id}`}
               style={{
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 borderRadius: 12,
                 overflow: 'hidden',
                 transition: 'all 0.2s ease',
@@ -650,7 +650,7 @@ export default function PublicProfilePage() {
                 </h3>
                 <div style={{
                   fontSize: 13,
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   marginBottom: 12,
                 }}>
                   book • {book.published_chapters} chapter{book.published_chapters !== 1 ? 's' : ''}
@@ -662,7 +662,7 @@ export default function PublicProfilePage() {
                   alignItems: 'center',
                   gap: 16,
                   fontSize: 13,
-                  color: '#cbd5e1',
+                  color: 'var(--text-dim)',
                   marginBottom: 12,
                 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -680,11 +680,11 @@ export default function PublicProfilePage() {
                       onClick={toggleExpand}
                       style={{
                         width: '100%',
-                        background: '#0f172a',
+                        background: 'var(--dropdown-bg)',
                         border: 'none',
                         borderRadius: 8,
                         padding: '8px 12px',
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                         fontSize: 13,
                         fontWeight: 500,
                         cursor: 'pointer',
@@ -700,7 +700,7 @@ export default function PublicProfilePage() {
 
                     {isExpanded && (
                       <div style={{
-                        background: '#0f172a',
+                        background: 'var(--dropdown-bg)',
                         borderRadius: 8,
                         padding: 8,
                         maxHeight: 200,
@@ -726,7 +726,7 @@ export default function PublicProfilePage() {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{
                                 fontSize: 13,
-                                color: '#e2e8f0',
+                                color: 'var(--text)',
                                 fontWeight: 500,
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
@@ -734,16 +734,16 @@ export default function PublicProfilePage() {
                               }}>
                                 Ch {chapter.order + 1}: {chapter.title}
                               </div>
-                              <div style={{ fontSize: 11, color: '#64748b' }}>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                 ${chapter.price_usd.toFixed(2)}
                               </div>
                             </div>
                             <span style={{
                               background: 'transparent',
-                              border: '1px solid #334155',
+                              border: '1px solid var(--border)',
                               borderRadius: 6,
                               padding: '4px 10px',
-                              color: '#94a3b8',
+                              color: 'var(--text-muted)',
                               fontSize: 11,
                               fontWeight: 500,
                               marginLeft: 8,
@@ -768,7 +768,7 @@ export default function PublicProfilePage() {
             key={work.id}
             to={`/content/${work.id}`}
             style={{
-              background: '#1e293b',
+              background: 'var(--bg-secondary)',
               borderRadius: 12,
               overflow: 'hidden',
               transition: 'all 0.2s ease',
@@ -828,7 +828,7 @@ export default function PublicProfilePage() {
                 </span>
               </div>
               <div style={{
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 display: 'flex',
                 alignItems: 'center',
@@ -842,7 +842,7 @@ export default function PublicProfilePage() {
 
         {activeTab === 'portfolio' && external_portfolio.map(item => (
           <div key={item.id} style={{
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 12,
             overflow: 'hidden'
           }}>
@@ -863,7 +863,7 @@ export default function PublicProfilePage() {
                 <div style={{ color: '#f59e0b', fontSize: 13, marginBottom: 8 }}>{item.role}</div>
               )}
               {item.description && (
-                <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.5, margin: '0 0 12px' }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5, margin: '0 0 12px' }}>
                   {item.description.slice(0, 100)}{item.description.length > 100 ? '...' : ''}
                 </p>
               )}
@@ -890,7 +890,7 @@ export default function PublicProfilePage() {
 
         {activeTab === 'collabs' && collaborations.map(collab => (
           <div key={collab.id} style={{
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 12,
             overflow: 'hidden'
           }}>
@@ -922,7 +922,7 @@ export default function PublicProfilePage() {
               <div style={{ color: '#f59e0b', fontSize: 14, marginBottom: 8 }}>
                 {collab.user_role}
               </div>
-              <div style={{ color: '#64748b', fontSize: 13 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
                 <Users size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
                 {collab.collaborator_count} collaborators
               </div>
@@ -931,17 +931,17 @@ export default function PublicProfilePage() {
         ))}
 
         {activeTab === 'works' && platform_works.length === 0 && book_projects.length === 0 && (
-          <div style={{ color: '#94a3b8', gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
+          <div style={{ color: 'var(--text-muted)', gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
             No platform works yet
           </div>
         )}
         {activeTab === 'portfolio' && external_portfolio.length === 0 && (
-          <div style={{ color: '#94a3b8', gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
+          <div style={{ color: 'var(--text-muted)', gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
             No external portfolio items yet
           </div>
         )}
         {activeTab === 'collabs' && collaborations.length === 0 && (
-          <div style={{ color: '#94a3b8', gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
+          <div style={{ color: 'var(--text-muted)', gridColumn: '1/-1', textAlign: 'center', padding: 40 }}>
             No collaborations yet
           </div>
         )}
@@ -970,7 +970,7 @@ export default function PublicProfilePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
             {testimonials.map(t => (
               <div key={t.id} style={{
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 borderRadius: 12,
                 padding: 20
               }}>
@@ -990,14 +990,14 @@ export default function PublicProfilePage() {
                   </div>
                   <div>
                     <div style={{ color: '#f1f5f9', fontWeight: 600 }}>@{t.rater_username}</div>
-                    <div style={{ color: '#64748b', fontSize: 13 }}>{t.project_title}</div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{t.project_title}</div>
                   </div>
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Star size={16} fill="#fbbf24" color="#fbbf24" />
                     <span style={{ color: '#fbbf24', fontWeight: 700 }}>{t.average_score.toFixed(1)}</span>
                   </div>
                 </div>
-                <p style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 1.6, margin: 0, fontStyle: 'italic' }}>
+                <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.6, margin: 0, fontStyle: 'italic' }}>
                   "{t.public_feedback}"
                 </p>
               </div>

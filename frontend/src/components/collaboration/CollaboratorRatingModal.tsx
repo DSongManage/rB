@@ -87,7 +87,7 @@ export function CollaboratorRatingModal({
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
           <div style={{ color: '#f8fafc', fontSize: 14, fontWeight: 600 }}>{label}</div>
-          <div style={{ color: '#64748b', fontSize: 12 }}>{description}</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{description}</div>
         </div>
         <div style={{ color: '#f59e0b', fontSize: 13, fontWeight: 600 }}>
           {value > 0 ? `${value}/5` : '—'}
@@ -147,8 +147,8 @@ export function CollaboratorRatingModal({
     >
       <div
         style={{
-          background: '#0f172a',
-          border: '1px solid #334155',
+          background: 'var(--dropdown-bg)',
+          border: '1px solid var(--border)',
           borderRadius: 16,
           width: '100%',
           maxWidth: 500,
@@ -161,7 +161,7 @@ export function CollaboratorRatingModal({
         <div
           style={{
             padding: 20,
-            borderBottom: '1px solid #334155',
+            borderBottom: '1px solid var(--border)',
             background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
           }}
         >
@@ -173,7 +173,7 @@ export function CollaboratorRatingModal({
                   Rate Collaborator
                 </h2>
               </div>
-              <div style={{ color: '#94a3b8', fontSize: 13 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
                 How was working with{' '}
                 <span style={{ color: '#f59e0b' }}>@{collaboratorUsername}</span>?
               </div>
@@ -184,7 +184,7 @@ export function CollaboratorRatingModal({
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 24,
                 cursor: submitting ? 'not-allowed' : 'pointer',
                 padding: 4,
@@ -199,7 +199,7 @@ export function CollaboratorRatingModal({
             style={{
               marginTop: 16,
               padding: 12,
-              background: '#0f172a',
+              background: 'var(--dropdown-bg)',
               borderRadius: 8,
               display: 'flex',
               alignItems: 'center',
@@ -226,7 +226,7 @@ export function CollaboratorRatingModal({
               <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: 14 }}>
                 @{collaboratorUsername}
               </div>
-              <div style={{ color: '#64748b', fontSize: 12 }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                 {collaboratorRole} on "{projectTitle}"
               </div>
             </div>
@@ -292,7 +292,7 @@ export function CollaboratorRatingModal({
             >
               Public Feedback
             </label>
-            <div style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
               This will be visible on their profile
             </div>
             <textarea
@@ -302,8 +302,8 @@ export function CollaboratorRatingModal({
               style={{
                 width: '100%',
                 minHeight: 80,
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
                 color: '#f8fafc',
@@ -326,7 +326,7 @@ export function CollaboratorRatingModal({
             >
               Private Note (Optional)
             </label>
-            <div style={{ color: '#64748b', fontSize: 12, marginBottom: 8 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
               Only visible to @{collaboratorUsername}
             </div>
             <textarea
@@ -336,8 +336,8 @@ export function CollaboratorRatingModal({
               style={{
                 width: '100%',
                 minHeight: 60,
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
                 color: '#f8fafc',
@@ -373,9 +373,9 @@ export function CollaboratorRatingModal({
                 flex: 1,
                 padding: '14px 20px',
                 borderRadius: 10,
-                border: '1px solid #334155',
+                border: '1px solid var(--border)',
                 background: 'transparent',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 14,
                 fontWeight: 600,
                 cursor: submitting ? 'not-allowed' : 'pointer',
@@ -408,10 +408,10 @@ export function CollaboratorRatingModal({
             style={{
               marginTop: 16,
               padding: 12,
-              background: '#1e293b',
+              background: 'var(--bg-secondary)',
               borderRadius: 8,
               fontSize: 12,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               textAlign: 'center',
             }}
           >

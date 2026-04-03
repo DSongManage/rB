@@ -99,7 +99,7 @@ export function ProposalCard({
       case 'exit_collaborator':
         return { icon: '🚪', color: '#ef4444', label: 'Exit Request' };
       default:
-        return { icon: '📋', color: '#64748b', label: type };
+        return { icon: '📋', color: 'var(--text-muted)', label: type };
     }
   };
 
@@ -113,11 +113,11 @@ export function ProposalCard({
       case 'rejected':
         return { text: 'Rejected', color: '#ef4444', bg: '#ef444420' };
       case 'expired':
-        return { text: 'Expired', color: '#64748b', bg: '#64748b20' };
+        return { text: 'Expired', color: 'var(--text-muted)', bg: '#64748b20' };
       case 'cancelled':
-        return { text: 'Cancelled', color: '#64748b', bg: '#64748b20' };
+        return { text: 'Cancelled', color: 'var(--text-muted)', bg: '#64748b20' };
       default:
-        return { text: proposal.status, color: '#64748b', bg: '#64748b20' };
+        return { text: proposal.status, color: 'var(--text-muted)', bg: '#64748b20' };
     }
   };
 
@@ -128,7 +128,7 @@ export function ProposalCard({
   return (
     <div
       style={{
-        background: '#0f172a',
+        background: 'var(--dropdown-bg)',
         border: `1px solid ${proposal.status === 'pending' ? '#f59e0b40' : '#1e293b'}`,
         borderRadius: 12,
         overflow: 'hidden',
@@ -190,7 +190,7 @@ export function ProposalCard({
           <h4 style={{ margin: 0, color: '#f8fafc', fontSize: 15, fontWeight: 600 }}>
             {proposal.title}
           </h4>
-          <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
             by @{proposal.proposer_username}
             {timeRemaining && proposal.status === 'pending' && (
               <>
@@ -206,10 +206,10 @@ export function ProposalCard({
       {proposal.status === 'pending' && (
         <div style={{ padding: '12px 16px', background: '#1e293b40' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ color: '#94a3b8', fontSize: 12 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
               Votes: {proposal.vote_counts.total}/{proposal.total_voters}
             </span>
-            <span style={{ color: '#64748b', fontSize: 11 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
               {proposal.voting_threshold === 'unanimous'
                 ? 'Unanimous required'
                 : proposal.voting_threshold === 'majority'
@@ -256,7 +256,7 @@ export function ProposalCard({
             <span style={{ color: '#10b981' }}>
               {proposal.vote_counts.approve} approve
             </span>
-            <span style={{ color: '#64748b' }}>
+            <span style={{ color: 'var(--text-muted)' }}>
               {proposal.vote_counts.abstain} abstain
             </span>
             <span style={{ color: '#ef4444' }}>
@@ -274,7 +274,7 @@ export function ProposalCard({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#64748b',
+              color: 'var(--text-muted)',
               fontSize: 12,
               cursor: 'pointer',
               padding: '8px 0',
@@ -291,7 +291,7 @@ export function ProposalCard({
             <p
               style={{
                 margin: '0 0 12px',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 lineHeight: 1.5,
               }}
@@ -336,11 +336,11 @@ export function ProposalCard({
                 >
                   {vote.vote === 'approve' ? '✓' : vote.vote === 'reject' ? '✗' : '—'}
                 </span>
-                <span style={{ color: '#94a3b8' }}>@{vote.voter_username}</span>
+                <span style={{ color: 'var(--text-muted)' }}>@{vote.voter_username}</span>
               </div>
             ))}
             {proposal.votes.length > 5 && (
-              <span style={{ color: '#64748b', fontSize: 11, padding: '4px 8px' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 11, padding: '4px 8px' }}>
                 +{proposal.votes.length - 5} more
               </span>
             )}
@@ -411,9 +411,9 @@ export function ProposalCard({
               style={{
                 padding: '10px 16px',
                 borderRadius: 8,
-                border: '1px solid #334155',
+                border: '1px solid var(--border)',
                 background: 'transparent',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',

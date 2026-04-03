@@ -549,7 +549,7 @@ export default function TeamTab({
           <div>
             {/* User Search Input */}
             <div ref={dropdownRef} style={{ position: 'relative', maxWidth: 500 }}>
-              <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
                 Find Collaborator
               </label>
               {selectedUser ? (
@@ -584,7 +584,7 @@ export default function TeamTab({
                       @{selectedUser.username}
                     </div>
                     {selectedUser.display_name && (
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                         {selectedUser.display_name}
                       </div>
                     )}
@@ -596,7 +596,7 @@ export default function TeamTab({
                       border: 'none',
                       padding: 4,
                       cursor: 'pointer',
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                       display: 'flex',
                       alignItems: 'center',
                     }}
@@ -612,7 +612,7 @@ export default function TeamTab({
                       left: 12,
                       top: '50%',
                       transform: 'translateY(-50%)',
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                     }} />
                     <input
                       type="text"
@@ -637,7 +637,7 @@ export default function TeamTab({
                         right: 12,
                         top: '50%',
                         transform: 'translateY(-50%)',
-                        color: '#64748b',
+                        color: 'var(--text-muted)',
                         fontSize: 12,
                       }}>
                         ...
@@ -697,7 +697,7 @@ export default function TeamTab({
                               @{user.username}
                             </div>
                             {user.display_name && (
-                              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                                 {user.display_name}
                               </div>
                             )}
@@ -721,10 +721,10 @@ export default function TeamTab({
                       zIndex: 100,
                       padding: 16,
                     }}>
-                      <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
                         No collaborators found for "{searchQuery}"
                       </div>
-                      <div style={{ color: '#64748b', fontSize: 11, textAlign: 'center', marginBottom: 12 }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11, textAlign: 'center', marginBottom: 12 }}>
                         Only users with <strong style={{ color: '#f59e0b' }}>public profiles</strong> appear in search.
                       </div>
                       {/* Exact username lookup button */}
@@ -777,7 +777,7 @@ export default function TeamTab({
                     </div>
                   )}
                   {/* Helper text below input */}
-                  <div style={{ marginTop: 6, fontSize: 11, color: '#64748b' }}>
+                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
                     Only users with public profiles can be found
                   </div>
                 </>
@@ -787,13 +787,13 @@ export default function TeamTab({
 
           {/* Role Selection Section */}
           <div style={{ marginTop: 20 }} data-tour="roles-dropdown">
-            <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
               Their Role <span style={{ color: '#ef4444' }}>*</span>
             </label>
 
             {loadingRoles ? (
               <div style={{
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 padding: 16,
                 display: 'flex',
@@ -868,7 +868,7 @@ export default function TeamTab({
                         {roleDef.name}
                       </span>
                       <span style={{
-                        color: '#64748b',
+                        color: 'var(--text-muted)',
                         fontSize: 9,
                         textAlign: 'center',
                         lineHeight: 1.2,
@@ -907,7 +907,7 @@ export default function TeamTab({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: '#94a3b8',
+                      color: 'var(--text-muted)',
                     }}>
                       <Plus size={20} strokeWidth={1.5} />
                     </div>
@@ -919,7 +919,7 @@ export default function TeamTab({
                       Custom Role
                     </span>
                     <span style={{
-                      color: '#64748b',
+                      color: 'var(--text-muted)',
                       fontSize: 9,
                       textAlign: 'center',
                     }}>
@@ -964,7 +964,7 @@ export default function TeamTab({
                           <div style={{ color: '#8b5cf6', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                             {selectedRole.name}
                           </div>
-                          <div style={{ color: '#94a3b8', fontSize: 12, marginBottom: 8 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
                             {selectedRole.description}
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1013,7 +1013,7 @@ export default function TeamTab({
 
           {/* Contract Type Selection */}
           <div style={{ marginTop: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 600 }}>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Shield size={14} style={{ color: '#8b5cf6' }} />
                 Payment Structure
@@ -1040,7 +1040,7 @@ export default function TeamTab({
                   <div style={{ fontSize: 12, fontWeight: 600, color: contractType === opt.value ? '#a78bfa' : 'var(--text)' }}>
                     {opt.label}
                   </div>
-                  <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>{opt.desc}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</div>
                 </button>
               ))}
             </div>
@@ -1048,7 +1048,7 @@ export default function TeamTab({
             {/* Total Contract Amount (for escrow types) */}
             {contractType !== 'revenue_share' && (
               <div style={{ marginTop: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
                   <DollarSign size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Total Contract Amount (USD)
                 </label>
                 <input
@@ -1068,7 +1068,7 @@ export default function TeamTab({
                 {/* Milestone Template Selector */}
                 {milestoneTemplates.length > 0 && (
                   <div style={{ marginTop: 10 }}>
-                    <label style={{ display: 'block', fontSize: 11, color: '#94a3b8', marginBottom: 4, fontWeight: 600 }}>
+                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
                       Milestone Template (auto-generates tasks)
                     </label>
                     <select
@@ -1104,7 +1104,7 @@ export default function TeamTab({
 
           {/* Revenue Split with Equity Warning */}
           <div style={{ marginTop: 20 }} data-tour="revenue-splits">
-            <label style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
               Revenue Split: {invitePercentage}%
             </label>
             <input
@@ -1147,9 +1147,9 @@ export default function TeamTab({
                 gap: 8,
                 fontSize: 14,
               }}>
-                <span style={{ color: '#94a3b8' }}>Your current share:</span>
+                <span style={{ color: 'var(--text-muted)' }}>Your current share:</span>
                 <span style={{ color: 'var(--text)', fontWeight: 600 }}>{leadPercentage}%</span>
-                <span style={{ color: '#64748b' }}>→</span>
+                <span style={{ color: 'var(--text-muted)' }}>→</span>
                 <span style={{ color: '#10b981', fontWeight: 700 }}>
                   {leadPercentage - invitePercentage}%
                 </span>
@@ -1157,7 +1157,7 @@ export default function TeamTab({
                   (-{invitePercentage}%)
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                 This percentage comes from your share only and does not affect other collaborators.
               </div>
             </div>
@@ -1189,7 +1189,7 @@ export default function TeamTab({
                   <ClipboardList size={18} style={{ color: '#8b5cf6' }} />
                   Contract Tasks
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 4 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
                   Define specific deliverables with deadlines. These become binding after acceptance.
                 </div>
               </div>
@@ -1219,7 +1219,7 @@ export default function TeamTab({
               <div style={{
                 padding: 24,
                 textAlign: 'center',
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 fontSize: 13,
                 border: '2px dashed var(--panel-border)',
                 borderRadius: 8,
@@ -1251,7 +1251,7 @@ export default function TeamTab({
                           <div>
                             <label style={{
                               display: 'block',
-                              color: '#94a3b8',
+                              color: 'var(--text-muted)',
                               fontSize: 11,
                               marginBottom: 4,
                               fontWeight: 600,
@@ -1278,7 +1278,7 @@ export default function TeamTab({
                           <div>
                             <label style={{
                               display: 'block',
-                              color: '#94a3b8',
+                              color: 'var(--text-muted)',
                               fontSize: 11,
                               marginBottom: 4,
                               fontWeight: 600,
@@ -1303,7 +1303,7 @@ export default function TeamTab({
                         <div>
                           <label style={{
                             display: 'block',
-                            color: '#94a3b8',
+                            color: 'var(--text-muted)',
                             fontSize: 11,
                             marginBottom: 4,
                             fontWeight: 600,
@@ -1424,7 +1424,7 @@ export default function TeamTab({
                 border: '1px solid var(--panel-border)',
                 borderRadius: 8,
                 padding: '10px 24px',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: 14,
               }}
@@ -1493,7 +1493,7 @@ export default function TeamTab({
               <ul style={{
                 margin: '12px 0 0 0',
                 paddingLeft: 20,
-                color: '#e2e8f0',
+                color: 'var(--text)',
                 fontSize: 14,
                 lineHeight: 1.8,
               }}>
@@ -1524,7 +1524,7 @@ export default function TeamTab({
               </div>
             </div>
 
-            <div style={{ color: '#94a3b8', fontSize: 14, marginBottom: 20 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 20 }}>
               Are you sure you want to proceed with this allocation?
             </div>
 
@@ -1537,7 +1537,7 @@ export default function TeamTab({
                   borderRadius: 8,
                   border: '1px solid #64748b',
                   background: 'transparent',
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   fontSize: 14,
                   fontWeight: 600,
                   cursor: 'pointer',
@@ -1667,12 +1667,12 @@ export default function TeamTab({
                         <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
                           @{collab.username}
                         </span>
-                        <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                           proposes
                         </span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 13, color: '#94a3b8', textDecoration: 'line-through' }}>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'line-through' }}>
                           {collab.revenue_percentage}%
                         </span>
                         <span style={{ fontSize: 16, color: '#f59e0b', fontWeight: 700 }}>
@@ -1692,7 +1692,7 @@ export default function TeamTab({
                       <div style={{
                         marginTop: 8,
                         fontSize: 13,
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                         fontStyle: 'italic',
                       }}>
                         "{collab.counter_message}"
@@ -1712,7 +1712,7 @@ export default function TeamTab({
                         gap: 8,
                       }}>
                         <span style={{ color: '#10b981', fontSize: 12, fontWeight: 600 }}>Proposed Rate:</span>
-                        <span style={{ color: '#94a3b8', fontSize: 12, textDecoration: 'line-through' }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12, textDecoration: 'line-through' }}>
                           ${parseFloat(collab.total_contract_amount).toFixed(2)}
                         </span>
                         <span style={{ color: '#10b981', fontSize: 14, fontWeight: 700 }}>
@@ -1738,7 +1738,7 @@ export default function TeamTab({
                           return (
                             <div key={pt.task_id} style={{
                               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              padding: '4px 0', fontSize: 12, color: '#94a3b8',
+                              padding: '4px 0', fontSize: 12, color: 'var(--text-muted)',
                             }}>
                               <span>{originalTask?.title || `Task #${pt.task_id}`}</span>
                               <div style={{ display: 'flex', gap: 12 }}>
@@ -1779,7 +1779,7 @@ export default function TeamTab({
                             <label style={{
                               display: 'block',
                               fontSize: 12,
-                              color: '#94a3b8',
+                              color: 'var(--text-muted)',
                               marginBottom: 8,
                             }}>
                               Add a note (optional):
@@ -1794,7 +1794,7 @@ export default function TeamTab({
                                 minHeight: 70,
                                 padding: 10,
                                 background: 'var(--bg)',
-                                border: '1px solid #334155',
+                                border: '1px solid var(--border)',
                                 borderRadius: 6,
                                 color: '#f8fafc',
                                 fontSize: 13,
@@ -1813,7 +1813,7 @@ export default function TeamTab({
                                   background: 'transparent',
                                   border: '1px solid #475569',
                                   borderRadius: 6,
-                                  color: '#94a3b8',
+                                  color: 'var(--text-muted)',
                                   fontSize: 13,
                                   fontWeight: 600,
                                   cursor: 'pointer',

@@ -25,7 +25,7 @@ function StarRatingDisplayComponent({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 2,
-        color: '#64748b',
+        color: 'var(--text-muted)',
         fontSize: size,
       }}>
         <Star size={size} />
@@ -108,7 +108,7 @@ function StarRatingDisplayComponent({
       {/* Rating count */}
       {showCount && count > 0 && (
         <span style={{
-          color: '#64748b',
+          color: 'var(--text-muted)',
           fontSize: size - 1,
         }}>
           ({formatCount(count)})

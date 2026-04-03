@@ -207,8 +207,8 @@ export function InviteResponseModal({
     >
       <div
         style={{
-          background: '#0f172a',
-          border: '1px solid #334155',
+          background: 'var(--dropdown-bg)',
+          border: '1px solid var(--border)',
           borderRadius: 16,
           width: '100%',
           maxWidth: 600,
@@ -221,7 +221,7 @@ export function InviteResponseModal({
         <div
           style={{
             padding: 24,
-            borderBottom: '1px solid #334155',
+            borderBottom: '1px solid var(--border)',
             background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -236,7 +236,7 @@ export function InviteResponseModal({
               </h2>
             </div>
             {creator && (
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: 14 }}>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>
                 from <a
                   href={`/profile/${creator.username}`}
                   onClick={(e) => { e.stopPropagation(); onClose(); }}
@@ -253,7 +253,7 @@ export function InviteResponseModal({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 24,
               cursor: submitting ? 'not-allowed' : 'pointer',
               padding: 4,
@@ -266,7 +266,7 @@ export function InviteResponseModal({
         {/* Content */}
         <div style={{ padding: 24 }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
               Loading project details...
             </div>
           ) : error && !project ? (
@@ -298,7 +298,7 @@ export function InviteResponseModal({
                     >
                       {contentTypeLabels[project.content_type] || project.content_type}
                     </span>
-                    <span style={{ color: '#64748b', fontSize: 13 }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
                       {project.status === 'draft' ? 'Draft' : 'Active'}
                     </span>
                   </div>
@@ -306,7 +306,7 @@ export function InviteResponseModal({
                     {project.title?.replace(/^Collaboration Invite - /, '')}
                   </h3>
                   {project.description && !project.title?.startsWith('Collaboration Invite') && (
-                    <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 14, lineHeight: 1.6 }}>
+                    <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6 }}>
                       {project.description}
                     </p>
                   )}
@@ -315,13 +315,13 @@ export function InviteResponseModal({
                 {/* Your Role */}
                 <div
                   style={{
-                    background: '#1e293b',
+                    background: 'var(--bg-secondary)',
                     borderRadius: 12,
                     padding: 16,
                     marginBottom: 20,
                   }}
                 >
-                  <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>
                     Your Role
                   </div>
                   <div style={{ color: '#f8fafc', fontSize: 18, fontWeight: 600 }}>
@@ -347,7 +347,7 @@ export function InviteResponseModal({
                       </span>
                     </div>
                     <div style={{ color: '#f8fafc', fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
-                      ${totalAmount.toFixed(2)} <span style={{ fontSize: 16, color: '#94a3b8', fontWeight: 400 }}>USD</span>
+                      ${totalAmount.toFixed(2)} <span style={{ fontSize: 16, color: 'var(--text-muted)', fontWeight: 400 }}>USD</span>
                     </div>
                     <div style={{ color: '#6ee7b7', fontSize: 13, lineHeight: 1.5 }}>
                       {isWorkForHire
@@ -356,11 +356,11 @@ export function InviteResponseModal({
                       }
                     </div>
                     {myRole.escrow_funding_deadline && (
-                      <div style={{ marginTop: 8, color: '#94a3b8', fontSize: 12 }}>
+                      <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: 12 }}>
                         Start date: <span style={{ color: '#f59e0b', fontWeight: 600 }}>
                           {new Date(myRole.escrow_funding_deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                         </span>
-                        <span style={{ color: '#64748b' }}> — escrow funded by this date</span>
+                        <span style={{ color: 'var(--text-muted)' }}> — escrow funded by this date</span>
                       </div>
                     )}
                   </div>
@@ -370,7 +370,7 @@ export function InviteResponseModal({
                 {myRole.contract_tasks && myRole.contract_tasks.length > 0 && (
                   <div
                     style={{
-                      background: '#1e293b',
+                      background: 'var(--bg-secondary)',
                       borderRadius: 12,
                       padding: 16,
                       marginBottom: 20,
@@ -378,7 +378,7 @@ export function InviteResponseModal({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <ClipboardList size={18} style={{ color: '#f59e0b' }} />
-                      <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
                         Your Contract Tasks ({myRole.contract_tasks.length})
                       </span>
                     </div>
@@ -388,7 +388,7 @@ export function InviteResponseModal({
                         <div
                           key={task.id || index}
                           style={{
-                            background: '#0f172a',
+                            background: 'var(--dropdown-bg)',
                             borderRadius: 8,
                             padding: 14,
                             borderLeft: `3px solid ${isEscrow ? '#10b981' : '#f59e0b'}`,
@@ -409,7 +409,7 @@ export function InviteResponseModal({
                             )}
                           </div>
                           {task.description && (
-                            <div style={{ color: '#94a3b8', fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6, lineHeight: 1.5 }}>
                               {task.description}
                             </div>
                           )}
@@ -463,17 +463,17 @@ export function InviteResponseModal({
                 {notificationMessage && (
                   <div
                     style={{
-                      background: '#1e293b',
+                      background: 'var(--bg-secondary)',
                       borderRadius: 12,
                       padding: 16,
                       marginBottom: 20,
                       borderLeft: '3px solid #3b82f6',
                     }}
                   >
-                    <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase' }}>
                       Message from @{creator?.username}
                     </div>
-                    <div style={{ color: '#cbd5e1', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    <div style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                       {notificationMessage}
                     </div>
                   </div>
@@ -483,7 +483,7 @@ export function InviteResponseModal({
                 {hasRevenueSplit && (
                   <div
                     style={{
-                      background: '#1e293b',
+                      background: 'var(--bg-secondary)',
                       borderRadius: 12,
                       padding: 16,
                       marginBottom: 20,
@@ -491,7 +491,7 @@ export function InviteResponseModal({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <DollarSign size={18} style={{ color: '#f59e0b' }} />
-                      <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
                         Revenue Split
                       </span>
                     </div>
@@ -524,7 +524,7 @@ export function InviteResponseModal({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#cbd5e1',
+                          color: 'var(--text-dim)',
                           fontWeight: 600,
                           fontSize: 14,
                           minWidth: 60,
@@ -539,7 +539,7 @@ export function InviteResponseModal({
                 {/* Permissions */}
                 <div
                   style={{
-                    background: '#1e293b',
+                    background: 'var(--bg-secondary)',
                     borderRadius: 12,
                     padding: 16,
                     marginBottom: 20,
@@ -547,7 +547,7 @@ export function InviteResponseModal({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                     <Pencil size={18} style={{ color: '#f59e0b' }} />
-                    <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
                       Your Permissions
                     </span>
                   </div>
@@ -660,7 +660,7 @@ export function InviteResponseModal({
                       You proposed <strong>{myRole?.proposed_percentage}%</strong> revenue split
                       (original offer: {myRole?.revenue_percentage}%).
                     </p>
-                    <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                    <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
                       Waiting for @{creator?.username} to respond to your counter-proposal.
                     </p>
 
@@ -770,7 +770,7 @@ export function InviteResponseModal({
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     fontSize: 14,
                     cursor: 'pointer',
                     padding: 0,
@@ -793,7 +793,7 @@ export function InviteResponseModal({
                 {/* Escrow: Proposed Total Amount */}
                 {isEscrow && (
                   <div style={{ marginBottom: 20 }}>
-                    <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                    <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
                       <DollarSign size={14} style={{ display: 'inline', verticalAlign: 'middle' }} /> Your Proposed Rate (USD)
                     </label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -805,7 +805,7 @@ export function InviteResponseModal({
                         onChange={(e) => setProposedTotalAmount(e.target.value)}
                         style={{
                           flex: 1,
-                          background: '#1e293b', border: '1px solid #334155',
+                          background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                           borderRadius: 6, padding: 10, color: '#f8fafc', fontSize: 15, fontWeight: 600,
                         }}
                       />
@@ -824,20 +824,20 @@ export function InviteResponseModal({
                 {isEscrow && proposedTasks.length > 0 && (
                   <div style={{
                     marginBottom: 20,
-                    background: '#1e293b',
+                    background: 'var(--bg-secondary)',
                     borderRadius: 12,
                     padding: 16,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                       <ClipboardList size={16} style={{ color: '#3b82f6' }} />
-                      <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
                         Adjust Tasks & Schedule
                       </span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {proposedTasks.map((task, idx) => (
                         <div key={task.task_id} style={{
-                          background: '#0f172a', borderRadius: 8, padding: 14,
+                          background: 'var(--dropdown-bg)', borderRadius: 8, padding: 14,
                           borderLeft: '3px solid #3b82f6',
                         }}>
                           <div style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>
@@ -845,7 +845,7 @@ export function InviteResponseModal({
                           </div>
                           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                             <div style={{ flex: 1, minWidth: 180 }}>
-                              <label style={{ display: 'block', color: '#64748b', fontSize: 11, marginBottom: 4 }}>
+                              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
                                 Deadline
                               </label>
                               <input
@@ -858,13 +858,13 @@ export function InviteResponseModal({
                                 }}
                                 style={{
                                   width: '100%', boxSizing: 'border-box',
-                                  background: '#1e293b', border: '1px solid #334155',
+                                  background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                                   borderRadius: 6, padding: 8, color: '#f8fafc', fontSize: 12,
                                 }}
                               />
                             </div>
                             <div style={{ width: 120 }}>
-                              <label style={{ display: 'block', color: '#64748b', fontSize: 11, marginBottom: 4 }}>
+                              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 4 }}>
                                 Payment ($)
                               </label>
                               <input
@@ -879,7 +879,7 @@ export function InviteResponseModal({
                                 }}
                                 style={{
                                   width: '100%', boxSizing: 'border-box',
-                                  background: '#1e293b', border: '1px solid #334155',
+                                  background: 'var(--bg-secondary)', border: '1px solid var(--border)',
                                   borderRadius: 6, padding: 8, color: '#f8fafc', fontSize: 12,
                                 }}
                               />
@@ -898,7 +898,7 @@ export function InviteResponseModal({
                       <span style={{ color: '#93c5fd' }}>
                         Task total: ${proposedTasks.reduce((s, t) => s + (parseFloat(t.payment_amount) || 0), 0).toFixed(2)}
                       </span>
-                      <span style={{ color: '#64748b' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>
                         Proposed rate: ${parseFloat(proposedTotalAmount || '0').toFixed(2)}
                       </span>
                     </div>
@@ -908,7 +908,7 @@ export function InviteResponseModal({
                 {/* Revenue Split - only show if relevant */}
                 {!isWorkForHire && (
                   <div style={{ marginBottom: 20 }}>
-                    <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                    <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
                       Suggested Revenue Split: {proposedPercentage}% for you
                     </label>
                     <input
@@ -920,7 +920,7 @@ export function InviteResponseModal({
                       onChange={(e) => setProposedPercentage(parseInt(e.target.value))}
                       style={{ width: '100%', marginBottom: 8 }}
                     />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
                       <span>Current offer: {myRole.revenue_percentage}%</span>
                       <span>Proposing: {proposedPercentage}%</span>
                     </div>
@@ -929,7 +929,7 @@ export function InviteResponseModal({
 
                 {/* Message */}
                 <div style={{ marginBottom: 24 }}>
-                  <label style={{ display: 'block', color: '#94a3b8', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
                     Message to @{creator?.username}
                   </label>
                   <textarea
@@ -942,8 +942,8 @@ export function InviteResponseModal({
                     style={{
                       width: '100%',
                       minHeight: 100,
-                      background: '#1e293b',
-                      border: '1px solid #334155',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
                       borderRadius: 8,
                       padding: 12,
                       color: '#f8fafc',
@@ -951,7 +951,7 @@ export function InviteResponseModal({
                       resize: 'vertical',
                     }}
                   />
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
                     {counterMessage.length}/500 characters
                   </div>
                 </div>
@@ -997,9 +997,9 @@ export function InviteResponseModal({
                       flex: 1,
                       padding: '14px 20px',
                       borderRadius: 10,
-                      border: '1px solid #334155',
+                      border: '1px solid var(--border)',
                       background: 'transparent',
-                      color: '#cbd5e1',
+                      color: 'var(--text-dim)',
                       fontSize: 14,
                       fontWeight: 600,
                       cursor: submitting ? 'not-allowed' : 'pointer',
@@ -1035,7 +1035,7 @@ export function InviteResponseModal({
               </>
             )
           ) : (
-            <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
               No invite found for this project.
             </div>
           )}

@@ -242,7 +242,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
             style={{
               padding: 40,
               textAlign: 'center',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 14,
             }}
           >
@@ -253,7 +253,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
             style={{
               padding: 40,
               textAlign: 'center',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
             }}
           >
             <div style={{ marginBottom: 12 }} aria-hidden="true">
@@ -262,7 +262,7 @@ export function NotificationDropdown({ isOpen, onClose, anchorEl }: Notification
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
               No notifications yet
             </div>
-            <div style={{ fontSize: 12, color: '#64748b' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               We'll notify you when there's activity on your collaborations
             </div>
           </div>

@@ -236,8 +236,8 @@ export function CommentComposer({
               marginBottom: 4,
               minWidth: 200,
               maxWidth: 300,
-              background: '#1e293b',
-              border: '1px solid #334155',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
               borderRadius: 8,
               boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
               maxHeight: 200,
@@ -283,7 +283,7 @@ export function CommentComposer({
                     style={{
                       fontSize: 13,
                       fontWeight: 600,
-                      color: '#e5e7eb',
+                      color: 'var(--text)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -295,7 +295,7 @@ export function CommentComposer({
                     <div
                       style={{
                         fontSize: 11,
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
@@ -347,7 +347,7 @@ export function CommentComposer({
               >
                 {file.name}
               </span>
-              <span style={{ color: '#64748b', fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
                 {(file.size / 1024).toFixed(1)} KB
               </span>
               <button
@@ -396,7 +396,7 @@ export function CommentComposer({
               border: '1px solid var(--panel-border)',
               borderRadius: 6,
               padding: compact ? '4px 10px' : '6px 12px',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               cursor: isSubmitting ? 'not-allowed' : 'pointer',
               fontSize: compact ? 11 : 12,
               fontWeight: 600,
@@ -420,7 +420,7 @@ export function CommentComposer({
                 border: '1px solid var(--panel-border)',
                 borderRadius: 6,
                 padding: compact ? '4px 12px' : '6px 16px',
-                color: '#94a3b8',
+                color: 'var(--text-muted)',
                 cursor: isSubmitting ? 'not-allowed' : 'pointer',
                 fontSize: compact ? 11 : 12,
                 fontWeight: 600,
@@ -458,7 +458,7 @@ export function CommentComposer({
           style={{
             marginTop: 8,
             fontSize: 10,
-            color: '#64748b',
+            color: 'var(--text-muted)',
           }}
         >
           Tip: Use @ to mention collaborators • {navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'}+Enter to submit

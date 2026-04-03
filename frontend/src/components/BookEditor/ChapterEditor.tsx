@@ -90,7 +90,7 @@ export default function ChapterEditor({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
         fontSize: isMobile ? 14 : 16,
         background: 'var(--panel)',
         border: isMobile ? 'none' : '1px solid var(--panel-border)',
@@ -191,7 +191,7 @@ export default function ChapterEditor({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontSize: 12,
               cursor: 'pointer',
               padding: '4px 0',
@@ -227,14 +227,14 @@ export default function ChapterEditor({
                   outline: 'none',
                 }}
               />
-              <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
                 {synopsis.split(/\s+/).filter(w => w).length}/150 words recommended
               </div>
             </div>
           )}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 11, color: '#64748b' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             {wordCount.toLocaleString()} words
           </div>
           <div style={{ fontSize: 11, color: saving ? '#f59e0b' : '#64748b' }}>

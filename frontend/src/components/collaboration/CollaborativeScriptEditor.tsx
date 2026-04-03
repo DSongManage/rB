@@ -285,7 +285,7 @@ export default function CollaborativeScriptEditor({
         alignItems: 'center',
         justifyContent: 'center',
         height: 400,
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
       }}>
         <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
         <span style={{ marginLeft: 12 }}>Loading issues...</span>
@@ -303,11 +303,11 @@ export default function CollaborativeScriptEditor({
         padding: 40,
         textAlign: 'center',
       }}>
-        <FileText size={48} style={{ color: '#64748b', marginBottom: 16 }} />
+        <FileText size={48} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
         <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 18 }}>
           Script Editor
         </h3>
-        <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>
           The script editor is only available for comic projects.
         </p>
       </div>
@@ -324,14 +324,14 @@ export default function CollaborativeScriptEditor({
         padding: 40,
         textAlign: 'center',
       }}>
-        <BookOpen size={48} style={{ color: '#64748b', marginBottom: 16 }} />
+        <BookOpen size={48} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
         <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 18 }}>
           No Issues Found
         </h3>
-        <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>
           Create an issue in the Comic tab first to start writing your script.
         </p>
-        <p style={{ margin: '12px 0 0', color: '#94a3b8', fontSize: 13 }}>
+        <p style={{ margin: '12px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
           Issues organize your comic pages into chapters or volumes.
         </p>
       </div>
@@ -365,7 +365,7 @@ export default function CollaborativeScriptEditor({
             marginBottom: 6,
             fontSize: 11,
             fontWeight: 600,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
           }}>
@@ -409,7 +409,7 @@ export default function CollaborativeScriptEditor({
                 right: 8,
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 pointerEvents: 'none',
               }}
             />
@@ -457,7 +457,7 @@ export default function CollaborativeScriptEditor({
             <div style={{
               padding: 24,
               textAlign: 'center',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -470,7 +470,7 @@ export default function CollaborativeScriptEditor({
             <div style={{
               padding: 24,
               textAlign: 'center',
-              color: '#64748b',
+              color: 'var(--text-muted)',
               fontSize: 13,
             }}>
               No pages in this issue yet.
@@ -592,7 +592,7 @@ export default function CollaborativeScriptEditor({
               <span style={{ fontSize: 12, color: '#f59e0b' }}>Unsaved changes</span>
             )}
             {saving && (
-              <span style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
                 Saving...
               </span>
@@ -650,7 +650,7 @@ export default function CollaborativeScriptEditor({
               alignItems: 'center',
               justifyContent: 'center',
               height: '100%',
-              color: '#64748b',
+              color: 'var(--text-muted)',
             }}>
               <FileText size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
               <p style={{ margin: 0, fontSize: 14 }}>
@@ -668,7 +668,7 @@ export default function CollaborativeScriptEditor({
                   marginBottom: 8,
                   fontSize: 13,
                   fontWeight: 600,
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                 }}>
                   Page Description
                 </label>
@@ -704,7 +704,7 @@ export default function CollaborativeScriptEditor({
                   <label style={{
                     fontSize: 13,
                     fontWeight: 600,
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                   }}>
                     Panels ({scriptData.panels.length})
                   </label>
@@ -738,7 +738,7 @@ export default function CollaborativeScriptEditor({
                     background: 'var(--bg)',
                     borderRadius: 8,
                     border: '1px dashed var(--panel-border)',
-                    color: '#64748b',
+                    color: 'var(--text-muted)',
                     fontSize: 13,
                   }}>
                     No panels defined yet.
@@ -766,7 +766,7 @@ export default function CollaborativeScriptEditor({
                           borderBottom: '1px solid var(--panel-border)',
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <GripVertical size={14} style={{ color: '#64748b', opacity: 0.5 }} />
+                            <GripVertical size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
                             <span style={{ fontSize: 13, fontWeight: 600, color: '#8b5cf6' }}>
                               Panel {panel.panel_number}
                             </span>
@@ -803,7 +803,7 @@ export default function CollaborativeScriptEditor({
                               marginBottom: 4,
                               fontSize: 11,
                               fontWeight: 600,
-                              color: '#64748b',
+                              color: 'var(--text-muted)',
                               textTransform: 'uppercase',
                               letterSpacing: '0.5px',
                             }}>
@@ -837,7 +837,7 @@ export default function CollaborativeScriptEditor({
                               marginBottom: 4,
                               fontSize: 11,
                               fontWeight: 600,
-                              color: '#64748b',
+                              color: 'var(--text-muted)',
                               textTransform: 'uppercase',
                               letterSpacing: '0.5px',
                             }}>
@@ -871,7 +871,7 @@ export default function CollaborativeScriptEditor({
                               marginBottom: 4,
                               fontSize: 11,
                               fontWeight: 600,
-                              color: '#64748b',
+                              color: 'var(--text-muted)',
                               textTransform: 'uppercase',
                               letterSpacing: '0.5px',
                             }}>

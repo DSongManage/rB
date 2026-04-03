@@ -88,11 +88,11 @@ export default function FollowingFeedPage() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: '#0f172a',
+        background: 'var(--dropdown-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
       }}>
         Loading feed...
       </div>
@@ -103,7 +103,7 @@ export default function FollowingFeedPage() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: '#0f172a',
+        background: 'var(--dropdown-bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -117,7 +117,7 @@ export default function FollowingFeedPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0f172a',
+      background: 'var(--dropdown-bg)',
       padding: '24px 16px',
     }}>
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
@@ -131,7 +131,7 @@ export default function FollowingFeedPage() {
           }}>
             Following Feed
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: 15 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>
             Latest drops from creators you follow
           </p>
         </div>
@@ -141,14 +141,14 @@ export default function FollowingFeedPage() {
           <div style={{
             textAlign: 'center',
             padding: '60px 20px',
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 16,
           }}>
             <Users size={48} color="#64748b" style={{ marginBottom: 16 }} />
             <h2 style={{ color: '#f8fafc', fontSize: 20, fontWeight: 600, marginBottom: 8 }}>
               No content yet
             </h2>
-            <p style={{ color: '#94a3b8', marginBottom: 24 }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>
               Follow some creators to see their latest drops here
             </p>
             <button
@@ -176,7 +176,7 @@ export default function FollowingFeedPage() {
               to={`/content/${item.id}`}
               style={{
                 display: 'flex',
-                background: '#1e293b',
+                background: 'var(--bg-secondary)',
                 borderRadius: 12,
                 overflow: 'hidden',
                 textDecoration: 'none',
@@ -234,10 +234,10 @@ export default function FollowingFeedPage() {
                       background: '#334155',
                     }} />
                   )}
-                  <span style={{ color: '#94a3b8', fontSize: 13 }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
                     {item.creator.display_name}
                   </span>
-                  <span style={{ color: '#64748b', fontSize: 12 }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                     @{item.creator.username}
                   </span>
                 </div>
@@ -261,7 +261,7 @@ export default function FollowingFeedPage() {
                   alignItems: 'center',
                   gap: 16,
                   fontSize: 13,
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                 }}>
                   <span style={{
                     background: 'rgba(59,130,246,0.15)',

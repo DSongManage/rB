@@ -142,7 +142,7 @@ export default function SearchPage() {
           <h2 style={{ margin: 0, fontSize: 20, color: '#f1f5f9' }}>
             Results for "{query}"
           </h2>
-          <p style={{ margin: '4px 0 0', fontSize: 14, color: '#94a3b8' }}>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--text-muted)' }}>
             {results.length} result{results.length !== 1 ? 's' : ''} found
           </p>
         </div>
@@ -195,11 +195,11 @@ export default function SearchPage() {
 
       {/* Results grid */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
           Searching...
         </div>
       ) : results.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
           {query ? `No results found for "${query}"` : 'Browse comics using the filters above'}
         </div>
       ) : (

@@ -124,7 +124,7 @@ export default function ContentTab({
       <div style={{
         padding: 40,
         textAlign: 'center',
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
       }}>
         <AlertCircle size={48} style={{ marginBottom: 16, color: '#f59e0b' }} />
         <h3 style={{ color: '#f8fafc', marginBottom: 8 }}>No Content Access</h3>
@@ -168,7 +168,7 @@ export default function ContentTab({
       case 'comic':
         // Comic projects now use the unified Workspace tab
         return (
-          <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
             Comic projects use the Workspace tab.
           </div>
         );
@@ -278,7 +278,7 @@ function renderByProjectType(
     case 'comic':
       // Comic projects now use the unified Workspace tab
       return (
-        <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
           Comic projects use the Workspace tab.
         </div>
       );
@@ -340,7 +340,7 @@ function HybridCreatorInterface({
           display: 'flex',
           gap: 8,
           marginBottom: 16,
-          borderBottom: '1px solid #334155',
+          borderBottom: '1px solid var(--border)',
           paddingBottom: 12,
         }}>
           {tabs.map(tab => (

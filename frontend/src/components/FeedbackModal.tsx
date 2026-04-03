@@ -88,7 +88,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
             <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#10b981', margin: '0 0 8px 0' }}>
               Thank You!
             </h2>
-            <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0 }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>
               Your feedback helps us improve renaissBlock
             </p>
           </div>
@@ -97,7 +97,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
             {/* Header */}
             <div style={{ marginBottom: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#e5e7eb', margin: 0 }}>
+                <h2 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text)', margin: 0 }}>
                   Beta Feedback
                 </h2>
                 <button
@@ -105,7 +105,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted)',
                     fontSize: '24px',
                     cursor: 'pointer',
                     padding: '0',
@@ -115,7 +115,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                   ×
                 </button>
               </div>
-              <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0 }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>
                 Help us improve by sharing your thoughts, bugs, or feature requests
               </p>
             </div>
@@ -123,7 +123,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
             {/* Form */}
             <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '16px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#cbd5e1', marginBottom: '8px', fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dim)', marginBottom: '8px', fontWeight: 600 }}>
                   Your Feedback *
                 </label>
                 <textarea
@@ -138,7 +138,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                     background: '#0f1419',
                     border: '1px solid #2a3444',
                     borderRadius: '8px',
-                    color: '#e5e7eb',
+                    color: 'var(--text)',
                     fontSize: '14px',
                     fontFamily: 'inherit',
                     resize: 'vertical',
@@ -147,7 +147,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', color: '#cbd5e1', marginBottom: '8px', fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dim)', marginBottom: '8px', fontWeight: 600 }}>
                   Email (optional)
                 </label>
                 <input
@@ -161,7 +161,7 @@ export function FeedbackModal({ isOpen, onClose }: FeedbackModalProps) {
                     background: '#0f1419',
                     border: '1px solid #2a3444',
                     borderRadius: '8px',
-                    color: '#e5e7eb',
+                    color: 'var(--text)',
                     fontSize: '14px',
                   }}
                 />

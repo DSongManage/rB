@@ -16,7 +16,7 @@ export function CampaignProgressBar({ currentAmount, fundingGoal, backerCount, c
       <div style={{
         width: '100%',
         height: compact ? 6 : 10,
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 5,
         overflow: 'hidden',
       }}>
@@ -37,17 +37,17 @@ export function CampaignProgressBar({ currentAmount, fundingGoal, backerCount, c
         justifyContent: 'space-between',
         marginTop: compact ? 4 : 8,
         fontSize: compact ? 11 : 13,
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
       }}>
         <span>
-          <strong style={{ color: '#e2e8f0' }}>${currentAmount.toLocaleString()}</strong>
+          <strong style={{ color: 'var(--text)' }}>${currentAmount.toLocaleString()}</strong>
           {' '}of ${fundingGoal.toLocaleString()}
         </span>
         <span>{percentage.toFixed(0)}%</span>
       </div>
 
       {!compact && (
-        <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
           {backerCount} backer{backerCount !== 1 ? 's' : ''}
         </div>
       )}

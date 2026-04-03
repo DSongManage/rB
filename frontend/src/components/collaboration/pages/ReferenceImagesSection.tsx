@@ -76,7 +76,7 @@ export default function ReferenceImagesSection({
         <label style={{
           fontSize: 13,
           fontWeight: 600,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -174,7 +174,7 @@ export default function ReferenceImagesSection({
                         }}
                         style={{
                           background: 'none', border: 'none', cursor: 'pointer',
-                          color: '#64748b', padding: 0, display: 'flex', flexShrink: 0,
+                          color: 'var(--text-muted)', padding: 0, display: 'flex', flexShrink: 0,
                         }}
                       >
                         <Edit3 size={10} />
@@ -226,7 +226,7 @@ export default function ReferenceImagesSection({
             background: 'var(--bg)',
             border: '1px dashed var(--panel-border)',
             borderRadius: 8,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 13,
             cursor: 'pointer',
             transition: 'border-color 0.2s',

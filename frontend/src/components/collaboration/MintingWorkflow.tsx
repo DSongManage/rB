@@ -262,7 +262,7 @@ export function MintingWorkflow({
         <div
           style={{
             height: 8,
-            background: '#1e293b',
+            background: 'var(--bg-secondary)',
             borderRadius: 4,
             overflow: 'hidden',
             marginBottom: 12,
@@ -307,7 +307,7 @@ export function MintingWorkflow({
                     @{collab.username}
                     {isCurrentUser && ' (you)'}
                   </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     {collab.role}
                   </div>
                 </div>

@@ -61,7 +61,7 @@ interface TaskTrackerProps {
 // Status badge component
 function StatusBadge({ status, isOverdue }: { status: TaskStatus; isOverdue: boolean }) {
   const statusConfig: Record<TaskStatus, { bg: string; color: string; label: string }> = {
-    pending: { bg: '#64748b20', color: '#94a3b8', label: 'Pending' },
+    pending: { bg: '#64748b20', color: 'var(--text-muted)', label: 'Pending' },
     in_progress: { bg: '#3b82f620', color: '#60a5fa', label: 'In Progress' },
     complete: { bg: '#f59e0b20', color: '#fbbf24', label: 'Awaiting Sign-off' },
     signed_off: { bg: '#10b98120', color: '#34d399', label: 'Signed Off' },
@@ -261,10 +261,10 @@ export function TaskTracker({
       <div
         style={{
           padding: 20,
-          background: '#1e293b',
+          background: 'var(--bg-secondary)',
           borderRadius: 12,
           textAlign: 'center',
-          color: '#64748b',
+          color: 'var(--text-muted)',
           fontSize: 13,
         }}
       >
@@ -276,7 +276,7 @@ export function TaskTracker({
   return (
     <div
       style={{
-        background: '#1e293b',
+        background: 'var(--bg-secondary)',
         borderRadius: 12,
         padding: 20,
       }}
@@ -292,12 +292,12 @@ export function TaskTracker({
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ClipboardList size={20} style={{ color: '#94a3b8' }} />
+            <ClipboardList size={20} style={{ color: 'var(--text-muted)' }} />
             <h3 style={{ margin: 0, color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>
               Contract Tasks for @{collaboratorRole.username}
             </h3>
           </div>
-          <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 12 }}>
+          <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: 12 }}>
             {collaboratorRole.role} • {collaboratorRole.revenue_percentage}% revenue share
           </div>
         </div>
@@ -313,7 +313,7 @@ export function TaskTracker({
           >
             {collaboratorRole.tasks_signed_off}/{collaboratorRole.tasks_total}
           </div>
-          <div style={{ color: '#64748b', fontSize: 11 }}>signed off</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>signed off</div>
         </div>
       </div>
 
@@ -321,7 +321,7 @@ export function TaskTracker({
       <div
         style={{
           height: 6,
-          background: '#0f172a',
+          background: 'var(--dropdown-bg)',
           borderRadius: 3,
           marginBottom: 20,
           overflow: 'hidden',
@@ -392,7 +392,7 @@ export function TaskTracker({
             <div
               key={task.id}
               style={{
-                background: '#0f172a',
+                background: 'var(--dropdown-bg)',
                 border: `1px solid ${task.is_overdue ? '#ef4444' : '#334155'}`,
                 borderRadius: 10,
                 overflow: 'hidden',
@@ -423,7 +423,7 @@ export function TaskTracker({
                       {task.title}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#64748b', fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'var(--text-muted)', fontSize: 12 }}>
                     <span>
                       Due: {new Date(task.deadline).toLocaleDateString('en-US', {
                         month: 'short',
@@ -446,19 +446,19 @@ export function TaskTracker({
                     )}
                   </div>
                 </div>
-                {isExpanded ? <ChevronDown size={18} style={{ color: '#64748b' }} /> : <ChevronRight size={18} style={{ color: '#64748b' }} />}
+                {isExpanded ? <ChevronDown size={18} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />}
               </div>
 
               {/* Expanded details */}
               {isExpanded && (
-                <div style={{ padding: '0 16px 16px', borderTop: '1px solid #334155' }}>
+                <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--border)' }}>
                   {/* Description */}
                   {task.description && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>
                         Description
                       </div>
-                      <div style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.6 }}>
+                      <div style={{ color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.6 }}>
                         {task.description}
                       </div>
                     </div>
@@ -467,15 +467,15 @@ export function TaskTracker({
                   {/* Completion notes */}
                   {task.completion_notes && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 4, textTransform: 'uppercase' }}>
                         Completion Notes from @{task.marked_complete_by_username}
                       </div>
                       <div
                         style={{
-                          color: '#cbd5e1',
+                          color: 'var(--text-dim)',
                           fontSize: 13,
                           lineHeight: 1.6,
-                          background: '#1e293b',
+                          background: 'var(--bg-secondary)',
                           padding: 10,
                           borderRadius: 6,
                         }}
@@ -536,8 +536,8 @@ export function TaskTracker({
                         onChange={(e) => setCompletionNotes((prev) => ({ ...prev, [task.id]: e.target.value }))}
                         style={{
                           width: '100%',
-                          background: '#1e293b',
-                          border: '1px solid #334155',
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border)',
                           borderRadius: 6,
                           padding: 10,
                           color: '#f8fafc',
@@ -577,8 +577,8 @@ export function TaskTracker({
                         onChange={(e) => setSignoffNotes((prev) => ({ ...prev, [task.id]: e.target.value }))}
                         style={{
                           width: '100%',
-                          background: '#1e293b',
-                          border: '1px solid #334155',
+                          background: 'var(--bg-secondary)',
+                          border: '1px solid var(--border)',
                           borderRadius: 6,
                           padding: 10,
                           color: '#f8fafc',
@@ -636,7 +636,7 @@ export function TaskTracker({
                         onChange={(e) => setRejectionReason((prev) => ({ ...prev, [task.id]: e.target.value }))}
                         style={{
                           width: '100%',
-                          background: '#1e293b',
+                          background: 'var(--bg-secondary)',
                           border: '1px solid #ef4444',
                           borderRadius: 6,
                           padding: 10,

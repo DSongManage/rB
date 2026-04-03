@@ -136,7 +136,7 @@ export default function ContentDetail(){
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: 400,
-      color: '#94a3b8',
+      color: 'var(--text-muted)',
       fontSize: 16,
     }}>
       Loading...
@@ -200,7 +200,7 @@ export default function ContentDetail(){
           gap: 8,
           background: 'transparent',
           border: 'none',
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
           cursor: 'pointer',
           marginBottom: isMobile ? 16 : 20,
           padding: 0,
@@ -226,7 +226,7 @@ export default function ContentDetail(){
               aspectRatio: '3/4',
               borderRadius: 12,
               overflow: 'hidden',
-              background: '#1e293b',
+              background: 'var(--bg-secondary)',
               cursor: 'pointer',
               position: 'relative',
             }}
@@ -368,7 +368,7 @@ export default function ContentDetail(){
                   @{data.creator_username}
                 </div>
                 {data.created_at && (
-                  <div style={{ color: '#64748b', fontSize: 12 }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                     Published {formatDate(data.created_at)}
                   </div>
                 )}
@@ -385,11 +385,11 @@ export default function ContentDetail(){
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: 8,
                   padding: '8px 12px',
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   fontSize: 13,
                   cursor: 'pointer',
                   width: 'fit-content',
@@ -419,8 +419,8 @@ export default function ContentDetail(){
                       key={c.username}
                       to={`/profile/${c.username}`}
                       style={{
-                        background: '#0f172a',
-                        border: '1px solid #334155',
+                        background: 'var(--dropdown-bg)',
+                        border: '1px solid var(--border)',
                         borderRadius: 6,
                         padding: '6px 12px',
                         fontSize: 12,
@@ -429,7 +429,7 @@ export default function ContentDetail(){
                       }}
                     >
                       @{c.username}
-                      <span style={{ color: '#64748b', marginLeft: 4 }}>({c.role})</span>
+                      <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>({c.role})</span>
                       <span style={{ color: '#10b981', marginLeft: 4 }}>{c.revenuePercentage}%</span>
                     </Link>
                   ))}
@@ -450,7 +450,7 @@ export default function ContentDetail(){
               padding: '8px 16px',
               borderRadius: 8,
             }}>
-              <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>Price</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>Price</div>
               <div style={{ color: priceNum > 0 ? '#10b981' : '#94a3b8', fontSize: 18, fontWeight: 700 }}>{priceText}</div>
             </div>
             <div style={{
@@ -459,7 +459,7 @@ export default function ContentDetail(){
               padding: '8px 16px',
               borderRadius: 8,
             }}>
-              <div style={{ color: '#64748b', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>Availability</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', marginBottom: 2 }}>Availability</div>
               <div style={{ color: editionsNum > 0 ? '#60a5fa' : '#ef4444', fontSize: 14, fontWeight: 600 }}>{editionsText}</div>
             </div>
           </div>
@@ -550,11 +550,11 @@ export default function ContentDetail(){
                       }}
                     >
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 500, color: '#e2e8f0' }}>
-                          <span style={{ color: '#64748b', marginRight: 6 }}>#{issue.issue_number}</span>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>
+                          <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>#{issue.issue_number}</span>
                           {issue.title}
                         </div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                           {issue.page_count} pages
                         </div>
                       </div>
@@ -611,7 +611,7 @@ export default function ContentDetail(){
                 Synopsis
               </div>
               <p style={{
-                color: '#e2e8f0',
+                color: 'var(--text)',
                 fontSize: 14,
                 lineHeight: 1.7,
                 margin: 0,
@@ -641,7 +641,7 @@ export default function ContentDetail(){
                 Part of Series
               </div>
               <div style={{
-                color: '#e2e8f0',
+                color: 'var(--text)',
                 fontSize: 15,
                 fontWeight: 600,
               }}>
@@ -649,7 +649,7 @@ export default function ContentDetail(){
               </div>
               {data.series_info.book_count > 1 && (
                 <div style={{
-                  color: '#94a3b8',
+                  color: 'var(--text-muted)',
                   fontSize: 12,
                   marginTop: 4,
                 }}>
@@ -669,7 +669,7 @@ export default function ContentDetail(){
               <div style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
                 marginBottom: 6,
@@ -677,7 +677,7 @@ export default function ContentDetail(){
                 From the Author
               </div>
               <p style={{
-                color: '#cbd5e1',
+                color: 'var(--text-dim)',
                 fontSize: 14,
                 lineHeight: 1.6,
                 margin: 0,

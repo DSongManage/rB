@@ -408,7 +408,7 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
           </button>
           <div>
             <div style={{ fontSize: 16, fontWeight: 600, color: '#f8fafc' }}>{title}</div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>by {comicData.creator}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>by {comicData.creator}</div>
           </div>
         </div>
 
@@ -651,7 +651,7 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
                   style={{
                     textAlign: 'center',
                     fontSize: 11,
-                    color: '#64748b',
+                    color: 'var(--text-muted)',
                     padding: '4px 0',
                   }}
                 >
@@ -734,7 +734,7 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
               <div style={{ fontSize: 16, fontWeight: 600, color: '#f8fafc' }}>
                 Page {currentPage + 1} of {totalPages}
               </div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 {Math.round(progressPercent)}% complete
               </div>
             </div>
@@ -765,7 +765,7 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
             <div style={{ fontSize: 14, fontWeight: 600, color: '#f8fafc' }}>
               Page {currentPage + 1} of {totalPages}
             </div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {Math.round(progressPercent)}% complete
             </div>
           </div>
@@ -776,15 +776,15 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
           style={{
             marginTop: 12,
             fontSize: 11,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             textAlign: 'center',
           }}
         >
-          Press <kbd style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4 }}>+</kbd>/
-          <kbd style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4 }}>-</kbd> to
-          zoom, <kbd style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4 }}>0</kbd>{' '}
+          Press <kbd style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>+</kbd>/
+          <kbd style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>-</kbd> to
+          zoom, <kbd style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>0</kbd>{' '}
           to reset,{' '}
-          <kbd style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4 }}>Esc</kbd> to go
+          <kbd style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>Esc</kbd> to go
           back
         </div>
 
@@ -794,7 +794,7 @@ export function ComicReader({ contentId, title, comicData, onBack, copyrightYear
             style={{
               marginTop: 8,
               fontSize: 9,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               textAlign: 'center',
               opacity: 0.7,
             }}

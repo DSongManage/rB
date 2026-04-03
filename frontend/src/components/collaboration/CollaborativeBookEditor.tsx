@@ -202,7 +202,7 @@ export default function CollaborativeBookEditor({
             <div style={{
               textAlign: 'center',
               padding: 24,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               fontSize: 13,
             }}>
               No chapters yet.
@@ -247,7 +247,7 @@ export default function CollaborativeBookEditor({
                       </div>
                       <div style={{
                         fontSize: 11,
-                        color: '#94a3b8',
+                        color: 'var(--text-muted)',
                         marginTop: 2,
                         display: 'flex',
                         alignItems: 'center',
@@ -333,7 +333,7 @@ export default function CollaborativeBookEditor({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             fontSize: 14,
           }}>
             {chapters.length > 0
@@ -460,7 +460,7 @@ function ChapterEditor({
       <div style={{
         marginBottom: 12,
         fontSize: 12,
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
       }}>
         Written by @{chapter.owner_username}
         {!canEdit && (
@@ -477,7 +477,7 @@ function ChapterEditor({
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#94a3b8',
+            color: 'var(--text-muted)',
             fontSize: 12,
             cursor: 'pointer',
             padding: '4px 0',
@@ -517,7 +517,7 @@ function ChapterEditor({
                 outline: 'none',
               }}
             />
-            <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
               {synopsis.split(/\s+/).filter(w => w).length}/150 words recommended
             </div>
           </div>

@@ -84,7 +84,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
           </span>
           <span style={{
             fontSize: 10, padding: '2px 8px', borderRadius: 4,
-            background: '#1e293b', color: '#94a3b8',
+            background: 'var(--bg-secondary)', color: 'var(--text-muted)',
           }}>
             {campaign.content_type}
           </span>
@@ -92,7 +92,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
         {/* Title */}
         <h3 style={{
-          fontSize: 15, fontWeight: 600, color: '#e2e8f0',
+          fontSize: 15, fontWeight: 600, color: 'var(--text)',
           margin: '0 0 4px', lineHeight: 1.3,
           overflow: 'hidden', textOverflow: 'ellipsis',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
@@ -100,7 +100,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
           {campaign.title}
         </h3>
 
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
           by {campaign.creator_display_name || campaign.creator_username}
         </div>
 
@@ -115,7 +115,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
         {/* Footer */}
         <div style={{
           display: 'flex', justifyContent: 'space-between',
-          marginTop: 10, fontSize: 11, color: '#64748b',
+          marginTop: 10, fontSize: 11, color: 'var(--text-muted)',
         }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <Users size={12} /> {campaign.backer_count}

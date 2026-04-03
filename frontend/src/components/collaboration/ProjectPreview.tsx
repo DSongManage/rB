@@ -101,7 +101,7 @@ export function ProjectPreview({
         return <ArtPreview project={project} />;
       default:
         return (
-          <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
             Unsupported content type: {project.content_type}
           </div>
         );
@@ -134,7 +134,7 @@ export function ProjectPreview({
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>
               Preview: {project.title}
             </h1>
-            <div style={{ marginTop: 4, fontSize: 14, color: '#94a3b8' }}>
+            <div style={{ marginTop: 4, fontSize: 14, color: 'var(--text-muted)' }}>
               {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} Project
             </div>
           </div>

@@ -489,7 +489,7 @@ export default function PublishTab({
                     <BookOpen size={20} style={{ color: '#f59e0b' }} />
                     Preview Your Comic
                   </h3>
-                  <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                  <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
                     See exactly how readers will experience your comic before publishing.
                   </p>
                 </div>
@@ -516,7 +516,7 @@ export default function PublishTab({
                 </button>
               </div>
               {comicPages.length === 0 && !loadingPages && (
-                <p style={{ margin: '12px 0 0', color: '#94a3b8', fontSize: 12, fontStyle: 'italic' }}>
+                <p style={{ margin: '12px 0 0', color: 'var(--text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                   Add pages to your comic in the Comic tab to enable preview.
                 </p>
               )}
@@ -540,7 +540,7 @@ export default function PublishTab({
                   <BookOpen size={20} style={{ color: '#8b5cf6' }} />
                   Mint Mode
                 </h3>
-                <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+                <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
                   Choose to mint individual issues or the entire series
                 </p>
               </div>
@@ -573,7 +573,7 @@ export default function PublishTab({
                       <div style={{ fontSize: 14, fontWeight: 600, color: mintMode === opt.value ? '#8b5cf6' : 'var(--text)' }}>
                         {opt.label}
                       </div>
-                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{opt.desc}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -623,10 +623,10 @@ export default function PublishTab({
                               fontSize: 14, fontWeight: 500,
                               color: isMinted ? '#64748b' : 'var(--text)',
                             }}>
-                              <span style={{ color: '#64748b', marginRight: 6 }}>#{issue.issue_number}</span>
+                              <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>#{issue.issue_number}</span>
                               {issue.title}
                             </div>
-                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                               {issue.page_count} pages
                             </div>
                           </div>
@@ -658,7 +658,7 @@ export default function PublishTab({
                 {mintMode === 'series' && (
                   <div style={{
                     marginTop: 16, padding: 12, background: 'rgba(139, 92, 246, 0.08)',
-                    borderRadius: 8, fontSize: 13, color: '#94a3b8',
+                    borderRadius: 8, fontSize: 13, color: 'var(--text-muted)',
                   }}>
                     {comicIssues.filter(i => !i.is_published).length} issue(s) will be minted.
                     {comicIssues.filter(i => i.is_published).length > 0 && (
@@ -888,7 +888,7 @@ function CustomizeStep({
             <Eye size={20} style={{ color: '#3b82f6' }} />
             Free Preview
           </h3>
-          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
             How much of your content can non-buyers see?
           </p>
         </div>
@@ -983,7 +983,7 @@ function CustomizeStep({
           {/* Custom Slider */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: '#64748b' }}>Custom amount</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Custom amount</span>
               <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>{teaserPercent}%</span>
             </div>
             <input
@@ -1021,7 +1021,7 @@ function CustomizeStep({
               <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>
                 Watermark preview
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                 Add subtle branding to free preview content
               </div>
             </div>
@@ -1072,7 +1072,7 @@ function CustomizeStep({
             <DollarSign size={20} style={{ color: '#10b981' }} />
             Pricing
           </h3>
-          <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
             Set your price and edition count
           </p>
         </div>
@@ -1081,7 +1081,7 @@ function CustomizeStep({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             {/* Price Input */}
             <div>
-              <label style={{ fontSize: 13, color: '#94a3b8', display: 'block', marginBottom: 10 }}>
+              <label style={{ fontSize: 13, color: 'var(--text-muted)', display: 'block', marginBottom: 10 }}>
                 Price per edition
               </label>
               <div style={{ position: 'relative' }}>
@@ -1090,7 +1090,7 @@ function CustomizeStep({
                   left: 16,
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   fontSize: 18,
                   fontWeight: 500,
                 }}>$</span>
@@ -1122,7 +1122,7 @@ function CustomizeStep({
                   right: 16,
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   fontSize: 12,
                 }}>USD</span>
               </div>
@@ -1130,7 +1130,7 @@ function CustomizeStep({
 
             {/* Editions Input */}
             <div>
-              <label style={{ fontSize: 13, color: '#94a3b8', display: 'block', marginBottom: 10 }}>
+              <label style={{ fontSize: 13, color: 'var(--text-muted)', display: 'block', marginBottom: 10 }}>
                 Number of editions
               </label>
               <div style={{ position: 'relative' }}>
@@ -1162,7 +1162,7 @@ function CustomizeStep({
                   right: 16,
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: '#64748b',
+                  color: 'var(--text-muted)',
                   fontSize: 12,
                 }}>copies</span>
               </div>
@@ -1180,12 +1180,12 @@ function CustomizeStep({
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>Potential earnings (if all sell)</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Potential earnings (if all sell)</div>
                   <div style={{ fontSize: 24, fontWeight: 700, color: '#10b981', marginTop: 4 }}>
                     ${netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>
+                <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>
                   <div>Gross: ${grossRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                   <div>Platform fee (10%): -${platformFee.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
@@ -1193,7 +1193,7 @@ function CustomizeStep({
             </div>
           )}
 
-          <p style={{ margin: '16px 0 0', fontSize: 12, color: '#64748b' }}>
+          <p style={{ margin: '16px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
             Changing price or editions will reset all revenue split approvals.
           </p>
         </div>
@@ -1216,9 +1216,9 @@ function CustomizeStep({
               <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <PenLine size={20} style={{ color: '#8b5cf6' }} />
                 {contentType === 'art' ? "Artist's Note" : "Author's Note"}
-                <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b' }}>(optional)</span>
+                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span>
               </h3>
-              <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 13 }}>
+              <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
                 {contentType === 'art' ? 'Share a personal message with your collectors' : 'Share a personal message with your audience'}
               </p>
             </div>
@@ -1380,7 +1380,7 @@ function ApproveStep({
               ? (isReadyToMint ? 'Ready to Mint!' : 'Review Your Content')
               : (project.is_fully_approved ? 'All Approved!' : 'Awaiting Approvals')}
           </div>
-          <div style={{ fontSize: 14, color: '#94a3b8', marginTop: 4 }}>
+          <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>
             {isSolo
               ? (isReadyToMint
                   ? 'Review and confirm your content before minting.'
@@ -1418,7 +1418,7 @@ function ApproveStep({
               <div style={{ fontSize: 16, fontWeight: 600, color: '#10b981' }}>
                 Your content is ready to mint
               </div>
-              <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
                 ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x {editions.toLocaleString('en-US')} editions = ${(price * editions * 0.9).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} net (after 10% platform fee)
               </div>
             </div>
@@ -1442,7 +1442,7 @@ function ApproveStep({
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
                   Content Approval
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
                   Confirm you're happy with all content in this project.
                 </div>
                 <button
@@ -1470,7 +1470,7 @@ function ApproveStep({
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
                   Revenue Split Approval
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
                   ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} x {editions.toLocaleString('en-US')} editions = ${(price * editions).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} gross.
                   Your share: {currentUserRole?.revenue_percentage || 0}% = ${userEstimatedEarnings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (after 10% platform fee)
                 </div>
@@ -1546,7 +1546,7 @@ function ApproveStep({
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                           @{collab.username}
                         </div>
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                           {collab.role} - {collab.revenue_percentage}%
                         </div>
                       </div>
@@ -1656,7 +1656,7 @@ function MintStep({
           borderRadius: 8,
           marginBottom: 20,
           fontSize: 13,
-          color: '#94a3b8',
+          color: 'var(--text-muted)',
         }}>
           {mintMode === 'issue' && selectedIssue ? (
             <span>Minting: <strong style={{ color: 'var(--text)' }}>Issue #{selectedIssue.issue_number} - {selectedIssue.title}</strong></span>
@@ -1719,7 +1719,7 @@ function MintStep({
         marginBottom: 24,
       }}>
         <h4 style={{ margin: '0 0 12px', color: 'var(--text)', fontSize: 14 }}>Financial Summary</h4>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: '#94a3b8' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: 'var(--text-muted)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Price per edition:</span>
             <span style={{ color: 'var(--text)' }}>${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -1803,7 +1803,7 @@ function MintStep({
         </div>
       )}
 
-      <div style={{ fontSize: 11, color: '#64748b', marginTop: 12, textAlign: 'center' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12, textAlign: 'center' }}>
         Once minted, content cannot be changed.
       </div>
     </div>
@@ -1879,7 +1879,7 @@ function ShareStep({ project, isProjectLead, onProjectUpdate }: ShareStepProps) 
       <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 24 }}>
         {isUnpublished ? 'Project Unpublished' : 'Successfully Minted!'}
       </h3>
-      <p style={{ fontSize: 14, color: '#94a3b8', marginBottom: 24 }}>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
         {isUnpublished
           ? 'This project has been removed from the marketplace. Existing buyers retain access.'
           : 'Your collaborative NFT is now live. Share it with the world!'}
@@ -2050,7 +2050,7 @@ function ShareStep({ project, isProjectLead, onProjectUpdate }: ShareStepProps) 
               margin: 0,
               marginBottom: 16,
               fontSize: 14,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               This will remove your content from the marketplace. No new purchases can be made.
@@ -2059,7 +2059,7 @@ function ShareStep({ project, isProjectLead, onProjectUpdate }: ShareStepProps) 
               margin: 0,
               marginBottom: 24,
               fontSize: 13,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               Existing buyers will keep access to their purchased content. You can re-list this content later.
@@ -2142,7 +2142,7 @@ function ShareStep({ project, isProjectLead, onProjectUpdate }: ShareStepProps) 
               margin: 0,
               marginBottom: 24,
               fontSize: 14,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               This will make your content available for purchase again on the marketplace.

@@ -253,7 +253,7 @@ export function CollaborationPreviewReader({
           zIndex: 9999,
         }}
       >
-        <div style={{ color: '#94a3b8', textAlign: 'center' }}>
+        <div style={{ color: 'var(--text-muted)', textAlign: 'center' }}>
           <div style={{ fontSize: 18, marginBottom: 12 }}>No pages to preview</div>
           <div style={{ fontSize: 14, marginBottom: 24 }}>Add some pages to your comic first.</div>
           <button
@@ -357,7 +357,7 @@ export function CollaborationPreviewReader({
                 )}
               </span>
             </div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>Preview Mode</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Preview Mode</div>
           </div>
         </div>
 
@@ -634,7 +634,7 @@ export function CollaborationPreviewReader({
             <div style={{ fontSize: 16, fontWeight: 600, color: '#f8fafc' }}>
               Page {currentPage + 1} of {totalPages}
             </div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {Math.round(progressPercent)}% complete
             </div>
           </div>
@@ -666,11 +666,11 @@ export function CollaborationPreviewReader({
           style={{
             marginTop: 12,
             fontSize: 11,
-            color: '#64748b',
+            color: 'var(--text-muted)',
             textAlign: 'center',
           }}
         >
-          Press <kbd style={{ background: '#1e293b', padding: '2px 6px', borderRadius: 4 }}>?</kbd>{' '}
+          Press <kbd style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>?</kbd>{' '}
           for keyboard shortcuts
         </div>
       </div>

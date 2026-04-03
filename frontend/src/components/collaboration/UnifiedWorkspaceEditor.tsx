@@ -287,7 +287,7 @@ export default function UnifiedWorkspaceEditor({
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: 400, color: '#94a3b8',
+        height: 400, color: 'var(--text-muted)',
       }}>
         <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
         <span style={{ marginLeft: 12 }}>Loading workspace...</span>
@@ -301,9 +301,9 @@ export default function UnifiedWorkspaceEditor({
         background: 'var(--panel)', border: '1px solid var(--panel-border)',
         borderRadius: 12, padding: 40, textAlign: 'center',
       }}>
-        <Hammer size={48} style={{ color: '#64748b', marginBottom: 16 }} />
+        <Hammer size={48} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
         <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 18 }}>Workspace</h3>
-        <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>
           The workspace is only available for comic projects.
         </p>
       </div>
@@ -379,7 +379,7 @@ export default function UnifiedWorkspaceEditor({
         <div style={{ padding: 12, borderBottom: '1px solid var(--panel-border)' }}>
           <label style={{
             display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600,
-            color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px',
+            color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
           }}>
             Issue
           </label>
@@ -408,7 +408,7 @@ export default function UnifiedWorkspaceEditor({
             </select>
             <ChevronDown size={14} style={{
               position: 'absolute', right: 8, top: '50%',
-              transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none',
+              transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none',
             }} />
           </div>
         </div>
@@ -459,14 +459,14 @@ export default function UnifiedWorkspaceEditor({
         <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
           {loading ? (
             <div style={{
-              padding: 24, textAlign: 'center', color: '#94a3b8',
+              padding: 24, textAlign: 'center', color: 'var(--text-muted)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
               <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
               <span>Loading pages...</span>
             </div>
           ) : pages.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+            <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
               No pages in this issue yet.
               {(canEditScript || isProjectOwner) && selectedIssueId && (
                 <div style={{ marginTop: 8 }}>Click "Add" to create your first page.</div>
@@ -556,7 +556,7 @@ export default function UnifiedWorkspaceEditor({
               <span style={{ fontSize: 12, color: '#f59e0b' }}>Unsaved changes</span>
             )}
             {saving && (
-              <span style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Saving...
               </span>
             )}
@@ -594,7 +594,7 @@ export default function UnifiedWorkspaceEditor({
           {!selectedPage ? (
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', height: '100%', color: '#64748b',
+              justifyContent: 'center', height: '100%', color: 'var(--text-muted)',
             }}>
               <Hammer size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
               <p style={{ margin: 0, fontSize: 14 }}>
@@ -609,7 +609,7 @@ export default function UnifiedWorkspaceEditor({
               <div style={{ marginBottom: 24 }}>
                 <label style={{
                   display: 'block', marginBottom: 8,
-                  fontSize: 13, fontWeight: 600, color: '#94a3b8',
+                  fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
                 }}>
                   Page Description
                 </label>
@@ -633,7 +633,7 @@ export default function UnifiedWorkspaceEditor({
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   marginBottom: 16,
                 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: '#94a3b8' }}>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
                     Panels ({scriptData.panels.length})
                   </label>
                   {canEditScript && (
@@ -657,7 +657,7 @@ export default function UnifiedWorkspaceEditor({
                   <div style={{
                     padding: 32, textAlign: 'center', background: 'var(--bg)',
                     borderRadius: 8, border: '1px dashed var(--panel-border)',
-                    color: '#64748b', fontSize: 13,
+                    color: 'var(--text-muted)', fontSize: 13,
                   }}>
                     No panels defined yet.
                     {canEditScript && ' Click "Add Panel" to start describing your panels.'}
@@ -678,7 +678,7 @@ export default function UnifiedWorkspaceEditor({
                           borderBottom: '1px solid var(--panel-border)',
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <GripVertical size={14} style={{ color: '#64748b', opacity: 0.5 }} />
+                            <GripVertical size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
                             <span style={{ fontSize: 13, fontWeight: 600, color: '#8b5cf6' }}>
                               Panel {panel.panel_number}
                             </span>
@@ -701,7 +701,7 @@ export default function UnifiedWorkspaceEditor({
                           <div>
                             <label style={{
                               display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600,
-                              color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px',
+                              color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
                             }}>Scene Description</label>
                             <textarea
                               value={panel.scene}
@@ -719,7 +719,7 @@ export default function UnifiedWorkspaceEditor({
                           <div>
                             <label style={{
                               display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600,
-                              color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px',
+                              color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
                             }}>Dialogue</label>
                             <textarea
                               value={panel.dialogue}
@@ -737,7 +737,7 @@ export default function UnifiedWorkspaceEditor({
                           <div>
                             <label style={{
                               display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600,
-                              color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px',
+                              color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
                             }}>Notes for Artist</label>
                             <textarea
                               value={panel.notes}
@@ -855,7 +855,7 @@ export default function UnifiedWorkspaceEditor({
               ) : (
                 <div style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: 12, color: '#94a3b8',
+                  gap: 12, color: 'var(--text-muted)',
                 }}>
                   <FileText size={48} />
                   <span>{latestArt.filename}</span>

@@ -331,7 +331,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        color: '#94a3b8',
+        color: 'var(--text-muted)',
         fontSize: 16,
       }}>
         Loading book project...
@@ -391,7 +391,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
               Book Cover
             </div>
-            <div style={{ fontSize: 10, color: '#64748b', marginBottom: 8, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8, lineHeight: 1.4 }}>
               Recommended: 1600×2400px
             </div>
             <label style={{
@@ -400,7 +400,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
               border: '1px solid var(--panel-border)',
               borderRadius: 5,
               padding: '4px 10px',
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               fontWeight: 500,
               cursor: 'pointer',
               fontSize: 11,
@@ -462,7 +462,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
             outline: 'none',
           }}
         />
-        <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
           {(project?.description || '').split(/\s+/).filter(w => w).length}/200 words recommended
         </div>
       </div>
@@ -916,7 +916,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
                 Unsaved Content
               </h3>
             </div>
-            <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
               Your chapter content won't be saved because the book doesn't have a title yet.
               Please add a title to save your work, or discard the project.
             </p>
@@ -1009,7 +1009,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
               margin: 0,
               marginBottom: 16,
               fontSize: 14,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               This will remove your book from the marketplace. No new purchases can be made.
@@ -1018,7 +1018,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
               margin: 0,
               marginBottom: 24,
               fontSize: 13,
-              color: '#64748b',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               Existing buyers will keep access to their purchased content. You can re-list this book later.
@@ -1101,7 +1101,7 @@ export default function BookEditor({ onPublish, onBack, existingContentId, exist
               margin: 0,
               marginBottom: 24,
               fontSize: 14,
-              color: '#94a3b8',
+              color: 'var(--text-muted)',
               lineHeight: 1.5,
             }}>
               This will make your book available for purchase again on the marketplace.

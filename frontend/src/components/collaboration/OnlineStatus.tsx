@@ -80,7 +80,7 @@ export function OnlineStatus({
         <span
           style={{
             fontSize: size === 'small' ? 9 : size === 'medium' ? 10 : 11,
-            color: '#64748b',
+            color: 'var(--text-muted)',
           }}
         >
           {getTimeAgo(lastSeen)}
