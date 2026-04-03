@@ -48,7 +48,7 @@ function EscrowFlowDiagram() {
             transform: i <= activeStep ? 'scale(1)' : 'scale(0.92)',
           }}>
             <div style={{
-              width: 48, height: 48, borderRadius: '50%',
+              width: 56, height: 56, borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: i === activeStep ? '#fff' : '#E8981F',
               background: i <= activeStep ? (i === activeStep ? '#E8981F' : 'rgba(232,152,31,0.12)') : 'rgba(58,54,50,0.06)',
@@ -57,13 +57,13 @@ function EscrowFlowDiagram() {
               transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
             }}>{step.icon}</div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: i <= activeStep ? '#1a1816' : '#9e9a95', fontFamily: 'var(--font-body)' }}>{step.label}</div>
-              <div style={{ fontSize: 10, color: i <= activeStep ? '#6b6560' : '#c5c0ba', fontFamily: 'var(--font-body)', marginTop: 2, whiteSpace: 'nowrap' }}>{step.sublabel}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: i <= activeStep ? '#1a1816' : '#9e9a95', fontFamily: 'var(--font-body)' }}>{step.label}</div>
+              <div style={{ fontSize: 12, color: i <= activeStep ? '#6b6560' : '#c5c0ba', fontFamily: 'var(--font-body)', marginTop: 2, whiteSpace: 'nowrap' }}>{step.sublabel}</div>
             </div>
           </div>
           {i < steps.length - 1 && (
             <div style={{
-              width: 32, height: 2, margin: '0 4px', marginBottom: 28, borderRadius: 1,
+              width: 40, height: 2, margin: '0 8px', marginBottom: 32, borderRadius: 1,
               background: i < activeStep ? '#E8981F' : 'rgba(58,54,50,0.12)',
               transition: 'background 0.5s ease',
             }} />
@@ -102,8 +102,8 @@ function AnimatedStat({ end, suffix = '', label }: { end: number; suffix?: strin
 
   return (
     <div ref={ref} style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: 32, fontWeight: 800, color: '#E8981F', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>{count}{suffix}</div>
-      <div style={{ fontSize: 12, color: '#6b6560', marginTop: 6, fontFamily: 'var(--font-body)', letterSpacing: '0.03em', textTransform: 'uppercase', fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 40, fontWeight: 800, color: '#E8981F', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>{count}{suffix}</div>
+      <div style={{ fontSize: 13, color: '#6b6560', marginTop: 8, fontFamily: 'var(--font-body)', letterSpacing: '0.03em', textTransform: 'uppercase', fontWeight: 600 }}>{label}</div>
     </div>
   );
 }
@@ -259,25 +259,25 @@ export default function LandingPage() {
       )}
 
       {/* Hero */}
-      <section style={{ paddingTop: 120, paddingBottom: 60, paddingLeft: 24, paddingRight: 24, maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>
+      <section style={{ paddingTop: 140, paddingBottom: 80, paddingLeft: 24, paddingRight: 24, maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ marginBottom: 20 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>
             Smart Contract Escrow for Comics
           </span>
         </div>
 
         <h1 style={{
-          fontFamily: 'var(--font-heading)', fontSize: 44, fontWeight: 400, lineHeight: 1.12,
-          letterSpacing: '-0.025em', color: '#1a1816', marginBottom: 20,
+          fontFamily: 'var(--font-heading)', fontSize: 56, fontWeight: 400, lineHeight: 1.1,
+          letterSpacing: '-0.025em', color: '#1a1816', marginBottom: 24,
         }}>
           Stories need art.<br />Art needs stories.<br />
-          <span style={{ fontSize: '0.75em', color: '#6b6560', display: 'block', marginTop: 8 }}>
+          <span style={{ fontSize: '0.72em', color: '#6b6560', display: 'block', marginTop: 12 }}>
             Collaborate with confidence.{' '}
             <span style={{ color: '#E8981F', fontStyle: 'italic' }}>Protected on renaissBlock.</span>
           </span>
         </h1>
 
-        <p style={{ fontSize: 16, lineHeight: 1.6, color: '#9e9a95', maxWidth: 440, margin: '0 auto 36px' }}>
+        <p style={{ fontSize: 18, lineHeight: 1.6, color: '#9e9a95', maxWidth: 520, margin: '0 auto 40px' }}>
           Milestone-based smart contract escrow for indie comics. Artists get paid. Writers get their pages. Every time.
         </p>
 
@@ -304,8 +304,8 @@ export default function LandingPage() {
       </section>
 
       {/* Trust Bar */}
-      <section style={{ padding: '40px 24px', borderTop: '1px solid rgba(58,54,50,0.06)', borderBottom: '1px solid rgba(58,54,50,0.06)', background: '#fff' }}>
-        <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', justifyContent: 'space-around', gap: 32 }}>
+      <section style={{ padding: '48px 24px', borderTop: '1px solid rgba(58,54,50,0.06)', borderBottom: '1px solid rgba(58,54,50,0.06)', background: '#fff' }}>
+        <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', justifyContent: 'space-around', gap: 40 }}>
           <AnimatedStat end={0} suffix="%" label="Funds at risk" />
           <AnimatedStat end={3} suffix="%" label="Escrow fee" />
           <AnimatedStat end={72} suffix="hr" label="Auto-approval" />
@@ -313,10 +313,10 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section id="how" style={{ padding: '80px 24px', maxWidth: 720, margin: '0 auto' }}>
+      <section id="how" style={{ padding: '80px 24px', maxWidth: 960, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>How It Works</span>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 36, fontWeight: 400, marginTop: 12, letterSpacing: '-0.02em', color: '#1a1816' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>How It Works</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 42, fontWeight: 400, marginTop: 14, letterSpacing: '-0.02em', color: '#1a1816' }}>
             Four steps to a safe deal
           </h2>
         </div>
@@ -333,9 +333,9 @@ export default function LandingPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#c5c0ba', letterSpacing: '0.05em' }}>{step.num}</span>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1816' }}>{step.title}</h3>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1a1816' }}>{step.title}</h3>
                 </div>
-                <p style={{ fontSize: 14, lineHeight: 1.6, color: '#6b6560' }}>{step.desc}</p>
+                <p style={{ fontSize: 15, lineHeight: 1.6, color: '#6b6560' }}>{step.desc}</p>
               </div>
             </div>
           ))}
@@ -343,14 +343,14 @@ export default function LandingPage() {
       </section>
 
       {/* The Problem */}
-      <section style={{ padding: '64px 24px', background: '#1a1816', position: 'relative', overflow: 'hidden' }}>
+      <section style={{ padding: '80px 24px', background: '#1a1816', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -120, right: -120, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(232,152,31,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
-        <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center', position: 'relative' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F', opacity: 0.8 }}>The Problem</span>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 32, fontWeight: 400, color: '#FAFAF8', marginTop: 12, marginBottom: 24, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+        <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center', position: 'relative' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F', opacity: 0.8 }}>The Problem</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 38, fontWeight: 400, color: '#FAFAF8', marginTop: 14, marginBottom: 24, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
             Every indie comic collaboration<br />runs on a <span style={{ color: '#E8981F', fontStyle: 'italic' }}>handshake</span>
           </h2>
-          <p style={{ fontSize: 15, lineHeight: 1.7, color: 'rgba(250,250,248,0.55)', maxWidth: 500, margin: '0 auto' }}>
+          <p style={{ fontSize: 17, lineHeight: 1.7, color: 'rgba(250,250,248,0.55)', maxWidth: 560, margin: '0 auto' }}>
             Writers ghost after getting pages. Artists disappear mid-project.
             Revenue share promises evaporate when real money shows up.
             The work was good &mdash; the business side broke it.
@@ -370,10 +370,10 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section style={{ padding: '80px 24px', maxWidth: 720, margin: '0 auto' }}>
+      <section style={{ padding: '80px 24px', maxWidth: 960, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>Built for Comics</span>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 36, fontWeight: 400, marginTop: 12, letterSpacing: '-0.02em', color: '#1a1816' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>Built for Comics</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 42, fontWeight: 400, marginTop: 14, letterSpacing: '-0.02em', color: '#1a1816' }}>
             Every detail matters
           </h2>
         </div>
@@ -389,8 +389,8 @@ export default function LandingPage() {
                 width: 8, height: 8, borderRadius: '50%', background: '#E8981F', marginBottom: 14,
                 transition: 'transform 0.3s ease', transform: hoveredCard === i ? 'scale(1.5)' : 'scale(1)',
               }} />
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1816', marginBottom: 8 }}>{feat.title}</h3>
-              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#6b6560' }}>{feat.desc}</p>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1816', marginBottom: 8 }}>{feat.title}</h3>
+              <p style={{ fontSize: 14, lineHeight: 1.6, color: '#6b6560' }}>{feat.desc}</p>
             </div>
           ))}
         </div>
@@ -398,10 +398,10 @@ export default function LandingPage() {
 
       {/* Creator Directory Preview */}
       <section id="creators" style={{ padding: '64px 24px', background: '#fff', borderTop: '1px solid rgba(58,54,50,0.06)' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>Creator Directory</span>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 36, fontWeight: 400, marginTop: 12, letterSpacing: '-0.02em', color: '#1a1816' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>Creator Directory</span>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 42, fontWeight: 400, marginTop: 14, letterSpacing: '-0.02em', color: '#1a1816' }}>
               Find your next collaborator
             </h2>
             <p style={{ fontSize: 15, color: '#6b6560', marginTop: 8, lineHeight: 1.6 }}>
@@ -427,16 +427,16 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA */}
-      <section style={{ padding: '80px 24px', textAlign: 'center', background: '#FAFAF8', borderTop: '1px solid rgba(58,54,50,0.06)' }}>
-        <div style={{ maxWidth: 500, margin: '0 auto' }}>
+      <section style={{ padding: '100px 24px', textAlign: 'center', background: '#FAFAF8', borderTop: '1px solid rgba(58,54,50,0.06)' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <img src="/rb-logo.png" alt="rB" style={{ height: 36 }} />
           <h2 style={{
-            fontFamily: 'var(--font-heading)', fontSize: 32, fontWeight: 400, marginTop: 20, marginBottom: 12,
+            fontFamily: 'var(--font-heading)', fontSize: 38, fontWeight: 400, marginTop: 20, marginBottom: 16,
             letterSpacing: '-0.02em', color: '#1a1816', lineHeight: 1.15,
           }}>
             Your next deal,<br /><span style={{ color: '#E8981F', fontStyle: 'italic' }}>protected</span>
           </h2>
-          <p style={{ fontSize: 15, color: '#6b6560', lineHeight: 1.6, marginBottom: 32 }}>
+          <p style={{ fontSize: 17, color: '#6b6560', lineHeight: 1.6, marginBottom: 36 }}>
             Set up your first escrow in under two minutes.<br />Free to start. 3% only when money moves.
           </p>
           <button onClick={handleStartProject} style={{
@@ -451,7 +451,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer style={{ padding: '32px 24px', borderTop: '1px solid rgba(58,54,50,0.06)', background: '#fff' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <img src="/rb-logo.png" alt="rB" style={{ height: 20 }} />
             <span style={{ fontSize: 13, color: '#9e9a95' }}>renaissBlock, LLC &copy; 2026</span>
