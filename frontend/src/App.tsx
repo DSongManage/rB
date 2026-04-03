@@ -26,7 +26,7 @@ import { ProfileDropdown } from './components/profile/ProfileDropdown';
 import { SettingsModal } from './components/settings/SettingsModal';
 import CartIcon from './components/CartIcon';
 import {
-  User, Menu, X, Users, ShoppingBag, Rocket
+  User, Menu, X, Users, ShoppingBag, Rocket, PenTool
 } from 'lucide-react';
 import { SearchAutocomplete } from './components/SearchAutocomplete';
 
@@ -216,6 +216,9 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
+            <Link to="/studio" className="rb-nav-link" title="Studio">
+              <PenTool size={20} />
+            </Link>
             {isStorePage && (
               <span>
                 <CartIcon />
