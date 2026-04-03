@@ -483,13 +483,14 @@ class UserProfile(models.Model):
         Called automatically when a ContractTask is signed off.
         Aggregates data from all CollaboratorRoles for this user.
         """
-        from django.db.models import F, Avg, ExpressionWrapper, DurationField
-        from .models import CollaboratorRole, ContractTask
+        from django.db.models import F
 
         roles = CollaboratorRole.objects.filter(user=self.user, status='accepted')
 
         # Count completed projects (all tasks signed off)
-        completed_projects = roles.filter(contract_complete_at__isnull=False).count()
+        completed_projects = sum(
+            1 for r in roles if r.tasks_total > 0 and r.tasks_signed_off >= r.tasks_total
+        )
 
         # Count total milestones signed off
         milestones_completed = ContractTask.objects.filter(
