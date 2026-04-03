@@ -28,11 +28,12 @@ import { TourRenderer } from './components/Tour/TourProvider';
 import { TourMenu } from './components/Tour/TourMenu';
 import CartIcon from './components/CartIcon';
 import {
-  User, Menu, X, Users
+  User, Menu, X, Users, ShoppingBag
 } from 'lucide-react';
 import { SearchAutocomplete } from './components/SearchAutocomplete';
 
 // Lazy-loaded page components for code splitting
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 const HomePage = lazy(() => import('./pages/HomePage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
 const StudioPage = lazy(() => import('./pages/StudioPage'));
@@ -208,6 +209,9 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
+            <Link to="/store" className="rb-nav-link" title="Store" data-tour="store-link">
+              <ShoppingBag size={20} />
+            </Link>
             <span data-tour="cart-button">
               <CartIcon />
             </span>
@@ -291,10 +295,10 @@ export default function App() {
 
   // Legacy CreatorSidebar removed - functionality now in navbar and page tabs
   const showCreatorSidebar = false;
-  // Only show Library sidebar when authenticated AND on home or search pages AND not mobile
-  const showLibrarySidebar = !isMobile && isAuthenticated && [/^\/$/, /^\/search/].some(r => r.test(location.pathname));
-  // Show mobile library on home page for authenticated mobile users
-  const showMobileLibrary = isMobile && isAuthenticated && location.pathname === '/';
+  // Only show Library sidebar when authenticated AND on store or search pages AND not mobile
+  const showLibrarySidebar = !isMobile && isAuthenticated && [/^\/store$/, /^\/search/].some(r => r.test(location.pathname));
+  // Show mobile library on store page for authenticated mobile users
+  const showMobileLibrary = isMobile && isAuthenticated && location.pathname === '/store';
   const isReaderPage = /^\/reader/.test(location.pathname);
   // Hide footer on pages that have the sidebar (footer links are in sidebar instead)
   const showFooter = !showLibrarySidebar;
@@ -325,6 +329,15 @@ export default function App() {
     );
   }
 
+  // Landing page — renders without app chrome (own nav/footer), for all users
+  if (location.pathname === '/') {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LandingPage />
+      </Suspense>
+    );
+  }
+
   // Marketing pages — full-page layout without app chrome (accessible to both auth states)
   if (isMarketingRoute) {
     return (
@@ -340,11 +353,11 @@ export default function App() {
     );
   }
 
-  // Show marketing homepage for unauthenticated users (except on public routes)
+  // Show marketing homepage for unauthenticated users on non-public routes
   if (!isAuthenticated && !isPublicRoute) {
     return (
       <Suspense fallback={<PageLoader />}>
-        <MarketingHome />
+        <LandingPage />
       </Suspense>
     );
   }
@@ -404,8 +417,9 @@ export default function App() {
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/beta" element={<BetaLanding />} />
+                <Route path="/" element={<Navigate to="/store" replace />} />
+                <Route path="/store" element={<HomePage />} />
+                <Route path="/beta" element={<Navigate to="/" replace />} />
                 <Route path="/login" element={<Navigate to="/auth" replace />} />
                 <Route path="/signup" element={<Navigate to="/auth" replace />} />
                 <Route path="/search" element={<SearchPage />} />

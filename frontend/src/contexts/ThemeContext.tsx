@@ -27,7 +27,7 @@ function getSystemTheme(): ResolvedTheme {
   if (typeof window !== 'undefined' && window.matchMedia) {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  return 'dark';
+  return 'light';
 }
 
 function resolveTheme(theme: AppTheme): ResolvedTheme {
@@ -38,12 +38,12 @@ function resolveTheme(theme: AppTheme): ResolvedTheme {
 }
 
 function getStoredTheme(): AppTheme {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === 'light' || stored === 'dark' || stored === 'system') {
     return stored;
   }
-  return 'dark';
+  return 'light';
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {

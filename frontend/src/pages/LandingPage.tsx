@@ -1,0 +1,432 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+
+// --- Escrow Flow Visualization ---
+function EscrowFlowDiagram() {
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setActiveStep(prev => (prev + 1) % 4), 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const steps = [
+    { label: 'Agree', sublabel: 'Set terms & milestones', icon: '\u{1F91D}' },
+    { label: 'Fund', sublabel: 'USDC locked in escrow', icon: '\u{1F512}' },
+    { label: 'Deliver', sublabel: 'Upload & review work', icon: '\u{1F4C4}' },
+    { label: 'Release', sublabel: 'Instant payment', icon: '\u26A1' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, padding: '24px 0', width: '100%' }}>
+      {steps.map((step, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+            opacity: i <= activeStep ? 1 : 0.3,
+            transform: i <= activeStep ? 'scale(1)' : 'scale(0.92)',
+          }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+              background: i <= activeStep ? (i === activeStep ? '#E8981F' : 'rgba(232,152,31,0.15)') : 'rgba(58,54,50,0.08)',
+              border: i === activeStep ? '2px solid #E8981F' : '2px solid transparent',
+              boxShadow: i === activeStep ? '0 0 20px rgba(232,152,31,0.3)' : 'none',
+              transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}>{step.icon}</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: i <= activeStep ? '#1a1816' : '#9e9a95', fontFamily: 'var(--font-body)' }}>{step.label}</div>
+              <div style={{ fontSize: 10, color: i <= activeStep ? '#6b6560' : '#c5c0ba', fontFamily: 'var(--font-body)', marginTop: 2, whiteSpace: 'nowrap' }}>{step.sublabel}</div>
+            </div>
+          </div>
+          {i < steps.length - 1 && (
+            <div style={{
+              width: 32, height: 2, margin: '0 4px', marginBottom: 28, borderRadius: 1,
+              background: i < activeStep ? '#E8981F' : 'rgba(58,54,50,0.12)',
+              transition: 'background 0.5s ease',
+            }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// --- Animated Stat ---
+function AnimatedStat({ end, suffix = '', label }: { end: number; suffix?: string; label: string }) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const hasAnimated = useRef(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && !hasAnimated.current) {
+        hasAnimated.current = true;
+        const duration = 1500;
+        const startTime = Date.now();
+        const animate = () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          setCount(Math.floor(eased * end));
+          if (progress < 1) requestAnimationFrame(animate);
+        };
+        animate();
+      }
+    }, { threshold: 0.5 });
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [end]);
+
+  return (
+    <div ref={ref} style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: 32, fontWeight: 800, color: '#E8981F', fontFamily: 'var(--font-heading)', lineHeight: 1 }}>{count}{suffix}</div>
+      <div style={{ fontSize: 12, color: '#6b6560', marginTop: 6, fontFamily: 'var(--font-body)', letterSpacing: '0.03em', textTransform: 'uppercase', fontWeight: 500 }}>{label}</div>
+    </div>
+  );
+}
+
+// --- SVG Icons ---
+const ArrowRight = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+  </svg>
+);
+const PeopleIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+const ShieldIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+  </svg>
+);
+const MilestoneIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+);
+const ZapIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+);
+const LinkIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </svg>
+);
+
+// --- Main Landing Page ---
+export default function LandingPage() {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const navSolid = scrollY > 40;
+
+  const handleStartProject = () => {
+    if (isAuthenticated) {
+      navigate('/studio');
+    } else {
+      navigate('/auth', { state: { from: '/studio' } });
+    }
+  };
+
+  const howItWorksSteps = [
+    { num: '01', title: 'Create your project', desc: 'Name it, set milestones, define the payment. Work-for-hire, hybrid, or equity split \u2014 you choose.', icon: <MilestoneIcon /> },
+    { num: '02', title: 'Share the link', desc: "Send your collaborator a link. They see the full deal \u2014 terms, milestones, money \u2014 before signing up.", icon: <LinkIcon /> },
+    { num: '03', title: 'Fund & build', desc: "Writer funds each milestone. Artist sees the money locked before starting. Upload pages, review, approve.", icon: <ShieldIcon /> },
+    { num: '04', title: 'Instant release', desc: "Approve the work, funds hit the artist's wallet immediately. No invoicing. No waiting. No chasing.", icon: <ZapIcon /> },
+  ];
+
+  const features = [
+    { title: 'Non-custodial', desc: 'We never hold your money. Funds sit in an immutable smart contract until milestone conditions are met.' },
+    { title: "3% fee. That's it.", desc: 'One simple fee on milestone releases. No hidden charges. No subscription. Free to browse and connect.' },
+    { title: '72-hour auto-approve', desc: 'If a writer goes silent after delivery, funds release automatically. Artists are protected from ghosting.' },
+    { title: 'Shareable deal links', desc: 'Set up a project, send a link. Your collaborator sees the full terms before they even create an account.' },
+    { title: 'Completion scores', desc: 'Every finished milestone builds your reputation. Collaborators can see your track record before committing.' },
+    { title: 'Pay with anything', desc: 'Card, Apple Pay, Google Pay \u2014 Coinbase converts it to USDC behind the scenes. No crypto knowledge needed.' },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#FAFAF8', fontFamily: 'var(--font-body)', color: '#1a1816', overflowX: 'hidden' }}>
+      {/* Navbar */}
+      <nav style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, padding: '0 24px', height: 64,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: navSolid ? 'rgba(250,250,248,0.92)' : 'transparent',
+        backdropFilter: navSolid ? 'blur(20px)' : 'none',
+        borderBottom: navSolid ? '1px solid rgba(58,54,50,0.06)' : '1px solid transparent',
+        transition: 'all 0.3s ease',
+      }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          <img src="/rb-logo.png" alt="rB" style={{ height: 28 }} />
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 20, fontWeight: 500, color: '#1a1816', letterSpacing: '-0.01em' }}>renaissBlock</span>
+        </Link>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }} className="nav-links-desktop">
+          <a href="#how" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>How It Works</a>
+          <Link to="/collaborators" style={{ fontSize: 14, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Find Creators</Link>
+          {isAuthenticated ? (
+            <Link to="/store" style={{ fontSize: 14, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Store</Link>
+          ) : (
+            <Link to="/auth" style={{ fontSize: 14, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Log In</Link>
+          )}
+        </div>
+
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="mobile-menu-btn"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, display: 'none', flexDirection: 'column', gap: 5 }}
+        >
+          <div style={{ width: 22, height: 2, background: '#1a1816', borderRadius: 1, transition: 'all 0.3s', transform: mobileMenuOpen ? 'rotate(45deg) translateY(7px)' : 'none' }} />
+          <div style={{ width: 22, height: 2, background: '#1a1816', borderRadius: 1, transition: 'all 0.3s', opacity: mobileMenuOpen ? 0 : 1 }} />
+          <div style={{ width: 22, height: 2, background: '#1a1816', borderRadius: 1, transition: 'all 0.3s', transform: mobileMenuOpen ? 'rotate(-45deg) translateY(-7px)' : 'none' }} />
+        </button>
+      </nav>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div style={{
+          position: 'fixed', top: 64, left: 0, right: 0, zIndex: 99, padding: 24,
+          background: 'rgba(250,250,248,0.98)', backdropFilter: 'blur(20px)',
+          display: 'flex', flexDirection: 'column', gap: 20,
+          borderBottom: '1px solid rgba(58,54,50,0.08)',
+        }}>
+          <a href="#how" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>How It Works</a>
+          <Link to="/collaborators" style={{ fontSize: 16, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Find Creators</Link>
+          <Link to="/auth" style={{ fontSize: 16, fontWeight: 700, color: '#E8981F', textDecoration: 'none' }}>Log In</Link>
+        </div>
+      )}
+
+      {/* Hero */}
+      <section style={{ paddingTop: 120, paddingBottom: 60, paddingLeft: 24, paddingRight: 24, maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ marginBottom: 16 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>
+            Smart Contract Escrow for Comics
+          </span>
+        </div>
+
+        <h1 style={{
+          fontFamily: 'var(--font-heading)', fontSize: 44, fontWeight: 400, lineHeight: 1.12,
+          letterSpacing: '-0.025em', color: '#1a1816', marginBottom: 20,
+        }}>
+          Stories need art.<br />Art needs stories.<br />
+          <span style={{ fontSize: '0.75em', color: '#6b6560', display: 'block', marginTop: 8 }}>
+            Collaborate with confidence.{' '}
+            <span style={{ color: '#E8981F', fontStyle: 'italic' }}>Protected on renaissBlock.</span>
+          </span>
+        </h1>
+
+        <p style={{ fontSize: 16, lineHeight: 1.6, color: '#9e9a95', maxWidth: 440, margin: '0 auto 36px' }}>
+          Milestone-based smart contract escrow for indie comics. Artists get paid. Writers get their pages. Every time.
+        </p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button onClick={handleStartProject} className="cta-primary" style={{
+            background: '#E8981F', color: '#fff', border: 'none', padding: '16px 28px', borderRadius: 12,
+            fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 2px 8px rgba(232,152,31,0.25)', fontFamily: 'var(--font-body)',
+          }}>
+            Start a Project <ArrowRight />
+          </button>
+          <button onClick={() => navigate('/collaborators')} style={{
+            background: 'transparent', color: '#1a1816', border: '2px solid rgba(58,54,50,0.15)', padding: '14px 28px',
+            borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10,
+            fontFamily: 'var(--font-body)',
+          }}>
+            <PeopleIcon /> Find Creators
+          </button>
+        </div>
+
+        <div style={{ marginTop: 48 }}>
+          <EscrowFlowDiagram />
+        </div>
+      </section>
+
+      {/* Trust Bar */}
+      <section style={{ padding: '40px 24px', borderTop: '1px solid rgba(58,54,50,0.06)', borderBottom: '1px solid rgba(58,54,50,0.06)', background: '#fff' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', justifyContent: 'space-around', gap: 32 }}>
+          <AnimatedStat end={0} suffix="%" label="Funds at risk" />
+          <AnimatedStat end={3} suffix="%" label="Escrow fee" />
+          <AnimatedStat end={72} suffix="hr" label="Auto-approval" />
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section id="how" style={{ padding: '80px 24px', maxWidth: 720, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>How It Works</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 36, fontWeight: 400, marginTop: 12, letterSpacing: '-0.02em', color: '#1a1816' }}>
+            Four steps to a safe deal
+          </h2>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {howItWorksSteps.map((step, i) => (
+            <div key={i} style={{
+              background: '#fff', border: '1px solid rgba(58,54,50,0.06)', borderRadius: 16,
+              padding: '28px 24px', display: 'flex', gap: 20, alignItems: 'flex-start',
+            }}>
+              <div style={{
+                minWidth: 44, height: 44, borderRadius: 12, background: 'rgba(232,152,31,0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E8981F',
+              }}>{step.icon}</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#c5c0ba', letterSpacing: '0.05em' }}>{step.num}</span>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1816' }}>{step.title}</h3>
+                </div>
+                <p style={{ fontSize: 14, lineHeight: 1.6, color: '#6b6560' }}>{step.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* The Problem */}
+      <section style={{ padding: '64px 24px', background: '#1a1816', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -120, right: -120, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(232,152,31,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center', position: 'relative' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F', opacity: 0.8 }}>The Problem</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 32, fontWeight: 400, color: '#FAFAF8', marginTop: 12, marginBottom: 24, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+            Every indie comic collaboration<br />runs on a <span style={{ color: '#E8981F', fontStyle: 'italic' }}>handshake</span>
+          </h2>
+          <p style={{ fontSize: 15, lineHeight: 1.7, color: 'rgba(250,250,248,0.55)', maxWidth: 500, margin: '0 auto' }}>
+            Writers ghost after getting pages. Artists disappear mid-project.
+            Revenue share promises evaporate when real money shows up.
+            The work was good &mdash; the business side broke it.
+          </p>
+          <div style={{ marginTop: 40, padding: 24, background: 'rgba(232,152,31,0.06)', borderRadius: 16, border: '1px solid rgba(232,152,31,0.12)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+              <ShieldIcon />
+              <span style={{ color: '#E8981F', fontWeight: 700, fontSize: 14 }}>renaissBlock eliminates this</span>
+            </div>
+            <p style={{ fontSize: 14, lineHeight: 1.65, color: 'rgba(250,250,248,0.65)' }}>
+              Funds are locked in a smart contract &mdash; not held by us, not held by either party.
+              They only move when milestones are approved. No admin keys. No overrides.
+              The code is the contract.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section style={{ padding: '80px 24px', maxWidth: 720, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>Built for Comics</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 36, fontWeight: 400, marginTop: 12, letterSpacing: '-0.02em', color: '#1a1816' }}>
+            Every detail matters
+          </h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {features.map((feat, i) => (
+            <div key={i} style={{
+              background: '#fff', border: '1px solid rgba(58,54,50,0.06)', borderRadius: 16, padding: '28px 24px',
+              transition: 'all 0.3s ease', cursor: 'default',
+            }}
+            onMouseEnter={() => setHoveredCard(i)} onMouseLeave={() => setHoveredCard(null)}
+            >
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', background: '#E8981F', marginBottom: 14,
+                transition: 'transform 0.3s ease', transform: hoveredCard === i ? 'scale(1.5)' : 'scale(1)',
+              }} />
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1816', marginBottom: 8 }}>{feat.title}</h3>
+              <p style={{ fontSize: 13, lineHeight: 1.6, color: '#6b6560' }}>{feat.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Creator Directory Preview */}
+      <section id="creators" style={{ padding: '64px 24px', background: '#fff', borderTop: '1px solid rgba(58,54,50,0.06)' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>Creator Directory</span>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 36, fontWeight: 400, marginTop: 12, letterSpacing: '-0.02em', color: '#1a1816' }}>
+              Find your next collaborator
+            </h2>
+            <p style={{ fontSize: 15, color: '#6b6560', marginTop: 8, lineHeight: 1.6 }}>
+              Browse artists, writers, colorists, and letterers. See their work, their rates, and their track record.
+            </p>
+          </div>
+
+          {/* Real screenshot of collaborator page */}
+          <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(58,54,50,0.08)', boxShadow: '0 4px 24px rgba(58,54,50,0.06)' }}>
+            <img src="/marketplace-preview.png" alt="Creator marketplace" style={{ width: '100%', display: 'block' }} />
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: 28 }}>
+            <button onClick={() => navigate('/collaborators')} style={{
+              background: 'transparent', color: '#1a1816', border: '2px solid rgba(58,54,50,0.15)', padding: '14px 28px',
+              borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 10,
+              fontFamily: 'var(--font-body)',
+            }}>
+              <PeopleIcon /> Browse All Creators
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section style={{ padding: '80px 24px', textAlign: 'center', background: '#FAFAF8', borderTop: '1px solid rgba(58,54,50,0.06)' }}>
+        <div style={{ maxWidth: 500, margin: '0 auto' }}>
+          <img src="/rb-logo.png" alt="rB" style={{ height: 36 }} />
+          <h2 style={{
+            fontFamily: 'var(--font-heading)', fontSize: 32, fontWeight: 400, marginTop: 20, marginBottom: 12,
+            letterSpacing: '-0.02em', color: '#1a1816', lineHeight: 1.15,
+          }}>
+            Your next deal,<br /><span style={{ color: '#E8981F', fontStyle: 'italic' }}>protected</span>
+          </h2>
+          <p style={{ fontSize: 15, color: '#6b6560', lineHeight: 1.6, marginBottom: 32 }}>
+            Set up your first escrow in under two minutes.<br />Free to start. 3% only when money moves.
+          </p>
+          <button onClick={handleStartProject} style={{
+            background: '#E8981F', color: '#fff', border: 'none', padding: '16px 28px', borderRadius: 12,
+            fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 2px 8px rgba(232,152,31,0.25)', fontFamily: 'var(--font-body)',
+          }}>
+            Start a Project <ArrowRight />
+          </button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer style={{ padding: '32px 24px', borderTop: '1px solid rgba(58,54,50,0.06)', background: '#fff' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <img src="/rb-logo.png" alt="rB" style={{ height: 20 }} />
+            <span style={{ fontSize: 13, color: '#9e9a95' }}>renaissBlock, LLC &copy; 2026</span>
+          </div>
+          <div style={{ display: 'flex', gap: 24 }}>
+            <Link to="/terms" style={{ fontSize: 12, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Terms</Link>
+            <Link to="/legal/privacy" style={{ fontSize: 12, fontWeight: 600, color: '#6b6560', textDecoration: 'none' }}>Privacy</Link>
+          </div>
+        </div>
+      </footer>
+
+      {/* Responsive styles */}
+      <style>{`
+        @media (max-width: 640px) {
+          .nav-links-desktop { display: none !important; }
+          .mobile-menu-btn { display: flex !important; }
+        }
+        @media (min-width: 641px) {
+          .mobile-menu-btn { display: none !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
