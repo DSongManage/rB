@@ -31,60 +31,62 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
       style={{
         background: 'var(--panel)',
         border: '1px solid var(--panel-border)',
-        borderRadius: 12,
+        borderRadius: 14,
         overflow: 'hidden',
         cursor: 'pointer',
         transition: 'all 0.2s ease',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = '#8b5cf6';
-        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.borderColor = '#E8981F';
+        e.currentTarget.style.transform = 'translateY(-3px)';
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.06)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = 'var(--panel-border)';
         e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
       }}
     >
       {/* Cover image with status badge */}
       <div style={{ position: 'relative' }}>
         {campaign.cover_image ? (
           <div style={{
-            height: 140,
+            height: 160,
             background: `url(${campaign.cover_image}) center/cover`,
           }} />
         ) : (
           <div style={{
-            height: 140,
+            height: 160,
             background: 'linear-gradient(135deg, #1e1b4b, #312e81)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 32,
+            fontSize: 36,
             color: '#4f46e5',
           }}>
-            {campaign.campaign_type === 'solo' ? '📖' : '👥'}
+            {campaign.campaign_type === 'solo' ? '\u{1F4D6}' : '\u{1F465}'}
           </div>
         )}
         {campaign.status !== 'active' && (
-          <div style={{ position: 'absolute', top: 8, right: 8 }}>
+          <div style={{ position: 'absolute', top: 10, right: 10 }}>
             <CampaignStatusBadge status={campaign.status} />
           </div>
         )}
       </div>
 
-      <div style={{ padding: 16 }}>
-        {/* Type badge */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+      <div style={{ padding: 20 }}>
+        {/* Type badges */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           <span style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 4,
-            background: campaign.campaign_type === 'solo' ? '#1e3a5f' : '#1e3b2f',
-            color: campaign.campaign_type === 'solo' ? '#60a5fa' : '#4ade80',
+            fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+            background: campaign.campaign_type === 'solo' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)',
+            color: campaign.campaign_type === 'solo' ? '#2563eb' : '#059669',
           }}>
             {campaign.campaign_type === 'solo' ? 'Solo' : 'Collaborative'}
           </span>
           <span style={{
-            fontSize: 10, padding: '2px 8px', borderRadius: 4,
-            background: 'var(--bg-secondary)', color: 'var(--text-muted)',
+            fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+            background: 'var(--chip-bg)', color: 'var(--text-muted)',
           }}>
             {campaign.content_type}
           </span>
@@ -92,15 +94,15 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
         {/* Title */}
         <h3 style={{
-          fontSize: 15, fontWeight: 600, color: 'var(--text)',
-          margin: '0 0 4px', lineHeight: 1.3,
+          fontSize: 18, fontWeight: 700, color: 'var(--text)',
+          margin: '0 0 6px', lineHeight: 1.3,
           overflow: 'hidden', textOverflow: 'ellipsis',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
         }}>
           {campaign.title}
         </h3>
 
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+        <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 14 }}>
           by {campaign.creator_display_name || campaign.creator_username}
         </div>
 
@@ -115,13 +117,13 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
         {/* Footer */}
         <div style={{
           display: 'flex', justifyContent: 'space-between',
-          marginTop: 10, fontSize: 11, color: 'var(--text-muted)',
+          marginTop: 12, fontSize: 13, color: 'var(--text-muted)',
         }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Users size={12} /> {campaign.backer_count}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Users size={14} /> {campaign.backer_count}
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Clock size={12} /> {formatDeadline(campaign.deadline)}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Clock size={14} /> {formatDeadline(campaign.deadline)}
           </span>
         </div>
       </div>

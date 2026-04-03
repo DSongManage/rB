@@ -15,7 +15,7 @@ export function CampaignProgressBar({ currentAmount, fundingGoal, backerCount, c
       {/* Progress bar */}
       <div style={{
         width: '100%',
-        height: compact ? 6 : 10,
+        height: compact ? 8 : 10,
         background: 'var(--bg-secondary)',
         borderRadius: 5,
         overflow: 'hidden',
@@ -35,8 +35,8 @@ export function CampaignProgressBar({ currentAmount, fundingGoal, backerCount, c
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
-        marginTop: compact ? 4 : 8,
-        fontSize: compact ? 11 : 13,
+        marginTop: compact ? 6 : 8,
+        fontSize: compact ? 13 : 15,
         color: 'var(--text-muted)',
       }}>
         <span>

@@ -36,10 +36,10 @@ export default function CampaignsDiscoverPage() {
   return (
     <div className="page" style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 36, fontWeight: 400, color: 'var(--text)', marginBottom: 10, letterSpacing: '-0.02em' }}>
           Discover Campaigns
         </h1>
-        <p style={{ fontSize: 15, color: 'var(--text-muted)' }}>
+        <p style={{ fontSize: 17, color: 'var(--text-muted)' }}>
           Back creative projects. Funds are protected by escrow until work is delivered.
         </p>
       </div>
@@ -61,7 +61,7 @@ export default function CampaignsDiscoverPage() {
             placeholder="Search campaigns..."
             style={{
               background: 'transparent', border: 'none', outline: 'none',
-              color: 'var(--text)', fontSize: 14, width: '100%',
+              color: 'var(--text)', fontSize: 15, width: '100%',
             }}
           />
         </div>
