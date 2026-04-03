@@ -1344,6 +1344,11 @@ class PublicProfileSerializer(serializers.Serializer):
             'follower_count': profile.follower_count if profile else 0,
             'successful_collabs': obj.get('successful_collabs_count', 0),
             'average_rating': avg_rating,
+            # Collaboration reputation stats
+            'projects_completed': profile.projects_completed if profile else 0,
+            'milestones_completed': profile.milestones_completed if profile else 0,
+            'on_time_delivery_rate': float(profile.on_time_delivery_rate) if profile and profile.on_time_delivery_rate is not None else None,
+            'avg_response_time_hours': float(profile.avg_response_time_hours) if profile and profile.avg_response_time_hours is not None else None,
         }
 
 

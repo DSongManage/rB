@@ -372,6 +372,18 @@ class UserProfile(models.Model):
     average_review_rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True, db_index=True)
     review_count = models.PositiveIntegerField(default=0)
 
+    # Collaboration reputation stats (updated on task sign-off)
+    projects_completed = models.PositiveIntegerField(default=0, help_text="Collaborative projects fully completed")
+    milestones_completed = models.PositiveIntegerField(default=0, help_text="Total signed-off contract tasks across all projects")
+    on_time_delivery_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="% of milestones delivered before deadline (0-100)"
+    )
+    avg_response_time_hours = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        help_text="Average hours between task assignment and completion"
+    )
+
     # Follower/following counts (denormalized for performance)
     follower_count = models.PositiveIntegerField(default=0, db_index=True)
     following_count = models.PositiveIntegerField(default=0)
@@ -464,6 +476,65 @@ class UserProfile(models.Model):
         self.average_review_rating = aggregates['avg']
         self.review_count = aggregates['count']
         self.save(update_fields=['average_review_rating', 'review_count'])
+
+    def update_collaboration_stats(self):
+        """Recalculate collaboration reputation stats from all completed work.
+
+        Called automatically when a ContractTask is signed off.
+        Aggregates data from all CollaboratorRoles for this user.
+        """
+        from django.db.models import F, Avg, ExpressionWrapper, DurationField
+        from .models import CollaboratorRole, ContractTask
+
+        roles = CollaboratorRole.objects.filter(user=self.user, status='accepted')
+
+        # Count completed projects (all tasks signed off)
+        completed_projects = roles.filter(contract_complete_at__isnull=False).count()
+
+        # Count total milestones signed off
+        milestones_completed = ContractTask.objects.filter(
+            collaborator_role__user=self.user,
+            status='signed_off',
+        ).count()
+
+        # On-time delivery rate
+        if milestones_completed > 0:
+            on_time = ContractTask.objects.filter(
+                collaborator_role__user=self.user,
+                status='signed_off',
+                deadline__isnull=False,
+                signed_off_at__lte=F('deadline'),
+            ).count()
+            on_time_rate = round((on_time / milestones_completed) * 100, 2)
+        else:
+            on_time_rate = None
+
+        # Average response time (assignment to completion)
+        completed_tasks = ContractTask.objects.filter(
+            collaborator_role__user=self.user,
+            status='signed_off',
+            created_at__isnull=False,
+            marked_complete_at__isnull=False,
+        )
+        if completed_tasks.exists():
+            total_hours = 0
+            count = 0
+            for task in completed_tasks:
+                delta = task.marked_complete_at - task.created_at
+                total_hours += delta.total_seconds() / 3600
+                count += 1
+            avg_hours = round(total_hours / count, 2) if count > 0 else None
+        else:
+            avg_hours = None
+
+        self.projects_completed = completed_projects
+        self.milestones_completed = milestones_completed
+        self.on_time_delivery_rate = on_time_rate
+        self.avg_response_time_hours = avg_hours
+        self.save(update_fields=[
+            'projects_completed', 'milestones_completed',
+            'on_time_delivery_rate', 'avg_response_time_hours',
+        ])
 
 
 class ExternalPortfolioItem(models.Model):
@@ -2856,6 +2927,14 @@ class ContractTask(models.Model):
 
         # Update denormalized counters on CollaboratorRole
         self.collaborator_role.update_task_counts()
+
+        # Update collaboration reputation stats on the collaborator's profile
+        try:
+            collaborator = self.collaborator_role.user
+            if hasattr(collaborator, 'profile'):
+                collaborator.profile.update_collaboration_stats()
+        except Exception:
+            pass  # Don't break sign-off if stats update fails
 
     def reject_completion(self, owner, reason):
         """Owner rejects the completion and sends back for revision.

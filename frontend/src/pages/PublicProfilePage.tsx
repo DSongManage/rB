@@ -101,6 +101,10 @@ interface PublicProfile {
     follower_count: number;
     successful_collabs: number;
     average_rating: number | null;
+    projects_completed: number;
+    milestones_completed: number;
+    on_time_delivery_rate: number | null;
+    avg_response_time_hours: number | null;
   };
 }
 
@@ -495,6 +499,49 @@ export default function PublicProfilePage() {
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Rating</div>
                 </div>
               </div>
+
+              {/* Collaboration Reputation */}
+              {(stats.projects_completed > 0 || stats.milestones_completed > 0) && (
+                <div style={{
+                  background: 'rgba(16, 185, 129, 0.06)',
+                  border: '1px solid rgba(16, 185, 129, 0.15)',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginTop: 12,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                    Collaboration Track Record
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{stats.projects_completed}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Projects Completed</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{stats.milestones_completed}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Milestones Delivered</div>
+                    </div>
+                    {stats.on_time_delivery_rate !== null && (
+                      <div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: stats.on_time_delivery_rate >= 80 ? '#10b981' : stats.on_time_delivery_rate >= 50 ? '#f59e0b' : '#ef4444' }}>
+                          {stats.on_time_delivery_rate.toFixed(0)}%
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>On-Time Rate</div>
+                      </div>
+                    )}
+                    {stats.avg_response_time_hours !== null && (
+                      <div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
+                          {stats.avg_response_time_hours < 24
+                            ? `${stats.avg_response_time_hours.toFixed(0)}h`
+                            : `${(stats.avg_response_time_hours / 24).toFixed(1)}d`}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Avg Response</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons - Only show if not viewing own profile */}
               {currentUser?.username !== p.username && (

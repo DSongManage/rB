@@ -1986,6 +1986,10 @@ class UserSearchView(APIView):
                 'follower_count': p.follower_count or 0,
                 'total_views': total_views,
                 'average_rating': float(p.average_review_rating) if p.average_review_rating else None,
+                # Collaboration reputation
+                'projects_completed': p.projects_completed or 0,
+                'milestones_completed': p.milestones_completed or 0,
+                'on_time_delivery_rate': float(p.on_time_delivery_rate) if p.on_time_delivery_rate is not None else None,
             })
 
         response_data = {

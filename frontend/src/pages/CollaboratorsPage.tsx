@@ -626,6 +626,16 @@ export default function CollaboratorsPage() {
                       Rating
                     </div>
                   </div>
+                  {(p.projects_completed > 0 || p.milestones_completed > 0) && (
+                  <div style={{textAlign: 'center'}}>
+                    <div style={{fontSize:18, fontWeight:700, color: '#10b981', marginBottom: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4}}>
+                      {p.projects_completed || 0}
+                    </div>
+                    <div style={{fontSize:9, color:'var(--subtle)', textTransform:'uppercase', letterSpacing:0.5, fontWeight: 600}}>
+                      Completed
+                    </div>
+                  </div>
+                  )}
                 </div>
 
                 {/* Tier + Fee Rate Badge */}
