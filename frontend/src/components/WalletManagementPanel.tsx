@@ -373,7 +373,7 @@ export function WalletManagementPanel({
           padding: 12,
           background: 'var(--bg-input)',
           borderRadius: 8,
-          border: '1px solid #1f2937',
+          border: '1px solid var(--bg-secondary)',
         }}>
           <div style={{ marginBottom: 6, fontWeight: 600, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Info size={14} /> Web3Auth (Recommended)
@@ -455,7 +455,7 @@ export function WalletManagementPanel({
               background: 'var(--bg-input)',
               padding: '6px 12px',
               borderRadius: 6,
-              border: '1px solid #1f2937',
+              border: '1px solid var(--bg-secondary)',
             }}>
               {shortenAddress(walletAddress)}
             </div>
@@ -463,8 +463,8 @@ export function WalletManagementPanel({
             <button
               onClick={copyAddress}
               style={{
-                background: '#1f2937',
-                border: '1px solid #374151',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 color: 'var(--text-dim)',
                 padding: '6px 12px',
                 borderRadius: 6,
@@ -474,10 +474,10 @@ export function WalletManagementPanel({
                 transition: 'all 0.2s',
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = '#374151';
+                e.currentTarget.style.background = 'var(--border)';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = '#1f2937';
+                e.currentTarget.style.background = 'var(--bg-secondary)';
               }}
             >
               <Copy size={14} style={{ marginRight: 4 }} /> Copy
@@ -488,8 +488,8 @@ export function WalletManagementPanel({
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                background: '#1f2937',
-                border: '1px solid #374151',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 color: 'var(--text-dim)',
                 padding: '6px 12px',
                 borderRadius: 6,
@@ -500,10 +500,10 @@ export function WalletManagementPanel({
                 transition: 'all 0.2s',
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = '#374151';
+                e.currentTarget.style.background = 'var(--border)';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = '#1f2937';
+                e.currentTarget.style.background = 'var(--bg-secondary)';
               }}
             >
               <ExternalLink size={14} style={{ marginRight: 4 }} /> Explorer
@@ -513,21 +513,21 @@ export function WalletManagementPanel({
               <button
                 onClick={() => setShowManageMenu(!showManageMenu)}
                 style={{
-                  background: '#1f2937',
-                  border: '1px solid #374151',
-                  color: 'var(--text-dim)',
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  fontSize: 12,
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  padding: '8px 14px',
+                  borderRadius: 8,
+                  fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                 }}
                 onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#374151';
+                  e.currentTarget.style.background = 'var(--chip-bg)';
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.background = '#1f2937';
+                  e.currentTarget.style.background = 'var(--bg-secondary)';
                 }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
