@@ -310,17 +310,56 @@ export default function UnifiedWorkspaceEditor({
     );
   }
 
+  const handleCreateFirstIssue = async () => {
+    setError('');
+    try {
+      const issue = await collaborationApi.createComicIssue({
+        project: project.id,
+        title: 'Issue #1',
+        issue_number: 1,
+      });
+      // Auto-create first page
+      const page = await collaborationApi.createComicPage({
+        issue: issue.id,
+        script_data: createEmptyScriptData(),
+      });
+      setIssues([issue]);
+      setSelectedIssueId(issue.id);
+      setPages([page]);
+      setSelectedPageId(page.id);
+      setScriptData(createEmptyScriptData());
+    } catch (err: any) {
+      setError(err.message || 'Failed to create issue');
+    }
+  };
+
   if (issues.length === 0) {
     return (
       <div style={{
         background: 'var(--panel)', border: '1px solid var(--panel-border)',
-        borderRadius: 12, padding: 40, textAlign: 'center',
+        borderRadius: 12, padding: 48, textAlign: 'center', maxWidth: 480, margin: '40px auto',
       }}>
-        <BookOpen size={48} style={{ color: '#64748b', marginBottom: 16 }} />
-        <h3 style={{ margin: '0 0 8px', color: 'var(--text)', fontSize: 18 }}>No Issues Found</h3>
-        <p style={{ margin: 0, color: '#64748b', fontSize: 14 }}>
-          Create an issue to start your workspace.
+        <BookOpen size={48} style={{ color: '#E8981F', marginBottom: 16 }} />
+        <h3 style={{ fontFamily: 'var(--font-heading)', margin: '0 0 8px', color: 'var(--text)', fontSize: 22, fontWeight: 400 }}>
+          Start your first issue
+        </h3>
+        <p style={{ margin: '0 0 24px', color: '#6b6560', fontSize: 14, lineHeight: 1.6 }}>
+          Issues organize your comic into chapters or volumes. We'll create Issue #1 with a blank first page to get you started.
         </p>
+        {error && (
+          <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>{error}</div>
+        )}
+        <button
+          onClick={handleCreateFirstIssue}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '14px 28px', background: '#E8981F', color: '#fff', border: 'none',
+            borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(232,152,31,0.25)', fontFamily: 'var(--font-body)',
+          }}
+        >
+          <Plus size={18} /> Create Issue #1
+        </button>
       </div>
     );
   }
