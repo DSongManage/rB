@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { API_URL } from '../config';
 import InviteModal from '../components/InviteModal';
+import { useAuth } from '../hooks/useAuth';
 import { MapPin, Briefcase, Award, Star, Eye, Users, BookOpen, ChevronLeft, ChevronRight, Zap, TrendingUp, Crown } from 'lucide-react';
 import { useMobile } from '../hooks/useMobile';
 
@@ -39,6 +40,7 @@ interface FeaturedCreator {
 
 export default function CollaboratorsPage() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const { isMobile, isPhone } = useMobile();
   const [q, setQ] = useState('');
   const [role, setRole] = useState('');
@@ -51,6 +53,7 @@ export default function CollaboratorsPage() {
   const [featuredCreators, setFeaturedCreators] = useState<FeaturedCreator[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [showAuthGate, setShowAuthGate] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<any>(null);
 
   // Pagination state
@@ -632,6 +635,11 @@ export default function CollaboratorsPage() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (!isAuthenticated) {
+                      setSelectedRecipient(p);
+                      setShowAuthGate(true);
+                      return;
+                    }
                     setSelectedRecipient(p);
                     setInviteModalOpen(true);
                   }}
@@ -755,6 +763,72 @@ export default function CollaboratorsPage() {
           }}
           recipient={selectedRecipient}
         />
+      )}
+
+      {/* Auth Gate — shown when logged-out user clicks Invite */}
+      {showAuthGate && (
+        <div
+          onClick={() => setShowAuthGate(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#fff', borderRadius: 20, padding: '40px 36px',
+              maxWidth: 400, width: '90%', textAlign: 'center',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.12)',
+            }}
+          >
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%', background: 'rgba(232,152,31,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px', color: '#E8981F',
+            }}>
+              <Users size={28} />
+            </div>
+            <h3 style={{
+              fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 400,
+              color: '#1a1816', margin: '0 0 8px', letterSpacing: '-0.02em',
+            }}>
+              Join to collaborate
+            </h3>
+            <p style={{ fontSize: 14, color: '#6b6560', lineHeight: 1.6, margin: '0 0 28px' }}>
+              Create a free account to invite{' '}
+              <strong>{selectedRecipient?.display_name || selectedRecipient?.username || 'this creator'}</strong>{' '}
+              to your project.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Link
+                to="/auth"
+                state={{ from: '/collaborators' }}
+                style={{
+                  display: 'block', padding: '14px 24px', background: '#E8981F',
+                  color: '#fff', borderRadius: 12, fontSize: 15, fontWeight: 700,
+                  textDecoration: 'none', textAlign: 'center',
+                  boxShadow: '0 2px 8px rgba(232,152,31,0.25)',
+                }}
+              >
+                Sign up — it's free
+              </Link>
+              <Link
+                to="/auth"
+                state={{ from: '/collaborators' }}
+                style={{
+                  display: 'block', padding: '12px 24px', background: 'transparent',
+                  color: '#6b6560', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                  textDecoration: 'none', textAlign: 'center',
+                  border: '1px solid rgba(58,54,50,0.12)',
+                }}
+              >
+                Already have an account? Sign in
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
