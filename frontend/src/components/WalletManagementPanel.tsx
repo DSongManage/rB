@@ -463,21 +463,21 @@ export function WalletManagementPanel({
             <button
               onClick={copyAddress}
               style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-dim)',
-                padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 12,
+                background: '#1e293b',
+                border: '1px solid #334155',
+                color: '#e2e8f0',
+                padding: '8px 14px',
+                borderRadius: 8,
+                fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = 'var(--border)';
+                e.currentTarget.style.background = '#334155';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = 'var(--bg-secondary)';
+                e.currentTarget.style.background = '#1e293b';
               }}
             >
               <Copy size={14} style={{ marginRight: 4 }} /> Copy
@@ -488,22 +488,22 @@ export function WalletManagementPanel({
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-dim)',
-                padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 12,
+                background: '#1e293b',
+                border: '1px solid #334155',
+                color: '#e2e8f0',
+                padding: '8px 14px',
+                borderRadius: 8,
+                fontSize: 13,
                 fontWeight: 600,
                 textDecoration: 'none',
                 display: 'inline-block',
                 transition: 'all 0.2s',
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = 'var(--border)';
+                e.currentTarget.style.background = '#334155';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = 'var(--bg-secondary)';
+                e.currentTarget.style.background = '#1e293b';
               }}
             >
               <ExternalLink size={14} style={{ marginRight: 4 }} /> Explorer
@@ -513,9 +513,9 @@ export function WalletManagementPanel({
               <button
                 onClick={() => setShowManageMenu(!showManageMenu)}
                 style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  color: '#e2e8f0',
                   padding: '8px 14px',
                   borderRadius: 8,
                   fontSize: 13,
@@ -524,10 +524,10 @@ export function WalletManagementPanel({
                   transition: 'all 0.2s',
                 }}
                 onMouseOver={(e) => {
-                  e.currentTarget.style.background = 'var(--chip-bg)';
+                  e.currentTarget.style.background = '#334155';
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-secondary)';
+                  e.currentTarget.style.background = '#1e293b';
                 }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
