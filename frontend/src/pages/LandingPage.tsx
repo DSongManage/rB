@@ -267,11 +267,11 @@ export default function LandingPage() {
         </div>
 
         <h1 style={{
-          fontFamily: 'var(--font-heading)', fontSize: 56, fontWeight: 400, lineHeight: 1.1,
-          letterSpacing: '-0.025em', color: '#1a1816', marginBottom: 24,
+          fontFamily: 'var(--font-heading)', fontSize: 72, fontWeight: 400, lineHeight: 1.05,
+          letterSpacing: '-0.03em', color: '#1a1816', marginBottom: 28,
         }}>
           Stories need art.<br />Art needs stories.<br />
-          <span style={{ fontSize: '0.72em', color: '#6b6560', display: 'block', marginTop: 12 }}>
+          <span style={{ fontSize: '0.55em', color: '#6b6560', display: 'block', marginTop: 16 }}>
             Collaborate with confidence.{' '}
             <span style={{ color: '#E8981F', fontStyle: 'italic' }}>Protected on renaissBlock.</span>
           </span>
@@ -333,7 +333,7 @@ export default function LandingPage() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#c5c0ba', letterSpacing: '0.05em' }}>{step.num}</span>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1a1816' }}>{step.title}</h3>
+                  <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1a1816' }}>{step.title}</h3>
                 </div>
                 <p style={{ fontSize: 15, lineHeight: 1.6, color: '#6b6560' }}>{step.desc}</p>
               </div>
@@ -369,6 +369,107 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Campaigns Section */}
+      <section style={{ padding: '80px 24px', maxWidth: 960, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F' }}>Campaigns</span>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 42, fontWeight: 400, marginTop: 14, letterSpacing: '-0.02em', color: '#1a1816' }}>
+            From pitch to funded
+          </h2>
+          <p style={{ fontSize: 17, color: '#6b6560', marginTop: 10, lineHeight: 1.6, maxWidth: 600, margin: '10px auto 0' }}>
+            Create your pitch pages through escrow. Then launch a campaign to fund the full project. Backer money flows directly into production &mdash; never into anyone's personal wallet.
+          </p>
+        </div>
+
+        {/* Pipeline steps */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 32, maxWidth: 640, margin: '0 auto 40px' }}>
+          {[
+            { icon: '\u{270F}\u{FE0F}', title: 'Pitch', tag: 'ESCROW', tagColor: '#E8981F', desc: 'Writer hires artist through escrow to create 5 pitch pages. Safe, milestone-based.' },
+            { icon: '\u{1F680}', title: 'Campaign', tag: 'FUNDRAISE', tagColor: '#10b981', desc: 'Use those pitch pages to launch a campaign. Backers fund the full issue directly on renaissBlock.' },
+            { icon: '\u{1F4E6}', title: 'Production', tag: 'ESCROW', tagColor: '#E8981F', desc: 'Campaign funds flow into escrow milestones. Full issue gets produced page by page, payment by payment.' },
+          ].map((step, i) => (
+            <div key={i} style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: '50%', background: 'rgba(232,152,31,0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0,
+              }}>{step.icon}</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: '#1a1816' }}>{step.title}</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                    background: `${step.tagColor}15`, color: step.tagColor, letterSpacing: '0.05em',
+                  }}>{step.tag}</span>
+                </div>
+                <p style={{ fontSize: 15, lineHeight: 1.65, color: '#6b6560', margin: 0 }}>{step.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mock campaign card */}
+        <div style={{
+          background: '#fff', border: '1px solid rgba(58,54,50,0.08)', borderRadius: 16,
+          padding: 28, maxWidth: 640, margin: '0 auto',
+          boxShadow: '0 4px 24px rgba(58,54,50,0.04)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#10b981', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 4 }}>LIVE CAMPAIGN</div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 22, color: '#1a1816', letterSpacing: '-0.01em' }}>VOID RUNNER &mdash; Issue #1</div>
+              <div style={{ fontSize: 13, color: '#9e9a95', marginTop: 2 }}>by J. Chen & M. Torres</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#1a1816', fontFamily: 'var(--font-heading)' }}>$3,240</div>
+              <div style={{ fontSize: 12, color: '#9e9a95' }}>of $4,000 goal</div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: 8, background: 'rgba(58,54,50,0.06)', borderRadius: 4, marginBottom: 16, overflow: 'hidden' }}>
+            <div style={{ width: '81%', height: '100%', background: '#E8981F', borderRadius: 4 }} />
+          </div>
+
+          {/* Milestone pills */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Pitch Pages', status: 'done' },
+              { label: 'Inks (1-12)', status: 'done' },
+              { label: 'Inks (13-24)', status: 'active' },
+              { label: 'Colors', status: 'upcoming' },
+              { label: 'Letters', status: 'upcoming' },
+            ].map((m, i) => (
+              <div key={i} style={{
+                padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, textAlign: 'center',
+                background: m.status === 'done' ? 'rgba(16,185,129,0.08)' : m.status === 'active' ? 'rgba(232,152,31,0.1)' : 'rgba(58,54,50,0.04)',
+                color: m.status === 'done' ? '#059669' : m.status === 'active' ? '#E8981F' : '#9e9a95',
+                border: m.status === 'active' ? '1px solid rgba(232,152,31,0.2)' : '1px solid transparent',
+              }}>
+                {m.status === 'done' && '\u2713 '}{m.label}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 14, color: '#6b6560' }}>
+              <strong style={{ color: '#E8981F' }}>47</strong> backers &middot; <strong style={{ color: '#E8981F' }}>18</strong> days left
+            </div>
+            <button onClick={() => navigate('/campaigns')} style={{
+              padding: '10px 20px', background: 'transparent', border: '2px solid #E8981F',
+              borderRadius: 10, color: '#E8981F', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'var(--font-body)',
+            }}>
+              Browse Campaigns
+            </button>
+          </div>
+        </div>
+
+        <p style={{ textAlign: 'center', fontSize: 14, color: '#9e9a95', marginTop: 20, lineHeight: 1.6 }}>
+          Backer funds are held in smart contract escrow &mdash; released only as milestones are completed.<br />
+          Stronger protection than any crowdfunding platform.
+        </p>
+      </section>
+
       {/* Features Grid */}
       <section style={{ padding: '80px 24px', maxWidth: 960, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -389,8 +490,8 @@ export default function LandingPage() {
                 width: 8, height: 8, borderRadius: '50%', background: '#E8981F', marginBottom: 14,
                 transition: 'transform 0.3s ease', transform: hoveredCard === i ? 'scale(1.5)' : 'scale(1)',
               }} />
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1816', marginBottom: 8 }}>{feat.title}</h3>
-              <p style={{ fontSize: 14, lineHeight: 1.6, color: '#6b6560' }}>{feat.desc}</p>
+              <h3 style={{ fontSize: 19, fontWeight: 700, color: '#1a1816', marginBottom: 10 }}>{feat.title}</h3>
+              <p style={{ fontSize: 15, lineHeight: 1.65, color: '#6b6560' }}>{feat.desc}</p>
             </div>
           ))}
         </div>
