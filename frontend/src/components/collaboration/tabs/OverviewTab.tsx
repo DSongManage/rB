@@ -98,13 +98,13 @@ export default function OverviewTab({
   const mintBlockers = project.can_mint_status?.blockers ?? [];
 
   return (
-    <div style={{
+    <div className="overview-grid" style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(12, 1fr)',
       gap: 20,
     }}>
       {/* Cover Art */}
-      <div style={{
+      <div className="overview-cover-art" style={{
         gridColumn: project.content_type === 'art' && project.is_solo ? 'span 12' : 'span 6',
         background: 'var(--panel)',
         border: '1px solid var(--panel-border)',
@@ -328,7 +328,8 @@ export default function OverviewTab({
 
         <div style={{
           display: 'flex',
-          gap: 24,
+          flexWrap: 'wrap',
+          gap: '16px 24px',
           marginTop: 20,
           paddingTop: 16,
           borderTop: '1px solid var(--panel-border)',
@@ -562,7 +563,7 @@ export default function OverviewTab({
           border: '1px solid var(--panel-border)',
           borderRadius: 12,
           padding: 24,
-        }}>
+        }} className="overview-half-col">
           <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
             Revenue Split
           </h3>

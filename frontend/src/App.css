@@ -62,7 +62,7 @@ h1, h2, h3 { font-family: var(--font-heading); }
 .rb-nav a:hover { color:var(--text); }
 .rb-app { background:var(--bg-app); min-height:100vh; color:var(--text); display:flex; flex-direction:column; overflow-x: hidden; width: 100%; max-width: 100vw; }
 .rb-main { width:100%; margin:24px 0; padding:0 24px; flex:1; box-sizing:border-box; }
-.page { background:var(--bg-page); border:1px solid var(--panel-border); border-radius:12px; padding:24px; box-shadow:0 6px 20px rgba(0,0,0,0.2); }
+.page { background:var(--bg-page); border:1px solid var(--panel-border); border-radius:12px; padding:24px; box-shadow:0 6px 20px rgba(0,0,0,0.2); box-sizing:border-box; overflow-x:hidden; }
 .grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(240px,1fr)); gap:18px; }
 .card { background:var(--bg-card); border:1px solid var(--panel-border-strong); border-radius:12px; padding:16px; transition:transform .18s ease, box-shadow .18s ease; }
 .card:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(0,0,0,0.35); }
@@ -277,6 +277,11 @@ button:hover { background:#d97706; }
   background: var(--nav-hover-bg);
 }
 
+/* Nav labels hidden on desktop, shown on mobile */
+.rb-nav-label {
+  display: none;
+}
+
 /* Mobile menu toggle (hidden by default) */
 .rb-mobile-menu-toggle {
   display: none;
@@ -301,6 +306,7 @@ button:hover { background:#d97706; }
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-left: auto;
   }
 
   /* Header adjustments for mobile */
@@ -325,20 +331,21 @@ button:hover { background:#d97706; }
     position: fixed;
     top: 72px;
     right: 0;
-    bottom: 0;
-    width: 280px;
+    width: 220px;
     background: var(--bg-page);
-    border-left: 1px solid var(--panel-border-strong);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 0 0 0 12px;
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-end;
     justify-content: flex-start;
-    gap: 4px;
-    padding: 16px 16px 16px 20px;
+    gap: 0;
+    padding: 8px;
     transform: translateX(100%);
     transition: transform 0.3s ease;
     overflow-y: auto;
-    overflow-x: visible;
+    max-height: calc(100vh - 80px);
     z-index: 100;
+    box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.2);
   }
 
   /* Ensure icons are fully visible in mobile menu */
@@ -347,27 +354,32 @@ button:hover { background:#d97706; }
     overflow: visible;
   }
 
-  .rb-header-right .rb-cart-icon,
-  .rb-header-right > div {
-    width: 100%;
-  }
-
   /* Show navigation when mobile menu is open */
   .rb-nav-mobile-open {
     transform: translateX(0);
-    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.3);
   }
 
-  /* Navigation links in mobile menu */
-  .rb-nav-link {
-    justify-content: flex-start;
-    padding: 12px 16px;
+  /* All items in mobile menu — right-aligned, even height */
+  .rb-header-right .rb-nav-link,
+  .rb-header-right > span,
+  .rb-header-right > div {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-end;
+    padding: 8px;
     width: 100%;
     border-radius: 8px;
+    font-size: 15px;
+    box-sizing: border-box;
+    height: 48px;
+    overflow: hidden;
   }
 
-  .rb-nav-link span {
+  .rb-nav-label {
+    display: inline !important;
     font-size: 15px;
+    font-weight: 500;
   }
 
   /* Beta badge smaller on mobile */
@@ -398,6 +410,16 @@ button:hover { background:#d97706; }
   .rb-header-right {
     width: 100%;
     top: 68px;
+  }
+}
+
+/* Overview tab mobile: force single-column grid */
+@media (max-width: 768px) {
+  .overview-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .overview-grid > * {
+    grid-column: 1 / -1 !important;
   }
 }
 

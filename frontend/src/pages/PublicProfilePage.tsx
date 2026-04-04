@@ -105,6 +105,9 @@ interface PublicProfile {
     milestones_completed: number;
     on_time_delivery_rate: number | null;
     avg_response_time_hours: number | null;
+    projects_funded: number;
+    total_escrow_funded_usd: number;
+    revisions_requested: number;
   };
 }
 
@@ -539,6 +542,35 @@ export default function PublicProfilePage() {
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Avg Response</div>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Owner / Hiring Stats */}
+              {stats.projects_funded > 0 && (
+                <div style={{
+                  background: 'rgba(139, 92, 246, 0.06)',
+                  border: '1px solid rgba(139, 92, 246, 0.15)',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginTop: 12,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                    As Project Owner
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{stats.projects_funded}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Projects Funded</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>${stats.total_escrow_funded_usd.toFixed(0)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Escrow Funded</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{stats.revisions_requested}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Revisions Used</div>
+                    </div>
                   </div>
                 </div>
               )}

@@ -2416,6 +2416,10 @@ def check_task_deadlines():
                         if project.status in ('draft', 'active'):
                             project.status = 'complete'
                             project.save(update_fields=['status'])
+                        # Mark all collaborator trust phases as completed
+                        project.collaborators.filter(
+                            contract_type__in=('work_for_hire', 'hybrid')
+                        ).update(trust_phase='completed')
 
                     logger.info(
                         '[TaskDeadline] Task %s overdue — cancelled + refund triggered ($%s to %s)',
@@ -2469,7 +2473,10 @@ def process_escrow_refund(task_id):
     # Full refund — no platform fee
     refund_amount = task.payment_amount
 
-    # Create escrow transaction record
+    # Create escrow transaction record and update denormalized refund total
+    role.escrow_refunded_amount += refund_amount
+    role.save(update_fields=['escrow_refunded_amount'])
+
     EscrowTransaction.objects.create(
         collaborator_role=role,
         contract_task=task,

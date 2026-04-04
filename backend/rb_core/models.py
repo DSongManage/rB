@@ -384,6 +384,14 @@ class UserProfile(models.Model):
         help_text="Average hours between task assignment and completion"
     )
 
+    # Owner-side stats (for project creators who hire collaborators)
+    projects_funded = models.PositiveIntegerField(default=0, help_text="Projects where user funded escrow")
+    total_escrow_funded_usd = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        help_text="Total USD funded into escrow across all projects"
+    )
+    revisions_requested = models.PositiveIntegerField(default=0, help_text="Total revision requests made as project owner")
+
     # Follower/following counts (denormalized for performance)
     follower_count = models.PositiveIntegerField(default=0, db_index=True)
     following_count = models.PositiveIntegerField(default=0)
@@ -487,10 +495,17 @@ class UserProfile(models.Model):
 
         roles = CollaboratorRole.objects.filter(user=self.user, status='accepted')
 
-        # Count completed projects (all tasks signed off)
-        completed_projects = sum(
+        # Count completed projects (as collaborator: all tasks signed off)
+        completed_as_collaborator = sum(
             1 for r in roles if r.tasks_total > 0 and r.tasks_signed_off >= r.tasks_total
         )
+        # Also count projects completed as owner
+        completed_as_owner = CollaborativeProject.objects.filter(
+            created_by=self.user, status='complete',
+        ).exclude(
+            collaborators__user=self.user, collaborators__contract_tasks__isnull=False,
+        ).distinct().count()
+        completed_projects = completed_as_collaborator + completed_as_owner
 
         # Count total milestones signed off
         milestones_completed = ContractTask.objects.filter(
@@ -498,43 +513,65 @@ class UserProfile(models.Model):
             status='signed_off',
         ).count()
 
-        # On-time delivery rate
-        if milestones_completed > 0:
+        # On-time delivery rate (includes deadline-breached cancellations as misses)
+        deadline_cancelled = ContractTask.objects.filter(
+            collaborator_role__user=self.user,
+            status='cancelled',
+            is_overdue=True,
+        ).count()
+        total_for_rate = milestones_completed + deadline_cancelled
+        if total_for_rate > 0:
             on_time = ContractTask.objects.filter(
                 collaborator_role__user=self.user,
                 status='signed_off',
                 deadline__isnull=False,
                 signed_off_at__lte=F('deadline'),
             ).count()
-            on_time_rate = round((on_time / milestones_completed) * 100, 2)
+            on_time_rate = round((on_time / total_for_rate) * 100, 2)
         else:
             on_time_rate = None
 
-        # Average response time (assignment to completion)
-        completed_tasks = ContractTask.objects.filter(
+        # Average response time (assignment to completion) — calculated in DB
+        from django.db.models import Avg, ExpressionWrapper, DurationField
+        avg_duration = ContractTask.objects.filter(
             collaborator_role__user=self.user,
             status='signed_off',
             created_at__isnull=False,
             marked_complete_at__isnull=False,
-        )
-        if completed_tasks.exists():
-            total_hours = 0
-            count = 0
-            for task in completed_tasks:
-                delta = task.marked_complete_at - task.created_at
-                total_hours += delta.total_seconds() / 3600
-                count += 1
-            avg_hours = round(total_hours / count, 2) if count > 0 else None
-        else:
-            avg_hours = None
+        ).aggregate(
+            avg_delta=Avg(ExpressionWrapper(
+                models.F('marked_complete_at') - models.F('created_at'),
+                output_field=DurationField(),
+            ))
+        )['avg_delta']
+        avg_hours = round(avg_duration.total_seconds() / 3600, 2) if avg_duration else None
 
         self.projects_completed = completed_projects
         self.milestones_completed = milestones_completed
         self.on_time_delivery_rate = on_time_rate
         self.avg_response_time_hours = avg_hours
+
+        # Owner-side stats: projects funded and revisions requested
+        from django.db.models import Sum
+        funded_roles = CollaboratorRole.objects.filter(
+            project__created_by=self.user,
+            escrow_funded_amount__gt=0,
+        )
+        self.projects_funded = funded_roles.values('project').distinct().count()
+        self.total_escrow_funded_usd = funded_roles.aggregate(
+            total=Sum('escrow_funded_amount')
+        )['total'] or 0
+
+        # Count revisions requested by this user as project owner
+        self.revisions_requested = ContractTask.objects.filter(
+            collaborator_role__project__created_by=self.user,
+            revisions_used__gt=0,
+        ).aggregate(total=Sum('revisions_used'))['total'] or 0
+
         self.save(update_fields=[
             'projects_completed', 'milestones_completed',
             'on_time_delivery_rate', 'avg_response_time_hours',
+            'projects_funded', 'total_escrow_funded_usd', 'revisions_requested',
         ])
 
 
@@ -2349,6 +2386,12 @@ class CollaboratorRole(models.Model):
         default=Decimal('0.00'),
         help_text="Cumulative amount released from escrow to collaborator"
     )
+    escrow_refunded_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text="Cumulative amount refunded from escrow to project owner"
+    )
     escrow_funded_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -2986,6 +3029,10 @@ class ContractTask(models.Model):
                 if project.status in ('draft', 'active'):
                     project.status = 'complete'
                     project.save(update_fields=['status'])
+                # Mark all collaborator trust phases as completed
+                project.collaborators.filter(
+                    contract_type__in=('work_for_hire', 'hybrid')
+                ).update(trust_phase='completed')
 
     def reject_completion(self, owner, reason):
         """Owner rejects the completion and sends back for revision.

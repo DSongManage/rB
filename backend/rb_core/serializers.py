@@ -708,10 +708,10 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
         return obj.get_ui_components()
 
     def get_escrow_remaining(self, obj):
-        """Calculate remaining escrow balance."""
+        """Calculate remaining escrow balance (funded - released - refunded)."""
         if obj.contract_type == 'revenue_share':
             return None
-        return str(obj.escrow_funded_amount - obj.escrow_released_amount)
+        return str(obj.escrow_funded_amount - obj.escrow_released_amount - obj.escrow_refunded_amount)
 
 
 class EscrowTransactionSerializer(serializers.ModelSerializer):
@@ -1349,6 +1349,10 @@ class PublicProfileSerializer(serializers.Serializer):
             'milestones_completed': profile.milestones_completed if profile else 0,
             'on_time_delivery_rate': float(profile.on_time_delivery_rate) if profile and profile.on_time_delivery_rate is not None else None,
             'avg_response_time_hours': float(profile.avg_response_time_hours) if profile and profile.avg_response_time_hours is not None else None,
+            # Owner-side stats
+            'projects_funded': profile.projects_funded if profile else 0,
+            'total_escrow_funded_usd': float(profile.total_escrow_funded_usd) if profile else 0,
+            'revisions_requested': profile.revisions_requested if profile else 0,
         }
 
 

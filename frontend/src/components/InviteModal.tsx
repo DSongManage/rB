@@ -732,7 +732,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
               <label style={{ display: 'block', color: 'var(--text-dim)', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
                 Project Type <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
                 {PROJECT_TYPE_OPTIONS.map((option) => (
                   <button
                     key={option.value}

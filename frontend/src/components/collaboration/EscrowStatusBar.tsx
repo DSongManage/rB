@@ -151,7 +151,9 @@ export function EscrowStatusBar({
           background: '#10b98115', color: '#10b981',
           fontSize: 11, textAlign: 'center', fontWeight: 600,
         }}>
-          Escrow fully funded — ${total.toFixed(2)} secured
+          {trustPhase === 'completed'
+            ? `Project complete — $${released.toFixed(2)} released, $${rem.toFixed(2)} remaining`
+            : `Escrow fully funded — $${total.toFixed(2)} secured`}
         </div>
       ) : (
         <div style={{

@@ -239,7 +239,7 @@ export default function LandingPage() {
         <div style={{
           position: 'fixed', top: 64, left: 0, right: 0, zIndex: 99, padding: 24,
           background: 'rgba(250,250,248,0.98)', backdropFilter: 'blur(20px)',
-          display: 'flex', flexDirection: 'column', gap: 20,
+          display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 20,
           borderBottom: '1px solid rgba(58,54,50,0.08)',
         }}>
           {isAuthenticated ? (
@@ -347,24 +347,24 @@ export default function LandingPage() {
       <section style={{ padding: '80px 24px', background: '#1a1816', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -120, right: -120, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(232,152,31,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center', position: 'relative' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F', opacity: 0.8 }}>The Problem</span>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#E8981F', opacity: 0.8 }}>Peace of Mind</span>
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 38, fontWeight: 400, color: '#FAFAF8', marginTop: 14, marginBottom: 24, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-            Every indie comic collaboration<br />runs on a <span style={{ color: '#E8981F', fontStyle: 'italic' }}>handshake</span>
+            Great collaborations<br />deserve <span style={{ color: '#E8981F', fontStyle: 'italic' }}>real protection</span>
           </h2>
           <p style={{ fontSize: 17, lineHeight: 1.7, color: 'rgba(250,250,248,0.55)', maxWidth: 560, margin: '0 auto' }}>
-            Writers ghost after getting pages. Artists disappear mid-project.
-            Revenue share promises evaporate when real money shows up.
-            The work was good &mdash; the business side broke it.
+            Most indie collaborations go great. But when they don&rsquo;t &mdash; a missed deadline,
+            a payment dispute, an unclear split &mdash; there&rsquo;s usually no safety net.
+            We&rsquo;re here so you never have to worry about the &ldquo;what if.&rdquo;
           </p>
           <div style={{ marginTop: 40, padding: 24, background: 'rgba(232,152,31,0.06)', borderRadius: 16, border: '1px solid rgba(232,152,31,0.12)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
               <ShieldIcon />
-              <span style={{ color: '#E8981F', fontWeight: 700, fontSize: 14 }}>renaissBlock eliminates this</span>
+              <span style={{ color: '#E8981F', fontWeight: 700, fontSize: 14 }}>How renaissBlock protects you</span>
             </div>
             <p style={{ fontSize: 14, lineHeight: 1.65, color: 'rgba(250,250,248,0.65)' }}>
-              Funds are locked in a smart contract &mdash; not held by us, not held by either party.
-              They only move when milestones are approved. No admin keys. No overrides.
-              The code is the contract.
+              Funds sit in a smart contract &mdash; not held by us, not held by either party.
+              They only move when milestones are approved. If something goes wrong,
+              built-in deadlines and auto-approvals ensure nobody gets stuck.
             </p>
           </div>
         </div>

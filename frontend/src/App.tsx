@@ -26,7 +26,7 @@ import { ProfileDropdown } from './components/profile/ProfileDropdown';
 import { SettingsModal } from './components/settings/SettingsModal';
 import CartIcon from './components/CartIcon';
 import {
-  User, Menu, X, Users, ShoppingBag, Rocket, PenTool
+  User, Menu, X, Users, ShoppingBag, Rocket, PenTool, Bell
 } from 'lucide-react';
 import { SearchAutocomplete } from './components/SearchAutocomplete';
 
@@ -87,6 +87,7 @@ const PageLoader = () => (
 );
 
 function Header() {
+  const { isMobile } = useMobile();
   const [isAuthed, setIsAuthed] = useState(false);
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -151,6 +152,11 @@ function Header() {
       checkAuth();
     }
   }, [location.pathname, checkAuth]);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const goLogin = () => { navigate('/auth'); };
 
@@ -218,22 +224,42 @@ function Header() {
           <>
             <Link to="/studio" className="rb-nav-link" title="Studio">
               <PenTool size={20} />
+              <span className="rb-nav-label">Studio</span>
             </Link>
             {isStorePage && (
               <span>
                 <CartIcon />
               </span>
             )}
-            <span>
-              <NotificationBell />
-            </span>
+            {isMobile ? (
+              <Link to="/notifications" className="rb-nav-link" title="Alerts">
+                <Bell size={20} />
+                <span className="rb-nav-label">Alerts</span>
+              </Link>
+            ) : (
+              <span>
+                <NotificationBell />
+              </span>
+            )}
             <Link to="/campaigns" className="rb-nav-link" title="Campaigns">
               <Rocket size={20} />
+              <span className="rb-nav-label">Campaigns</span>
             </Link>
             <Link to="/collaborators" className="rb-nav-link" title="Find Collaborators">
               <Users size={20} />
+              <span className="rb-nav-label">Collaborators</span>
             </Link>
             {/* Profile Dropdown */}
+            {isMobile ? (
+              <Link to="/profile" className="rb-nav-link" title="Profile">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={username} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent)' }} />
+                ) : (
+                  <User size={20} />
+                )}
+                <span className="rb-nav-label">Profile</span>
+              </Link>
+            ) : (
             <div style={{ position: 'relative' }}>
               <button
                 ref={profileButtonRef}
@@ -282,6 +308,7 @@ function Header() {
                 onOpenSettings={() => setSettingsModalOpen(true)}
               />
             </div>
+            )}
           </>
         )}
         {!isAuthed && !isAuthPage && (
