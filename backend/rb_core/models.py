@@ -1896,6 +1896,7 @@ class CollaborativeProject(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('active', 'Active'),
+        ('complete', 'Complete'),
         ('ready_for_mint', 'Ready for Mint'),
         ('minted', 'Minted'),
         ('unpublished', 'Unpublished'),
@@ -2936,6 +2937,55 @@ class ContractTask(models.Model):
                 collaborator.profile.update_collaboration_stats()
         except Exception:
             pass  # Don't break sign-off if stats update fails
+
+    @classmethod
+    def find_tasks_for_page(cls, project, page_number):
+        """Find contract tasks whose page range covers the given page number."""
+        return cls.objects.filter(
+            collaborator_role__project=project,
+            page_range_start__lte=page_number,
+            page_range_end__gte=page_number,
+            status__in=['in_progress', 'complete'],
+        ).select_for_update()
+
+    def all_pages_approved(self):
+        """Check if all pages in this task's page range have approved art."""
+        if self.page_range_start is None or self.page_range_end is None:
+            return False
+        project = self.collaborator_role.project
+        # Query pages from both direct project attachment and issue-based attachment
+        pages = ComicPage.objects.filter(
+            models.Q(project=project) | models.Q(issue__project=project),
+            page_number__gte=self.page_range_start,
+            page_number__lte=self.page_range_end,
+        )
+        if not pages.exists():
+            return False
+        return not pages.exclude(page_status='approved').exists()
+
+    def auto_complete_and_sign_off(self, owner, notes=''):
+        """Bridge method: auto-transitions in_progress → complete → signed_off.
+
+        Used when art approval should trigger escrow release.
+        Wraps both transitions atomically.
+        Also transitions the project status when all tasks across all collaborators are done.
+        """
+        from django.db import transaction
+        with transaction.atomic():
+            if self.status == 'in_progress':
+                self.mark_complete(self.collaborator_role.user, notes)
+            if self.status == 'complete':
+                self.sign_off(owner, notes)
+
+            # Check if ALL tasks across ALL collaborators are now resolved
+            project = self.collaborator_role.project
+            all_tasks = ContractTask.objects.filter(collaborator_role__project=project)
+            unresolved = all_tasks.exclude(status__in=['signed_off', 'cancelled'])
+            if all_tasks.exists() and not unresolved.exists():
+                # All tasks done — transition project to complete
+                if project.status in ('draft', 'active'):
+                    project.status = 'complete'
+                    project.save(update_fields=['status'])
 
     def reject_completion(self, owner, reason):
         """Owner rejects the completion and sends back for revision.

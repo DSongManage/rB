@@ -8,6 +8,15 @@ import {
   collaborationApi,
 } from '../../../services/collaborationApi';
 import PageStatusBadge from './PageStatusBadge';
+import { useMobile } from '../../../hooks/useMobile';
+
+interface LinkedTaskInfo {
+  task_title: string;
+  payment_amount: string;
+  collaborator_username: string;
+  revision_limit?: number;
+  revisions_used?: number;
+}
 
 interface ArtDeliverySectionProps {
   pageId: number;
@@ -16,6 +25,8 @@ interface ArtDeliverySectionProps {
   canReview: boolean;
   onDeliveriesChange: (deliveries: PageArtDelivery[]) => void;
   onPageStatusChange: (status: string) => void;
+  linkedTask?: LinkedTaskInfo | null;
+  onTaskAutoSigned?: () => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -38,13 +49,20 @@ export default function ArtDeliverySection({
   canReview,
   onDeliveriesChange,
   onPageStatusChange,
+  linkedTask,
+  onTaskAutoSigned,
 }: ArtDeliverySectionProps) {
   const [uploading, setUploading] = useState(false);
   const [revisionId, setRevisionId] = useState<number | null>(null);
   const [revisionNotes, setRevisionNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [revisionError, setRevisionError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isPhone } = useMobile();
+
+  const atRevisionLimit = linkedTask?.revision_limit != null && linkedTask?.revisions_used != null
+    && linkedTask.revisions_used >= linkedTask.revision_limit;
 
   const latestDelivery = deliveries.length > 0 ? deliveries[0] : null;
   const olderDeliveries = deliveries.slice(1);
@@ -63,11 +81,23 @@ export default function ArtDeliverySection({
   };
 
   const handleApprove = async (id: number) => {
+    // Confirm if this will trigger escrow release
+    if (linkedTask) {
+      const confirmed = window.confirm(
+        `Approving this art will sign off task "${linkedTask.task_title}" and release $${parseFloat(linkedTask.payment_amount).toFixed(2)} from escrow to @${linkedTask.collaborator_username}. This is irreversible. Continue?`
+      );
+      if (!confirmed) return;
+    }
+
     setSubmitting(true);
     try {
       const updated = await collaborationApi.approveArtDelivery(id);
       onDeliveriesChange(deliveries.map(d => d.id === id ? updated : d));
       onPageStatusChange('approved');
+      // Check if tasks were auto-signed off (escrow released)
+      if ((updated as any).auto_signed_tasks?.length > 0) {
+        onTaskAutoSigned?.();
+      }
     } catch (err) {
       console.error('Failed to approve delivery:', err);
     } finally {
@@ -78,13 +108,16 @@ export default function ArtDeliverySection({
   const handleRequestRevision = async (id: number) => {
     if (!revisionNotes.trim()) return;
     setSubmitting(true);
+    setRevisionError('');
     try {
       const updated = await collaborationApi.requestArtRevision(id, revisionNotes);
       onDeliveriesChange(deliveries.map(d => d.id === id ? updated : d));
       onPageStatusChange('revision_requested');
       setRevisionId(null);
       setRevisionNotes('');
-    } catch (err) {
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to request revision';
+      setRevisionError(msg);
       console.error('Failed to request revision:', err);
     } finally {
       setSubmitting(false);
@@ -107,7 +140,7 @@ export default function ArtDeliverySection({
         alignItems: 'center',
         gap: 6,
         marginBottom: 12,
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 600,
         color: 'var(--text-muted)',
       }}>
@@ -197,35 +230,95 @@ export default function ArtDeliverySection({
               </div>
             )}
 
+            {/* Escrow release info */}
+            {linkedTask && canReview && latestDelivery.status === 'delivered' && (
+              <div style={{
+                padding: '8px 12px',
+                background: 'rgba(139, 92, 246, 0.1)',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
+                borderRadius: 6,
+                fontSize: 12,
+                color: '#a78bfa',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}>
+                <span style={{ fontSize: 14 }}>$</span>
+                Approving will release <strong>${parseFloat(linkedTask.payment_amount).toFixed(2)}</strong> from escrow to <strong>@{linkedTask.collaborator_username}</strong>
+              </div>
+            )}
+
+            {/* Revision counter */}
+            {linkedTask?.revision_limit != null && linkedTask?.revisions_used != null && canReview && latestDelivery.status === 'delivered' && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 12, color: atRevisionLimit ? '#ef4444' : 'var(--text-muted)',
+                marginBottom: 4,
+              }}>
+                <RotateCcw size={12} />
+                Revisions: {linkedTask.revisions_used}/{linkedTask.revision_limit}
+                {atRevisionLimit && <span style={{ fontWeight: 600 }}> — limit reached</span>}
+              </div>
+            )}
+
+            {/* Revision error message */}
+            {revisionError && (
+              <div style={{
+                padding: '6px 10px', marginBottom: 4,
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: 6, fontSize: 12, color: '#ef4444',
+              }}>
+                {revisionError}
+              </div>
+            )}
+
             {/* Author actions */}
             {canReview && latestDelivery.status === 'delivered' && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <div style={{ display: 'flex', flexDirection: isPhone ? 'column' : 'row', gap: 8, marginTop: 4 }}>
                 <button
                   onClick={() => handleApprove(latestDelivery.id)}
                   disabled={submitting}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '8px 16px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: isPhone ? '12px 16px' : '8px 16px',
                     background: '#10b981', border: 'none', borderRadius: 8,
                     color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    minHeight: 44,
                   }}
                 >
                   <Check size={14} /> Approve
                 </button>
-                <button
-                  onClick={() => setRevisionId(latestDelivery.id)}
-                  disabled={submitting}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '8px 16px',
-                    background: 'rgba(249, 115, 22, 0.1)',
-                    border: '1px solid rgba(249, 115, 22, 0.3)',
+                {!atRevisionLimit ? (
+                  <button
+                    onClick={() => setRevisionId(latestDelivery.id)}
+                    disabled={submitting}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      padding: isPhone ? '12px 16px' : '8px 16px',
+                      background: 'rgba(249, 115, 22, 0.1)',
+                      border: '1px solid rgba(249, 115, 22, 0.3)',
+                      borderRadius: 8,
+                      color: '#f97316', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      minHeight: 44,
+                    }}
+                  >
+                    <RotateCcw size={14} /> Request Revision
+                  </button>
+                ) : (
+                  <span style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    padding: isPhone ? '12px 16px' : '8px 16px',
+                    background: 'rgba(148, 163, 184, 0.1)',
+                    border: '1px solid rgba(148, 163, 184, 0.3)',
                     borderRadius: 8,
-                    color: '#f97316', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
-                  <RotateCcw size={14} /> Request Revision
-                </button>
+                    color: '#94a3b8', fontSize: 13, fontWeight: 600,
+                    minHeight: 44,
+                  }}>
+                    <RotateCcw size={14} /> Revision Limit Reached
+                  </span>
+                )}
               </div>
             )}
 

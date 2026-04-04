@@ -1299,7 +1299,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                                 border: '1px solid var(--border)',
                                 borderRadius: 6,
                                 padding: 10,
-                                color: '#f8fafc',
+                                color: 'var(--text-primary)',
                                 fontSize: 13,
                               }}
                             />

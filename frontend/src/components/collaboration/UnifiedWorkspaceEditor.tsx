@@ -28,6 +28,7 @@ import PageStatusBadge, { PageStatusDot } from './pages/PageStatusBadge';
 import ReferenceImagesSection from './pages/ReferenceImagesSection';
 import ArtDeliverySection from './pages/ArtDeliverySection';
 import PageCommentsSection from './pages/PageCommentsSection';
+import { useMobile } from '../../hooks/useMobile';
 
 interface User {
   id: number;
@@ -39,6 +40,26 @@ interface UnifiedWorkspaceEditorProps {
   project: CollaborativeProject;
   currentUser: User;
   onProjectUpdate?: (project: CollaborativeProject) => void;
+}
+
+function getLinkedTaskForPage(project: CollaborativeProject, pageNumber: number) {
+  for (const collab of project.collaborators || []) {
+    for (const task of collab.contract_tasks || []) {
+      if (task.page_range_start != null && task.page_range_end != null &&
+          pageNumber >= task.page_range_start && pageNumber <= task.page_range_end) {
+        return {
+          task_title: task.title,
+          payment_amount: task.payment_amount,
+          collaborator_username: collab.username || collab.display_name || 'collaborator',
+          task_status: task.status,
+          escrow_release_status: task.escrow_release_status,
+          revision_limit: task.revision_limit,
+          revisions_used: task.revisions_used,
+        };
+      }
+    }
+  }
+  return null;
 }
 
 const createEmptyScriptData = (): ScriptData => ({
@@ -66,6 +87,8 @@ export default function UnifiedWorkspaceEditor({
   currentUser,
   onProjectUpdate,
 }: UnifiedWorkspaceEditorProps) {
+  const { isPhone, isMobile } = useMobile();
+
   // Issue state
   const [issues, setIssues] = useState<ComicIssueListItem[]>([]);
   const [selectedIssueId, setSelectedIssueId] = useState<number | null>(null);
@@ -366,19 +389,26 @@ export default function UnifiedWorkspaceEditor({
 
   return (
     <div style={{
-      display: 'flex', gap: 24,
-      height: 'calc(100vh - 280px)', minHeight: 500,
+      display: 'flex',
+      flexDirection: isPhone ? 'column' : 'row',
+      gap: isPhone ? 12 : 24,
+      height: isPhone ? undefined : 'calc(100vh - 280px)',
+      minHeight: isPhone ? undefined : 500,
     }}>
       {/* Page List Sidebar */}
       <div style={{
-        width: 220, flexShrink: 0,
+        width: isPhone ? '100%' : (isMobile ? 180 : 220),
+        flexShrink: 0,
         background: 'var(--panel)', border: '1px solid var(--panel-border)',
-        borderRadius: 12, display: 'flex', flexDirection: 'column',
+        borderRadius: isPhone ? 8 : 12, display: 'flex',
+        flexDirection: isPhone ? 'row' : 'column',
+        ...(isPhone ? { maxHeight: 120, overflowX: 'auto', overflowY: 'hidden' } : {}),
       }}>
         {/* Issue Selector */}
+        {!isPhone && (
         <div style={{ padding: 12, borderBottom: '1px solid var(--panel-border)' }}>
           <label style={{
-            display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600,
+            display: 'block', marginBottom: 6, fontSize: 12, fontWeight: 600,
             color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
           }}>
             Issue
@@ -412,8 +442,10 @@ export default function UnifiedWorkspaceEditor({
             }} />
           </div>
         </div>
+        )}
 
         {/* Pages Header */}
+        {!isPhone && (
         <div style={{
           padding: '12px 16px', borderBottom: '1px solid var(--panel-border)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -454,9 +486,15 @@ export default function UnifiedWorkspaceEditor({
             )}
           </div>
         </div>
+        )}
 
         {/* Pages list */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+        <div style={{
+          flex: 1, padding: isPhone ? 4 : 8,
+          ...(isPhone
+            ? { display: 'flex', flexDirection: 'row', overflowX: 'auto', gap: 4, alignItems: 'center' }
+            : { overflow: 'auto' }),
+        }}>
           {loading ? (
             <div style={{
               padding: 24, textAlign: 'center', color: 'var(--text-muted)',
@@ -478,7 +516,35 @@ export default function UnifiedWorkspaceEditor({
               const hasScript = page.script_data?.page_description ||
                 (page.script_data?.panels && page.script_data.panels.length > 0);
 
-              return (
+              return isPhone ? (
+                // Mobile: compact page chip
+                <div
+                  key={page.id}
+                  onClick={() => handlePageSelect(page.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '8px 12px', flexShrink: 0, minHeight: 44,
+                    background: isSelected ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                    border: isSelected
+                      ? '1px solid rgba(139, 92, 246, 0.3)'
+                      : '1px solid var(--panel-border)',
+                    borderRadius: 8, cursor: 'pointer',
+                  }}
+                >
+                  <PageStatusDot status={page.page_status || 'script_only'} />
+                  <span style={{
+                    fontSize: 13, fontWeight: isSelected ? 600 : 400,
+                    color: isSelected ? '#8b5cf6' : 'var(--text)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    P{page.page_number}
+                  </span>
+                  {getLinkedTaskForPage(project, page.page_number) && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#8b5cf6' }}>$</span>
+                  )}
+                </div>
+              ) : (
+                // Desktop: full page row
                 <div
                   key={page.id}
                   onClick={() => handlePageSelect(page.id)}
@@ -495,12 +561,19 @@ export default function UnifiedWorkspaceEditor({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <PageStatusDot status={page.page_status || 'script_only'} />
                     <span style={{
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: isSelected ? 600 : 400,
                       color: isSelected ? '#8b5cf6' : 'var(--text)',
                     }}>
                       Page {page.page_number}
                     </span>
+                    {getLinkedTaskForPage(project, page.page_number) && (
+                      <span title={getLinkedTaskForPage(project, page.page_number)?.task_title} style={{
+                        fontSize: 10, fontWeight: 700, color: '#8b5cf6',
+                        background: 'rgba(139, 92, 246, 0.15)',
+                        padding: '1px 4px', borderRadius: 3,
+                      }}>$</span>
+                    )}
                     {hasScript && (
                       <FileText size={12} style={{ color: '#10b981', opacity: 0.7 }} />
                     )}
@@ -531,15 +604,16 @@ export default function UnifiedWorkspaceEditor({
       {/* Main Content Area */}
       <div style={{
         flex: 1, background: 'var(--panel)', border: '1px solid var(--panel-border)',
-        borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        borderRadius: isPhone ? 8 : 12, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        minHeight: 0,
       }}>
         {/* Header */}
         <div style={{
-          padding: 16, borderBottom: '1px solid var(--panel-border)',
+          padding: isPhone ? 12 : 16, borderBottom: '1px solid var(--panel-border)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isPhone ? 8 : 12 }}>
+            <h3 style={{ margin: 0, fontSize: isPhone ? 16 : 18, fontWeight: 600, color: 'var(--text)' }}>
               {selectedPage ? `Page ${selectedPage.page_number}` : 'Select a Page'}
             </h3>
             {selectedPage && (
@@ -609,7 +683,7 @@ export default function UnifiedWorkspaceEditor({
               <div style={{ marginBottom: 24 }}>
                 <label style={{
                   display: 'block', marginBottom: 8,
-                  fontSize: 13, fontWeight: 600, color: 'var(--text-muted)',
+                  fontSize: 14, fontWeight: 600, color: 'var(--text-muted)',
                 }}>
                   Page Description
                 </label>
@@ -633,7 +707,7 @@ export default function UnifiedWorkspaceEditor({
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   marginBottom: 16,
                 }}>
-                  <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+                  <label style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>
                     Panels ({scriptData.panels.length})
                   </label>
                   {canEditScript && (
@@ -700,7 +774,7 @@ export default function UnifiedWorkspaceEditor({
                         <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           <div>
                             <label style={{
-                              display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600,
+                              display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 600,
                               color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
                             }}>Scene Description</label>
                             <textarea
@@ -718,7 +792,7 @@ export default function UnifiedWorkspaceEditor({
                           </div>
                           <div>
                             <label style={{
-                              display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600,
+                              display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 600,
                               color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
                             }}>Dialogue</label>
                             <textarea
@@ -736,7 +810,7 @@ export default function UnifiedWorkspaceEditor({
                           </div>
                           <div>
                             <label style={{
-                              display: 'block', marginBottom: 4, fontSize: 11, fontWeight: 600,
+                              display: 'block', marginBottom: 4, fontSize: 12, fontWeight: 600,
                               color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px',
                             }}>Notes for Artist</label>
                             <textarea
@@ -781,6 +855,15 @@ export default function UnifiedWorkspaceEditor({
                 canReview={canReview}
                 onDeliveriesChange={(deliveries) => handleArtDeliveriesChange(selectedPage.id, deliveries)}
                 onPageStatusChange={(status) => handlePageStatusChange(selectedPage.id, status)}
+                linkedTask={getLinkedTaskForPage(project, selectedPage.page_number)}
+                onTaskAutoSigned={async () => {
+                  // Refresh project data to update task statuses
+                  if (onProjectUpdate) {
+                    const { collaborationApi } = await import('../../services/collaborationApi');
+                    const updated = await collaborationApi.getCollaborativeProject(project.id);
+                    onProjectUpdate(updated);
+                  }
+                }}
               />
 
               {/* Divider */}
@@ -808,13 +891,13 @@ export default function UnifiedWorkspaceEditor({
             background: 'rgba(0, 0, 0, 0.92)',
             display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden',
           }}
         >
           {/* Top bar */}
           <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0,
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '16px 24px',
+            padding: '16px 24px', width: '100%', flexShrink: 0,
           }}>
             <span style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
               Page {pagesWithArt[previewPageIndex]?.page_number} of {pagesWithArt.length} pages with art
@@ -835,7 +918,7 @@ export default function UnifiedWorkspaceEditor({
           {/* Page image */}
           <div style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '60px 80px', maxWidth: '100%', maxHeight: '100%',
+            padding: '60px 80px', maxWidth: '100%', minHeight: 0, overflow: 'hidden',
           }}>
             {(() => {
               const page = pagesWithArt[previewPageIndex];
@@ -873,9 +956,8 @@ export default function UnifiedWorkspaceEditor({
 
           {/* Navigation */}
           <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            gap: 16, padding: '16px 24px',
+            gap: 16, padding: '16px 24px', flexShrink: 0,
           }}>
             <button
               onClick={() => setPreviewPageIndex(Math.max(0, previewPageIndex - 1))}

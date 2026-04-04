@@ -1448,7 +1448,35 @@ class PageArtDeliveryViewSet(viewsets.ModelViewSet):
         page.page_status = 'approved'
         page.save(update_fields=['page_status'])
 
-        return Response(PageArtDeliverySerializer(delivery).data)
+        # Bridge: auto-sign-off linked contract tasks when all pages approved
+        auto_signed = []
+        if project:
+            from rb_core.models import ContractTask
+            from django.db import transaction as db_transaction
+            try:
+                with db_transaction.atomic():
+                    linked = ContractTask.find_tasks_for_page(project, page.page_number)
+                    for task in linked:
+                        if task.all_pages_approved():
+                            try:
+                                task.auto_complete_and_sign_off(
+                                    owner=request.user,
+                                    notes=f'Auto-signed: art approved for page {page.page_number}',
+                                )
+                                auto_signed.append({
+                                    'task_id': task.id,
+                                    'title': task.title,
+                                    'payment_amount': str(task.payment_amount),
+                                })
+                            except ValueError:
+                                pass  # Task already in terminal state
+            except Exception:
+                pass  # Don't break art approval if escrow bridge fails
+
+        data = PageArtDeliverySerializer(delivery).data
+        if auto_signed:
+            data['auto_signed_tasks'] = auto_signed
+        return Response(data)
 
     @action(detail=True, methods=['post'])
     def request_revision(self, request, pk=None):
@@ -1471,6 +1499,22 @@ class PageArtDeliveryViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Check revision limit against linked contract task
+        from rb_core.models import ContractTask
+        page_number = page.page_number
+        linked_task = ContractTask.objects.filter(
+            collaborator_role__project=project,
+            page_range_start__lte=page_number,
+            page_range_end__gte=page_number,
+            escrow_release_status='pending',
+        ).first()
+
+        if linked_task and linked_task.revisions_used >= linked_task.revision_limit:
+            return Response(
+                {'error': f'Revision limit reached ({linked_task.revision_limit}). Cannot request more revisions.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         from django.utils import timezone
         delivery.status = 'revision_requested'
         delivery.revision_notes = revision_notes
@@ -1480,6 +1524,11 @@ class PageArtDeliveryViewSet(viewsets.ModelViewSet):
 
         page.page_status = 'revision_requested'
         page.save(update_fields=['page_status'])
+
+        # Increment revision counter on linked task
+        if linked_task:
+            linked_task.revisions_used += 1
+            linked_task.save(update_fields=['revisions_used'])
 
         return Response(PageArtDeliverySerializer(delivery).data)
 

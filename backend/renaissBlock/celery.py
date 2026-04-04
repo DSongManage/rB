@@ -68,6 +68,11 @@ app.conf.beat_schedule = {
         'task': 'rb_core.tasks.check_escrow_dormancy',
         'schedule': crontab(hour=1, minute=0),
     },
+    # Check task deadlines and auto-refund overdue escrow tasks - every 2 minutes
+    'check-task-deadlines': {
+        'task': 'rb_core.tasks.check_task_deadlines',
+        'schedule': crontab(minute='*/2'),
+    },
 }
 
 

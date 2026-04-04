@@ -2743,59 +2743,39 @@ export default function ProfilePageRedesigned() {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 16,
             }}>
               <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Total Earnings
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>
                   ${salesAnalytics?.summary.total_earnings_usdc.toFixed(2) || dash.sales.toFixed(2)}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>USDC</div>
+                <div style={{ fontSize: 13, color: 'var(--subtle)', marginTop: 4 }}>USDC</div>
               </div>
 
               <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Solo Content
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Content Sales
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: '#60a5fa' }}>
-                  ${salesAnalytics?.summary.solo_earnings.toFixed(2) || '0.00'}
+                  ${((salesAnalytics?.summary.solo_earnings || 0) + (salesAnalytics?.summary.collaboration_earnings || 0)).toFixed(2)}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.content_count || 0} items</div>
+                <div style={{ fontSize: 13, color: 'var(--subtle)', marginTop: 4 }}>
+                  {(salesAnalytics?.summary.content_count || 0) + (salesAnalytics?.summary.collaboration_count || 0)} items
+                </div>
               </div>
 
               <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Collaborations
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Paid Work
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#f59e0b' }}>
-                  ${salesAnalytics?.summary.collaboration_earnings.toFixed(2) || '0.00'}
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#8b5cf6' }}>
+                  ${salesAnalytics?.summary.escrow_earnings?.toFixed(2) || '0.00'}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.collaboration_count || 0} projects</div>
-              </div>
-
-              {(salesAnalytics?.summary.escrow_earnings ?? 0) > 0 && (
-                <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Escrow Earnings
-                  </div>
-                  <div style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>
-                    ${salesAnalytics?.summary.escrow_earnings?.toFixed(2) || '0.00'}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.escrow_count || 0} contracts</div>
-                </div>
-              )}
-
-              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Total Sales
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--text)' }}>
-                  {salesAnalytics?.summary.total_sales || 0}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--subtle)', marginTop: 4 }}>transactions</div>
+                <div style={{ fontSize: 13, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.escrow_count || 0} contracts</div>
               </div>
             </div>
           </div>
@@ -2812,18 +2792,18 @@ export default function ProfilePageRedesigned() {
               padding: 24,
               marginBottom: 24,
             }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <TrendingUp size={18} style={{ color: '#60a5fa' }} />
                 Earnings Breakdown
               </h3>
-              <p style={{ fontSize: 12, color: 'var(--subtle)', marginBottom: 16 }}>
+              <p style={{ fontSize: 14, color: 'var(--subtle)', marginBottom: 16 }}>
                 Click any item to see individual transactions
               </p>
 
               {/* Solo Content Sales */}
               {salesAnalytics.content_sales.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 13, color: '#60a5fa', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <BookOpen size={14} />
                     Solo Content ({salesAnalytics.content_sales.length})
                   </div>
@@ -3004,7 +2984,7 @@ export default function ProfilePageRedesigned() {
               padding: 24,
               marginBottom: 24,
             }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Shield size={18} style={{ color: '#10b981' }} />
                 Escrow Earnings
               </h3>
@@ -3014,16 +2994,16 @@ export default function ProfilePageRedesigned() {
                   padding: '12px 16px', background: 'var(--panel)', borderRadius: 8, marginBottom: 8,
                 }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{item.project_title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--subtle)', marginTop: 2 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{item.project_title}</div>
+                    <div style={{ fontSize: 13, color: 'var(--subtle)', marginTop: 2 }}>
                       {item.role} · {item.milestones_completed}/{item.milestones_total} milestones · ${item.total_contract.toFixed(2)} contract
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>
                       ${item.total_earned.toFixed(2)}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--subtle)' }}>earned</div>
+                    <div style={{ fontSize: 13, color: 'var(--subtle)' }}>earned</div>
                   </div>
                 </div>
               ))}
@@ -3038,7 +3018,7 @@ export default function ProfilePageRedesigned() {
               borderRadius: 16,
               padding: 24,
             }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText size={18} style={{ color: '#a78bfa' }} />
                 Recent Transactions
               </h3>
@@ -3048,21 +3028,21 @@ export default function ProfilePageRedesigned() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: '12px 16px',
+                    padding: '14px 16px',
                     background: 'var(--bg-card)',
                     borderRadius: 8,
                   }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{tx.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--subtle)' }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{tx.title}</div>
+                      <div style={{ fontSize: 13, color: 'var(--subtle)' }}>
                         Bought by @{tx.buyer} • {tx.role} ({tx.percentage}%) • {new Date(tx.date).toLocaleDateString()}
                       </div>
                       {tx.tx_signature && (
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>TX: {tx.tx_signature}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'monospace', marginTop: 2 }}>TX: {tx.tx_signature}</div>
                       )}
                     </div>
                     <div style={{
-                      fontSize: 16,
+                      fontSize: 18,
                       fontWeight: 700,
                       color: tx.type === 'collaboration' ? '#f59e0b' : '#10b981',
                     }}>

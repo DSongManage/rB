@@ -2369,6 +2369,157 @@ def process_escrow_release(task_id):
 
 
 @shared_task
+def check_task_deadlines():
+    """Periodic task: check for overdue tasks and auto-cancel + refund.
+
+    Runs every 2 minutes. For tasks past their deadline that are still
+    pending or in_progress, marks them overdue and triggers escrow refund
+    if applicable. No grace period — immediate cancellation and refund.
+    """
+    from django.utils import timezone
+    from django.db import transaction
+    from .models import ContractTask
+
+    now = timezone.now()
+    overdue_tasks = ContractTask.objects.filter(
+        status__in=['pending', 'in_progress'],
+        deadline__lt=now,
+        is_overdue=False,
+    ).select_related('collaborator_role', 'collaborator_role__user', 'collaborator_role__project')
+
+    results = {'overdue_detected': 0, 'refunds_triggered': 0}
+
+    for task in overdue_tasks:
+        try:
+            with transaction.atomic():
+                # Re-fetch with lock to prevent race conditions
+                locked_task = ContractTask.objects.select_for_update().get(id=task.id)
+                if locked_task.is_overdue or locked_task.status in ['signed_off', 'cancelled']:
+                    continue
+
+                locked_task.check_overdue()  # Sets is_overdue=True, triggers breach
+                results['overdue_detected'] += 1
+
+                # For escrow tasks: auto-cancel and refund
+                if locked_task.escrow_release_status == 'pending':
+                    locked_task.status = 'cancelled'
+                    locked_task.escrow_release_status = 'refunded'
+                    locked_task.save(update_fields=['status', 'escrow_release_status'])
+                    process_escrow_refund.delay(locked_task.id)
+                    results['refunds_triggered'] += 1
+
+                    # Check if all tasks are now resolved (signed_off or cancelled)
+                    project = locked_task.collaborator_role.project
+                    all_tasks = ContractTask.objects.filter(collaborator_role__project=project)
+                    unresolved = all_tasks.exclude(status__in=['signed_off', 'cancelled'])
+                    if all_tasks.exists() and not unresolved.exists():
+                        if project.status in ('draft', 'active'):
+                            project.status = 'complete'
+                            project.save(update_fields=['status'])
+
+                    logger.info(
+                        '[TaskDeadline] Task %s overdue — cancelled + refund triggered ($%s to %s)',
+                        locked_task.id, locked_task.payment_amount,
+                        locked_task.collaborator_role.project.created_by.username,
+                    )
+                else:
+                    logger.info(
+                        '[TaskDeadline] Task %s overdue (no escrow), status: %s',
+                        locked_task.id, locked_task.escrow_release_status,
+                    )
+
+        except Exception:
+            logger.exception('[TaskDeadline] Failed to process task %s', task.id)
+
+    if results['overdue_detected'] > 0:
+        logger.info('[TaskDeadline] Results: %s', results)
+
+    return results
+
+
+@shared_task
+def process_escrow_refund(task_id):
+    """Process escrow refund back to project owner after deadline breach.
+
+    No platform fee on refunds — 100% returned to the project owner.
+    Creates an EscrowTransaction audit record with type='refund'.
+    """
+    from .models import ContractTask, EscrowTransaction
+
+    try:
+        task = ContractTask.objects.select_related(
+            'collaborator_role', 'collaborator_role__user',
+            'collaborator_role__project', 'collaborator_role__project__created_by',
+        ).get(id=task_id)
+    except ContractTask.DoesNotExist:
+        logger.error('[EscrowRefund] Task %s not found', task_id)
+        return
+
+    if task.escrow_release_status != 'refunded':
+        logger.warning(
+            '[EscrowRefund] Task %s status is %s, expected refunded',
+            task_id, task.escrow_release_status,
+        )
+        return
+
+    role = task.collaborator_role
+    project = role.project
+    owner = project.created_by
+
+    # Full refund — no platform fee
+    refund_amount = task.payment_amount
+
+    # Create escrow transaction record
+    EscrowTransaction.objects.create(
+        collaborator_role=role,
+        contract_task=task,
+        transaction_type='refund',
+        amount=refund_amount,
+        platform_fee_amount=Decimal('0.00'),
+        artist_net_amount=Decimal('0.00'),
+        escrow_balance_after=(role.escrow_funded_amount or 0) - (role.escrow_released_amount or 0) - refund_amount,
+        initiated_by=None,  # System-initiated
+        notes=f'Deadline breach refund: ${refund_amount} returned to project owner @{owner.username}',
+    )
+
+    # Send notifications
+    try:
+        from .notifications_utils import create_notification
+        # Notify owner: funds returned
+        create_notification(
+            recipient=owner,
+            from_user=role.user,
+            notification_type='escrow',
+            title='Escrow Refund',
+            message=f'${refund_amount} refunded from escrow for task "{task.title}" — deadline missed by collaborator.',
+            project=project,
+        )
+        # Notify collaborator: task cancelled
+        create_notification(
+            recipient=role.user,
+            from_user=owner,
+            notification_type='escrow',
+            title='Task Cancelled — Deadline Missed',
+            message=f'Task "{task.title}" was cancelled because the deadline was missed. ${refund_amount} has been returned to the project owner.',
+            project=project,
+        )
+    except Exception:
+        logger.exception('[EscrowRefund] Failed to send notifications for task %s', task_id)
+
+    logger.info(
+        '[EscrowRefund] Task %s: $%s refunded to %s (project %s)',
+        task_id, refund_amount, owner.username, project.id,
+    )
+
+    return {
+        'task_id': task_id,
+        'amount': str(refund_amount),
+        'owner': owner.username,
+        'status': 'refunded',
+    }
+
+
+@shared_task
 def send_auto_approve_warnings():
     """Periodic task: warn writers about upcoming auto-approvals.
 

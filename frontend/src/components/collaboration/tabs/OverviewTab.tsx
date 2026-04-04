@@ -4,7 +4,7 @@ import RevenueSplitChart from '../RevenueSplitChart';
 import { EscrowStatusBar } from '../EscrowStatusBar';
 import { MilestoneTimeline } from '../MilestoneTimeline';
 import { EscrowFundingModal } from '../EscrowFundingModal';
-import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2, Upload, ImageIcon, Trash2, Shield, DollarSign } from 'lucide-react';
+import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2, Upload, ImageIcon, Trash2, Shield, DollarSign, Check } from 'lucide-react';
 
 interface User {
   id: number;
@@ -114,7 +114,7 @@ export default function OverviewTab({
         <h3 style={{ margin: '0 0 4px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
           {project.content_type === 'art' ? 'Cover Image' : 'Cover Art'}
         </h3>
-        <p style={{ margin: '0 0 16px', color: 'var(--text-muted)', fontSize: 13 }}>
+        <p style={{ margin: '0 0 16px', color: 'var(--text-muted)', fontSize: 14 }}>
           This image represents your project in the marketplace
         </p>
         <input
@@ -150,7 +150,7 @@ export default function OverviewTab({
                     padding: '6px 14px',
                     color: 'var(--text-muted)',
                     cursor: uploadingCover ? 'wait' : 'pointer',
-                    fontSize: 13,
+                    fontSize: 14,
                   }}
                 >
                   {uploadingCover ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={14} />}
@@ -167,7 +167,7 @@ export default function OverviewTab({
                     padding: '6px 14px',
                     color: '#ef4444',
                     cursor: uploadingCover ? 'wait' : 'pointer',
-                    fontSize: 13,
+                    fontSize: 14,
                   }}
                 >
                   <Trash2 size={14} />
@@ -200,7 +200,7 @@ export default function OverviewTab({
                 : (project.content_type === 'art' ? 'No cover image uploaded' : 'No cover art uploaded')}
             </span>
             {isProjectLead && (
-              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>
                 PNG, JPEG, or WebP
               </span>
             )}
@@ -214,7 +214,7 @@ export default function OverviewTab({
             background: 'rgba(245, 158, 11, 0.08)',
             border: '1px solid rgba(245, 158, 11, 0.25)',
             borderRadius: 8,
-            fontSize: 13,
+            fontSize: 14,
             color: '#f59e0b',
           }}>
             Upload your artwork in the <strong>Gallery</strong> tab
@@ -249,7 +249,7 @@ export default function OverviewTab({
                 padding: '6px 12px',
                 color: 'var(--text-muted)',
                 cursor: 'pointer',
-                fontSize: 12,
+                fontSize: 13,
               }}
             >
               Edit
@@ -290,7 +290,7 @@ export default function OverviewTab({
                   color: '#fff',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 14,
                 }}
               >
                 Save
@@ -307,7 +307,7 @@ export default function OverviewTab({
                   padding: '8px 16px',
                   color: 'var(--text-muted)',
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 14,
                 }}
               >
                 Cancel
@@ -334,14 +334,14 @@ export default function OverviewTab({
           borderTop: '1px solid var(--panel-border)',
         }}>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Created by</div>
-            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600 }}>
+            <div style={{ fontSize: 13, color: 'var(--subtle)', marginBottom: 4 }}>Created by</div>
+            <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
               @{project.created_by_username}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Created on</div>
-            <div style={{ fontSize: 13, color: 'var(--text)' }}>
+            <div style={{ fontSize: 13, color: 'var(--subtle)', marginBottom: 4 }}>Created on</div>
+            <div style={{ fontSize: 14, color: 'var(--text)' }}>
               {new Date(project.created_at).toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: 'long',
@@ -350,8 +350,8 @@ export default function OverviewTab({
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Content Type</div>
-            <div style={{ fontSize: 13, color: 'var(--text)' }}>
+            <div style={{ fontSize: 13, color: 'var(--subtle)', marginBottom: 4 }}>Content Type</div>
+            <div style={{ fontSize: 14, color: 'var(--text)' }}>
               {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)}
             </div>
           </div>
@@ -359,7 +359,7 @@ export default function OverviewTab({
           {/* Reading Direction - only for comic projects */}
           {project.content_type === 'comic' && (
             <div>
-              <div style={{ fontSize: 11, color: 'var(--subtle)', marginBottom: 4 }}>Reading Direction</div>
+              <div style={{ fontSize: 13, color: 'var(--subtle)', marginBottom: 4 }}>Reading Direction</div>
               {isProjectLead ? (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button
@@ -375,7 +375,7 @@ export default function OverviewTab({
                         : '1px solid var(--panel-border)',
                       borderRadius: 6,
                       color: readingDirection === 'ltr' ? '#fff' : '#94a3b8',
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: readingDirection === 'ltr' ? 600 : 400,
                       cursor: savingReadingDirection ? 'wait' : 'pointer',
                       transition: 'all 0.2s ease',
@@ -396,7 +396,7 @@ export default function OverviewTab({
                         : '1px solid var(--panel-border)',
                       borderRadius: 6,
                       color: readingDirection === 'rtl' ? '#fff' : '#94a3b8',
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: readingDirection === 'rtl' ? 600 : 400,
                       cursor: savingReadingDirection ? 'wait' : 'pointer',
                       transition: 'all 0.2s ease',
@@ -413,7 +413,7 @@ export default function OverviewTab({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  fontSize: 13,
+                  fontSize: 14,
                   color: 'var(--text)',
                 }}>
                   <BookOpen size={14} style={{ color: '#8b5cf6' }} />
@@ -424,6 +424,38 @@ export default function OverviewTab({
           )}
         </div>
       </div>}
+
+      {/* Project Complete banner */}
+      {escrowCollaborators.length > 0 &&
+       escrowCollaborators.every(c => c.tasks_total > 0 && c.tasks_signed_off === c.tasks_total) && (
+        <div style={{
+          gridColumn: 'span 12',
+          padding: '20px 24px',
+          background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
+          borderRadius: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 16,
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Check size={24} style={{ color: '#fff' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>
+              Project Complete
+            </div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>
+              All milestones signed off and escrow fully released. This project is ready to publish.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Escrow Contracts Section */}
       {escrowCollaborators.length > 0 && (
@@ -448,7 +480,7 @@ export default function OverviewTab({
                     @{collab.username} — {collab.effective_role_name || collab.role}
                   </span>
                   <span style={{
-                    fontSize: 11, padding: '3px 8px', borderRadius: 6,
+                    fontSize: 13, padding: '3px 8px', borderRadius: 6,
                     background: '#8b5cf620', color: '#a78bfa', fontWeight: 600,
                     textTransform: 'capitalize',
                   }}>
@@ -459,7 +491,7 @@ export default function OverviewTab({
                 {collab.escrow_funding_deadline && parseFloat(collab.escrow_funded_amount) < parseFloat(collab.total_contract_amount) && (
                   <div style={{
                     marginBottom: 8, padding: 8, borderRadius: 6,
-                    background: 'rgba(245, 158, 11, 0.08)', fontSize: 12, color: '#f59e0b',
+                    background: 'rgba(245, 158, 11, 0.08)', fontSize: 13, color: '#f59e0b',
                   }}>
                     Start date: {new Date(collab.escrow_funding_deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     {' — '}escrow must be funded by this date
@@ -485,7 +517,7 @@ export default function OverviewTab({
                       marginTop: 8, width: '100%', padding: '10px 16px',
                       borderRadius: 8, border: 'none', cursor: 'pointer',
                       background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-                      color: '#fff', fontSize: 13, fontWeight: 600,
+                      color: '#fff', fontSize: 14, fontWeight: 600,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}
                   >
@@ -522,8 +554,8 @@ export default function OverviewTab({
         />
       )}
 
-      {/* Revenue Split Chart - Left side (hidden for solo projects) */}
-      {!project.is_solo && (
+      {/* Revenue Split Chart - Left side (hidden for solo projects and pure work-for-hire) */}
+      {!project.is_solo && project.collaborators?.some(c => c.contract_type !== 'work_for_hire' && c.revenue_percentage > 0 && c.role !== 'Project Lead') && (
         <div style={{
           gridColumn: 'span 6',
           background: 'var(--panel)',
@@ -531,7 +563,7 @@ export default function OverviewTab({
           borderRadius: 12,
           padding: 24,
         }}>
-          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
+          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
             Revenue Split
           </h3>
           {project.collaborators && project.collaborators.length > 0 ? (
@@ -561,7 +593,7 @@ export default function OverviewTab({
               justifyContent: 'space-between',
               alignItems: 'center',
             }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Total</span>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>Total</span>
               <span style={{
                 fontSize: 16,
                 fontWeight: 700,
@@ -576,16 +608,16 @@ export default function OverviewTab({
         </div>
       )}
 
-      {/* Approval Progress - Right side (hidden for solo projects) */}
-      {!project.is_solo && (
+      {/* Approval Progress (hidden for solo projects and pure work-for-hire where escrow is the approval) */}
+      {!project.is_solo && project.collaborators?.some(c => c.contract_type !== 'work_for_hire' && c.role !== 'Project Lead') && (
         <div style={{
-          gridColumn: 'span 6',
+          gridColumn: project.collaborators?.some(c => c.contract_type !== 'work_for_hire' && c.revenue_percentage > 0 && c.role !== 'Project Lead') ? 'span 6' : 'span 12',
           background: 'var(--panel)',
           border: '1px solid var(--panel-border)',
           borderRadius: 12,
           padding: 24,
         }}>
-          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
+          <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
             Approval Progress
           </h3>
 
@@ -596,11 +628,11 @@ export default function OverviewTab({
               justifyContent: 'space-between',
               marginBottom: 8,
             }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
                 {totalApproved} of {acceptedCollaborators.length} approved
               </span>
               <span style={{
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
                 color: project.is_fully_approved ? '#10b981' : '#f59e0b',
               }}>
@@ -658,25 +690,25 @@ export default function OverviewTab({
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: '#fff',
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 600,
                     }}>
                       {hasApproved ? '✓' : collab.username.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                         @{collab.username}
                         {collab.user === currentUser.id && (
                           <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> (you)</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         {collab.role}
                       </div>
                     </div>
                   </div>
                   <div style={{
-                    fontSize: 11,
+                    fontSize: 13,
                     fontWeight: 600,
                     color: hasApproved ? '#10b981' : '#f59e0b',
                     background: hasApproved ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
@@ -716,10 +748,10 @@ export default function OverviewTab({
               border: '1px solid #f59e0b',
               borderRadius: 8,
             }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b', marginBottom: 8 }}>
                 Not ready to mint:
               </div>
-              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: 'var(--text-muted)' }}>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-muted)' }}>
                 {mintBlockers.slice(0, 3).map((blocker, i) => (
                   <li key={i}>{blocker}</li>
                 ))}
@@ -732,36 +764,7 @@ export default function OverviewTab({
         </div>
       )}
 
-      {/* Quick Stats - Full width (hidden for solo projects) */}
-      {!project.is_solo && (
-        <div style={{
-          gridColumn: 'span 12',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: 16,
-        }}>
-          <StatCard
-            label="Sections"
-            value={project.sections?.length || 0}
-            icon={<FileText size={20} />}
-          />
-          <StatCard
-            label="Comments"
-            value={project.recent_comments?.length || 0}
-            icon={<MessageSquare size={20} />}
-          />
-          <StatCard
-            label="Team Members"
-            value={project.collaborators?.length || 0}
-            icon={<Users size={20} />}
-          />
-          <StatCard
-            label="Progress"
-            value={`${project.progress_percentage || 0}%`}
-            icon={<Rocket size={20} />}
-          />
-        </div>
-      )}
+      {/* Quick Stats removed — sections/comments/progress were always 0 for comics */}
     </div>
   );
 }
@@ -793,7 +796,7 @@ function StatCard({ label, value, icon }: { label: string; value: string | numbe
         <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
           {value}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           {label}
         </div>
       </div>

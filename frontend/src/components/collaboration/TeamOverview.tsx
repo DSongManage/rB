@@ -1,13 +1,14 @@
 /**
  * TeamOverview Component
  *
- * Dashboard-style view showing all collaborators' status,
- * deadlines, and progress on a collaborative project.
+ * Dashboard-style view showing all collaborators' status
+ * on a collaborative project. Adapts display for work-for-hire
+ * vs revenue-share contracts.
  */
 
 import React from 'react';
 import { CollaboratorRole, ProjectSection } from '../../services/collaborationApi';
-import { Users, XCircle, CheckCircle, AlertTriangle, Clock, FileText, DollarSign, Check } from 'lucide-react';
+import { Users, Check, DollarSign } from 'lucide-react';
 
 interface TeamOverviewProps {
   collaborators: CollaboratorRole[];
@@ -20,96 +21,10 @@ export function TeamOverview({
   sections,
   projectCreatorId,
 }: TeamOverviewProps) {
-  // Calculate section completion for each collaborator
-  const getCollaboratorProgress = (collaborator: CollaboratorRole) => {
-    const assignedSections = sections.filter(
-      (s) => s.owner === collaborator.user
-    );
-    const completedSections = assignedSections.filter(
-      (s) => s.content_html && s.content_html.trim().length > 0
-    );
-    return {
-      assigned: assignedSections.length,
-      completed: completedSections.length,
-    };
-  };
-
-  // Check deadline status
-  const getDeadlineStatus = (collaborator: CollaboratorRole) => {
-    if (!collaborator.delivery_deadline) return null;
-
-    const deadline = new Date(collaborator.delivery_deadline);
-    const now = new Date();
-    const daysRemaining = Math.ceil(
-      (deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (daysRemaining < 0) {
-      return { status: 'overdue', days: Math.abs(daysRemaining), color: '#ef4444' };
-    } else if (daysRemaining <= 3) {
-      return { status: 'soon', days: daysRemaining, color: '#f59e0b' };
-    } else {
-      return { status: 'ok', days: daysRemaining, color: '#10b981' };
-    }
-  };
-
-  // Get collaborator status badge
-  const getStatusBadge = (collaborator: CollaboratorRole): {
-    icon: React.ReactNode;
-    text: string;
-    color: string;
-    bg: string;
-  } => {
-    const progress = getCollaboratorProgress(collaborator);
-    const deadline = getDeadlineStatus(collaborator);
-
-    // Overdue
-    if (deadline?.status === 'overdue') {
-      return {
-        icon: <XCircle size={14} />,
-        text: `${deadline.days}d overdue`,
-        color: '#ef4444',
-        bg: '#ef444420',
-      };
-    }
-
-    // All sections complete
-    if (progress.assigned > 0 && progress.completed === progress.assigned) {
-      return {
-        icon: <CheckCircle size={14} />,
-        text: `${progress.completed}/${progress.assigned} complete`,
-        color: '#10b981',
-        bg: '#10b98120',
-      };
-    }
-
-    // Has pending sections
-    if (progress.assigned > 0) {
-      const remaining = progress.assigned - progress.completed;
-      if (deadline?.status === 'soon') {
-        return {
-          icon: <AlertTriangle size={14} />,
-          text: `${remaining} section${remaining > 1 ? 's' : ''} due in ${deadline.days}d`,
-          color: '#f59e0b',
-          bg: '#f59e0b20',
-        };
-      }
-      return {
-        icon: <Clock size={14} />,
-        text: `${progress.completed}/${progress.assigned} sections`,
-        color: '#3b82f6',
-        bg: '#3b82f620',
-      };
-    }
-
-    // No sections assigned
-    return {
-      icon: <FileText size={14} />,
-      text: 'No sections assigned',
-      color: 'var(--text-muted)',
-      bg: 'var(--bg-secondary)',
-    };
-  };
+  // Check if any non-owner collaborator uses revenue share (not pure work-for-hire)
+  const hasRevenueSharing = collaborators.some(
+    c => c.contract_type !== 'work_for_hire' && c.revenue_percentage > 0 && c.user !== projectCreatorId
+  );
 
   return (
     <div
@@ -121,40 +36,30 @@ export function TeamOverview({
         padding: 20,
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginBottom: 20,
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <Users size={20} style={{ color: '#8b5cf6' }} />
-        <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
+        <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
           Team Overview
         </h3>
-        <span
-          style={{
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-muted)',
-            padding: '2px 10px',
-            borderRadius: 12,
-            fontSize: 12,
-            fontWeight: 500,
-          }}
-        >
-          {collaborators.filter((c) => c.status === 'accepted').length} active
+        <span style={{
+          background: 'var(--bg-secondary)',
+          color: 'var(--text-muted)',
+          padding: '2px 10px',
+          borderRadius: 12,
+          fontSize: 13,
+          fontWeight: 500,
+        }}>
+          {collaborators.filter(c => c.status === 'accepted').length} active
         </span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {collaborators
-          .filter((c) => c.status === 'accepted')
+          .filter(c => c.status === 'accepted')
           .map((collaborator) => {
-            const progress = getCollaboratorProgress(collaborator);
-            const statusBadge = getStatusBadge(collaborator);
             const isOwner = collaborator.user === projectCreatorId;
             const isLead = collaborator.is_lead;
+            const isEscrow = collaborator.contract_type === 'work_for_hire' || collaborator.contract_type === 'hybrid';
 
             return (
               <div
@@ -163,273 +68,150 @@ export function TeamOverview({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 12,
-                  padding: 12,
+                  padding: 14,
                   background: 'var(--bg-secondary)',
                   borderRadius: 10,
-                  borderLeft: `3px solid ${statusBadge.color}`,
+                  borderLeft: `3px solid ${isOwner ? '#f59e0b' : '#8b5cf6'}`,
                 }}
               >
-                {/* Avatar placeholder */}
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    background: `linear-gradient(135deg, ${
-                      isOwner ? '#f59e0b' : '#3b82f6'
-                    } 0%, ${isOwner ? '#d97706' : '#2563eb'} 100%)`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    flexShrink: 0,
-                  }}
-                >
+                {/* Avatar */}
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${isOwner ? '#f59e0b' : '#3b82f6'} 0%, ${isOwner ? '#d97706' : '#2563eb'} 100%)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontWeight: 700, fontSize: 15, flexShrink: 0,
+                }}>
                   {collaborator.username.charAt(0).toUpperCase()}
                 </div>
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span
-                      style={{
-                        color: 'var(--text)',
-                        fontWeight: 600,
-                        fontSize: 14,
-                      }}
-                    >
+                    <span style={{ color: 'var(--text)', fontWeight: 600, fontSize: 15 }}>
                       @{collaborator.username}
                     </span>
                     {isOwner && (
-                      <span
-                        style={{
-                          background: '#f59e0b',
-                          color: '#000',
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          fontSize: 10,
-                          fontWeight: 700,
-                        }}
-                      >
+                      <span style={{
+                        background: '#f59e0b', color: '#000',
+                        padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      }}>
                         OWNER
                       </span>
                     )}
-                    {isLead && !isOwner && (
-                      <span
-                        style={{
-                          background: '#8b5cf6',
-                          color: '#fff',
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          fontSize: 10,
-                          fontWeight: 700,
-                        }}
-                      >
-                        LEAD
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 2 }}>
+                    {collaborator.role}
+                    {/* Show contract info instead of equity % for escrow contracts */}
+                    {isEscrow && !isOwner && (
+                      <span style={{ color: '#8b5cf6', marginLeft: 8 }}>
+                        {collaborator.contract_type === 'work_for_hire' ? 'Work for Hire' : 'Hybrid'}
+                        {collaborator.total_contract_amount && ` · $${parseFloat(collaborator.total_contract_amount).toFixed(2)}`}
                       </span>
                     )}
-                  </div>
-                  <div
-                    style={{
-                      color: 'var(--text-muted)',
-                      fontSize: 12,
-                      marginTop: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    <span>{collaborator.role}</span>
-                    <span style={{ color: 'var(--subtle)' }}>•</span>
-                    <span style={{ color: '#10b981' }}>
-                      {collaborator.revenue_percentage}%
-                    </span>
+                    {/* Only show revenue % when there's meaningful revenue sharing */}
+                    {hasRevenueSharing && (
+                      <>
+                        <span style={{ color: 'var(--subtle)', margin: '0 6px' }}>·</span>
+                        <span style={{ color: '#10b981' }}>{collaborator.revenue_percentage}%</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {/* Progress bar for sections */}
-                {progress.assigned > 0 && (
-                  <div style={{ width: 80 }}>
-                    <div
-                      style={{
-                        height: 6,
-                        background: 'var(--border)',
-                        borderRadius: 3,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${(progress.completed / progress.assigned) * 100}%`,
-                          height: '100%',
-                          background:
-                            progress.completed === progress.assigned
-                              ? '#10b981'
-                              : '#3b82f6',
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
-                    </div>
+                {/* Escrow status for work-for-hire collaborators */}
+                {isEscrow && !isOwner && (
+                  <div style={{
+                    padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+                    background: parseFloat(collaborator.escrow_funded_amount || '0') >= parseFloat(collaborator.total_contract_amount || '0')
+                      ? '#10b98120' : '#f59e0b20',
+                    color: parseFloat(collaborator.escrow_funded_amount || '0') >= parseFloat(collaborator.total_contract_amount || '0')
+                      ? '#10b981' : '#f59e0b',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {parseFloat(collaborator.escrow_funded_amount || '0') >= parseFloat(collaborator.total_contract_amount || '0')
+                      ? `Escrow Funded`
+                      : `Awaiting Funding`}
                   </div>
                 )}
 
-                {/* Status badge */}
-                <div
-                  style={{
-                    background: statusBadge.bg,
-                    color: statusBadge.color,
-                    padding: '6px 12px',
-                    borderRadius: 6,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <span>{statusBadge.icon}</span>
-                  {statusBadge.text}
-                </div>
-
-                {/* Approval status */}
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: 4,
-                    flexShrink: 0,
-                  }}
-                  title={`Content: ${
-                    collaborator.approved_current_version ? 'Approved' : 'Pending'
-                  }, Revenue: ${collaborator.approved_revenue_split ? 'Approved' : 'Pending'}`}
-                >
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 4,
-                      background: collaborator.approved_current_version
-                        ? '#10b98120'
-                        : 'var(--bg-secondary)',
-                      color: collaborator.approved_current_version
-                        ? '#10b981'
-                        : 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                    }}
+                {/* Approval status — only for revenue share projects */}
+                {hasRevenueSharing && (
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}
+                    title={`Content: ${collaborator.approved_current_version ? 'Approved' : 'Pending'}, Revenue: ${collaborator.approved_revenue_split ? 'Approved' : 'Pending'}`}
                   >
-                    {collaborator.approved_current_version ? <Check size={12} /> : '○'}
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 4,
+                      background: collaborator.approved_current_version ? '#10b98120' : 'var(--bg-secondary)',
+                      color: collaborator.approved_current_version ? '#10b981' : 'var(--text-muted)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
+                    }}>
+                      {collaborator.approved_current_version ? <Check size={13} /> : '○'}
+                    </div>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 4,
+                      background: collaborator.approved_revenue_split ? '#10b98120' : 'var(--bg-secondary)',
+                      color: collaborator.approved_revenue_split ? '#10b981' : 'var(--text-muted)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13,
+                    }}>
+                      {collaborator.approved_revenue_split ? <DollarSign size={13} /> : '○'}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 4,
-                      background: collaborator.approved_revenue_split
-                        ? '#10b98120'
-                        : 'var(--bg-secondary)',
-                      color: collaborator.approved_revenue_split
-                        ? '#10b981'
-                        : 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                    }}
-                  >
-                    {collaborator.approved_revenue_split ? <DollarSign size={12} /> : '○'}
-                  </div>
-                </div>
+                )}
               </div>
             );
           })}
 
         {/* Pending invites */}
-        {collaborators.filter((c) => c.status === 'invited').length > 0 && (
+        {collaborators.filter(c => c.status === 'invited').length > 0 && (
           <>
-            <div
-              style={{
-                borderTop: '1px solid var(--border)',
-                margin: '8px 0',
-                paddingTop: 12,
-              }}
-            >
-              <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600 }}>
+            <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0', paddingTop: 12 }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>
                 PENDING INVITES
               </span>
             </div>
             {collaborators
-              .filter((c) => c.status === 'invited')
+              .filter(c => c.status === 'invited')
               .map((collaborator) => (
-                <div
-                  key={collaborator.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: 12,
-                    background: 'var(--bg-secondary)',
-                    borderRadius: 10,
-                    borderLeft: '3px solid #f59e0b',
-                    opacity: 0.7,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      background: 'var(--border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--text-muted)',
-                      fontWeight: 700,
-                      fontSize: 14,
-                      flexShrink: 0,
-                    }}
-                  >
+                <div key={collaborator.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: 14,
+                  background: 'var(--bg-secondary)', borderRadius: 10,
+                  borderLeft: '3px solid #f59e0b', opacity: 0.7,
+                }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--text-muted)', fontWeight: 700, fontSize: 15, flexShrink: 0,
+                  }}>
                     {collaborator.username.charAt(0).toUpperCase()}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 14 }}>
+                    <div style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 15 }}>
                       @{collaborator.username}
                     </div>
-                    <div style={{ color: 'var(--subtle)', fontSize: 12 }}>
-                      {collaborator.role} • {collaborator.revenue_percentage}%
+                    <div style={{ color: 'var(--subtle)', fontSize: 13 }}>
+                      {collaborator.role}
+                      {collaborator.contract_type === 'work_for_hire' && collaborator.total_contract_amount && (
+                        <span style={{ color: '#8b5cf6', marginLeft: 8 }}>
+                          Work for Hire · ${parseFloat(collaborator.total_contract_amount).toFixed(2)}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {(collaborator.proposed_percentage != null &&
                    Math.abs(Number(collaborator.proposed_percentage) - Number(collaborator.revenue_percentage)) > 0.001) ||
                    collaborator.proposed_total_amount != null ||
                    (collaborator.proposed_tasks && collaborator.proposed_tasks.length > 0) ? (
-                    <span
-                      style={{
-                        background: '#f9731620',
-                        color: '#f97316',
-                        padding: '6px 12px',
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
+                    <span style={{
+                      background: '#f9731620', color: '#f97316',
+                      padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                    }}>
                       Counter-proposal received
                     </span>
                   ) : (
-                    <span
-                      style={{
-                        background: '#f59e0b20',
-                        color: '#f59e0b',
-                        padding: '6px 12px',
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 500,
-                      }}
-                    >
+                    <span style={{
+                      background: '#f59e0b20', color: '#f59e0b',
+                      padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 500,
+                    }}>
                       Awaiting response
                     </span>
                   )}
@@ -439,27 +221,24 @@ export function TeamOverview({
         )}
       </div>
 
-      {/* Summary footer */}
-      <div
-        style={{
-          marginTop: 16,
-          paddingTop: 16,
+      {/* Legend footer — only for revenue share projects */}
+      {hasRevenueSharing && (
+        <div style={{
+          marginTop: 16, paddingTop: 16,
           borderTop: '1px solid var(--border)',
-          display: 'flex',
-          gap: 16,
-          flexWrap: 'wrap',
-        }}
-      >
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Check size={14} style={{ color: '#10b981' }} /> Content Approved
+          display: 'flex', gap: 16, flexWrap: 'wrap',
+        }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Check size={14} style={{ color: '#10b981' }} /> Content Approved
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <DollarSign size={14} style={{ color: '#10b981' }} /> Revenue Approved
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>○</span> Pending
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <DollarSign size={14} style={{ color: '#10b981' }} /> Revenue Approved
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>○</span> Pending
-        </div>
-      </div>
+      )}
     </div>
   );
 }

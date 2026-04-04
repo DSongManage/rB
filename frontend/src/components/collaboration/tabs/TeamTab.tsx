@@ -45,6 +45,9 @@ interface ContractTask {
   title: string;
   description: string;
   deadline: string;
+  payment_amount?: string;
+  page_range_start?: number;
+  page_range_end?: number;
 }
 
 // Helper to render role icon based on icon string
@@ -341,15 +344,18 @@ export default function TeamTab({
 
   // Task management functions
   const addTask = () => {
+    const nextPage = tasks.length + 1;
     setTasks([...tasks, {
       id: generateId(),
       title: '',
       description: '',
       deadline: getDefaultDeadline(),
+      page_range_start: nextPage,
+      page_range_end: nextPage,
     }]);
   };
 
-  const updateTask = (id: string, field: keyof ContractTask, value: string) => {
+  const updateTask = (id: string, field: keyof ContractTask, value: string | number) => {
     setTasks(tasks.map(t => t.id === id ? { ...t, [field]: value } : t));
   };
 
@@ -398,6 +404,20 @@ export default function TeamTab({
         setInviteError('All contract tasks must have a deadline');
         return;
       }
+      if (contractType !== 'revenue_share' && (!task.payment_amount || parseFloat(task.payment_amount) <= 0)) {
+        setInviteError('All tasks must have a payment amount for escrow contracts');
+        return;
+      }
+    }
+
+    // Validate task payment amounts sum to total contract amount
+    if (contractType !== 'revenue_share' && tasks.length > 0 && !selectedTemplateId) {
+      const taskSum = tasks.reduce((sum, t) => sum + (parseFloat(t.payment_amount || '0') || 0), 0);
+      const total = parseFloat(totalContractAmount || '0');
+      if (Math.abs(taskSum - total) > 0.01) {
+        setInviteError(`Task payments ($${taskSum.toFixed(2)}) must equal total contract amount ($${total.toFixed(2)})`);
+        return;
+      }
     }
 
     setInviteError('');
@@ -439,6 +459,9 @@ export default function TeamTab({
           title: t.title,
           description: t.description,
           deadline: new Date(t.deadline).toISOString(),
+          ...(t.payment_amount ? { payment_amount: t.payment_amount } : {}),
+          ...(t.page_range_start ? { page_range_start: t.page_range_start } : {}),
+          ...(t.page_range_end ? { page_range_end: t.page_range_end } : {}),
         })) : undefined,
       });
 
@@ -542,14 +565,14 @@ export default function TeamTab({
             overflow: 'hidden',
           }}
         >
-          <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 16 }}>
+          <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 18 }}>
             Invite New Collaborator
           </h3>
 
           <div>
             {/* User Search Input */}
             <div ref={dropdownRef} style={{ position: 'relative', maxWidth: 500 }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
                 Find Collaborator
               </label>
               {selectedUser ? (
@@ -584,7 +607,7 @@ export default function TeamTab({
                       @{selectedUser.username}
                     </div>
                     {selectedUser.display_name && (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         {selectedUser.display_name}
                       </div>
                     )}
@@ -638,7 +661,7 @@ export default function TeamTab({
                         top: '50%',
                         transform: 'translateY(-50%)',
                         color: 'var(--text-muted)',
-                        fontSize: 12,
+                        fontSize: 13,
                       }}>
                         ...
                       </div>
@@ -697,7 +720,7 @@ export default function TeamTab({
                               @{user.username}
                             </div>
                             {user.display_name && (
-                              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                                 {user.display_name}
                               </div>
                             )}
@@ -724,7 +747,7 @@ export default function TeamTab({
                       <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
                         No collaborators found for "{searchQuery}"
                       </div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 11, textAlign: 'center', marginBottom: 12 }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
                         Only users with <strong style={{ color: '#f59e0b' }}>public profiles</strong> appear in search.
                       </div>
                       {/* Exact username lookup button */}
@@ -768,7 +791,7 @@ export default function TeamTab({
                           border: '1px solid rgba(239, 68, 68, 0.3)',
                           borderRadius: 6,
                           color: '#f87171',
-                          fontSize: 12,
+                          fontSize: 13,
                           textAlign: 'center',
                         }}>
                           {exactLookupError}
@@ -777,7 +800,7 @@ export default function TeamTab({
                     </div>
                   )}
                   {/* Helper text below input */}
-                  <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <div style={{ marginTop: 6, fontSize: 13, color: 'var(--text-muted)' }}>
                     Only users with public profiles can be found
                   </div>
                 </>
@@ -787,7 +810,7 @@ export default function TeamTab({
 
           {/* Role Selection Section */}
           <div style={{ marginTop: 20 }} data-tour="roles-dropdown">
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
               Their Role <span style={{ color: '#ef4444' }}>*</span>
             </label>
 
@@ -861,7 +884,7 @@ export default function TeamTab({
                       </div>
                       <span style={{
                         color: selectedRoleId === roleDef.id ? '#8b5cf6' : 'var(--text)',
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: 600,
                         textAlign: 'center',
                       }}>
@@ -913,7 +936,7 @@ export default function TeamTab({
                     </div>
                     <span style={{
                       color: showCustomRole ? '#8b5cf6' : '#94a3b8',
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 600,
                     }}>
                       Custom Role
@@ -964,7 +987,7 @@ export default function TeamTab({
                           <div style={{ color: '#8b5cf6', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
                             {selectedRole.name}
                           </div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8 }}>
                             {selectedRole.description}
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1013,7 +1036,7 @@ export default function TeamTab({
 
           {/* Contract Type Selection */}
           <div style={{ marginTop: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Shield size={14} style={{ color: '#8b5cf6' }} />
                 Payment Structure
@@ -1027,7 +1050,11 @@ export default function TeamTab({
               ] as const).map(opt => (
                 <button
                   key={opt.value}
-                  onClick={() => setContractType(opt.value)}
+                  onClick={() => {
+                    setContractType(opt.value);
+                    if (opt.value === 'work_for_hire') setInvitePercentage(0);
+                    else if (opt.value === 'revenue_share' && invitePercentage === 0) setInvitePercentage(10);
+                  }}
                   style={{
                     background: contractType === opt.value ? '#8b5cf615' : 'var(--bg)',
                     border: `1px solid ${contractType === opt.value ? '#8b5cf6' : 'var(--panel-border)'}`,
@@ -1037,7 +1064,7 @@ export default function TeamTab({
                     textAlign: 'left',
                   }}
                 >
-                  <div style={{ fontSize: 12, fontWeight: 600, color: contractType === opt.value ? '#a78bfa' : 'var(--text)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: contractType === opt.value ? '#a78bfa' : 'var(--text)' }}>
                     {opt.label}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</div>
@@ -1048,7 +1075,7 @@ export default function TeamTab({
             {/* Total Contract Amount (for escrow types) */}
             {contractType !== 'revenue_share' && (
               <div style={{ marginTop: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
+                <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
                   <DollarSign size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Total Contract Amount (USD)
                 </label>
                 <input
@@ -1068,7 +1095,7 @@ export default function TeamTab({
                 {/* Milestone Template Selector */}
                 {milestoneTemplates.length > 0 && (
                   <div style={{ marginTop: 10 }}>
-                    <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
+                    <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>
                       Milestone Template (auto-generates tasks)
                     </label>
                     <select
@@ -1091,7 +1118,7 @@ export default function TeamTab({
                       <div style={{
                         marginTop: 8, padding: 10, borderRadius: 8,
                         background: '#8b5cf610', border: '1px solid #8b5cf630',
-                        fontSize: 12, color: '#a78bfa',
+                        fontSize: 13, color: '#a78bfa',
                       }}>
                         {milestoneTemplates.find(t => t.id === selectedTemplateId)?.description}
                       </div>
@@ -1102,9 +1129,10 @@ export default function TeamTab({
             )}
           </div>
 
-          {/* Revenue Split with Equity Warning */}
+          {/* Revenue Split with Equity Warning — hidden for pure Work for Hire */}
+          {contractType !== 'work_for_hire' && (
           <div style={{ marginTop: 20 }} data-tour="revenue-splits">
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>
               Revenue Split: {invitePercentage}%
             </label>
             <input
@@ -1157,11 +1185,12 @@ export default function TeamTab({
                   (-{invitePercentage}%)
                 </span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
                 This percentage comes from your share only and does not affect other collaborators.
               </div>
             </div>
           </div>
+          )}
 
           {/* Contract Tasks Section */}
           <div style={{
@@ -1189,7 +1218,7 @@ export default function TeamTab({
                   <ClipboardList size={18} style={{ color: '#8b5cf6' }} />
                   Contract Tasks
                 </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
+                <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
                   Define specific deliverables with deadlines. These become binding after acceptance.
                 </div>
               </div>
@@ -1227,7 +1256,7 @@ export default function TeamTab({
               }}>
                 <Calendar size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
                 <div>No tasks defined yet</div>
-                <div style={{ fontSize: 11, marginTop: 4 }}>
+                <div style={{ fontSize: 13, marginTop: 4 }}>
                   Add tasks to create a concrete contract with clear deliverables
                 </div>
               </div>
@@ -1252,7 +1281,7 @@ export default function TeamTab({
                             <label style={{
                               display: 'block',
                               color: 'var(--text-muted)',
-                              fontSize: 11,
+                              fontSize: 13,
                               marginBottom: 4,
                               fontWeight: 600,
                             }}>
@@ -1279,7 +1308,7 @@ export default function TeamTab({
                             <label style={{
                               display: 'block',
                               color: 'var(--text-muted)',
-                              fontSize: 11,
+                              fontSize: 13,
                               marginBottom: 4,
                               fontWeight: 600,
                             }}>
@@ -1304,7 +1333,7 @@ export default function TeamTab({
                           <label style={{
                             display: 'block',
                             color: 'var(--text-muted)',
-                            fontSize: 11,
+                            fontSize: 13,
                             marginBottom: 4,
                             fontWeight: 600,
                           }}>
@@ -1329,6 +1358,59 @@ export default function TeamTab({
                             }}
                           />
                         </div>
+                        {contractType !== 'revenue_share' && (
+                          <div>
+                            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 13, marginBottom: 4 }}>
+                              Payment Amount (USD) *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={task.payment_amount || ''}
+                              onChange={(e) => updateTask(task.id, 'payment_amount', e.target.value)}
+                              placeholder="e.g., 1.00"
+                              style={{
+                                width: '200px',
+                                background: 'var(--bg)',
+                                border: '1px solid var(--panel-border)',
+                                borderRadius: 6,
+                                padding: 10,
+                                color: 'var(--text)',
+                                fontSize: 13,
+                              }}
+                            />
+                          </div>
+                        )}
+                        {/* Page range linkage */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <label style={{ color: 'var(--text-muted)', fontSize: 13, whiteSpace: 'nowrap' }}>
+                            Page:
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={task.page_range_start || ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || undefined;
+                              updateTask(task.id, 'page_range_start', val as any);
+                              updateTask(task.id, 'page_range_end', val as any);
+                            }}
+                            placeholder="#"
+                            style={{
+                              width: '60px',
+                              background: 'var(--bg)',
+                              border: '1px solid var(--panel-border)',
+                              borderRadius: 6,
+                              padding: '6px 8px',
+                              color: 'var(--text)',
+                              fontSize: 13,
+                            }}
+                          />
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                            Links to comic page for auto escrow release
+                          </span>
+                        </div>
                       </div>
                       <button
                         onClick={() => removeTask(task.id)}
@@ -1351,6 +1433,26 @@ export default function TeamTab({
               </div>
             )}
 
+            {contractType !== 'revenue_share' && tasks.length > 0 && !selectedTemplateId && (
+              <div style={{
+                marginTop: 12,
+                padding: 10,
+                background: 'rgba(139, 92, 246, 0.08)',
+                border: '1px solid rgba(139, 92, 246, 0.2)',
+                borderRadius: 8,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontSize: 13,
+              }}>
+                <span style={{ color: '#a78bfa' }}>
+                  Task payments total: ${tasks.reduce((sum, t) => sum + (parseFloat(t.payment_amount || '0') || 0), 0).toFixed(2)}
+                </span>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  Contract total: ${parseFloat(totalContractAmount || '0').toFixed(2)}
+                </span>
+              </div>
+            )}
             {tasks.length > 0 && (
               <div style={{
                 marginTop: 16,
@@ -1586,22 +1688,119 @@ export default function TeamTab({
           <h3 style={{ margin: '0 0 20px', color: 'var(--text)', fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
             <ClipboardList size={20} style={{ color: '#8b5cf6' }} /> Contract Tasks
           </h3>
+
+          {/* Project Complete banner — all escrow tasks signed off */}
+          {collaborators
+            .filter(c => c.status === 'accepted' && c.tasks_total > 0)
+            .every(c => c.tasks_signed_off === c.tasks_total) && (
+            <div style={{
+              marginBottom: 20,
+              padding: '16px 20px',
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <Check size={20} style={{ color: '#fff' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#10b981' }}>
+                  Project Complete
+                </div>
+                <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 2 }}>
+                  All milestones signed off. Escrow fully released to collaborators.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {collaborators
               .filter(c => c.status === 'accepted' && c.tasks_total > 0)
-              .map((collab) => (
-                <TaskTracker
-                  key={collab.id}
-                  collaboratorRole={collab}
-                  currentUserId={currentUser.id}
-                  isProjectOwner={isProjectLead}
-                  projectId={project.id}
-                  onTaskUpdate={async () => {
-                    const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
-                    onProjectUpdate?.(updatedProject);
-                  }}
-                />
-              ))}
+              .map((collab) => {
+                const isEscrowContract = collab.contract_type === 'work_for_hire' || collab.contract_type === 'hybrid';
+                const escrowFunded = isEscrowContract && parseFloat(collab.escrow_funded_amount || '0') >= parseFloat(collab.total_contract_amount || '0');
+                const needsFunding = isEscrowContract && !escrowFunded;
+
+                return (
+                  <div key={collab.id}>
+                    {/* Escrow Status Bar for escrow-based contracts */}
+                    {isEscrowContract && (
+                      <div style={{ marginBottom: 16 }}>
+                        <EscrowStatusBar
+                          contractType={collab.contract_type as 'work_for_hire' | 'hybrid'}
+                          totalAmount={collab.total_contract_amount || '0'}
+                          fundedAmount={collab.escrow_funded_amount || '0'}
+                          releasedAmount={collab.escrow_released_amount || '0'}
+                          trustPhase={collab.trust_phase || 'not_started'}
+                          trustPagesCompleted={collab.trust_pages_completed || 0}
+                          fundedAt={collab.escrow_funded_at}
+                        />
+                        {/* Fund Escrow button for project owner when not yet funded */}
+                        {needsFunding && isProjectLead && (
+                          <button
+                            onClick={() => setFundingModalRole(collab)}
+                            style={{
+                              marginTop: 12,
+                              width: '100%',
+                              padding: '12px 20px',
+                              background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                              border: 'none',
+                              borderRadius: 8,
+                              color: '#fff',
+                              fontSize: 14,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 8,
+                            }}
+                          >
+                            <DollarSign size={16} />
+                            Fund Escrow — ${parseFloat(collab.total_contract_amount || '0').toFixed(2)} USDC
+                          </button>
+                        )}
+                        {needsFunding && !isProjectLead && (
+                          <div style={{
+                            marginTop: 12,
+                            padding: 12,
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px solid rgba(245, 158, 11, 0.3)',
+                            borderRadius: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                          }}>
+                            <AlertTriangle size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                            <span style={{ color: '#f59e0b', fontSize: 13 }}>
+                              Waiting for project owner to fund escrow before work can begin.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <TaskTracker
+                      collaboratorRole={collab}
+                      currentUserId={currentUser.id}
+                      isProjectOwner={isProjectLead}
+                      projectId={project.id}
+                      onTaskUpdate={async () => {
+                        const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+                        onProjectUpdate?.(updatedProject);
+                      }}
+                    />
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
@@ -1620,7 +1819,7 @@ export default function TeamTab({
           borderRadius: 12,
           padding: 24,
         }}>
-          <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 16 }}>
+          <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 18 }}>
             Counter-Proposals
           </h3>
 
@@ -1667,7 +1866,7 @@ export default function TeamTab({
                         <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>
                           @{collab.username}
                         </span>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                           proposes
                         </span>
                       </div>
@@ -1679,7 +1878,7 @@ export default function TeamTab({
                           {collab.proposed_percentage}%
                         </span>
                         <span style={{
-                          fontSize: 11,
+                          fontSize: 13,
                           color: proposedDiff > 0 ? '#ef4444' : '#10b981',
                           fontWeight: 500,
                         }}>
@@ -1711,8 +1910,8 @@ export default function TeamTab({
                         alignItems: 'center',
                         gap: 8,
                       }}>
-                        <span style={{ color: '#10b981', fontSize: 12, fontWeight: 600 }}>Proposed Rate:</span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: 12, textDecoration: 'line-through' }}>
+                        <span style={{ color: '#10b981', fontSize: 13, fontWeight: 600 }}>Proposed Rate:</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 13, textDecoration: 'line-through' }}>
                           ${parseFloat(collab.total_contract_amount).toFixed(2)}
                         </span>
                         <span style={{ color: '#10b981', fontSize: 14, fontWeight: 700 }}>
@@ -1730,7 +1929,7 @@ export default function TeamTab({
                         border: '1px solid rgba(59, 130, 246, 0.2)',
                         borderRadius: 8,
                       }}>
-                        <div style={{ color: '#93c5fd', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+                        <div style={{ color: '#93c5fd', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
                           Proposed Task Changes:
                         </div>
                         {collab.proposed_tasks.map((pt: any) => {
@@ -1738,7 +1937,7 @@ export default function TeamTab({
                           return (
                             <div key={pt.task_id} style={{
                               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              padding: '4px 0', fontSize: 12, color: 'var(--text-muted)',
+                              padding: '4px 0', fontSize: 13, color: 'var(--text-muted)',
                             }}>
                               <span>{originalTask?.title || `Task #${pt.task_id}`}</span>
                               <div style={{ display: 'flex', gap: 12 }}>
@@ -1778,7 +1977,7 @@ export default function TeamTab({
                           }}>
                             <label style={{
                               display: 'block',
-                              fontSize: 12,
+                              fontSize: 13,
                               color: 'var(--text-muted)',
                               marginBottom: 8,
                             }}>

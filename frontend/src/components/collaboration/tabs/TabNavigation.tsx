@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, FileText, Users, MessageSquare, Rocket, ScrollText, Layers, Image, BookOpen, Hammer } from 'lucide-react';
+import { useMobile } from '../../../hooks/useMobile';
 
 export type TabId = 'overview' | 'workspace' | 'script' | 'content' | 'team' | 'activity' | 'publish';
 
@@ -74,14 +75,18 @@ export default function TabNavigation({
   isSolo = false,
 }: TabNavigationProps) {
   const tabs = getTabs(contentType, isSolo);
+  const { isPhone, isMobile } = useMobile();
+
   return (
     <div style={{
       display: 'flex',
-      gap: 4,
+      gap: isPhone ? 2 : 4,
       background: 'var(--panel)',
-      padding: 4,
-      borderRadius: 12,
+      padding: isPhone ? 3 : 4,
+      borderRadius: isPhone ? 8 : 12,
       border: '1px solid var(--panel-border)',
+      overflowX: isMobile ? 'auto' : undefined,
+      WebkitOverflowScrolling: 'touch' as any,
     }}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
@@ -95,11 +100,12 @@ export default function TabNavigation({
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
+            title={isPhone ? tab.label : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              padding: '10px 16px',
+              gap: isPhone ? 0 : 8,
+              padding: isPhone ? '10px 12px' : '10px 16px',
               background: isActive
                 ? 'var(--bg)'
                 : isPublishReady
@@ -117,14 +123,16 @@ export default function TabNavigation({
                   ? '#10b981'
                   : '#94a3b8',
               cursor: 'pointer',
-              fontSize: 14,
+              fontSize: isPhone ? 13 : 14,
               fontWeight: isActive ? 600 : 500,
               transition: 'all 0.2s ease',
               position: 'relative',
+              flexShrink: 0,
+              minHeight: 44,
             }}
           >
             <span style={{ display: 'flex', alignItems: 'center' }}>{tab.icon}</span>
-            <span>{tab.label}</span>
+            {!isPhone && <span>{tab.label}</span>}
             {badge !== undefined && badge > 0 && (
               <span style={{
                 background: '#ef4444',
@@ -135,6 +143,7 @@ export default function TabNavigation({
                 borderRadius: 10,
                 minWidth: 18,
                 textAlign: 'center',
+                ...(isPhone ? { position: 'absolute', top: 2, right: 2, padding: '1px 4px', fontSize: 8, minWidth: 14 } : {}),
               }}>
                 {badge > 99 ? '99+' : badge}
               </span>
