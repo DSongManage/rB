@@ -235,6 +235,7 @@ export default function ProfilePageRedesigned() {
   const [salesAnalytics, setSalesAnalytics] = useState<SalesAnalytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [expandedAnalyticsCards, setExpandedAnalyticsCards] = useState<Set<string>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
   // Following state
   const [followingList, setFollowingList] = useState<FollowUser[]>([]);
@@ -249,6 +250,18 @@ export default function ProfilePageRedesigned() {
         newSet.delete(cardId);
       } else {
         newSet.add(cardId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
       }
       return newSet;
     });
@@ -1395,15 +1408,16 @@ export default function ProfilePageRedesigned() {
                 background: 'var(--bg-card)',
                 border: '1px solid var(--panel-border-strong)',
                 borderRadius: 12,
-                padding: 20,
+                padding: isMobile ? 14 : 20,
                 opacity: isProcessing ? 0.7 : 1,
                 transition: 'all 0.2s',
+                overflow: 'hidden',
               }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? 10 : 16 }}>
                   {/* Project Type Icon */}
                   <div style={{
-                    width: 56,
-                    height: 56,
+                    width: isMobile ? 40 : 56,
+                    height: isMobile ? 40 : 56,
                     borderRadius: 12,
                     background: '#f59e0b20',
                     display: 'flex',
@@ -1412,12 +1426,12 @@ export default function ProfilePageRedesigned() {
                     color: '#f59e0b',
                     flexShrink: 0,
                   }}>
-                    {getContentTypeIcon(project.content_type, 28)}
+                    {getContentTypeIcon(project.content_type, isMobile ? 20 : 28)}
                   </div>
 
                   {/* Invite Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+                    <div style={{ fontSize: isMobile ? 15 : 17, fontWeight: 700, color: 'var(--text)', marginBottom: 6, wordBreak: 'break-word' }}>
                       {project.title?.replace(/^Collaboration Invite - /, '') || project.title}
                     </div>
                     <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 10 }}>
@@ -1586,16 +1600,16 @@ export default function ProfilePageRedesigned() {
                       </div>
 
                       {/* Action Buttons */}
-                      <div style={{ display: 'flex', gap: 12 }}>
+                      <div style={{ display: 'flex', gap: isMobile ? 8 : 12, flexWrap: 'wrap' }}>
                       <button
                         onClick={(e) => handleAcceptInvite(project.id, e)}
                         disabled={isProcessing || !isWarrantyAcknowledged}
                         style={{
-                          flex: 1,
+                          flex: isMobile ? '1 1 100%' : 1,
                           background: isWarrantyAcknowledged ? '#10b981' : 'var(--subtle)',
                           color: '#fff',
                           border: 'none',
-                          padding: '12px 20px',
+                          padding: isMobile ? '10px 16px' : '12px 20px',
                           borderRadius: 10,
                           fontSize: 14,
                           fontWeight: 700,
@@ -1615,10 +1629,11 @@ export default function ProfilePageRedesigned() {
                         onClick={(e) => handleDeclineInvite(project.id, e)}
                         disabled={isProcessing}
                         style={{
+                          flex: isMobile ? '1 1 45%' : undefined,
                           background: 'transparent',
                           color: '#ef4444',
                           border: '1px solid #ef4444',
-                          padding: '12px 20px',
+                          padding: isMobile ? '10px 16px' : '12px 20px',
                           borderRadius: 10,
                           fontSize: 14,
                           fontWeight: 600,
@@ -1636,10 +1651,11 @@ export default function ProfilePageRedesigned() {
                         onClick={() => setSelectedInviteProjectId(project.id)}
                         disabled={isProcessing}
                         style={{
+                          flex: isMobile ? '1 1 45%' : undefined,
                           background: 'transparent',
                           color: 'var(--text-muted)',
                           border: '1px solid var(--panel-border-strong)',
-                          padding: '12px 20px',
+                          padding: isMobile ? '10px 16px' : '12px 20px',
                           borderRadius: 10,
                           fontSize: 14,
                           fontWeight: 600,
@@ -2692,24 +2708,26 @@ export default function ProfilePageRedesigned() {
             background: 'var(--bg-card)',
             border: '1px solid var(--panel-border-strong)',
             borderRadius: 16,
-            padding: 24,
+            padding: isMobile ? 16 : 24,
             marginBottom: 24,
           }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              marginBottom: 20,
+              marginBottom: isMobile ? 14 : 20,
+              gap: 8,
             }}>
               <h3 style={{
-                fontSize: 18,
+                fontSize: isMobile ? 16 : 18,
                 fontWeight: 700,
                 color: 'var(--text)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
+                gap: 8,
+                margin: 0,
               }}>
-                <DollarSign size={20} style={{ color: '#10b981' }} />
+                <DollarSign size={isMobile ? 18 : 20} style={{ color: '#10b981' }} />
                 Sales Overview
               </h3>
               <Link
@@ -2718,14 +2736,16 @@ export default function ProfilePageRedesigned() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: '8px 16px',
+                  padding: isMobile ? '6px 10px' : '8px 16px',
                   background: 'var(--bg-card)',
                   border: '1px solid var(--panel-border-strong)',
                   borderRadius: 8,
                   color: 'var(--text-muted)',
-                  fontSize: 14,
+                  fontSize: isMobile ? 12 : 14,
                   textDecoration: 'none',
                   transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'var(--dropdown-hover)';
@@ -2736,46 +2756,46 @@ export default function ProfilePageRedesigned() {
                   e.currentTarget.style.color = 'var(--text-muted)';
                 }}
               >
-                <Settings size={16} />
-                Payout Settings
+                <Settings size={14} />
+                {isMobile ? 'Payouts' : 'Payout Settings'}
               </Link>
             </div>
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 16,
+              gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)',
+              gap: isMobile ? 10 : 16,
             }}>
-              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: isMobile ? 14 : 20, gridColumn: isMobile ? '1 / -1' : undefined }}>
+                <div style={{ fontSize: isMobile ? 11 : 13, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Total Earnings
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: '#10b981' }}>
                   ${salesAnalytics?.summary.total_earnings_usdc.toFixed(2) || dash.sales.toFixed(2)}
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--subtle)', marginTop: 4 }}>USDC</div>
+                <div style={{ fontSize: isMobile ? 11 : 13, color: 'var(--subtle)', marginTop: 4 }}>USDC</div>
               </div>
 
-              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: isMobile ? 14 : 20 }}>
+                <div style={{ fontSize: isMobile ? 11 : 13, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Content Sales
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#60a5fa' }}>
+                <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 700, color: '#60a5fa' }}>
                   ${((salesAnalytics?.summary.solo_earnings || 0) + (salesAnalytics?.summary.collaboration_earnings || 0)).toFixed(2)}
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--subtle)', marginTop: 4 }}>
+                <div style={{ fontSize: isMobile ? 11 : 13, color: 'var(--subtle)', marginTop: 4 }}>
                   {(salesAnalytics?.summary.content_count || 0) + (salesAnalytics?.summary.collaboration_count || 0)} items
                 </div>
               </div>
 
-              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20 }}>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: isMobile ? 14 : 20 }}>
+                <div style={{ fontSize: isMobile ? 11 : 13, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   Paid Work
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#8b5cf6' }}>
+                <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 700, color: '#8b5cf6' }}>
                   ${salesAnalytics?.summary.escrow_earnings?.toFixed(2) || '0.00'}
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.escrow_count || 0} contracts</div>
+                <div style={{ fontSize: isMobile ? 11 : 13, color: 'var(--subtle)', marginTop: 4 }}>{salesAnalytics?.summary.escrow_count || 0} contracts</div>
               </div>
             </div>
           </div>
@@ -2792,16 +2812,22 @@ export default function ProfilePageRedesigned() {
               padding: 24,
               marginBottom: 24,
             }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <TrendingUp size={18} style={{ color: '#60a5fa' }} />
-                Earnings Breakdown
-              </h3>
-              <p style={{ fontSize: 14, color: 'var(--subtle)', marginBottom: 16 }}>
+              <div
+                onClick={() => toggleSection('salesBreakdown')}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.has('salesBreakdown') ? 0 : 16 }}
+              >
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TrendingUp size={18} style={{ color: '#60a5fa' }} />
+                  Sales Breakdown
+                </h3>
+                {collapsedSections.has('salesBreakdown') ? <ChevronDown size={20} color="var(--subtle)" /> : <ChevronUp size={20} color="var(--subtle)" />}
+              </div>
+              {!collapsedSections.has('salesBreakdown') && <p style={{ fontSize: 14, color: 'var(--subtle)', marginBottom: 16 }}>
                 Click any item to see individual transactions
-              </p>
+              </p>}
 
               {/* Solo Content Sales */}
-              {salesAnalytics.content_sales.length > 0 && (
+              {!collapsedSections.has('salesBreakdown') && salesAnalytics.content_sales.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 14, color: '#60a5fa', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <BookOpen size={14} />
@@ -2887,7 +2913,7 @@ export default function ProfilePageRedesigned() {
               )}
 
               {/* Collaboration Sales */}
-              {salesAnalytics.collaboration_sales.length > 0 && (
+              {!collapsedSections.has('salesBreakdown') && salesAnalytics.collaboration_sales.length > 0 && (
                 <div>
                   <div style={{ fontSize: 13, color: '#f59e0b', marginBottom: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Users size={14} />
@@ -2975,7 +3001,7 @@ export default function ProfilePageRedesigned() {
             </div>
           )}
 
-          {/* Escrow Earnings Breakdown */}
+          {/* Earnings (Escrow) */}
           {salesAnalytics && (salesAnalytics as any).escrow_earnings?.length > 0 && (
             <div style={{
               background: 'var(--bg-card)',
@@ -2984,11 +3010,17 @@ export default function ProfilePageRedesigned() {
               padding: 24,
               marginBottom: 24,
             }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Shield size={18} style={{ color: '#10b981' }} />
-                Escrow Earnings
-              </h3>
-              {(salesAnalytics as any).escrow_earnings.map((item: any) => (
+              <div
+                onClick={() => toggleSection('earnings')}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.has('earnings') ? 0 : 16 }}
+              >
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Shield size={18} style={{ color: '#10b981' }} />
+                  Earnings
+                </h3>
+                {collapsedSections.has('earnings') ? <ChevronDown size={20} color="var(--subtle)" /> : <ChevronUp size={20} color="var(--subtle)" />}
+              </div>
+              {!collapsedSections.has('earnings') && (salesAnalytics as any).escrow_earnings.map((item: any) => (
                 <div key={item.project_id} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '12px 16px', background: 'var(--panel)', borderRadius: 8, marginBottom: 8,
@@ -3018,11 +3050,17 @@ export default function ProfilePageRedesigned() {
               borderRadius: 16,
               padding: 24,
             }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileText size={18} style={{ color: '#a78bfa' }} />
-                Recent Transactions
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div
+                onClick={() => toggleSection('recentTx')}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', marginBottom: collapsedSections.has('recentTx') ? 0 : 16 }}
+              >
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileText size={18} style={{ color: '#a78bfa' }} />
+                  Recent Transactions
+                </h3>
+                {collapsedSections.has('recentTx') ? <ChevronDown size={20} color="var(--subtle)" /> : <ChevronUp size={20} color="var(--subtle)" />}
+              </div>
+              {!collapsedSections.has('recentTx') && <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {salesAnalytics.recent_transactions.map((tx) => (
                   <div key={tx.id} style={{
                     display: 'flex',
@@ -3050,7 +3088,7 @@ export default function ProfilePageRedesigned() {
                     </div>
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
           )}
 

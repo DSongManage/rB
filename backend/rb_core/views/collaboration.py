@@ -231,6 +231,14 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         total_contract_amount = Decimal(str(request.data.get('total_contract_amount', '0.00')))
         upfront_percentage = Decimal(str(request.data.get('upfront_percentage', '0.00')))
 
+        # Escrow fee mode (who absorbs the 3% platform fee)
+        escrow_fee_mode = request.data.get('escrow_fee_mode', 'writer_pays')
+        if escrow_fee_mode not in ('writer_pays', 'artist_pays', 'split'):
+            return Response(
+                {'error': 'escrow_fee_mode must be writer_pays, artist_pays, or split'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if contract_type in ('work_for_hire', 'hybrid') and total_contract_amount <= 0:
             return Response(
                 {'error': 'total_contract_amount is required for work_for_hire and hybrid contracts'},
@@ -296,6 +304,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 permissions=permissions,
                 revenue_percentage=revenue_percentage,
                 contract_type=contract_type,
+                escrow_fee_mode=escrow_fee_mode,
                 total_contract_amount=total_contract_amount,
                 upfront_percentage=upfront_percentage,
                 status='invited',

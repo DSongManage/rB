@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { Building2, CheckCircle, ArrowRight, AlertCircle } from 'lucide-react';
 import { getBridgeOnboardingStatus } from '../../services/bridgeApi';
 import type { BridgeOnboardingStatus } from '../../types/bridge';
+import { useMobile } from '../../hooks/useMobile';
 
 interface BridgeOnboardingBannerProps {
   className?: string;
@@ -19,6 +20,7 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
   const [status, setStatus] = useState<BridgeOnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState(false);
+  const { isMobile } = useMobile();
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -120,9 +122,10 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
     >
       <div style={{
         display: 'flex',
-        alignItems: 'center',
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'flex-start' : 'center',
         justifyContent: 'space-between',
-        gap: 16,
+        gap: isMobile ? 12 : 16,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
           <div style={{
@@ -155,12 +158,13 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, width: isMobile ? '100%' : undefined }}>
           <Link
             to="/payout-settings"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 6,
               padding: '8px 16px',
               background: accent,
@@ -171,6 +175,7 @@ export const BridgeOnboardingBanner: React.FC<BridgeOnboardingBannerProps> = ({
               textDecoration: 'none',
               transition: 'opacity 0.2s',
               whiteSpace: 'nowrap',
+              flex: isMobile ? 1 : undefined,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
             onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}

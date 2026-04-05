@@ -2368,6 +2368,19 @@ class CollaboratorRole(models.Model):
         default='revenue_share',
         help_text="Payment structure: revenue_share (existing), work_for_hire (milestone escrow), or hybrid (upfront + rev share)"
     )
+
+    ESCROW_FEE_MODE_CHOICES = [
+        ('writer_pays', 'Writer Pays'),
+        ('artist_pays', 'Artist Pays'),
+        ('split', 'Split'),
+    ]
+    escrow_fee_mode = models.CharField(
+        max_length=12,
+        choices=ESCROW_FEE_MODE_CHOICES,
+        default='writer_pays',
+        help_text="Who absorbs the 3% escrow fee: writer (adds 3% on top), artist (deducted from payout), or split (1.5% each)"
+    )
+
     total_contract_amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -2401,6 +2414,24 @@ class CollaboratorRole(models.Model):
         null=True,
         blank=True,
         help_text="Deadline for project owner to fund escrow. Work begins after funding."
+    )
+
+    # On-chain PDA vault tracking (non-custodial escrow)
+    escrow_pda_address = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text="Solana PDA address of the escrow vault"
+    )
+    escrow_pda_bump = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="PDA bump seed"
+    )
+    escrow_vault_ata = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text="ATA of the escrow PDA for USDC"
+    )
+    escrow_initialized_tx = models.CharField(
+        max_length=128, blank=True, default='',
+        help_text="Solana tx signature of PDA initialization"
     )
 
     # Trust-building phase tracking
@@ -2941,27 +2972,14 @@ class ContractTask(models.Model):
             self.escrow_release_status = 'approved'
             self.escrow_released_at = timezone.now()
             role = self.collaborator_role
-            role.escrow_released_amount += self.payment_amount
-            # Track trust phase progression
+            # Track trust phase progression (no amount update here — async task handles accounting)
             if role.trust_phase == 'trust_building' and self.milestone_type == 'trust_page':
                 role.trust_pages_completed += 1
                 if role.trust_pages_completed >= 5:
                     role.trust_phase = 'production'
-            role.save(update_fields=[
-                'escrow_released_amount', 'trust_pages_completed', 'trust_phase'
-            ])
-            # Create audit record
-            EscrowTransaction.objects.create(
-                collaborator_role=role,
-                contract_task=self,
-                transaction_type='auto_release' if self.auto_approved else 'release',
-                amount=self.payment_amount,
-                escrow_balance_after=role.escrow_funded_amount - role.escrow_released_amount,
-                initiated_by=owner,
-                notes=notes,
-            )
+                role.save(update_fields=['trust_pages_completed', 'trust_phase'])
 
-            # Trigger async USDC release
+            # Trigger async USDC release (handles fee calculation, EscrowTransaction, and amount tracking)
             try:
                 from rb_core.tasks import process_escrow_release
                 process_escrow_release.delay(self.id)
@@ -3148,11 +3166,34 @@ class EscrowTransaction(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # On-chain transfer tracking
+    solana_tx_signature = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text="Solana transaction signature for on-chain USDC transfer"
+    )
+    ON_CHAIN_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('submitted', 'Submitted'),
+        ('confirmed', 'Confirmed'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped — No Wallet'),
+    ]
+    on_chain_status = models.CharField(
+        max_length=20,
+        choices=ON_CHAIN_STATUS_CHOICES,
+        default='pending',
+        help_text="Status of the on-chain USDC transfer"
+    )
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['collaborator_role', 'transaction_type']),
             models.Index(fields=['contract_task']),
+            models.Index(fields=['solana_tx_signature']),
+            models.Index(fields=['on_chain_status']),
         ]
 
     def __str__(self):

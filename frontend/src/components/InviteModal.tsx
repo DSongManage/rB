@@ -175,6 +175,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
 
   // Escrow / payment structure
   const [contractType, setContractType] = useState<'revenue_share' | 'work_for_hire' | 'hybrid'>('revenue_share');
+  const [escrowFeeMode, setEscrowFeeMode] = useState<'writer_pays' | 'artist_pays' | 'split'>('writer_pays');
   const [totalContractAmount, setTotalContractAmount] = useState('');
   const [milestoneTemplates, setMilestoneTemplates] = useState<MilestoneTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
@@ -425,6 +426,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             can_edit_audio: canEditAudio,
             can_edit_video: canEditVideo,
             contract_type: contractType,
+            escrow_fee_mode: contractType !== 'revenue_share' ? escrowFeeMode : undefined,
             total_contract_amount: contractType !== 'revenue_share' ? totalContractAmount : undefined,
             escrow_funding_deadline: contractType !== 'revenue_share' && escrowStartDate ? new Date(escrowStartDate + 'T00:00:00').toISOString() : undefined,
             milestone_template_id: selectedTemplateId || undefined,
@@ -472,6 +474,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
             can_edit_text: canEditText,
             can_edit_images: canEditImages,
             contract_type: contractType,
+            escrow_fee_mode: contractType !== 'revenue_share' ? escrowFeeMode : undefined,
             total_contract_amount: contractType !== 'revenue_share' ? totalContractAmount : undefined,
             escrow_funding_deadline: contractType !== 'revenue_share' && escrowStartDate ? new Date(escrowStartDate + 'T00:00:00').toISOString() : undefined,
             milestone_template_id: selectedTemplateId || undefined,
@@ -522,6 +525,7 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
     setCanEditAudio(false);
     setCanEditVideo(false);
     setContractType('revenue_share');
+    setEscrowFeeMode('writer_pays');
     setTotalContractAmount('');
     setMilestoneTemplates([]);
     setSelectedTemplateId(null);
@@ -1069,6 +1073,64 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                   }}
                 />
 
+                {/* Escrow Fee Mode — who pays the 3% platform fee */}
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600 }}>
+                    <Shield size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> Escrow Fee (3%) — Who Pays?
+                  </label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([
+                      { value: 'writer_pays' as const, label: 'I Pay', desc: '+3% on top' },
+                      { value: 'artist_pays' as const, label: 'Artist Pays', desc: '-3% from payout' },
+                      { value: 'split' as const, label: 'Split', desc: '1.5% each' },
+                    ]).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setEscrowFeeMode(opt.value)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 6px',
+                          borderRadius: 8,
+                          border: escrowFeeMode === opt.value
+                            ? '1.5px solid var(--accent)'
+                            : '1px solid var(--border)',
+                          background: escrowFeeMode === opt.value
+                            ? 'rgba(245, 158, 11, 0.12)'
+                            : 'var(--bg-secondary)',
+                          color: escrowFeeMode === opt.value ? 'var(--accent)' : 'var(--text)',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        {opt.label}
+                        <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.7, marginTop: 2 }}>
+                          {opt.desc}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {totalContractAmount && (
+                    <div style={{
+                      marginTop: 6, fontSize: 11, color: 'var(--text-muted)', padding: '6px 8px',
+                      background: 'var(--bg-secondary)', borderRadius: 6,
+                    }}>
+                      {escrowFeeMode === 'writer_pays' && (
+                        <>You fund <strong>${(parseFloat(totalContractAmount) * 1.03).toFixed(2)}</strong> — artist receives full ${parseFloat(totalContractAmount).toFixed(2)}</>
+                      )}
+                      {escrowFeeMode === 'artist_pays' && (
+                        <>You fund <strong>${parseFloat(totalContractAmount).toFixed(2)}</strong> — artist receives ${(parseFloat(totalContractAmount) * 0.97).toFixed(2)}</>
+                      )}
+                      {escrowFeeMode === 'split' && (
+                        <>You fund <strong>${(parseFloat(totalContractAmount) * 1.015).toFixed(2)}</strong> — artist receives ${(parseFloat(totalContractAmount) * 0.985).toFixed(2)}</>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Milestone Template Selector */}
                 {milestoneTemplates.length > 0 && (
                   <div style={{ marginTop: 10 }}>
@@ -1493,6 +1555,11 @@ export default function InviteModal({ open, onClose, recipient, projectId, proje
                   <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                     ({contractType === 'work_for_hire' ? 'Work for Hire' : 'Hybrid'} via Escrow)
                   </span>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)' }}>
+                  3% escrow fee: {escrowFeeMode === 'writer_pays' ? 'You pay' : escrowFeeMode === 'artist_pays' ? 'Artist pays' : 'Split 50/50'}
+                  {escrowFeeMode === 'writer_pays' && ` — total funding: $${(parseFloat(totalContractAmount) * 1.03).toFixed(2)}`}
+                  {escrowFeeMode === 'split' && ` — you fund: $${(parseFloat(totalContractAmount) * 1.015).toFixed(2)}`}
                 </div>
               </div>
             )}

@@ -1547,23 +1547,28 @@ class SalesAnalyticsView(APIView):
         total_escrow_earnings = Decimal('0')
 
         for role in escrow_roles:
-            released = EscrowTransaction.objects.filter(
+            agg = EscrowTransaction.objects.filter(
                 collaborator_role=role,
                 transaction_type__in=['release', 'auto_release'],
-            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            ).aggregate(
+                total_artist=Sum('artist_net_amount'),
+                total_gross=Sum('amount'),
+            )
+            artist_earned = agg['total_artist'] or Decimal('0')
 
-            if released > 0:
+            if artist_earned > 0:
                 escrow_earnings_list.append({
                     'project_title': role.project.title.replace('Collaboration Invite - ', ''),
                     'project_id': role.project.id,
                     'role': role.effective_role_name or role.role,
                     'contract_type': role.contract_type,
+                    'escrow_fee_mode': role.escrow_fee_mode,
                     'total_contract': float(role.total_contract_amount),
-                    'total_earned': float(released),
+                    'total_earned': float(artist_earned),
                     'milestones_completed': role.tasks_signed_off,
                     'milestones_total': role.tasks_total,
                 })
-                total_escrow_earnings += released
+                total_escrow_earnings += artist_earned
 
         total_earnings = total_solo_earnings + total_collab_earnings + float(total_escrow_earnings)
 

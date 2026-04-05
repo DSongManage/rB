@@ -630,7 +630,7 @@ class CollaboratorRoleSerializer(serializers.ModelSerializer):
             'can_edit_audio', 'can_edit_video', 'can_edit', 'approved_current_version',
             'approved_revenue_split',
             # Contract type and escrow
-            'contract_type', 'total_contract_amount',
+            'contract_type', 'escrow_fee_mode', 'total_contract_amount',
             'escrow_funded_amount', 'escrow_released_amount', 'escrow_remaining',
             'escrow_funded_at', 'escrow_funding_deadline',
             # Trust phase

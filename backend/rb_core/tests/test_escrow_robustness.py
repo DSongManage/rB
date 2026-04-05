@@ -52,6 +52,7 @@ class EscrowFixtureMixin:
             status='accepted',
             revenue_percentage=Decimal('0'),
             contract_type='work_for_hire',
+            escrow_fee_mode='artist_pays',
             total_contract_amount=Decimal('5.00'),
             escrow_funded_amount=Decimal('5.00'),
         )

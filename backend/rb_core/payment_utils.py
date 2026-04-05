@@ -30,31 +30,128 @@ GAS_FEE_PER_ITEM = Decimal('0.026')
 ESCROW_FEE_BPS = 300  # 3% = 300 basis points
 
 
-def calculate_escrow_release_breakdown(milestone_amount):
+def calculate_escrow_release_breakdown(milestone_amount, fee_mode='artist_pays'):
     """
-    Calculate escrow release split: artist gets 97%, platform gets 3%.
+    Calculate escrow release split based on fee mode.
 
-    This fee is charged on PDA2 milestone releases only.
-    Campaign contributions (PDA1) have 0% fee.
+    Platform ALWAYS receives 3% of the milestone amount. The fee_mode
+    determines who absorbs that cost:
+
+    - writer_pays: Writer funded milestone + 3%. Artist receives full milestone.
+      Escrow held milestone * 1.03, platform gets 0.03, artist gets 1.00.
+    - artist_pays: Writer funded exact milestone. Artist receives milestone - 3%.
+      Escrow held milestone * 1.00, platform gets 0.03, artist gets 0.97.
+    - split: Writer funded milestone + 1.5%. Artist receives milestone - 1.5%.
+      Escrow held milestone * 1.015, platform gets 0.03, artist gets 0.985.
 
     Args:
-        milestone_amount (Decimal|float|str): The milestone payment amount
+        milestone_amount: The task's payment_amount (what the artist was promised)
+        fee_mode: 'writer_pays', 'artist_pays', or 'split'
 
     Returns:
-        dict: artist_net, platform_fee, fee_rate
+        dict with: artist_net, platform_fee, writer_funded (amount held in escrow
+        for this task), fee_mode, fee_rate, fee_bps
     """
     milestone_amount = Decimal(str(milestone_amount))
-    fee_rate = Decimal(str(ESCROW_FEE_BPS)) / Decimal('10000')
+    fee_rate = Decimal(str(ESCROW_FEE_BPS)) / Decimal('10000')  # 0.03
     platform_fee = (milestone_amount * fee_rate).quantize(
         Decimal('0.01'), rounding=ROUND_HALF_UP
     )
-    artist_net = milestone_amount - platform_fee
+
+    if fee_mode == 'writer_pays':
+        # Writer funded extra 3% on top. Artist gets full milestone.
+        artist_net = milestone_amount
+        writer_funded = milestone_amount + platform_fee
+    elif fee_mode == 'split':
+        # Writer funded extra 1.5%, artist absorbs 1.5%
+        half_fee = (platform_fee / 2).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        writer_extra = half_fee
+        artist_deduction = platform_fee - half_fee  # ensures exact 3% total
+        artist_net = milestone_amount - artist_deduction
+        writer_funded = milestone_amount + writer_extra
+    else:  # artist_pays (default / legacy)
+        # Writer funded exact milestone. Artist absorbs full 3%.
+        artist_net = milestone_amount - platform_fee
+        writer_funded = milestone_amount
+
     return {
         'artist_net': artist_net,
         'platform_fee': platform_fee,
+        'writer_funded': writer_funded,
+        'fee_mode': fee_mode,
         'fee_rate': fee_rate,
         'fee_bps': ESCROW_FEE_BPS,
     }
+
+
+def calculate_escrow_funding_total(total_contract_amount, fee_mode='artist_pays'):
+    """
+    Calculate what the writer must fund for a given contract amount + fee mode.
+
+    Args:
+        total_contract_amount: Sum of all task payment_amounts
+        fee_mode: 'writer_pays', 'artist_pays', or 'split'
+
+    Returns:
+        Decimal: Total amount the writer must deposit into escrow
+    """
+    total_contract_amount = Decimal(str(total_contract_amount))
+    fee_rate = Decimal(str(ESCROW_FEE_BPS)) / Decimal('10000')
+
+    if fee_mode == 'writer_pays':
+        fee = (total_contract_amount * fee_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return total_contract_amount + fee
+    elif fee_mode == 'split':
+        half_rate = fee_rate / 2
+        writer_extra = (total_contract_amount * half_rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return total_contract_amount + writer_extra
+    else:  # artist_pays
+        return total_contract_amount
+
+
+def calculate_pda_milestone_amount(payment_amount, fee_mode='artist_pays'):
+    """
+    Calculate the milestone amount to store in the PDA vault for a given fee mode.
+
+    The Anchor program always calculates:
+        platform_fee = amount * fee_bps / 10000
+        artist_payment = amount - platform_fee
+
+    So we need to set the PDA amount such that after the on-chain fee deduction,
+    the artist receives the correct net amount per the fee mode.
+
+    Args:
+        payment_amount: The task's payment_amount (what the artist was promised)
+        fee_mode: 'writer_pays', 'artist_pays', or 'split'
+
+    Returns:
+        int: Amount in USDC lamports (6 decimals) to store in the PDA
+    """
+    payment_amount = Decimal(str(payment_amount))
+    fee_rate = Decimal(str(ESCROW_FEE_BPS)) / Decimal('10000')  # 0.03
+
+    if fee_rate >= Decimal('1'):
+        raise ValueError(f"Fee rate cannot be >= 100%, got {ESCROW_FEE_BPS} BPS")
+
+    if fee_mode == 'writer_pays':
+        # Artist must receive exactly payment_amount after 3% deduction
+        # PDA amount * (1 - 0.03) = payment_amount
+        # PDA amount = payment_amount / 0.97
+        pda_amount = payment_amount / (Decimal('1') - fee_rate)
+    elif fee_mode == 'split':
+        # Artist receives payment_amount - 1.5%
+        # On-chain: artist gets pda_amount * 0.97
+        # We want: pda_amount * 0.97 = payment_amount - (payment_amount * 0.015)
+        # pda_amount = payment_amount * 0.985 / 0.97
+        half_rate = fee_rate / 2
+        target_artist_net = payment_amount * (Decimal('1') - half_rate)
+        pda_amount = target_artist_net / (Decimal('1') - fee_rate)
+    else:  # artist_pays
+        # Artist receives payment_amount * 0.97 (on-chain handles it naturally)
+        pda_amount = payment_amount
+
+    # Convert to USDC lamports (6 decimals), round up to ensure enough funds
+    return int((pda_amount * Decimal('1000000')).to_integral_value(rounding=ROUND_HALF_UP))
 
 
 def get_platform_fee_rate(creator_tier=None, user=None, item=None):

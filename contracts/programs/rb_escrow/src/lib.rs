@@ -319,6 +319,75 @@ pub mod rb_escrow {
         Ok(())
     }
 
+    /// Writer directly releases a milestone without requiring artist submission.
+    /// Used by the platform when the off-chain delivery/review process is complete.
+    /// Accepts milestones in Pending or Submitted status — same fee split as approve.
+    pub fn release_milestone(
+        ctx: Context<ApproveMilestone>,
+        milestone_index: u8,
+    ) -> Result<()> {
+        let project_id = ctx.accounts.vault.project_id;
+        let artist_key = ctx.accounts.vault.artist;
+        let bump = ctx.accounts.vault.bump;
+        let fee_bps = ctx.accounts.vault.fee_bps as u64;
+        let vault_info = ctx.accounts.vault.to_account_info();
+
+        let vault = &mut ctx.accounts.vault;
+        let idx = milestone_index as usize;
+
+        require!(idx < vault.milestone_count as usize, EscrowError::InvalidMilestoneIndex);
+        require!(
+            vault.milestones[idx].status == MilestoneStatus::Pending
+                || vault.milestones[idx].status == MilestoneStatus::Submitted,
+            EscrowError::InvalidMilestoneStatus
+        );
+
+        let payment = vault.milestones[idx].payment_amount;
+        vault.milestones[idx].status = MilestoneStatus::Approved;
+        vault.released_amount += payment;
+        vault.milestones_approved += 1;
+
+        // Calculate fee split
+        let platform_fee = payment * fee_bps / BPS_DENOMINATOR;
+        let artist_payment = payment - platform_fee;
+
+        let project_id_bytes = project_id.to_le_bytes();
+        let seeds: &[&[u8]] = &[b"escrow", &project_id_bytes, artist_key.as_ref(), &[bump]];
+        let signer_seeds = &[seeds];
+
+        // Transfer artist portion
+        let transfer_artist = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.vault_token_account.to_account_info(),
+                to: ctx.accounts.artist_token_account.to_account_info(),
+                authority: vault_info.clone(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_artist, artist_payment)?;
+
+        // Transfer platform fee (if any)
+        if platform_fee > 0 {
+            let transfer_platform = CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.vault_token_account.to_account_info(),
+                    to: ctx.accounts.platform_token_account.to_account_info(),
+                    authority: vault_info,
+                },
+                signer_seeds,
+            );
+            token::transfer(transfer_platform, platform_fee)?;
+        }
+
+        msg!(
+            "Milestone {} released. {} USDC to artist, {} USDC platform fee",
+            milestone_index, artist_payment, platform_fee
+        );
+        Ok(())
+    }
+
     // ============================================================
     // Campaign Instructions (PDA1)
     // ============================================================

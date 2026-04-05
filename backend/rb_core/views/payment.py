@@ -949,14 +949,20 @@ class CreateEscrowFundingIntentView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            if role.escrow_funded_amount >= role.total_contract_amount:
+            from rb_core.payment_utils import calculate_escrow_funding_total as _calc_funding
+            required_funding = _calc_funding(role.total_contract_amount, role.escrow_fee_mode)
+            if role.escrow_funded_amount >= required_funding:
                 return Response(
                     {'error': 'Escrow is already fully funded'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Calculate amount to fund
-            amount_to_fund = role.total_contract_amount - role.escrow_funded_amount
+            # Calculate amount to fund (includes writer's fee portion if applicable)
+            from rb_core.payment_utils import calculate_escrow_funding_total
+            funding_total = calculate_escrow_funding_total(
+                role.total_contract_amount, role.escrow_fee_mode
+            )
+            amount_to_fund = funding_total - role.escrow_funded_amount
 
             # Get user's current balance
             solana_service = get_solana_service()
@@ -1015,6 +1021,8 @@ class CreateEscrowFundingIntentView(APIView):
                     'total_contract_amount': str(role.total_contract_amount),
                     'already_funded': str(role.escrow_funded_amount),
                     'amount_to_fund': str(amount_to_fund),
+                    'escrow_fee_mode': role.escrow_fee_mode,
+                    'funding_total': str(funding_total),
                 },
             }
 

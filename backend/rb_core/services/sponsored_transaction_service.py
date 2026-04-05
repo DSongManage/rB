@@ -521,6 +521,100 @@ class SponsoredTransactionService:
             logger.error(f"Error getting platform SOL balance: {e}")
             raise
 
+    def execute_escrow_transfer(
+        self,
+        recipient_wallet: str,
+        amount: Decimal,
+    ) -> str:
+        """
+        Execute a platform-to-recipient USDC transfer for escrow release/refund.
+
+        Platform is both fee payer and token authority — no user signature needed.
+        Creates recipient ATA if it doesn't exist (platform pays rent).
+
+        Args:
+            recipient_wallet: Recipient's Solana wallet address
+            amount: USDC amount to transfer (e.g. Decimal('97.00'))
+
+        Returns:
+            Transaction signature string
+
+        Raises:
+            ValueError: If recipient_wallet is invalid
+            Exception: If transaction fails to send or confirm
+        """
+        try:
+            recipient_pubkey = Pubkey.from_string(recipient_wallet)
+        except Exception:
+            raise ValueError(f"Invalid recipient wallet address: {recipient_wallet}")
+
+        usdc_mint = Pubkey.from_string(self.usdc_mint)
+        platform_ata = self._get_associated_token_address(self.platform_pubkey, usdc_mint)
+        recipient_ata = self._get_associated_token_address(recipient_pubkey, usdc_mint)
+
+        instructions = []
+
+        # Check if recipient ATA exists; create if needed (platform pays rent)
+        try:
+            account_info = self.client.get_account_info(recipient_ata, commitment=Confirmed)
+            if account_info.value is None:
+                logger.info(
+                    '[EscrowTransfer] Creating ATA for %s (platform pays rent)',
+                    recipient_wallet,
+                )
+                instructions.append(self._create_ata_instruction(
+                    payer=self.platform_pubkey,
+                    ata=recipient_ata,
+                    owner=recipient_pubkey,
+                    mint=usdc_mint,
+                ))
+        except Exception as e:
+            logger.warning('[EscrowTransfer] ATA check failed, assuming it exists: %s', e)
+
+        # Convert amount to USDC lamports (6 decimals)
+        amount_lamports = int(Decimal(str(amount)) * Decimal('1000000'))
+        if amount_lamports <= 0:
+            raise ValueError(f"Transfer amount must be positive, got {amount}")
+
+        # SPL token transfer: platform ATA → recipient ATA, platform signs as owner
+        instructions.append(self._create_transfer_instruction(
+            source_ata=platform_ata,
+            destination_ata=recipient_ata,
+            owner=self.platform_pubkey,
+            amount=amount_lamports,
+        ))
+
+        # Build, sign (platform only), send, confirm
+        try:
+            blockhash_resp = self.client.get_latest_blockhash(commitment=Confirmed)
+            recent_blockhash = blockhash_resp.value.blockhash
+
+            message = MessageV0.try_compile(
+                payer=self.platform_pubkey,
+                instructions=instructions,
+                address_lookup_table_accounts=[],
+                recent_blockhash=recent_blockhash,
+            )
+            tx = VersionedTransaction(message, [self.platform_keypair])
+
+            opts = TxOpts(skip_preflight=False, preflight_commitment=Confirmed)
+            response = self.client.send_transaction(tx, opts=opts)
+            tx_signature = str(response.value)
+
+            logger.info('[EscrowTransfer] TX sent: %s ($%s to %s)', tx_signature, amount, recipient_wallet)
+
+            # Wait for confirmation
+            confirmed = self.confirm_transaction(tx_signature, max_wait_seconds=30)
+            if not confirmed:
+                raise Exception(f"Transaction {tx_signature} not confirmed within 30 seconds")
+
+            logger.info('[EscrowTransfer] TX confirmed: %s', tx_signature)
+            return tx_signature
+
+        except Exception as e:
+            logger.error('[EscrowTransfer] Failed: $%s to %s — %s', amount, recipient_wallet, e)
+            raise
+
 
 # Singleton instance
 _sponsored_service: Optional[SponsoredTransactionService] = None

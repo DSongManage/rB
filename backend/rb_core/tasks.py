@@ -2283,18 +2283,44 @@ def check_auto_approve_deadlines():
     return results
 
 
-@shared_task
-def process_escrow_release(task_id):
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def process_escrow_release(self, task_id):
     """Process USDC payment to artist after milestone sign-off.
 
-    Reuses the existing treasury-fronting pattern: platform sends USDC
-    from treasury to the collaborator's wallet, then reconciles later.
-
-    For now this is a tracking task — actual USDC transfer happens via
-    the existing distribution pipeline when the project is minted/sold.
-    In the escrow model, payment is immediate on sign-off.
+    Sends real USDC from platform treasury to the collaborator's wallet.
+    Platform is both fee payer (SOL gas) and token authority (USDC sender).
+    Platform fee stays in treasury — only artist_net is transferred.
     """
-    from .models import ContractTask
+    from .models import ContractTask, EscrowTransaction
+
+    # Idempotency: skip if already confirmed on-chain
+    existing = EscrowTransaction.objects.filter(
+        contract_task_id=task_id,
+        transaction_type__in=['release', 'auto_release'],
+        on_chain_status='confirmed',
+    ).first()
+    if existing:
+        logger.info('[EscrowRelease] Task %s already confirmed (tx=%s), skipping',
+                     task_id, existing.solana_tx_signature)
+        return {'task_id': task_id, 'status': 'already_released', 'tx': existing.solana_tx_signature}
+
+    # If a previous attempt was submitted but not confirmed, try confirming it first
+    submitted = EscrowTransaction.objects.filter(
+        contract_task_id=task_id,
+        transaction_type__in=['release', 'auto_release'],
+        on_chain_status='submitted',
+    ).exclude(solana_tx_signature='').first()
+    if submitted:
+        try:
+            from .services.sponsored_transaction_service import get_sponsored_transaction_service
+            service = get_sponsored_transaction_service()
+            if service.confirm_transaction(submitted.solana_tx_signature, max_wait_seconds=30):
+                submitted.on_chain_status = 'confirmed'
+                submitted.save(update_fields=['on_chain_status'])
+                logger.info('[EscrowRelease] Previous tx %s now confirmed', submitted.solana_tx_signature)
+                return {'task_id': task_id, 'status': 'confirmed_previous', 'tx': submitted.solana_tx_signature}
+        except Exception:
+            pass  # Fall through to re-attempt
 
     try:
         task = ContractTask.objects.select_related(
@@ -2314,57 +2340,115 @@ def process_escrow_release(task_id):
 
     role = task.collaborator_role
 
-    # Get payout destinations for the collaborator
+    # Get wallet address
     try:
         wallet_address = role.user.wallet_address
         if not wallet_address:
-            logger.warning(
-                '[EscrowRelease] No wallet for user %s, marking released (will pay when wallet set)',
-                role.user.username
-            )
+            logger.warning('[EscrowRelease] No wallet for %s', role.user.username)
     except Exception:
         wallet_address = None
 
-    # Calculate fee breakdown (3% escrow service fee)
+    # Calculate fee breakdown
     from .payment_utils import calculate_escrow_release_breakdown
-    breakdown = calculate_escrow_release_breakdown(task.payment_amount)
+    fee_mode = role.escrow_fee_mode or 'artist_pays'
+    breakdown = calculate_escrow_release_breakdown(task.payment_amount, fee_mode)
 
-    # Mark as released
-    task.escrow_release_status = 'released'
-    task.save(update_fields=['escrow_release_status'])
-
-    # Create escrow transaction with fee breakdown
-    from .models import EscrowTransaction
-    EscrowTransaction.objects.create(
+    # Create escrow transaction record FIRST (on_chain_status='pending')
+    # DB status stays 'approved' until on-chain confirms — prevents inconsistency
+    escrow_tx = EscrowTransaction.objects.create(
         collaborator_role=role,
         contract_task=task,
         transaction_type='auto_release' if getattr(task, 'auto_approved', False) else 'release',
-        amount=task.payment_amount,
+        amount=breakdown['writer_funded'],
         platform_fee_amount=breakdown['platform_fee'],
         artist_net_amount=breakdown['artist_net'],
-        escrow_balance_after=(role.escrow_funded_amount or 0) - (role.escrow_released_amount or 0),
+        escrow_balance_after=(role.escrow_funded_amount or 0) - (role.escrow_released_amount or 0) - breakdown['writer_funded'],
         initiated_by=task.signed_off_by,
-        notes=f"Milestone release: ${breakdown['artist_net']} to artist, ${breakdown['platform_fee']} platform fee (3%)",
+        on_chain_status='pending',
+        notes=(
+            f"Milestone release ({fee_mode}): ${breakdown['artist_net']} to artist, "
+            f"${breakdown['platform_fee']} platform fee (3%), "
+            f"${breakdown['writer_funded']} drawn from escrow"
+        ),
     )
 
-    # Send milestone payment notification
+    # On-chain USDC transfer
+    if wallet_address and breakdown['artist_net'] > 0:
+        try:
+            escrow_tx.on_chain_status = 'submitted'
+            escrow_tx.save(update_fields=['on_chain_status'])
+
+            if role.escrow_pda_address:
+                from .services.escrow_solana_service import EscrowSolanaService
+                escrow_svc = EscrowSolanaService()
+                tx_sig = escrow_svc.release_milestone(
+                    project_id=role.project.id,
+                    artist_wallet=wallet_address,
+                    milestone_index=task.order,
+                )
+                logger.info('[EscrowRelease] PDA release confirmed: %s (milestone %d)',
+                            tx_sig, task.order)
+            else:
+                from .services.sponsored_transaction_service import get_sponsored_transaction_service
+                service = get_sponsored_transaction_service()
+                tx_sig = service.execute_escrow_transfer(
+                    recipient_wallet=wallet_address,
+                    amount=breakdown['artist_net'],
+                )
+                logger.info('[EscrowRelease] Direct transfer confirmed: %s ($%s to %s)',
+                            tx_sig, breakdown['artist_net'], wallet_address)
+
+            # On-chain confirmed — NOW update DB status atomically
+            escrow_tx.solana_tx_signature = tx_sig
+            escrow_tx.on_chain_status = 'confirmed'
+            escrow_tx.save(update_fields=['solana_tx_signature', 'on_chain_status'])
+
+            task.escrow_release_status = 'released'
+            task.save(update_fields=['escrow_release_status'])
+
+            role.escrow_released_amount += breakdown['writer_funded']
+            role.save(update_fields=['escrow_released_amount'])
+
+        except ValueError as ve:
+            escrow_tx.on_chain_status = 'failed'
+            escrow_tx.notes += f'\nInvalid wallet: {ve}'
+            escrow_tx.save(update_fields=['on_chain_status', 'notes'])
+            logger.error('[EscrowRelease] Invalid wallet for task %s: %s', task_id, ve)
+
+        except Exception as exc:
+            escrow_tx.on_chain_status = 'failed'
+            escrow_tx.notes += f'\nOn-chain transfer failed: {exc}'
+            escrow_tx.save(update_fields=['on_chain_status', 'notes'])
+            logger.exception('[EscrowRelease] On-chain transfer failed for task %s', task_id)
+            raise self.retry(exc=exc)
+    else:
+        # No wallet — mark as released in DB (funds stay in escrow until wallet set)
+        escrow_tx.on_chain_status = 'skipped'
+        escrow_tx.notes += '\nNo wallet set — on-chain transfer deferred'
+        escrow_tx.save(update_fields=['on_chain_status', 'notes'])
+
+    # Send notification
     from .notifications_utils import notify_milestone_payment
     notify_milestone_payment(role, task.title, breakdown['artist_net'])
 
     logger.info(
-        '[EscrowRelease] Task %s: $%s total ($%s to artist, $%s fee) to %s (wallet: %s)',
-        task_id, task.payment_amount, breakdown['artist_net'],
-        breakdown['platform_fee'], role.user.username, wallet_address or 'pending'
+        '[EscrowRelease] Task %s (%s): $%s from escrow ($%s to artist, $%s fee) to %s (wallet: %s, chain: %s)',
+        task_id, fee_mode, breakdown['writer_funded'], breakdown['artist_net'],
+        breakdown['platform_fee'], role.user.username, wallet_address or 'none',
+        escrow_tx.on_chain_status,
     )
 
     return {
         'task_id': task_id,
-        'amount': str(task.payment_amount),
+        'amount': str(breakdown['writer_funded']),
         'artist_net': str(breakdown['artist_net']),
         'platform_fee': str(breakdown['platform_fee']),
+        'fee_mode': fee_mode,
         'collaborator': role.user.username,
         'wallet': wallet_address,
         'status': 'released',
+        'on_chain_status': escrow_tx.on_chain_status,
+        'solana_tx': escrow_tx.solana_tx_signature or None,
     }
 
 
@@ -2441,14 +2525,42 @@ def check_task_deadlines():
     return results
 
 
-@shared_task
-def process_escrow_refund(task_id):
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def process_escrow_refund(self, task_id):
     """Process escrow refund back to project owner after deadline breach.
 
-    No platform fee on refunds — 100% returned to the project owner.
-    Creates an EscrowTransaction audit record with type='refund'.
+    Sends real USDC from platform treasury back to the project owner.
+    No platform fee on refunds — 100% returned.
     """
     from .models import ContractTask, EscrowTransaction
+
+    # Idempotency: skip if already confirmed on-chain
+    existing = EscrowTransaction.objects.filter(
+        contract_task_id=task_id,
+        transaction_type='refund',
+        on_chain_status='confirmed',
+    ).first()
+    if existing:
+        logger.info('[EscrowRefund] Task %s already confirmed (tx=%s), skipping',
+                     task_id, existing.solana_tx_signature)
+        return {'task_id': task_id, 'status': 'already_refunded', 'tx': existing.solana_tx_signature}
+
+    # Check for submitted-but-unconfirmed previous attempt
+    submitted = EscrowTransaction.objects.filter(
+        contract_task_id=task_id,
+        transaction_type='refund',
+        on_chain_status='submitted',
+    ).exclude(solana_tx_signature='').first()
+    if submitted:
+        try:
+            from .services.sponsored_transaction_service import get_sponsored_transaction_service
+            service = get_sponsored_transaction_service()
+            if service.confirm_transaction(submitted.solana_tx_signature, max_wait_seconds=30):
+                submitted.on_chain_status = 'confirmed'
+                submitted.save(update_fields=['on_chain_status'])
+                return {'task_id': task_id, 'status': 'confirmed_previous', 'tx': submitted.solana_tx_signature}
+        except Exception:
+            pass
 
     try:
         task = ContractTask.objects.select_related(
@@ -2460,10 +2572,8 @@ def process_escrow_refund(task_id):
         return
 
     if task.escrow_release_status != 'refunded':
-        logger.warning(
-            '[EscrowRefund] Task %s status is %s, expected refunded',
-            task_id, task.escrow_release_status,
-        )
+        logger.warning('[EscrowRefund] Task %s status is %s, expected refunded',
+                        task_id, task.escrow_release_status)
         return
 
     role = task.collaborator_role
@@ -2471,13 +2581,19 @@ def process_escrow_refund(task_id):
     owner = project.created_by
 
     # Full refund — no platform fee
-    refund_amount = task.payment_amount
+    from .payment_utils import calculate_escrow_release_breakdown
+    fee_mode = role.escrow_fee_mode or 'artist_pays'
+    breakdown = calculate_escrow_release_breakdown(task.payment_amount, fee_mode)
+    refund_amount = breakdown['writer_funded']
 
-    # Create escrow transaction record and update denormalized refund total
-    role.escrow_refunded_amount += refund_amount
-    role.save(update_fields=['escrow_refunded_amount'])
+    # Get owner wallet
+    try:
+        owner_wallet = owner.wallet_address
+    except Exception:
+        owner_wallet = None
 
-    EscrowTransaction.objects.create(
+    # Create escrow transaction record FIRST — DB balance update happens after chain confirms
+    escrow_tx = EscrowTransaction.objects.create(
         collaborator_role=role,
         contract_task=task,
         transaction_type='refund',
@@ -2485,28 +2601,86 @@ def process_escrow_refund(task_id):
         platform_fee_amount=Decimal('0.00'),
         artist_net_amount=Decimal('0.00'),
         escrow_balance_after=(role.escrow_funded_amount or 0) - (role.escrow_released_amount or 0) - refund_amount,
-        initiated_by=None,  # System-initiated
-        notes=f'Deadline breach refund: ${refund_amount} returned to project owner @{owner.username}',
+        initiated_by=None,
+        on_chain_status='pending',
+        notes=f'Deadline breach refund ({fee_mode}): ${refund_amount} returned to project owner @{owner.username}',
     )
+
+    # On-chain USDC refund
+    if owner_wallet and refund_amount > 0:
+        try:
+            escrow_tx.on_chain_status = 'submitted'
+            escrow_tx.save(update_fields=['on_chain_status'])
+
+            if role.escrow_pda_address:
+                # Non-custodial: reclaim from PDA vault → platform, then forward to owner
+                from .services.escrow_solana_service import EscrowSolanaService
+                escrow_svc = EscrowSolanaService()
+
+                # Step 1: Reclaim from PDA → platform wallet
+                reclaim_sig = escrow_svc.reclaim_milestone(
+                    project_id=role.project.id,
+                    artist_wallet=role.user.wallet_address,
+                    milestone_index=task.order,
+                )
+                logger.info('[EscrowRefund] PDA reclaim confirmed: %s', reclaim_sig)
+
+                # Step 2: Forward from platform → owner
+                from .services.sponsored_transaction_service import get_sponsored_transaction_service
+                service = get_sponsored_transaction_service()
+                tx_sig = service.execute_escrow_transfer(
+                    recipient_wallet=owner_wallet,
+                    amount=refund_amount,
+                )
+                logger.info('[EscrowRefund] Forwarded to owner: %s ($%s)', tx_sig, refund_amount)
+            else:
+                # Legacy fallback: direct transfer from platform treasury
+                from .services.sponsored_transaction_service import get_sponsored_transaction_service
+                service = get_sponsored_transaction_service()
+                tx_sig = service.execute_escrow_transfer(
+                    recipient_wallet=owner_wallet,
+                    amount=refund_amount,
+                )
+                logger.info('[EscrowRefund] Direct transfer confirmed: %s ($%s to %s)',
+                            tx_sig, refund_amount, owner_wallet)
+
+            # On-chain confirmed — NOW update DB balance
+            escrow_tx.solana_tx_signature = tx_sig
+            escrow_tx.on_chain_status = 'confirmed'
+            escrow_tx.save(update_fields=['solana_tx_signature', 'on_chain_status'])
+
+            role.escrow_refunded_amount += refund_amount
+            role.save(update_fields=['escrow_refunded_amount'])
+
+        except ValueError as ve:
+            escrow_tx.on_chain_status = 'failed'
+            escrow_tx.notes += f'\nInvalid wallet: {ve}'
+            escrow_tx.save(update_fields=['on_chain_status', 'notes'])
+            logger.error('[EscrowRefund] Invalid wallet for task %s: %s', task_id, ve)
+
+        except Exception as exc:
+            escrow_tx.on_chain_status = 'failed'
+            escrow_tx.notes += f'\nOn-chain refund failed: {exc}'
+            escrow_tx.save(update_fields=['on_chain_status', 'notes'])
+            logger.exception('[EscrowRefund] On-chain refund failed for task %s', task_id)
+            raise self.retry(exc=exc)
+    else:
+        escrow_tx.on_chain_status = 'skipped'
+        escrow_tx.notes += '\nNo owner wallet — on-chain refund deferred'
+        escrow_tx.save(update_fields=['on_chain_status', 'notes'])
 
     # Send notifications
     try:
         from .notifications_utils import create_notification
-        # Notify owner: funds returned
         create_notification(
-            recipient=owner,
-            from_user=role.user,
-            notification_type='escrow',
-            title='Escrow Refund',
+            recipient=owner, from_user=role.user,
+            notification_type='escrow', title='Escrow Refund',
             message=f'${refund_amount} refunded from escrow for task "{task.title}" — deadline missed by collaborator.',
             project=project,
         )
-        # Notify collaborator: task cancelled
         create_notification(
-            recipient=role.user,
-            from_user=owner,
-            notification_type='escrow',
-            title='Task Cancelled — Deadline Missed',
+            recipient=role.user, from_user=owner,
+            notification_type='escrow', title='Task Cancelled — Deadline Missed',
             message=f'Task "{task.title}" was cancelled because the deadline was missed. ${refund_amount} has been returned to the project owner.',
             project=project,
         )
@@ -2514,15 +2688,19 @@ def process_escrow_refund(task_id):
         logger.exception('[EscrowRefund] Failed to send notifications for task %s', task_id)
 
     logger.info(
-        '[EscrowRefund] Task %s: $%s refunded to %s (project %s)',
-        task_id, refund_amount, owner.username, project.id,
+        '[EscrowRefund] Task %s (%s): $%s refunded to %s (wallet: %s, chain: %s)',
+        task_id, fee_mode, refund_amount, owner.username,
+        owner_wallet or 'none', escrow_tx.on_chain_status,
     )
 
     return {
         'task_id': task_id,
         'amount': str(refund_amount),
+        'fee_mode': fee_mode,
         'owner': owner.username,
         'status': 'refunded',
+        'on_chain_status': escrow_tx.on_chain_status,
+        'solana_tx': escrow_tx.solana_tx_signature or None,
     }
 
 
@@ -2602,7 +2780,11 @@ def process_escrow_funding_task(self, intent_id, transaction_signature):
         with transaction.atomic():
             # Update escrow funding on the collaborator role
             amount_funded = intent.total_amount
-            role.escrow_funded_amount = role.total_contract_amount
+            from rb_core.payment_utils import calculate_escrow_funding_total
+            funding_total = calculate_escrow_funding_total(
+                role.total_contract_amount, role.escrow_fee_mode
+            )
+            role.escrow_funded_amount = funding_total
             role.escrow_funded_at = timezone.now()
             role.save(update_fields=['escrow_funded_amount', 'escrow_funded_at'])
 
@@ -2629,6 +2811,50 @@ def process_escrow_funding_task(self, intent_id, transaction_signature):
             intent.completed_at = timezone.now()
             intent.save(update_fields=['status', 'completed_at'])
 
+        # Initialize PDA vault on-chain (moves funds from platform → PDA)
+        pda_result = None
+        artist_wallet = role.user.wallet_address if hasattr(role.user, 'wallet_address') else None
+        if artist_wallet and not role.escrow_pda_address:
+            try:
+                from rb_core.services.escrow_solana_service import EscrowSolanaService
+                from rb_core.payment_utils import calculate_pda_milestone_amount
+
+                escrow_svc = EscrowSolanaService()
+                tasks = list(ContractTask.objects.filter(
+                    collaborator_role=role
+                ).order_by('order'))
+
+                pda_amounts = [
+                    calculate_pda_milestone_amount(t.payment_amount, role.escrow_fee_mode)
+                    for t in tasks
+                ]
+                deadlines = [int(t.deadline.timestamp()) for t in tasks]
+
+                pda_result = escrow_svc.initialize_escrow(
+                    project_id=role.project.id,
+                    artist_wallet=artist_wallet,
+                    milestone_amounts_lamports=pda_amounts,
+                    milestone_deadlines=deadlines,
+                )
+
+                role.escrow_pda_address = pda_result['pda']
+                role.escrow_pda_bump = pda_result['bump']
+                role.escrow_vault_ata = pda_result['vault_ata']
+                role.escrow_initialized_tx = pda_result['tx_signature']
+                role.save(update_fields=[
+                    'escrow_pda_address', 'escrow_pda_bump',
+                    'escrow_vault_ata', 'escrow_initialized_tx',
+                ])
+
+                logger.info(
+                    '[EscrowFunding] PDA vault initialized: %s (TX: %s)',
+                    pda_result['pda'], pda_result['tx_signature'],
+                )
+            except Exception as pda_err:
+                logger.error(f'[EscrowFunding] PDA initialization failed: {pda_err}')
+                # Funding is recorded in DB even if PDA init fails.
+                # Release will fall back to direct SPL transfer.
+
         # Notify collaborator (outside transaction)
         try:
             notify_escrow_funded(intent.user, role)
@@ -2636,11 +2862,15 @@ def process_escrow_funding_task(self, intent_id, transaction_signature):
             logger.warning(f'[EscrowFunding] Notification failed: {notify_err}')
 
         logger.info(f'[EscrowFunding] Successfully funded escrow for role {role.id}, amount=${amount_funded}')
-        return {
+        result = {
             'status': 'completed',
             'role_id': role.id,
             'amount_funded': str(amount_funded),
         }
+        if pda_result:
+            result['escrow_pda'] = pda_result['pda']
+            result['pda_tx'] = pda_result['tx_signature']
+        return result
 
     except Exception as e:
         logger.error(f'[EscrowFunding] Failed to process: {e}')

@@ -38,32 +38,33 @@ function EscrowFlowDiagram() {
   ];
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, padding: '24px 0', width: '100%' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, padding: '24px 0', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       {steps.map((step, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center' }}>
+        <div key={i} style={{ display: 'flex', alignItems: 'center', flex: '1 1 0', minWidth: 0 }}>
           <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
             transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
             opacity: i <= activeStep ? 1 : 0.3,
             transform: i <= activeStep ? 'scale(1)' : 'scale(0.92)',
+            flex: '1 1 0', minWidth: 0,
           }}>
             <div style={{
-              width: 56, height: 56, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 44, height: 44, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               color: i === activeStep ? '#fff' : '#E8981F',
               background: i <= activeStep ? (i === activeStep ? '#E8981F' : 'rgba(232,152,31,0.12)') : 'rgba(58,54,50,0.06)',
               border: i === activeStep ? '2px solid #E8981F' : '2px solid transparent',
               boxShadow: i === activeStep ? '0 0 20px rgba(232,152,31,0.3)' : 'none',
               transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
             }}>{step.icon}</div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: i <= activeStep ? '#1a1816' : '#9e9a95', fontFamily: 'var(--font-body)' }}>{step.label}</div>
-              <div style={{ fontSize: 12, color: i <= activeStep ? '#6b6560' : '#c5c0ba', fontFamily: 'var(--font-body)', marginTop: 2, whiteSpace: 'nowrap' }}>{step.sublabel}</div>
+            <div style={{ textAlign: 'center', minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: i <= activeStep ? '#1a1816' : '#9e9a95', fontFamily: 'var(--font-body)' }}>{step.label}</div>
+              <div style={{ fontSize: 11, color: i <= activeStep ? '#6b6560' : '#c5c0ba', fontFamily: 'var(--font-body)', marginTop: 2 }}>{step.sublabel}</div>
             </div>
           </div>
           {i < steps.length - 1 && (
             <div style={{
-              width: 40, height: 2, margin: '0 8px', marginBottom: 32, borderRadius: 1,
+              width: 20, minWidth: 12, height: 2, flexShrink: 1, marginBottom: 28, borderRadius: 1,
               background: i < activeStep ? '#E8981F' : 'rgba(58,54,50,0.12)',
               transition: 'background 0.5s ease',
             }} />

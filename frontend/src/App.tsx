@@ -26,7 +26,8 @@ import { ProfileDropdown } from './components/profile/ProfileDropdown';
 import { SettingsModal } from './components/settings/SettingsModal';
 import CartIcon from './components/CartIcon';
 import {
-  User, Menu, X, Users, ShoppingBag, Rocket, PenTool, Bell
+  User, Menu, X, Users, ShoppingBag, Rocket, PenTool, Bell,
+  Settings, HelpCircle, LogOut, Wallet
 } from 'lucide-react';
 import { SearchAutocomplete } from './components/SearchAutocomplete';
 
@@ -222,6 +223,72 @@ function Header() {
       <div className={`rb-header-right rb-nav ${mobileMenuOpen ? 'rb-nav-mobile-open' : ''}`}>
         {isAuthed && (
           <>
+            {/* Mobile: full profile menu mirroring desktop dropdown */}
+            {isMobile ? (
+              <>
+                {/* Profile header */}
+                <Link to="/profile" className="rb-mobile-profile-header">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={username} style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent)' }} />
+                  ) : (
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--chip-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--accent)' }}>
+                      <User size={24} />
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)' }}>@{username}</div>
+                    <div style={{ fontSize: 12, color: 'var(--accent)' }}>View your profile</div>
+                  </div>
+                </Link>
+                <div className="rb-nav-divider" />
+                {/* Section 1: Navigation */}
+                <Link to="/profile" className="rb-nav-link rb-mobile-menu-item" title="Your Profile">
+                  <User size={20} />
+                  <span>Your Profile</span>
+                </Link>
+                <Link to="/studio" className="rb-nav-link rb-mobile-menu-item" title="Studio">
+                  <PenTool size={20} />
+                  <span>Studio</span>
+                </Link>
+                <Link to="/store" className="rb-nav-link rb-mobile-menu-item" title="Store">
+                  <ShoppingBag size={20} />
+                  <span>Store</span>
+                </Link>
+                <Link to="/profile?section=wallet" className="rb-nav-link rb-mobile-menu-item" title="Wallet & Payments">
+                  <Wallet size={20} />
+                  <span>Wallet & Payments</span>
+                </Link>
+                <Link to="/notifications" className="rb-nav-link rb-mobile-menu-item" title="Alerts">
+                  <Bell size={20} />
+                  <span>Alerts</span>
+                </Link>
+                <Link to="/campaigns" className="rb-nav-link rb-mobile-menu-item" title="Campaigns">
+                  <Rocket size={20} />
+                  <span>Campaigns</span>
+                </Link>
+                <Link to="/collaborators" className="rb-nav-link rb-mobile-menu-item" title="Collaborators">
+                  <Users size={20} />
+                  <span>Collaborators</span>
+                </Link>
+                <div className="rb-nav-divider" />
+                {/* Section 2: Settings */}
+                <button onClick={() => setSettingsModalOpen(true)} className="rb-nav-link rb-mobile-menu-item" title="Settings">
+                  <Settings size={20} />
+                  <span>Settings</span>
+                </button>
+                <a href="mailto:support@renaissblock.com" className="rb-nav-link rb-mobile-menu-item" title="Help" style={{ textDecoration: 'none' }}>
+                  <HelpCircle size={20} />
+                  <span>Help</span>
+                </a>
+                <div className="rb-nav-divider" />
+                {/* Section 3: Sign out */}
+                <button onClick={doLogout} className="rb-nav-link rb-mobile-menu-item" title="Sign out">
+                  <LogOut size={20} />
+                  <span>Sign out</span>
+                </button>
+              </>
+            ) : (
+            <>
             <Link to="/studio" className="rb-nav-link" title="Studio">
               <PenTool size={20} />
               <span className="rb-nav-label">Studio</span>
@@ -231,16 +298,9 @@ function Header() {
                 <CartIcon />
               </span>
             )}
-            {isMobile ? (
-              <Link to="/notifications" className="rb-nav-link" title="Alerts">
-                <Bell size={20} />
-                <span className="rb-nav-label">Alerts</span>
-              </Link>
-            ) : (
-              <span>
-                <NotificationBell />
-              </span>
-            )}
+            <span>
+              <NotificationBell />
+            </span>
             <Link to="/campaigns" className="rb-nav-link" title="Campaigns">
               <Rocket size={20} />
               <span className="rb-nav-label">Campaigns</span>
@@ -249,17 +309,8 @@ function Header() {
               <Users size={20} />
               <span className="rb-nav-label">Collaborators</span>
             </Link>
-            {/* Profile Dropdown */}
-            {isMobile ? (
-              <Link to="/profile" className="rb-nav-link" title="Profile">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={username} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--accent)' }} />
-                ) : (
-                  <User size={20} />
-                )}
-                <span className="rb-nav-label">Profile</span>
-              </Link>
-            ) : (
+            {/* Profile Dropdown — desktop only */}
+
             <div style={{ position: 'relative' }}>
               <button
                 ref={profileButtonRef}
@@ -308,6 +359,7 @@ function Header() {
                 onOpenSettings={() => setSettingsModalOpen(true)}
               />
             </div>
+            </>
             )}
           </>
         )}
