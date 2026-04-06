@@ -11,8 +11,11 @@ import React, { useState } from 'react';
 import { ClipboardList, ChevronRight, ChevronDown } from 'lucide-react';
 import { API_URL } from '../../config';
 
-// Task status type
-type TaskStatus = 'pending' | 'in_progress' | 'complete' | 'signed_off' | 'cancelled';
+// Task status type — must match backend ContractTask.STATUS_CHOICES
+type TaskStatus = 'funded' | 'pending' | 'in_progress' | 'submitted' | 'under_review'
+  | 'revision_requested' | 'resubmitted' | 'approved' | 'released' | 'complete'
+  | 'deadline_passed' | 'extended' | 'stalled' | 'final_rejection'
+  | 'reassigned' | 'refunded' | 'cancelled' | 'signed_off';
 
 // Contract task interface
 interface ContractTask {
@@ -61,14 +64,29 @@ interface TaskTrackerProps {
 // Status badge component
 function StatusBadge({ status, isOverdue }: { status: TaskStatus; isOverdue: boolean }) {
   const statusConfig: Record<TaskStatus, { bg: string; color: string; label: string }> = {
+    funded: { bg: '#8b5cf620', color: '#a78bfa', label: 'Funded' },
     pending: { bg: '#64748b20', color: 'var(--text-muted)', label: 'Pending' },
     in_progress: { bg: '#3b82f620', color: '#60a5fa', label: 'In Progress' },
-    complete: { bg: '#f59e0b20', color: '#fbbf24', label: 'Awaiting Sign-off' },
+    submitted: { bg: '#f59e0b20', color: '#fbbf24', label: 'Submitted' },
+    under_review: { bg: '#f59e0b20', color: '#fbbf24', label: 'Under Review' },
+    revision_requested: { bg: '#f9731620', color: '#fb923c', label: 'Revision Requested' },
+    resubmitted: { bg: '#f59e0b20', color: '#fbbf24', label: 'Resubmitted' },
+    approved: { bg: '#10b98120', color: '#34d399', label: 'Approved' },
+    released: { bg: '#10b98120', color: '#34d399', label: 'Released' },
+    complete: { bg: '#10b98120', color: '#34d399', label: 'Complete' },
     signed_off: { bg: '#10b98120', color: '#34d399', label: 'Signed Off' },
+    deadline_passed: { bg: '#ef444420', color: '#f87171', label: 'Deadline Passed' },
+    extended: { bg: '#3b82f620', color: '#60a5fa', label: 'Extended' },
+    stalled: { bg: '#ef444420', color: '#f87171', label: 'Stalled' },
+    final_rejection: { bg: '#ef444420', color: '#f87171', label: 'Final Rejection' },
+    reassigned: { bg: '#64748b20', color: 'var(--text-muted)', label: 'Reassigned' },
+    refunded: { bg: '#64748b20', color: 'var(--text-muted)', label: 'Refunded' },
     cancelled: { bg: '#ef444420', color: '#f87171', label: 'Cancelled' },
   };
 
-  if (isOverdue && status !== 'signed_off' && status !== 'cancelled') {
+  // Terminal/completed states should never show overdue
+  const terminalStatuses: TaskStatus[] = ['complete', 'signed_off', 'released', 'approved', 'cancelled', 'refunded', 'reassigned'];
+  if (isOverdue && !terminalStatuses.includes(status)) {
     return (
       <span
         style={{

@@ -9,7 +9,10 @@ import { Activity } from '../services/activityService';
 // Timeline item types
 export type TimelineItemType = 'task' | 'activity';
 
-export type TaskStatus = 'pending' | 'in_progress' | 'complete' | 'signed_off' | 'cancelled';
+export type TaskStatus = 'funded' | 'pending' | 'in_progress' | 'submitted' | 'under_review'
+  | 'revision_requested' | 'resubmitted' | 'approved' | 'released' | 'complete'
+  | 'deadline_passed' | 'extended' | 'stalled' | 'final_rejection'
+  | 'reassigned' | 'refunded' | 'cancelled' | 'signed_off';
 
 export interface TaskTimelineData {
   id: number;
@@ -222,8 +225,8 @@ export function groupTimelineByDate(items: TimelineItem[]): GroupedTimeline[] {
  */
 export function getTaskUrgency(task: TaskTimelineData): 'overdue' | 'due_today' | 'due_soon' | 'pending' | 'complete' | 'signed_off' {
   if (task.status === 'signed_off') return 'signed_off';
-  if (task.status === 'complete') return 'complete';
-  if (task.status === 'cancelled') return 'pending';
+  if (task.status === 'complete' || task.status === 'released' || task.status === 'approved') return 'complete';
+  if (task.status === 'cancelled' || task.status === 'refunded' || task.status === 'reassigned') return 'pending';
   if (task.is_overdue) return 'overdue';
 
   const daysUntil = task.days_until_deadline;

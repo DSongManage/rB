@@ -1546,6 +1546,38 @@ export const collaborationApi = {
   },
 
   /**
+   * Respond to a scope change request (writer resolves)
+   */
+  async respondToScopeChange(
+    projectId: number,
+    taskId: number,
+    scopeChangeId: number,
+    data: {
+      action: 'withdraw' | 'increase_amount' | 'add_milestone';
+      additional_amount?: number;
+      milestone_title?: string;
+      milestone_description?: string;
+      milestone_deadline?: string;
+      milestone_amount?: number;
+    }
+  ): Promise<{ status: string; scope_change_id: number; resolution: string }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/tasks/${taskId}/scope-change/${scopeChangeId}/respond/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse(response);
+  },
+
+  /**
    * Cancel a project (writer, artist, or mutual)
    */
   async cancelProject(

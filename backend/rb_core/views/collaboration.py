@@ -11,7 +11,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Q
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
@@ -1365,6 +1365,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         action_type = request.data.get('action')
 
         if action_type == 'accept_as_is':
+            # Move to submitted so sign_off() accepts it
+            task.status = 'submitted'
+            task.save(update_fields=['status'])
             task.sign_off(core_user, notes='Accepted as-is after final rejection')
             serializer = ContractTaskSerializer(task)
             return Response({'status': 'approved', 'task': serializer.data})
@@ -1523,6 +1526,170 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'scope_change_id': scope_change.id,
             'auto_resume_at': scope_change.auto_resume_at.isoformat(),
         }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/scope-change/(?P<scope_change_id>[^/.]+)/respond')
+    def respond_scope_change(self, request, pk=None, task_id=None, scope_change_id=None):
+        """Writer responds to artist's scope change request.
+
+        POST data:
+        - action: str (required) — 'withdraw' | 'increase_amount' | 'add_milestone'
+        - additional_amount: decimal (required if action='increase_amount')
+        - milestone_title: str (required if action='add_milestone')
+        - milestone_description: str (optional, for add_milestone)
+        - milestone_deadline: datetime ISO (required if action='add_milestone')
+        - milestone_amount: decimal (required if action='add_milestone')
+        """
+        from datetime import timedelta
+        from decimal import Decimal, InvalidOperation
+        from rb_core.models import ScopeChangeRequest, ContractTask as ContractTaskModel
+
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can respond to scope changes'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            task = ContractTaskModel.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTaskModel.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            scope_change = ScopeChangeRequest.objects.get(id=scope_change_id, contract_task=task)
+        except ScopeChangeRequest.DoesNotExist:
+            return Response({'error': 'Scope change request not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if scope_change.status != 'pending':
+            return Response({'error': f'Scope change already resolved (status: {scope_change.status})'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        action_type = request.data.get('action')
+        if action_type not in ('withdraw', 'increase_amount', 'add_milestone'):
+            return Response({'error': 'action must be withdraw, increase_amount, or add_milestone'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+
+        def resume_timer():
+            if task.deadline_paused_at:
+                elapsed = (now - task.deadline_paused_at).total_seconds()
+                task.total_paused_seconds += int(elapsed)
+                task.deadline += timedelta(seconds=elapsed)
+                task.deadline_paused_at = None
+
+        with transaction.atomic():
+            scope_change.resolved_at = now
+
+            if action_type == 'withdraw':
+                scope_change.status = 'withdrawn'
+                scope_change.save()
+                resume_timer()
+                task.save(update_fields=['deadline', 'deadline_paused_at', 'total_paused_seconds'])
+
+            elif action_type == 'increase_amount':
+                raw_amount = request.data.get('additional_amount')
+                if not raw_amount:
+                    return Response({'error': 'additional_amount is required'},
+                                  status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    additional_amount = Decimal(str(raw_amount))
+                except (InvalidOperation, ValueError):
+                    return Response({'error': 'additional_amount must be a valid decimal'},
+                                  status=status.HTTP_400_BAD_REQUEST)
+                if additional_amount <= 0:
+                    return Response({'error': 'additional_amount must be positive'},
+                                  status=status.HTTP_400_BAD_REQUEST)
+
+                scope_change.status = 'amount_increased'
+                scope_change.additional_amount = additional_amount
+                scope_change.save()
+
+                task.payment_amount += additional_amount
+                resume_timer()
+                task.save(update_fields=[
+                    'payment_amount', 'deadline', 'deadline_paused_at', 'total_paused_seconds',
+                ])
+
+                role = task.collaborator_role
+                role.total_contract_amount += additional_amount
+                role.save(update_fields=['total_contract_amount'])
+
+            elif action_type == 'add_milestone':
+                title = request.data.get('milestone_title')
+                deadline_str = request.data.get('milestone_deadline')
+                amount_str = request.data.get('milestone_amount')
+                if not title or not deadline_str or not amount_str:
+                    return Response({'error': 'milestone_title, milestone_deadline, and milestone_amount are required'},
+                                  status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    milestone_amount = Decimal(str(amount_str))
+                    from django.utils.dateparse import parse_datetime
+                    milestone_deadline = parse_datetime(deadline_str)
+                    if not milestone_deadline:
+                        raise ValueError('Invalid datetime')
+                except (InvalidOperation, ValueError) as e:
+                    return Response({'error': f'Invalid milestone data: {e}'},
+                                  status=status.HTTP_400_BAD_REQUEST)
+
+                scope_change.status = 'new_milestone_added'
+                scope_change.additional_amount = milestone_amount
+                scope_change.save()
+
+                role = task.collaborator_role
+                max_order = role.contract_tasks.aggregate(
+                    max_order=models.Max('order')
+                )['max_order'] or 0
+
+                ContractTaskModel.objects.create(
+                    collaborator_role=role,
+                    title=title,
+                    description=request.data.get('milestone_description', ''),
+                    deadline=milestone_deadline,
+                    payment_amount=milestone_amount,
+                    status='in_progress',
+                    escrow_release_status='pending',
+                    order=max_order + 1,
+                    revision_limit=task.revision_limit,
+                    review_window_hours=task.review_window_hours,
+                )
+
+                role.total_contract_amount += milestone_amount
+                role.tasks_total += 1
+                role.save(update_fields=['total_contract_amount', 'tasks_total'])
+
+                resume_timer()
+                task.save(update_fields=['deadline', 'deadline_paused_at', 'total_paused_seconds'])
+
+        # Notify artist
+        try:
+            from rb_core.models import Notification
+            artist = task.collaborator_role.user
+            action_labels = {
+                'withdraw': 'removed the extra scope',
+                'increase_amount': f'increased the milestone amount by ${scope_change.additional_amount}',
+                'add_milestone': 'added a new milestone for the extra work',
+            }
+            Notification.objects.create(
+                recipient=artist,
+                sender=core_user,
+                notification_type='scope_change',
+                title=f'Scope Change Resolved: {task.title}',
+                message=f'{core_user.display_name or core_user.username} {action_labels[action_type]}. Deadline timer has resumed.',
+                project_id=project.id,
+            )
+        except Exception:
+            pass
+
+        return Response({
+            'status': 'scope_change_resolved',
+            'scope_change_id': scope_change.id,
+            'resolution': action_type,
+        })
 
     @action(detail=True, methods=['post'],
             url_path='tasks/(?P<task_id>[^/.]+)/reassign')

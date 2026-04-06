@@ -538,6 +538,7 @@ export default function TeamTab({
         </h2>
         {isProjectLead && !showInviteForm && (
           <button
+            type="button"
             onClick={() => setShowInviteForm(true)}
             style={{
               background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
@@ -548,6 +549,9 @@ export default function TeamTab({
               fontWeight: 600,
               cursor: 'pointer',
               fontSize: 14,
+              WebkitTapHighlightColor: 'transparent',
+              touchAction: 'manipulation',
+              minHeight: 44,
             }}
           >
             + Invite Collaborator
@@ -564,7 +568,7 @@ export default function TeamTab({
             border: '1px solid var(--panel-border)',
             borderRadius: 12,
             padding: 24,
-            overflow: 'hidden',
+            overflow: 'visible',
           }}
         >
           <h3 style={{ margin: '0 0 16px', color: 'var(--text)', fontSize: 18 }}>
@@ -1677,6 +1681,9 @@ export default function TeamTab({
         collaborators={collaborators}
         sections={sections}
         projectCreatorId={project.created_by}
+        currentUserId={currentUser.id}
+        projectId={project.id}
+        onInviteAction={() => onProjectUpdate?.(project)}
       />
 
       {/* Contract Tasks Section */}

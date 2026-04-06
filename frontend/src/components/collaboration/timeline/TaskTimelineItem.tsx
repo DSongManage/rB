@@ -54,12 +54,12 @@ const urgencyStyles = {
     statusBg: '#3b82f620',
   },
   complete: {
-    background: 'rgba(245, 158, 11, 0.06)',
-    borderColor: '#f59e0b',
-    textColor: '#fbbf24',
-    icon: CircleCheck,
-    statusLabel: 'Awaiting Sign-off',
-    statusBg: '#f59e0b20',
+    background: 'rgba(16, 185, 129, 0.08)',
+    borderColor: '#10b981',
+    textColor: '#34d399',
+    icon: CheckCircle2,
+    statusLabel: 'Complete',
+    statusBg: '#10b98120',
   },
   signed_off: {
     background: 'rgba(16, 185, 129, 0.08)',
@@ -89,10 +89,10 @@ export function TaskTimelineItem({ task, onViewDetails }: TaskTimelineItemProps)
     if (task.status === 'signed_off') {
       return task.signed_off_at ? formatRelativeTime(new Date(task.signed_off_at)) : 'Completed';
     }
-    if (task.status === 'complete') {
-      return 'Awaiting review';
+    if (task.status === 'complete' || task.status === 'released' || task.status === 'approved') {
+      return task.signed_off_at ? formatRelativeTime(new Date(task.signed_off_at)) : 'Completed';
     }
-    if (task.is_overdue) {
+    if (task.is_overdue && !['complete', 'released', 'approved', 'signed_off', 'cancelled', 'refunded'].includes(task.status)) {
       const daysOverdue = task.days_until_deadline ? Math.abs(task.days_until_deadline) : 0;
       return `${daysOverdue} day${daysOverdue !== 1 ? 's' : ''} overdue`;
     }
