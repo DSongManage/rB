@@ -7362,7 +7362,7 @@ class CampaignContribution(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['campaign', 'backer'],
-                condition=models.Q(status__in=['pending', 'confirmed', 'transferred']) & models.Q(withdrawn=False),
+                condition=models.Q(status='pending') & models.Q(withdrawn=False),
                 name='unique_active_campaign_backer',
             ),
         ]

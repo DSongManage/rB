@@ -36,7 +36,7 @@ from spl.token.constants import TOKEN_PROGRAM_ID
 
 logger = logging.getLogger(__name__)
 
-PROGRAM_ID = Pubkey.from_string('AiKX6rLM3kTJfcDPt8pwrmbeVR6WaT8PXAHuJhJZYLSH')
+PROGRAM_ID = Pubkey.from_string('4bHUxyXHijqKCh6WnrpaG7V8U67tcgXN44aSwSMgnstg')
 
 # Anchor instruction discriminators (first 8 bytes of sha256("global:<instruction_name>"))
 def _anchor_discriminator(name: str) -> bytes:
@@ -220,14 +220,14 @@ class CampaignSolanaService:
         # Instruction data: discriminator + amount(u64)
         data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
 
-        # Accounts the frontend must include when building the ix
+        # Accounts must match Anchor struct order: payer, backer, campaign_vault, backer_record, ...
         accounts = [
-            {'pubkey': str(backer_pubkey), 'is_signer': True, 'is_writable': True},     # backer
-            {'pubkey': str(campaign_pda), 'is_signer': False, 'is_writable': True},      # campaign_vault
-            {'pubkey': str(backer_record_pda), 'is_signer': False, 'is_writable': True}, # backer_record (init)
-            {'pubkey': str(backer_ata), 'is_signer': False, 'is_writable': True},        # backer_token_account
-            {'pubkey': str(vault_ata), 'is_signer': False, 'is_writable': True},         # vault_token_account
-            {'pubkey': str(self.usdc_mint), 'is_signer': False, 'is_writable': False},   # mint
+            {'pubkey': str(self.platform_pubkey), 'is_signer': True, 'is_writable': True},  # payer
+            {'pubkey': str(backer_pubkey), 'is_signer': True, 'is_writable': False},         # backer
+            {'pubkey': str(campaign_pda), 'is_signer': False, 'is_writable': True},           # campaign_vault
+            {'pubkey': str(backer_record_pda), 'is_signer': False, 'is_writable': True},      # backer_record (init)
+            {'pubkey': str(backer_ata), 'is_signer': False, 'is_writable': True},             # backer_token_account
+            {'pubkey': str(vault_ata), 'is_signer': False, 'is_writable': True},              # vault_token_account
             {'pubkey': str(TOKEN_PROGRAM_ID), 'is_signer': False, 'is_writable': False},
             {'pubkey': str(SYSTEM_PROGRAM_ID), 'is_signer': False, 'is_writable': False},
         ]
@@ -260,9 +260,11 @@ class CampaignSolanaService:
         amount_lamports = self._usd_to_lamports(amount)
 
         # Build the contribute instruction
+        # Account order must match Anchor struct: payer, backer, campaign_vault, backer_record, ...
         data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
         accounts = [
-            AccountMeta(backer_pubkey, is_signer=True, is_writable=True),        # backer
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),  # payer (platform sponsors rent)
+            AccountMeta(backer_pubkey, is_signer=True, is_writable=False),        # backer (signs USDC transfer)
             AccountMeta(campaign_pda, is_signer=False, is_writable=True),         # campaign_vault
             AccountMeta(backer_record_pda, is_signer=False, is_writable=True),    # backer_record (init)
             AccountMeta(backer_ata, is_signer=False, is_writable=True),           # backer_token_account

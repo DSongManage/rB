@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-declare_id!("AiKX6rLM3kTJfcDPt8pwrmbeVR6WaT8PXAHuJhJZYLSH");
+declare_id!("4bHUxyXHijqKCh6WnrpaG7V8U67tcgXN44aSwSMgnstg");
 
 /// Grace period after deadline (48 hours in seconds)
 const GRACE_PERIOD_SECONDS: i64 = 48 * 60 * 60;
@@ -1052,7 +1052,12 @@ pub struct InitializeCampaign<'info> {
 
 #[derive(Accounts)]
 pub struct Contribute<'info> {
+    /// Fee payer — platform wallet that sponsors rent for backer_record PDA.
+    /// In sponsored transactions, this is the platform; backer only signs for USDC authority.
     #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// Backer — signs to authorize the USDC transfer from their token account.
     pub backer: Signer<'info>,
 
     #[account(mut)]
@@ -1060,7 +1065,7 @@ pub struct Contribute<'info> {
 
     #[account(
         init,
-        payer = backer,
+        payer = payer,
         space = BackerRecord::SIZE,
         seeds = [b"backer", campaign_vault.key().as_ref(), backer.key().as_ref()],
         bump,

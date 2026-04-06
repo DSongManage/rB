@@ -35,7 +35,7 @@ from spl.token.constants import TOKEN_PROGRAM_ID
 
 logger = logging.getLogger(__name__)
 
-PROGRAM_ID = Pubkey.from_string('AiKX6rLM3kTJfcDPt8pwrmbeVR6WaT8PXAHuJhJZYLSH')
+PROGRAM_ID = Pubkey.from_string('4bHUxyXHijqKCh6WnrpaG7V8U67tcgXN44aSwSMgnstg')
 ATA_PROGRAM_ID = Pubkey.from_string('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
 
 
