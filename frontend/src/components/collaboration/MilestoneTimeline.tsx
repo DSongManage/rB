@@ -5,12 +5,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Clock, Check, DollarSign, RotateCcw, TrendingUp } from 'lucide-react';
+import { Clock, Check, DollarSign, RotateCcw, TrendingUp, Star, AlertTriangle, Flag, XCircle } from 'lucide-react';
 
 interface ContractTask {
   id: number;
   title: string;
-  status: 'pending' | 'in_progress' | 'complete' | 'signed_off' | 'cancelled';
+  status: string;
   payment_amount: string;
   escrow_release_status: string;
   milestone_type: string;
@@ -29,6 +29,14 @@ interface ContractTask {
 interface MilestoneTimelineProps {
   tasks: ContractTask[];
   trustPhase: string;
+  projectId?: number;
+  currentUserId?: number;
+  isProjectOwner?: boolean;
+  isArtist?: boolean;
+  onRateTask?: (taskId: number, taskTitle: string) => void;
+  onDeadlineAction?: (taskId: number, taskTitle: string) => void;
+  onFinalRejectionAction?: (taskId: number, taskTitle: string) => void;
+  onScopeChange?: (taskId: number, taskTitle: string) => void;
 }
 
 function formatTimeRemaining(deadline: string): string {
@@ -66,14 +74,35 @@ function AutoApproveCountdown({ deadline }: { deadline: string }) {
 }
 
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
-  pending:     { label: 'Pending',      color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.1)' },
-  in_progress: { label: 'In Progress',  color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' },
-  complete:    { label: 'Review',       color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
-  signed_off:  { label: 'Signed Off',   color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
-  cancelled:   { label: 'Cancelled',    color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.1)' },
+  funded:             { label: 'Funded',           color: '#6366f1', bg: 'rgba(99, 102, 241, 0.1)' },
+  pending:            { label: 'Pending',          color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.1)' },
+  in_progress:        { label: 'In Progress',      color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)' },
+  submitted:          { label: 'Submitted',        color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
+  under_review:       { label: 'Under Review',     color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' },
+  revision_requested: { label: 'Revision Needed',  color: '#f97316', bg: 'rgba(249, 115, 22, 0.1)' },
+  resubmitted:        { label: 'Resubmitted',      color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)' },
+  approved:           { label: 'Approved',         color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
+  released:           { label: 'Released',         color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
+  complete:           { label: 'Complete',         color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
+  signed_off:         { label: 'Signed Off',       color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' },
+  deadline_passed:    { label: 'Deadline Passed',  color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' },
+  stalled:            { label: 'Stalled',          color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' },
+  final_rejection:    { label: 'Final Rejection',  color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' },
+  reassigned:         { label: 'Reassigned',       color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.1)' },
+  refunded:           { label: 'Refunded',         color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.1)' },
+  cancelled:          { label: 'Cancelled',        color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.1)' },
 };
 
-export function MilestoneTimeline({ tasks }: MilestoneTimelineProps) {
+export function MilestoneTimeline({
+  tasks,
+  trustPhase,
+  onRateTask,
+  onDeadlineAction,
+  onFinalRejectionAction,
+  onScopeChange,
+  isProjectOwner,
+  isArtist,
+}: MilestoneTimelineProps) {
   if (!tasks || tasks.length === 0) return null;
 
   const sortedTasks = [...tasks].sort((a, b) => {
@@ -101,7 +130,12 @@ export function MilestoneTimeline({ tasks }: MilestoneTimelineProps) {
           const config = statusConfig[task.status] || statusConfig.pending;
           const payment = parseFloat(task.payment_amount) || 0;
           const isLast = index === sortedTasks.length - 1;
-          const isComplete = task.status === 'signed_off';
+          const isComplete = ['signed_off', 'approved', 'released', 'complete'].includes(task.status);
+          const isRefunded = ['refunded', 'cancelled'].includes(task.status);
+          const needsRating = ['released', 'approved', 'signed_off'].includes(task.status) && task.escrow_release_status === 'released';
+          const needsDeadlineAction = task.status === 'deadline_passed' && isProjectOwner;
+          const needsFinalRejectionAction = task.status === 'final_rejection' && isProjectOwner;
+          const canFlagScopeChange = task.status === 'in_progress' && isArtist;
 
           return (
             <div key={task.id} style={{ display: 'flex', gap: 14 }}>
@@ -182,21 +216,84 @@ export function MilestoneTimeline({ tasks }: MilestoneTimelineProps) {
                   </div>
                 </div>
 
-                {/* Payment */}
-                {payment > 0 && (
-                  <div style={{
-                    textAlign: 'right', flexShrink: 0,
-                  }}>
+                {/* Payment + Action buttons */}
+                <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  {payment > 0 && (
                     <div style={{
                       fontSize: 14, fontWeight: 600,
-                      color: isComplete ? '#10b981' : 'var(--text)',
+                      color: isComplete ? '#10b981' : isRefunded ? '#94a3b8' : 'var(--text)',
                       display: 'flex', alignItems: 'center', gap: 2,
+                      textDecoration: isRefunded ? 'line-through' : 'none',
                     }}>
                       ${payment.toFixed(2)}
                       {isComplete && <Check size={14} style={{ color: '#10b981', marginLeft: 2 }} />}
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* Rate button for released milestones */}
+                  {needsRating && onRateTask && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRateTask(task.id, task.title); }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px',
+                        borderRadius: 6, border: '1px solid rgba(245,158,11,0.4)',
+                        background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+                        cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Star size={11} /> Rate
+                    </button>
+                  )}
+
+                  {/* Deadline action button */}
+                  {needsDeadlineAction && onDeadlineAction && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDeadlineAction(task.id, task.title); }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px',
+                        borderRadius: 6, border: '1px solid rgba(239,68,68,0.4)',
+                        background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                        cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <AlertTriangle size={11} /> Action Needed
+                    </button>
+                  )}
+
+                  {/* Final rejection action button */}
+                  {needsFinalRejectionAction && onFinalRejectionAction && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onFinalRejectionAction(task.id, task.title); }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px',
+                        borderRadius: 6, border: '1px solid rgba(239,68,68,0.4)',
+                        background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                        cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <XCircle size={11} /> Resolve
+                    </button>
+                  )}
+
+                  {/* Scope change button for artist */}
+                  {canFlagScopeChange && onScopeChange && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onScopeChange(task.id, task.title); }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px',
+                        borderRadius: 6, border: '1px solid rgba(139,92,246,0.4)',
+                        background: 'rgba(139,92,246,0.1)', color: '#8b5cf6',
+                        cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Flag size={11} /> Scope Issue
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );

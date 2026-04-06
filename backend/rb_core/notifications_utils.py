@@ -37,13 +37,20 @@ def create_notification(
     title: str,
     message: str,
     project: Optional[CollaborativeProject] = None,
-    action_url: Optional[str] = None
+    action_url: Optional[str] = None,
+    contract_task=None,
+    action_required: bool = False,
+    action_options: Optional[list] = None,
+    expires_at=None,
 ) -> Optional[Notification]:
     """
     Create a new notification, respecting user preferences.
 
     Returns None if the user has opted out of in-app for this type.
     Queues an email via Celery if the user has email enabled.
+
+    Supports actionable notifications with action_required, action_options,
+    contract_task, and expires_at for escrow lifecycle events.
     """
     pref = get_notification_preference(recipient, notification_type)
     resolved_action_url = action_url or (f'/studio/{project.id}' if project else '')
@@ -57,7 +64,11 @@ def create_notification(
             title=title,
             message=message,
             project=project,
+            contract_task=contract_task,
             action_url=resolved_action_url,
+            action_required=action_required,
+            action_options=action_options or [],
+            expires_at=expires_at,
         )
 
     if pref['email'] and getattr(recipient, 'email', None):
@@ -571,6 +582,222 @@ def bulk_mark_as_read(user: User, notification_ids: List[int]) -> int:
     )
 
     return count
+
+
+# ============================================================
+# Escrow Lifecycle Notification Helpers
+# ============================================================
+
+def notify_deadline_passed(task) -> Optional[Notification]:
+    """Notify writer that a milestone deadline has passed — actionable with 48hr window."""
+    from datetime import timedelta
+    from django.utils import timezone
+
+    role = task.collaborator_role
+    project = role.project
+    writer = project.created_by
+
+    return create_notification(
+        recipient=writer,
+        from_user=role.user,
+        notification_type='deadline_passed',
+        title=f'Deadline Passed: {task.title}',
+        message=(
+            f'The deadline for "{task.title}" on "{project.title}" has passed. '
+            f'You have 48 hours to extend the deadline, reassign the milestone, or request a refund. '
+            f'If no action is taken, the escrow will be automatically refunded.'
+        ),
+        project=project,
+        contract_task=task,
+        action_required=True,
+        action_options=[
+            {'key': 'extend', 'label': 'Extend Deadline', 'style': 'primary'},
+            {'key': 'reassign', 'label': 'Reassign', 'style': 'secondary'},
+            {'key': 'refund', 'label': 'Refund', 'style': 'danger'},
+        ],
+        expires_at=task.grace_deadline,
+    )
+
+
+def notify_milestone_submitted(task) -> Optional[Notification]:
+    """Notify writer that artist submitted a milestone for review."""
+    role = task.collaborator_role
+    project = role.project
+
+    return create_notification(
+        recipient=project.created_by,
+        from_user=role.user,
+        notification_type='milestone_submitted',
+        title=f'Milestone Submitted: {task.title}',
+        message=f'{role.user.username} submitted "{task.title}" on "{project.title}" for your review.',
+        project=project,
+        contract_task=task,
+    )
+
+
+def notify_final_rejection(task) -> List[Optional[Notification]]:
+    """Notify both parties that revision limit is exhausted."""
+    role = task.collaborator_role
+    project = role.project
+    writer = project.created_by
+    notifications = []
+
+    # Notify writer with action options
+    notifications.append(create_notification(
+        recipient=writer,
+        from_user=role.user,
+        notification_type='final_rejection',
+        title=f'Revision Limit Reached: {task.title}',
+        message=(
+            f'The revision limit ({task.revision_limit}) has been reached for "{task.title}". '
+            f'You can accept the work as-is, cancel and refund, or reassign to a new artist.'
+        ),
+        project=project,
+        contract_task=task,
+        action_required=True,
+        action_options=[
+            {'key': 'accept_as_is', 'label': 'Accept & Release', 'style': 'primary'},
+            {'key': 'reassign', 'label': 'Reassign', 'style': 'secondary'},
+            {'key': 'cancel', 'label': 'Cancel & Refund', 'style': 'danger'},
+        ],
+    ))
+
+    # Notify artist
+    notifications.append(create_notification(
+        recipient=role.user,
+        from_user=writer,
+        notification_type='final_rejection',
+        title=f'Revision Limit Reached: {task.title}',
+        message=(
+            f'The revision limit for "{task.title}" has been reached. '
+            f'The project owner will decide the next step.'
+        ),
+        project=project,
+        contract_task=task,
+    ))
+
+    return notifications
+
+
+def notify_rating_requested(task, user) -> Optional[Notification]:
+    """Remind a user to rate a completed milestone."""
+    role = task.collaborator_role
+    project = role.project
+
+    return create_notification(
+        recipient=user,
+        from_user=project.created_by if user == role.user else role.user,
+        notification_type='rating_requested',
+        title=f'Rate Milestone: {task.title}',
+        message=(
+            f'Please rate the work on "{task.title}" in "{project.title}". '
+            f'Both parties must rate before the next milestone can begin.'
+        ),
+        project=project,
+        contract_task=task,
+        action_required=True,
+        action_options=[
+            {'key': 'rate', 'label': 'Rate Now', 'style': 'primary'},
+        ],
+    )
+
+
+def notify_artist_stalled(task) -> Optional[Notification]:
+    """Notify writer that an artist appears stalled (7+ days past deadline)."""
+    role = task.collaborator_role
+    project = role.project
+
+    return create_notification(
+        recipient=project.created_by,
+        from_user=role.user,
+        notification_type='inactivity_warning',
+        title=f'Artist Stalled: {task.title}',
+        message=(
+            f'{role.user.username} has not submitted work for "{task.title}" — '
+            f'7+ days past deadline. You can extend, reassign, or request a refund.'
+        ),
+        project=project,
+        contract_task=task,
+        action_required=True,
+        action_options=[
+            {'key': 'extend', 'label': 'Extend Deadline', 'style': 'primary'},
+            {'key': 'reassign', 'label': 'Reassign', 'style': 'secondary'},
+            {'key': 'refund', 'label': 'Refund', 'style': 'danger'},
+        ],
+    )
+
+
+def notify_scope_change(task, scope_change) -> Optional[Notification]:
+    """Notify writer that artist flagged a scope change."""
+    role = task.collaborator_role
+    project = role.project
+
+    return create_notification(
+        recipient=project.created_by,
+        from_user=role.user,
+        notification_type='scope_change',
+        title=f'Scope Change: {task.title}',
+        message=(
+            f'{role.user.username} flagged extra scope on "{task.title}": '
+            f'{scope_change.description[:100]}. Deadline timer is paused. '
+            f'You have 48 hours to respond before the timer auto-resumes.'
+        ),
+        project=project,
+        contract_task=task,
+        action_required=True,
+        action_options=[
+            {'key': 'withdraw', 'label': 'Remove Extra Scope', 'style': 'secondary'},
+            {'key': 'increase_amount', 'label': 'Increase Amount', 'style': 'primary'},
+            {'key': 'add_milestone', 'label': 'Add New Milestone', 'style': 'primary'},
+        ],
+        expires_at=scope_change.auto_resume_at,
+    )
+
+
+def notify_reassignment_offer(reassignment) -> Optional[Notification]:
+    """Notify new artist about a reassignment offer."""
+    task = reassignment.original_task
+    project = task.collaborator_role.project
+
+    return create_notification(
+        recipient=reassignment.new_artist,
+        from_user=project.created_by,
+        notification_type='reassignment_offer',
+        title=f'Milestone Offer: {task.title}',
+        message=(
+            f'{project.created_by.username} wants to reassign "{task.title}" on "{project.title}" to you. '
+            f'Payment: ${task.payment_amount}.'
+        ),
+        project=project,
+        contract_task=task,
+        action_required=True,
+        action_options=[
+            {'key': 'accept', 'label': 'Accept', 'style': 'primary'},
+            {'key': 'decline', 'label': 'Decline', 'style': 'secondary'},
+        ],
+    )
+
+
+def notify_project_cancelled(project, cancelled_by) -> List[Optional[Notification]]:
+    """Notify all collaborators about project cancellation."""
+    notifications = []
+    for role in project.collaborators.filter(status='accepted'):
+        if role.user == cancelled_by:
+            continue
+        notifications.append(create_notification(
+            recipient=role.user,
+            from_user=cancelled_by,
+            notification_type='project_cancelled',
+            title=f'Project Cancelled: {project.title}',
+            message=(
+                f'"{project.title}" has been cancelled by {cancelled_by.username}. '
+                f'Remaining escrow funds will be refunded.'
+            ),
+            project=project,
+        ))
+    return notifications
+
+
 
 
 def delete_project_notifications(project: CollaborativeProject) -> int:

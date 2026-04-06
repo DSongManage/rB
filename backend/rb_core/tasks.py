@@ -7,6 +7,7 @@ import logging
 import time
 from decimal import Decimal, ROUND_HALF_UP
 from django.conf import settings
+from django.db.models import Sum
 
 from .audit_utils import (
     BlockchainAuditLogger,
@@ -2239,7 +2240,7 @@ def check_auto_approve_deadlines():
 
     now = timezone.now()
     overdue_tasks = ContractTask.objects.filter(
-        status='complete',
+        status__in=['complete', 'submitted', 'under_review', 'resubmitted'],
         auto_approve_deadline__lte=now,
         auto_approved=False,
         escrow_release_status='pending',
@@ -2258,6 +2259,18 @@ def check_auto_approve_deadlines():
             task.sign_off(writer, notes='Auto-approved: review window expired')
 
             results['auto_approved'] += 1
+
+            # Track consecutive auto-approvals for writer inactivity detection (Phase 6)
+            role.consecutive_auto_approvals += 1
+            update_fields = ['consecutive_auto_approvals']
+            if role.consecutive_auto_approvals >= 2 and not role.writer_inactive_flagged:
+                role.writer_inactive_flagged = True
+                update_fields.append('writer_inactive_flagged')
+                logger.warning(
+                    '[AutoApprove] Writer %s flagged inactive — %d consecutive auto-approvals',
+                    writer.username, role.consecutive_auto_approvals,
+                )
+            role.save(update_fields=update_fields)
 
             # Send notifications
             from .notifications_utils import notify_auto_approved
@@ -2454,12 +2467,13 @@ def process_escrow_release(self, task_id):
 
 @shared_task
 def check_task_deadlines():
-    """Periodic task: check for overdue tasks and auto-cancel + refund.
+    """Periodic task: detect overdue tasks and start 48hr grace window.
 
     Runs every 2 minutes. For tasks past their deadline that are still
-    pending or in_progress, marks them overdue and triggers escrow refund
-    if applicable. No grace period — immediate cancellation and refund.
+    in_progress, transitions to 'deadline_passed' with a 48hr grace period.
+    Writer must choose: extend, reassign, or refund within the grace window.
     """
+    from datetime import timedelta
     from django.utils import timezone
     from django.db import transaction
     from .models import ContractTask
@@ -2469,48 +2483,41 @@ def check_task_deadlines():
         status__in=['pending', 'in_progress'],
         deadline__lt=now,
         is_overdue=False,
+        deadline_paused_at__isnull=True,  # Skip tasks with paused timers (scope change)
     ).select_related('collaborator_role', 'collaborator_role__user', 'collaborator_role__project')
 
-    results = {'overdue_detected': 0, 'refunds_triggered': 0}
+    results = {'overdue_detected': 0, 'grace_started': 0}
 
     for task in overdue_tasks:
         try:
             with transaction.atomic():
-                # Re-fetch with lock to prevent race conditions
                 locked_task = ContractTask.objects.select_for_update().get(id=task.id)
-                if locked_task.is_overdue or locked_task.status in ['signed_off', 'cancelled']:
+                if locked_task.is_overdue or locked_task.status in ContractTask.RESOLVED_STATES:
                     continue
 
                 locked_task.check_overdue()  # Sets is_overdue=True, triggers breach
                 results['overdue_detected'] += 1
 
-                # For escrow tasks: auto-cancel and refund
+                # For escrow tasks: start 48hr grace window instead of immediate refund
                 if locked_task.escrow_release_status == 'pending':
-                    locked_task.status = 'cancelled'
-                    locked_task.escrow_release_status = 'refunded'
-                    locked_task.save(update_fields=['status', 'escrow_release_status'])
-                    process_escrow_refund.delay(locked_task.id)
-                    results['refunds_triggered'] += 1
+                    locked_task.status = 'deadline_passed'
+                    locked_task.grace_deadline = now + timedelta(hours=48)
+                    locked_task.save(update_fields=['status', 'grace_deadline'])
+                    results['grace_started'] += 1
 
-                    # Check if all tasks are now resolved (signed_off or cancelled)
-                    project = locked_task.collaborator_role.project
-                    all_tasks = ContractTask.objects.filter(collaborator_role__project=project)
-                    unresolved = all_tasks.exclude(status__in=['signed_off', 'cancelled'])
-                    if all_tasks.exists() and not unresolved.exists():
-                        if project.status in ('draft', 'active'):
-                            project.status = 'complete'
-                            project.save(update_fields=['status'])
-                        # Mark all collaborator trust phases as completed
-                        project.collaborators.filter(
-                            contract_type__in=('work_for_hire', 'hybrid')
-                        ).update(trust_phase='completed')
+                    # Send actionable notification to writer
+                    try:
+                        from .notifications_utils import notify_deadline_passed
+                        notify_deadline_passed(locked_task)
+                    except Exception:
+                        pass
 
                     logger.info(
-                        '[TaskDeadline] Task %s overdue — cancelled + refund triggered ($%s to %s)',
-                        locked_task.id, locked_task.payment_amount,
-                        locked_task.collaborator_role.project.created_by.username,
+                        '[TaskDeadline] Task %s overdue — 48hr grace started (expires %s)',
+                        locked_task.id, locked_task.grace_deadline,
                     )
                 else:
+                    # Non-escrow task: just mark overdue, no grace/refund needed
                     logger.info(
                         '[TaskDeadline] Task %s overdue (no escrow), status: %s',
                         locked_task.id, locked_task.escrow_release_status,
@@ -2521,6 +2528,55 @@ def check_task_deadlines():
 
     if results['overdue_detected'] > 0:
         logger.info('[TaskDeadline] Results: %s', results)
+
+    return results
+
+
+@shared_task
+def check_grace_deadlines():
+    """Periodic task: auto-refund tasks past their 48hr grace window.
+
+    Runs every 15 minutes. For tasks in 'deadline_passed' status past
+    their grace_deadline with no writer action, auto-refunds via PDA reclaim.
+    """
+    from django.utils import timezone
+    from django.db import transaction
+    from .models import ContractTask
+
+    now = timezone.now()
+    expired_tasks = ContractTask.objects.filter(
+        status='deadline_passed',
+        grace_deadline__lt=now,
+        deadline_action_taken=False,
+    ).select_related('collaborator_role', 'collaborator_role__project')
+
+    results = {'auto_refunded': 0}
+
+    for task in expired_tasks:
+        try:
+            with transaction.atomic():
+                locked_task = ContractTask.objects.select_for_update().get(id=task.id)
+                if locked_task.status != 'deadline_passed' or locked_task.deadline_action_taken:
+                    continue
+
+                locked_task.status = 'refunded'
+                locked_task.escrow_release_status = 'refunded'
+                locked_task.deadline_action_taken = True
+                locked_task.save(update_fields=['status', 'escrow_release_status', 'deadline_action_taken'])
+                refund_task_id = locked_task.id
+                transaction.on_commit(lambda: process_escrow_refund.delay(refund_task_id))
+                results['auto_refunded'] += 1
+
+                # Check if all tasks resolved → project complete
+                _check_project_completion(locked_task)
+
+                logger.info(
+                    '[GraceDeadline] Task %s grace expired — auto-refund triggered',
+                    locked_task.id,
+                )
+
+        except Exception:
+            logger.exception('[GraceDeadline] Failed to process task %s', task.id)
 
     return results
 
@@ -3136,4 +3192,410 @@ def check_escrow_dormancy():
     if results['returned'] > 0:
         logger.info('[EscrowDormancy] Results: %s', results)
 
+    return results
+
+
+# ============================================================
+# Escrow Lifecycle Tasks (Phases 2-11)
+# ============================================================
+
+def _check_project_completion(task):
+    """Check if all tasks in the project are resolved and mark project complete if so."""
+    from .models import ContractTask
+    project = task.collaborator_role.project
+    all_tasks = ContractTask.objects.filter(collaborator_role__project=project)
+    unresolved = all_tasks.exclude(status__in=ContractTask.RESOLVED_STATES)
+    if all_tasks.exists() and not unresolved.exists():
+        if project.status in ('draft', 'active'):
+            project.status = 'complete'
+            project.save(update_fields=['status'])
+        project.collaborators.filter(
+            contract_type__in=('work_for_hire', 'hybrid')
+        ).update(trust_phase='completed')
+
+
+@shared_task
+def check_writer_inactivity():
+    """Daily task: auto-refund all milestones if writer inactive 30+ days.
+
+    If writer_inactive_flagged=True and no activity for 30 days,
+    refund all remaining funded milestones and close the project.
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    from django.db import transaction
+    from .models import CollaboratorRole, ContractTask
+
+    cutoff = timezone.now() - timedelta(days=30)
+    inactive_roles = CollaboratorRole.objects.filter(
+        writer_inactive_flagged=True,
+        last_writer_activity__lt=cutoff,
+        status='accepted',
+    ).select_related('project')
+
+    results = {'projects_closed': 0, 'milestones_refunded': 0}
+
+    for role in inactive_roles:
+        try:
+            with transaction.atomic():
+                # Refund all funded, unreleased milestones
+                funded_tasks = ContractTask.objects.filter(
+                    collaborator_role=role,
+                    escrow_release_status='pending',
+                ).exclude(status__in=ContractTask.RESOLVED_STATES).select_for_update()
+
+                for task in funded_tasks:
+                    task.status = 'refunded'
+                    task.escrow_release_status = 'refunded'
+                    task.save(update_fields=['status', 'escrow_release_status'])
+                    refund_task_id = task.id
+                    transaction.on_commit(lambda tid=refund_task_id: process_escrow_refund.delay(tid))
+                    results['milestones_refunded'] += 1
+
+                # Close the project
+                project = role.project
+                if project.status in ('draft', 'active'):
+                    project.status = 'cancelled'
+                    project.cancellation_type = 'writer'
+                    project.cancellation_reason = 'Auto-cancelled: writer inactive for 30+ days'
+                    project.cancellation_requested_at = timezone.now()
+                    project.save(update_fields=[
+                        'status', 'cancellation_type', 'cancellation_reason',
+                        'cancellation_requested_at',
+                    ])
+                    results['projects_closed'] += 1
+
+                logger.info(
+                    '[WriterInactivity] Project %s closed — %d milestones refunded',
+                    role.project.id, results['milestones_refunded'],
+                )
+
+        except Exception:
+            logger.exception('[WriterInactivity] Error processing role %s', role.id)
+
+    return results
+
+
+@shared_task
+def check_artist_stalls():
+    """Periodic task: detect artist inactivity (7+ days past deadline with no submission).
+
+    For tasks in 'in_progress' that are 7+ days past deadline with no activity,
+    transition to 'stalled' and notify writer with options.
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    from django.db import transaction
+    from .models import ContractTask
+
+    now = timezone.now()
+    stall_cutoff = now - timedelta(days=7)
+    stalled_candidates = ContractTask.objects.filter(
+        status='in_progress',
+        deadline__lt=stall_cutoff,
+        is_overdue=True,
+    ).select_related('collaborator_role', 'collaborator_role__project')
+
+    results = {'stalled': 0}
+
+    for task in stalled_candidates:
+        try:
+            with transaction.atomic():
+                locked_task = ContractTask.objects.select_for_update().get(id=task.id)
+                if locked_task.status != 'in_progress':
+                    continue
+
+                locked_task.status = 'stalled'
+                locked_task.save(update_fields=['status'])
+                results['stalled'] += 1
+
+                try:
+                    from .notifications_utils import notify_artist_stalled
+                    notify_artist_stalled(locked_task)
+                except Exception:
+                    pass
+
+                logger.info('[ArtistStall] Task %s stalled — 7+ days past deadline', locked_task.id)
+
+        except Exception:
+            logger.exception('[ArtistStall] Failed to process task %s', task.id)
+
+    return results
+
+
+@shared_task
+def check_scope_change_timeouts():
+    """Periodic task: auto-resume deadline timer for scope changes past 48hr timeout."""
+    from django.utils import timezone
+    from django.db import transaction
+    from .models import ScopeChangeRequest
+
+    now = timezone.now()
+    expired = ScopeChangeRequest.objects.filter(
+        status='pending',
+        auto_resume_at__lt=now,
+    ).select_related('contract_task')
+
+    results = {'auto_resumed': 0}
+
+    for scope_change in expired:
+        try:
+            with transaction.atomic():
+                sc = ScopeChangeRequest.objects.select_for_update().get(id=scope_change.id)
+                if sc.status != 'pending':
+                    continue
+
+                sc.status = 'auto_resumed'
+                sc.resolved_at = now
+                sc.save(update_fields=['status', 'resolved_at'])
+
+                # Resume the task timer
+                task = sc.contract_task
+                if task.deadline_paused_at:
+                    from datetime import timedelta
+                    elapsed = (now - task.deadline_paused_at).total_seconds()
+                    task.total_paused_seconds += int(elapsed)
+                    task.deadline += timedelta(seconds=elapsed)
+                    task.deadline_paused_at = None
+                    task.save(update_fields=['deadline', 'deadline_paused_at', 'total_paused_seconds'])
+
+                results['auto_resumed'] += 1
+                logger.info('[ScopeChange] Scope change %s auto-resumed', sc.id)
+
+        except Exception:
+            logger.exception('[ScopeChange] Failed to process scope change %s', scope_change.id)
+
+    return results
+
+
+@shared_task
+def process_cancellation_holds():
+    """Periodic task: process refunds for projects past their cancellation hold period.
+
+    Projects with in-progress tasks get a 72hr hold before refund.
+    After hold_until passes, refund all remaining funded milestones.
+    """
+    from django.utils import timezone
+    from django.db import transaction
+    from .models import CollaborativeProject, ContractTask
+
+    now = timezone.now()
+    held_projects = CollaborativeProject.objects.filter(
+        status='cancelled',
+        cancellation_hold_until__lt=now,
+        cancellation_hold_until__isnull=False,
+    )
+
+    results = {'processed': 0, 'refunded': 0}
+
+    for project in held_projects:
+        try:
+            with transaction.atomic():
+                locked = CollaborativeProject.objects.select_for_update().get(id=project.id)
+                if not locked.cancellation_hold_until or locked.cancellation_hold_until > now:
+                    continue
+
+                # Refund all unreleased escrow tasks
+                tasks = ContractTask.objects.filter(
+                    collaborator_role__project=locked,
+                    escrow_release_status='pending',
+                ).exclude(status__in=ContractTask.RESOLVED_STATES).select_for_update()
+
+                for task in tasks:
+                    task.status = 'refunded'
+                    task.escrow_release_status = 'refunded'
+                    task.save(update_fields=['status', 'escrow_release_status'])
+                    refund_task_id = task.id
+                    transaction.on_commit(lambda tid=refund_task_id: process_escrow_refund.delay(tid))
+                    results['refunded'] += 1
+
+                # Clear the hold
+                locked.cancellation_hold_until = None
+                locked.save(update_fields=['cancellation_hold_until'])
+                results['processed'] += 1
+
+                logger.info(
+                    '[CancellationHold] Project %s hold expired — %d tasks refunded',
+                    locked.id, results['refunded'],
+                )
+
+        except Exception:
+            logger.exception('[CancellationHold] Error processing project %s', project.id)
+
+    return results
+
+
+@shared_task
+def send_rating_reminders():
+    """Daily task: remind users to rate completed milestones.
+
+    Find released milestones missing one or both ratings and send notifications.
+    """
+    from django.utils import timezone
+    from .models import ContractTask, MilestoneRating
+
+    released_tasks = ContractTask.objects.filter(
+        status__in=['released', 'approved', 'signed_off'],
+        escrow_release_status__in=['released', 'approved'],
+    ).select_related('collaborator_role', 'collaborator_role__user', 'collaborator_role__project')
+
+    results = {'reminders_sent': 0}
+
+    for task in released_tasks:
+        role = task.collaborator_role
+        writer = role.project.created_by
+        artist = role.user
+
+        existing_raters = set(
+            MilestoneRating.objects.filter(contract_task=task).values_list('rater_id', flat=True)
+        )
+
+        for user in [writer, artist]:
+            if user.id not in existing_raters:
+                try:
+                    from .notifications_utils import notify_rating_requested
+                    notify_rating_requested(task, user)
+                    results['reminders_sent'] += 1
+                except Exception:
+                    pass
+
+    return results
+
+
+@shared_task
+def recalculate_reputation_scores():
+    """Nightly task: recompute reputation scores from milestone ratings and completion data.
+
+    Scoring formula (0-100 scale):
+    artist_score = quality*0.40 + timeliness*0.30 + communication*0.20 + completion_rate*0.10
+    Penalties: -5 per stall, -10 per cancellation
+    """
+    from django.db.models import Avg, Count, Q
+    from django.utils import timezone
+    from decimal import Decimal
+    from .models import (
+        ReputationScore, MilestoneRating, ContractTask, CollaboratorRole,
+        UserProfile, EscrowTransaction,
+    )
+
+    # Get all users who have participated in escrow projects
+    artist_roles = CollaboratorRole.objects.filter(
+        contract_type__in=('work_for_hire', 'hybrid'),
+        status='accepted',
+    ).values_list('user_id', flat=True).distinct()
+
+    writer_roles = CollaboratorRole.objects.filter(
+        contract_type__in=('work_for_hire', 'hybrid'),
+    ).values_list('project__created_by_id', flat=True).distinct()
+
+    all_user_ids = set(artist_roles) | set(writer_roles)
+
+    results = {'updated': 0, 'founding_badges': 0}
+
+    for user_id in all_user_ids:
+        try:
+            score, _ = ReputationScore.objects.get_or_create(user_id=user_id)
+
+            # Artist metrics
+            artist_ratings = MilestoneRating.objects.filter(rated_user_id=user_id)
+            artist_aggs = artist_ratings.aggregate(
+                avg_quality=Avg('quality_score'),
+                avg_communication=Avg('communication_score'),
+                avg_timeliness=Avg('timeliness_score'),
+                count=Count('id'),
+            )
+
+            artist_completed = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+                status__in=['complete', 'signed_off', 'released'],
+            ).count()
+            artist_total = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+            ).exclude(status__in=['pending', 'funded']).count()
+
+            score.artist_projects_completed = CollaboratorRole.objects.filter(
+                user_id=user_id, trust_phase='completed',
+            ).count()
+
+            if artist_aggs['avg_quality']:
+                score.artist_avg_quality_rating = Decimal(str(artist_aggs['avg_quality']))
+                score.artist_avg_communication_rating = Decimal(str(artist_aggs['avg_communication']))
+                score.artist_avg_timeliness_rating = Decimal(str(artist_aggs['avg_timeliness']))
+
+            # On-time rate
+            on_time = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+                status__in=['complete', 'signed_off', 'released', 'approved'],
+                is_overdue=False,
+            ).count()
+            score.artist_on_time_rate = Decimal(str(
+                (on_time / artist_total * 100) if artist_total > 0 else 0
+            )).quantize(Decimal('0.01'))
+
+            # Stall count
+            score.artist_stall_count = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+                status='stalled',
+            ).count()
+
+            # Cancellation rate
+            try:
+                profile = UserProfile.objects.get(user_id=user_id)
+                cancelled = profile.projects_cancelled_as_artist
+                total_projects = score.artist_projects_completed + cancelled
+                score.artist_cancellation_rate = Decimal(str(
+                    (cancelled / total_projects * 100) if total_projects > 0 else 0
+                )).quantize(Decimal('0.01'))
+            except UserProfile.DoesNotExist:
+                pass
+
+            # Compute artist score (0-100)
+            if artist_aggs['count'] and artist_aggs['count'] > 0:
+                q = float(artist_aggs['avg_quality'] or 0) * 20  # 1-5 → 0-100
+                t = float(artist_aggs['avg_timeliness'] or 0) * 20
+                c = float(artist_aggs['avg_communication'] or 0) * 20
+                completion = float(score.artist_on_time_rate)
+                raw = q * 0.40 + t * 0.30 + c * 0.20 + completion * 0.10
+                raw -= score.artist_stall_count * 5
+                raw -= float(score.artist_cancellation_rate) * 0.10
+                score.artist_score = Decimal(str(max(0, min(100, raw)))).quantize(Decimal('0.01'))
+
+            # Writer metrics
+            writer_auto_approved = ContractTask.objects.filter(
+                collaborator_role__project__created_by_id=user_id,
+                auto_approved=True,
+            ).count()
+            writer_total_approved = ContractTask.objects.filter(
+                collaborator_role__project__created_by_id=user_id,
+                status__in=['approved', 'released', 'complete', 'signed_off'],
+            ).count()
+            score.writer_auto_approve_rate = Decimal(str(
+                (writer_auto_approved / writer_total_approved * 100) if writer_total_approved > 0 else 0
+            )).quantize(Decimal('0.01'))
+
+            score.writer_projects_completed = CollaboratorRole.objects.filter(
+                project__created_by_id=user_id, trust_phase='completed',
+            ).values('project_id').distinct().count()
+
+            # Founding creator badge: first 50 creators with $100+ completed escrow
+            total_earned = EscrowTransaction.objects.filter(
+                collaborator_role__user_id=user_id,
+                transaction_type__in=['release', 'auto_release'],
+                on_chain_status='confirmed',
+            ).aggregate(total=Sum('artist_net_amount'))['total'] or Decimal('0')
+
+            if total_earned >= Decimal('100.00') and not score.is_founding_creator:
+                founding_count = ReputationScore.objects.filter(is_founding_creator=True).count()
+                if founding_count < 50:
+                    score.is_founding_creator = True
+                    results['founding_badges'] += 1
+
+            score.save()
+            results['updated'] += 1
+
+        except Exception:
+            logger.exception('[Reputation] Error calculating for user %s', user_id)
+
+    logger.info('[Reputation] Recalculated %d scores, %d new founding badges',
+                results['updated'], results['founding_badges'])
     return results

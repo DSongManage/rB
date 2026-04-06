@@ -117,6 +117,19 @@ export interface SponsoredPaymentSubmitResponse {
   signature: string;
 }
 
+export interface BlockhashExpiredResponse {
+  error: string;
+  error_code: 'BLOCKHASH_EXPIRED';
+  message: string;
+  retry: true;
+  serialized_transaction: string;
+  serialized_message: string;
+  blockhash: string;
+  platform_pubkey: string;
+  user_pubkey: string;
+  amount: string;
+}
+
 export interface CoinbaseWidgetConfig {
   appId: string;
   destinationWallets?: Array<{
@@ -237,16 +250,59 @@ export const paymentApi = {
     signedTransaction: string,
     userSignatureIndex: number
   ): Promise<SponsoredPaymentSubmitResponse> {
-    return apiCall<SponsoredPaymentSubmitResponse>(
-      `/api/payment/intent/${intentId}/submit/`,
-      {
+    const url = `${API_URL}/api/payment/intent/${intentId}/submit/`;
+    const csrfToken = await getCsrfToken();
+    const MAX_BLOCKHASH_RETRIES = 2;
+
+    let currentSignedTx = signedTransaction;
+    let currentSigIndex = userSignatureIndex;
+
+    for (let attempt = 0; attempt <= MAX_BLOCKHASH_RETRIES; attempt++) {
+      const response = await fetch(url, {
         method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
+        },
         body: JSON.stringify({
-          signed_transaction: signedTransaction,
-          user_signature_index: userSignatureIndex,
+          signed_transaction: currentSignedTx,
+          user_signature_index: currentSigIndex,
         }),
+      });
+
+      if (response.ok) {
+        return response.json();
       }
-    );
+
+      const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+
+      // Handle blockhash expiry — backend returns 409 with fresh transaction to re-sign
+      if (
+        response.status === 409 &&
+        errorData.error_code === 'BLOCKHASH_EXPIRED' &&
+        errorData.retry &&
+        errorData.serialized_transaction &&
+        attempt < MAX_BLOCKHASH_RETRIES
+      ) {
+        console.warn(
+          `[paymentApi] Blockhash expired (attempt ${attempt + 1}/${MAX_BLOCKHASH_RETRIES}), ` +
+          're-signing fresh transaction...'
+        );
+
+        // Dynamically import the signing function to re-sign the fresh transaction
+        const { signMessageForSponsoredTx } = await import('./web3authService');
+        const reSigned = await signMessageForSponsoredTx(errorData.serialized_transaction);
+        currentSignedTx = reSigned.signedTransaction;
+        currentSigIndex = reSigned.userSignatureIndex;
+        continue; // Retry with freshly signed transaction
+      }
+
+      // Non-retryable error
+      throw new Error(errorData.error || errorData.message || 'Request failed');
+    }
+
+    throw new Error('Transaction failed after multiple blockhash retry attempts');
   },
 
   // Legacy - deprecated

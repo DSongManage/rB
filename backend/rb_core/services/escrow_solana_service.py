@@ -192,8 +192,8 @@ class EscrowSolanaService:
 
         if len(milestone_amounts_lamports) != len(milestone_deadlines):
             raise ValueError("Milestone amounts and deadlines must have same length")
-        if not (1 <= len(milestone_amounts_lamports) <= 10):
-            raise ValueError(f"Must have 1-10 milestones, got {len(milestone_amounts_lamports)}")
+        if not (1 <= len(milestone_amounts_lamports) <= 25):
+            raise ValueError(f"Must have 1-25 milestones, got {len(milestone_amounts_lamports)}")
         if fee_bps < 0 or fee_bps > 1000:
             raise ValueError(f"Fee must be 0-1000 BPS, got {fee_bps}")
 
@@ -270,7 +270,7 @@ class EscrowSolanaService:
             artist_pubkey = Pubkey.from_string(artist_wallet)
         except Exception:
             raise ValueError(f"Invalid artist wallet address: {artist_wallet}")
-        if milestone_index < 0 or milestone_index > 9:
+        if milestone_index < 0 or milestone_index > 24:
             raise ValueError(f"Milestone index must be 0-9, got {milestone_index}")
         escrow_pda, _ = self.derive_escrow_pda(project_id, artist_pubkey)
 
@@ -324,7 +324,7 @@ class EscrowSolanaService:
             artist_pubkey = Pubkey.from_string(artist_wallet)
         except Exception:
             raise ValueError(f"Invalid artist wallet address: {artist_wallet}")
-        if milestone_index < 0 or milestone_index > 9:
+        if milestone_index < 0 or milestone_index > 24:
             raise ValueError(f"Milestone index must be 0-9, got {milestone_index}")
 
         escrow_pda, _ = self.derive_escrow_pda(project_id, artist_pubkey)

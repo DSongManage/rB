@@ -32,6 +32,16 @@ from spl.token.constants import TOKEN_PROGRAM_ID
 
 logger = logging.getLogger(__name__)
 
+
+class BlockhashExpiredError(Exception):
+    """Raised when a transaction's blockhash has expired on Solana.
+
+    The caller should rebuild the transaction with a fresh blockhash
+    and have the user re-sign before resubmitting.
+    """
+    pass
+
+
 # USDC Mint addresses
 USDC_MINT_DEVNET = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
 USDC_MINT_MAINNET = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
@@ -335,6 +345,11 @@ class SponsoredTransactionService:
 
         Returns:
             Transaction signature string
+
+        Raises:
+            BlockhashExpiredError: If the blockhash in the transaction has expired.
+                The caller should rebuild the transaction with a fresh blockhash
+                and have the user re-sign.
         """
         try:
             # Decode the user-signed transaction
@@ -365,10 +380,23 @@ class SponsoredTransactionService:
             fully_signed_tx = VersionedTransaction.populate(message, signatures)
 
             # Submit transaction
-            response = self.client.send_transaction(
-                fully_signed_tx,
-                opts=TxOpts(skip_preflight=False, preflight_commitment=Confirmed)
-            )
+            try:
+                response = self.client.send_transaction(
+                    fully_signed_tx,
+                    opts=TxOpts(skip_preflight=False, preflight_commitment=Confirmed)
+                )
+            except Exception as send_err:
+                error_str = str(send_err)
+                # Detect blockhash expiry from Solana RPC error responses
+                if 'BlockhashNotFound' in error_str or 'Blockhash not found' in error_str:
+                    logger.warning(
+                        "Blockhash expired for transaction — raising BlockhashExpiredError "
+                        "so the caller can rebuild with a fresh blockhash"
+                    )
+                    raise BlockhashExpiredError(
+                        "Transaction blockhash has expired. A fresh transaction is needed."
+                    ) from send_err
+                raise
 
             if response.value is None:
                 raise Exception("Transaction submission failed - no response")
@@ -378,7 +406,20 @@ class SponsoredTransactionService:
 
             return signature
 
+        except BlockhashExpiredError:
+            # Re-raise without wrapping so the view can handle it
+            raise
         except Exception as e:
+            # Also check the error message in case it was returned as a response error
+            # rather than an exception (some RPC clients handle it differently)
+            error_str = str(e)
+            if 'BlockhashNotFound' in error_str or 'Blockhash not found' in error_str:
+                logger.warning(
+                    "Blockhash expired (caught in general handler) — raising BlockhashExpiredError"
+                )
+                raise BlockhashExpiredError(
+                    "Transaction blockhash has expired. A fresh transaction is needed."
+                ) from e
             logger.error(f"Error submitting user-signed transaction: {e}")
             raise
 

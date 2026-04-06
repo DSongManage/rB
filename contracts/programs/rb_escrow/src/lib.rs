@@ -10,7 +10,7 @@ const REVIEW_WINDOW_SECONDS: i64 = 72 * 60 * 60;
 /// Hard backstop — max milestone lifetime (90 days in seconds)
 const HARD_BACKSTOP_SECONDS: i64 = 90 * 24 * 60 * 60;
 /// Max milestones per escrow vault (limited by Solana stack size)
-const MAX_MILESTONES: usize = 10;
+const MAX_MILESTONES: usize = 25;
 /// Basis points denominator (10_000 = 100%)
 const BPS_DENOMINATOR: u64 = 10_000;
 /// Campaign escrow creation window (60 days in seconds)
@@ -787,14 +787,14 @@ pub struct InitializeEscrow<'info> {
         seeds = [b"escrow", project_id.to_le_bytes().as_ref(), artist.key().as_ref()],
         bump,
     )]
-    pub vault: Account<'info, EscrowVault>,
+    pub vault: Box<Account<'info, EscrowVault>>,
 
     /// Writer's USDC token account (source of funds)
     #[account(
         mut,
         constraint = writer_token_account.owner == writer.key() @ EscrowError::InvalidTokenOwner,
     )]
-    pub writer_token_account: Account<'info, TokenAccount>,
+    pub writer_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Vault's USDC token account (escrow destination)
     /// This is an ATA owned by the vault PDA
@@ -802,7 +802,7 @@ pub struct InitializeEscrow<'info> {
         mut,
         constraint = vault_token_account.owner == vault.key() @ EscrowError::InvalidTokenOwner,
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -816,7 +816,7 @@ pub struct SubmitMilestone<'info> {
         mut,
         constraint = vault.artist == artist.key() @ EscrowError::Unauthorized,
     )]
-    pub vault: Account<'info, EscrowVault>,
+    pub vault: Box<Account<'info, EscrowVault>>,
 }
 
 #[derive(Accounts)]
@@ -827,7 +827,7 @@ pub struct ApproveMilestone<'info> {
         mut,
         constraint = vault.writer == writer.key() @ EscrowError::Unauthorized,
     )]
-    pub vault: Account<'info, EscrowVault>,
+    pub vault: Box<Account<'info, EscrowVault>>,
 
     #[account(
         mut,
@@ -858,7 +858,7 @@ pub struct AutoApproveMilestone<'info> {
     pub cranker: Signer<'info>,
 
     #[account(mut)]
-    pub vault: Account<'info, EscrowVault>,
+    pub vault: Box<Account<'info, EscrowVault>>,
 
     #[account(
         mut,
@@ -891,7 +891,7 @@ pub struct ReclaimMilestone<'info> {
         mut,
         constraint = vault.writer == writer.key() @ EscrowError::Unauthorized,
     )]
-    pub vault: Account<'info, EscrowVault>,
+    pub vault: Box<Account<'info, EscrowVault>>,
 
     #[account(
         mut,
@@ -919,7 +919,7 @@ pub struct CloseEscrow<'info> {
         constraint = vault.writer == writer.key() @ EscrowError::Unauthorized,
         close = writer,
     )]
-    pub vault: Account<'info, EscrowVault>,
+    pub vault: Box<Account<'info, EscrowVault>>,
 }
 
 // ============================================================
@@ -1026,7 +1026,7 @@ pub struct TransferToEscrow<'info> {
     pub campaign_vault: Account<'info, CampaignVault>,
 
     /// The target project escrow vault (PDA2)
-    pub escrow_vault: Account<'info, EscrowVault>,
+    pub escrow_vault: Box<Account<'info, EscrowVault>>,
 
     /// Campaign vault's USDC token account (source)
     #[account(
@@ -1071,7 +1071,7 @@ pub struct ReturnToCampaign<'info> {
     pub cranker: Signer<'info>,
 
     #[account(mut)]
-    pub escrow_vault: Account<'info, EscrowVault>,
+    pub escrow_vault: Box<Account<'info, EscrowVault>>,
 
     #[account(
         mut,

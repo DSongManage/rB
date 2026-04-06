@@ -392,6 +392,10 @@ class UserProfile(models.Model):
     )
     revisions_requested = models.PositiveIntegerField(default=0, help_text="Total revision requests made as project owner")
 
+    # Cancellation tracking (Phase 9)
+    projects_cancelled_as_artist = models.PositiveIntegerField(default=0)
+    projects_cancelled_as_writer = models.PositiveIntegerField(default=0)
+
     # Follower/following counts (denormalized for performance)
     follower_count = models.PositiveIntegerField(default=0, db_index=True)
     following_count = models.PositiveIntegerField(default=0)
@@ -2032,6 +2036,28 @@ class CollaborativeProject(models.Model):
         help_text="Whether any collaborator has an uncured breach (blocks minting)"
     )
 
+    # Cancellation tracking (Phase 9)
+    cancellation_requested_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='cancellation_requests',
+        help_text="User who initiated cancellation"
+    )
+    cancellation_requested_at = models.DateTimeField(null=True, blank=True)
+    cancellation_reason = models.TextField(blank=True)
+    CANCELLATION_TYPE_CHOICES = [
+        ('writer', 'Writer Cancelled'),
+        ('artist', 'Artist Cancelled'),
+        ('mutual', 'Mutual Cancellation'),
+    ]
+    cancellation_type = models.CharField(
+        max_length=10, blank=True, default='',
+        choices=CANCELLATION_TYPE_CHOICES,
+    )
+    cancellation_hold_until = models.DateTimeField(
+        null=True, blank=True,
+        help_text="72hr hold for in-progress tasks before refund"
+    )
+
     class Meta:
         ordering = ['-created_at']
         unique_together = ['created_by', 'title']
@@ -2470,6 +2496,38 @@ class CollaboratorRole(models.Model):
         help_text="Number of tasks signed off by owner"
     )
 
+    # Writer inactivity detection (Phase 6)
+    consecutive_auto_approvals = models.PositiveIntegerField(
+        default=0,
+        help_text="Count of consecutive auto-approved milestones (2+ = writer inactive)"
+    )
+    writer_inactive_flagged = models.BooleanField(
+        default=False,
+        help_text="Whether writer has been flagged as inactive"
+    )
+    last_writer_activity = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Last time the writer took an action on this project"
+    )
+
+    # Completion reserve / bonus (Phase 10)
+    completion_reserve_pct = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('10.00'),
+        help_text="Percentage held back from each milestone (0-20%)"
+    )
+    completion_reserve_accumulated = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        help_text="Total reserve accumulated from released milestones"
+    )
+    completion_reserve_released = models.BooleanField(
+        default=False,
+        help_text="Whether the accumulated reserve has been released as bonus"
+    )
+    completion_reserve_milestone_index = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="PDA slot index for the reserve milestone"
+    )
+
     class Meta:
         unique_together = ['project', 'user']
         ordering = ['-revenue_percentage']
@@ -2629,7 +2687,9 @@ class CollaboratorRole(models.Model):
     def update_task_counts(self):
         """Update denormalized task counters from actual ContractTask records."""
         self.tasks_total = self.contract_tasks.count()
-        self.tasks_signed_off = self.contract_tasks.filter(status='signed_off').count()
+        self.tasks_signed_off = self.contract_tasks.filter(
+            status__in=['signed_off', 'approved', 'released', 'complete']
+        ).count()
         self.save(update_fields=['tasks_total', 'tasks_signed_off'])
 
     def trigger_breach(self, breach_type, severity, cure_actions, notify=True):
@@ -2740,21 +2800,66 @@ class ContractTask(models.Model):
     Tasks are defined during invite and become immutable once accepted.
     Changes require a Proposal with unanimous approval.
 
-    Lifecycle:
-    - pending: Task defined but contract not yet accepted
-    - in_progress: Contract accepted, collaborator working on task
-    - complete: Collaborator marked task as done, awaiting owner sign-off
-    - signed_off: Owner verified and approved the completed work
-    - cancelled: Task cancelled via unanimous Proposal
+    Lifecycle (happy path):
+      funded → in_progress → submitted → under_review → approved → released → complete
+
+    Revision branch:
+      under_review → revision_requested → (artist reworks) → resubmitted → under_review
+
+    Deadline branch:
+      in_progress → deadline_passed → extended / reassigned / refunded
+
+    Terminal states: complete, refunded, reassigned, cancelled
     """
 
     STATUS_CHOICES = [
-        ('pending', 'Pending'),           # Before contract acceptance
-        ('in_progress', 'In Progress'),   # Default after acceptance
-        ('complete', 'Marked Complete'),  # Collaborator marked done
-        ('signed_off', 'Signed Off'),     # Owner verified and approved
-        ('cancelled', 'Cancelled'),       # Task cancelled via Proposal
+        ('funded', 'Funded'),                          # Escrow funded, not yet started
+        ('pending', 'Pending'),                        # Before contract acceptance (legacy)
+        ('in_progress', 'In Progress'),                # Artist working
+        ('submitted', 'Submitted'),                    # Artist submitted deliverable
+        ('under_review', 'Under Review'),              # Writer reviewing
+        ('revision_requested', 'Revision Requested'),  # Writer sent back
+        ('resubmitted', 'Resubmitted'),                # Artist resubmitted after revision
+        ('approved', 'Approved'),                      # Writer approved, release pending
+        ('released', 'Released'),                      # Funds released on-chain
+        ('complete', 'Complete'),                       # Both rated, fully done
+        ('deadline_passed', 'Deadline Passed'),        # Past deadline, in grace period
+        ('extended', 'Extended'),                      # Deadline extended by writer
+        ('stalled', 'Stalled'),                        # No activity detected
+        ('final_rejection', 'Final Rejection'),        # Revision limit exhausted
+        ('reassigned', 'Reassigned'),                  # Moved to new artist
+        ('refunded', 'Refunded'),                      # Funds returned to writer
+        ('cancelled', 'Cancelled'),                    # Cancelled
+        ('signed_off', 'Signed Off'),                  # Legacy compat
     ]
+
+    # Valid state transitions — used by transition_to() to enforce the state machine
+    VALID_TRANSITIONS = {
+        'funded': ['in_progress', 'cancelled', 'refunded'],
+        'pending': ['in_progress', 'funded', 'cancelled'],
+        'in_progress': ['submitted', 'deadline_passed', 'stalled', 'cancelled', 'complete'],
+        'submitted': ['under_review', 'approved'],
+        'under_review': ['approved', 'revision_requested', 'final_rejection'],
+        'revision_requested': ['in_progress', 'resubmitted'],
+        'resubmitted': ['under_review', 'approved'],
+        'approved': ['released'],
+        'released': ['complete'],
+        'complete': [],  # terminal
+        'deadline_passed': ['extended', 'reassigned', 'refunded', 'cancelled', 'in_progress'],
+        'extended': ['in_progress'],
+        'stalled': ['in_progress', 'reassigned', 'refunded', 'cancelled'],
+        'final_rejection': ['cancelled', 'reassigned', 'approved'],
+        'reassigned': [],  # terminal for this task
+        'refunded': [],  # terminal
+        'cancelled': [],  # terminal
+        'signed_off': ['released', 'complete'],  # legacy bridge
+    }
+
+    # Terminal states — no further transitions possible
+    TERMINAL_STATES = {'complete', 'refunded', 'reassigned', 'cancelled'}
+
+    # States where the task is considered "resolved" (for project completion checks)
+    RESOLVED_STATES = {'approved', 'complete', 'signed_off', 'released', 'refunded', 'reassigned', 'cancelled'}
 
     collaborator_role = models.ForeignKey(
         CollaboratorRole,
@@ -2774,7 +2879,7 @@ class ContractTask(models.Model):
         help_text="Deadline for task completion"
     )
     status = models.CharField(
-        max_length=20,
+        max_length=25,
         choices=STATUS_CHOICES,
         default='pending'
     )
@@ -2878,8 +2983,8 @@ class ContractTask(models.Model):
 
     # Artist protection: revision limits
     revision_limit = models.PositiveIntegerField(
-        default=3,
-        help_text="Maximum revisions before requiring contract amendment"
+        default=2,
+        help_text="Maximum revisions before final rejection (configurable per task)"
     )
     revisions_used = models.PositiveIntegerField(
         default=0,
@@ -2899,6 +3004,26 @@ class ContractTask(models.Model):
     auto_approved = models.BooleanField(
         default=False,
         help_text="Whether this task was auto-approved by timer expiration"
+    )
+
+    # Deadline extension / grace period (Phase 2)
+    grace_deadline = models.DateTimeField(
+        null=True, blank=True,
+        help_text="48hr grace window after deadline_passed before auto-refund"
+    )
+    deadline_action_taken = models.BooleanField(
+        default=False,
+        help_text="Whether writer has chosen extend/reassign/refund for this deadline breach"
+    )
+
+    # Scope change timer pause (Phase 7)
+    deadline_paused_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the deadline timer was paused (scope change)"
+    )
+    total_paused_seconds = models.PositiveIntegerField(
+        default=0,
+        help_text="Total seconds the deadline has been paused"
     )
 
     # Milestone classification
@@ -2939,12 +3064,32 @@ class ContractTask(models.Model):
     def __str__(self):
         return f"{self.title} ({self.get_status_display()})"
 
-    def mark_complete(self, user, notes=''):
-        """Collaborator marks their task as complete."""
-        if self.status != 'in_progress':
-            raise ValueError(f"Cannot mark task complete: current status is {self.status}")
+    def transition_to(self, new_status, save=True):
+        """Validate and execute a state transition.
 
-        self.status = 'complete'
+        Raises ValueError if the transition is not allowed by the state machine.
+        """
+        valid = self.VALID_TRANSITIONS.get(self.status, [])
+        if new_status not in valid:
+            raise ValueError(
+                f"Invalid transition: '{self.status}' → '{new_status}'. "
+                f"Allowed transitions from '{self.status}': {valid}"
+            )
+        self.status = new_status
+        if save:
+            self.save(update_fields=['status', 'updated_at'])
+
+    @property
+    def is_resolved(self):
+        """Whether this task is in a terminal/resolved state."""
+        return self.status in self.RESOLVED_STATES
+
+    def mark_complete(self, user, notes=''):
+        """Collaborator marks their task as complete (submitted for review)."""
+        # Allow from in_progress (normal) or resubmitted (after revision)
+        if self.status not in ('in_progress', 'resubmitted', 'revision_requested'):
+            raise ValueError(f"Cannot submit task: current status is '{self.status}'")
+
         self.marked_complete_at = timezone.now()
         self.marked_complete_by = user
         self.completion_notes = notes
@@ -2954,14 +3099,22 @@ class ContractTask(models.Model):
             from datetime import timedelta
             self.auto_approve_deadline = timezone.now() + timedelta(hours=self.review_window_hours)
 
+        # Use submitted for escrow tasks, complete for non-escrow (legacy)
+        if self.escrow_release_status != 'not_applicable':
+            self.status = 'submitted'
+        else:
+            self.status = 'complete'
         self.save()
 
     def sign_off(self, owner, notes=''):
-        """Owner signs off on completed task."""
-        if self.status != 'complete':
-            raise ValueError(f"Cannot sign off: task status is {self.status}, expected 'complete'")
+        """Owner approves completed task — triggers escrow release.
 
-        self.status = 'signed_off'
+        Accepts tasks in 'complete' (legacy/non-escrow), 'submitted', or 'under_review' state.
+        """
+        allowed = ('complete', 'submitted', 'under_review', 'resubmitted')
+        if self.status not in allowed:
+            raise ValueError(f"Cannot sign off: task status is '{self.status}', expected one of {allowed}")
+
         self.signed_off_at = timezone.now()
         self.signed_off_by = owner
         self.signoff_notes = notes
@@ -2971,6 +3124,8 @@ class ContractTask(models.Model):
         if self.escrow_release_status == 'pending':
             self.escrow_release_status = 'approved'
             self.escrow_released_at = timezone.now()
+            self.status = 'approved'
+
             role = self.collaborator_role
             # Track trust phase progression (no amount update here — async task handles accounting)
             if role.trust_phase == 'trust_building' and self.milestone_type == 'trust_page':
@@ -2980,11 +3135,18 @@ class ContractTask(models.Model):
                 role.save(update_fields=['trust_pages_completed', 'trust_phase'])
 
             # Trigger async USDC release (handles fee calculation, EscrowTransaction, and amount tracking)
+            # Use on_commit to ensure the DB transaction has committed before the Celery
+            # worker reads the task — otherwise it may see stale (pre-approved) data.
             try:
+                from django.db import transaction as db_transaction
                 from rb_core.tasks import process_escrow_release
-                process_escrow_release.delay(self.id)
+                task_id = self.id
+                db_transaction.on_commit(lambda: process_escrow_release.delay(task_id))
             except Exception:
                 pass  # Task will be processed manually if Celery unavailable
+        else:
+            # Non-escrow task: go straight to signed_off (legacy)
+            self.status = 'signed_off'
 
         self.save()
 
@@ -3006,7 +3168,8 @@ class ContractTask(models.Model):
             collaborator_role__project=project,
             page_range_start__lte=page_number,
             page_range_end__gte=page_number,
-            status__in=['in_progress', 'complete'],
+            status__in=['in_progress', 'complete', 'submitted', 'under_review',
+                       'revision_requested', 'resubmitted'],
         ).select_for_update()
 
     def all_pages_approved(self):
@@ -3025,7 +3188,7 @@ class ContractTask(models.Model):
         return not pages.exclude(page_status='approved').exists()
 
     def auto_complete_and_sign_off(self, owner, notes=''):
-        """Bridge method: auto-transitions in_progress → complete → signed_off.
+        """Bridge method: auto-transitions in_progress → submitted → approved.
 
         Used when art approval should trigger escrow release.
         Wraps both transitions atomically.
@@ -3035,13 +3198,13 @@ class ContractTask(models.Model):
         with transaction.atomic():
             if self.status == 'in_progress':
                 self.mark_complete(self.collaborator_role.user, notes)
-            if self.status == 'complete':
+            if self.status in ('complete', 'submitted', 'under_review', 'resubmitted'):
                 self.sign_off(owner, notes)
 
             # Check if ALL tasks across ALL collaborators are now resolved
             project = self.collaborator_role.project
             all_tasks = ContractTask.objects.filter(collaborator_role__project=project)
-            unresolved = all_tasks.exclude(status__in=['signed_off', 'cancelled'])
+            unresolved = all_tasks.exclude(status__in=self.RESOLVED_STATES)
             if all_tasks.exists() and not unresolved.exists():
                 # All tasks done — transition project to complete
                 if project.status in ('draft', 'active'):
@@ -3056,19 +3219,15 @@ class ContractTask(models.Model):
         """Owner rejects the completion and sends back for revision.
 
         For escrow tasks, enforces revision_limit to protect artists.
-        After 3 rejections on the same task, triggers a quality breach.
+        When revision limit is reached, transitions to 'final_rejection' instead.
         """
-        if self.status != 'complete':
-            raise ValueError(f"Cannot reject: task status is {self.status}, expected 'complete'")
+        allowed = ('complete', 'submitted', 'under_review', 'resubmitted')
+        if self.status not in allowed:
+            raise ValueError(f"Cannot reject: task status is '{self.status}', expected one of {allowed}")
 
-        # Enforce revision limit for escrow tasks
-        if self.escrow_release_status != 'not_applicable' and self.revisions_used >= self.revision_limit:
-            raise ValueError(
-                f"Revision limit ({self.revision_limit}) reached. "
-                f"Additional revisions require a contract amendment."
-            )
+        if not reason or not reason.strip():
+            raise ValueError("Revision reason is required")
 
-        self.status = 'in_progress'
         self.rejection_notes = reason
         self.rejected_at = timezone.now()
         self.rejection_count += 1
@@ -3079,6 +3238,13 @@ class ContractTask(models.Model):
         self.marked_complete_at = None
         self.marked_complete_by = None
         self.completion_notes = ''
+
+        # Check if revision limit reached → final rejection
+        if self.escrow_release_status != 'not_applicable' and self.revisions_used >= self.revision_limit:
+            self.status = 'final_rejection'
+        else:
+            self.status = 'revision_requested'
+
         self.save()
 
         # Check for quality breach (3+ rejections)
@@ -3086,7 +3252,7 @@ class ContractTask(models.Model):
 
     def check_overdue(self):
         """Check if task is overdue and update breach status if needed."""
-        if self.status in ['signed_off', 'cancelled']:
+        if self.status in self.RESOLVED_STATES:
             return False  # Already resolved
 
         if timezone.now() > self.deadline and not self.is_overdue:
@@ -3198,6 +3364,201 @@ class EscrowTransaction(models.Model):
 
     def __str__(self):
         return f"{self.get_transaction_type_display()}: ${self.amount}"
+
+
+class MilestoneExtension(models.Model):
+    """Tracks deadline extensions for contract tasks."""
+
+    contract_task = models.ForeignKey(
+        ContractTask, on_delete=models.CASCADE, related_name='extensions'
+    )
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    original_deadline = models.DateTimeField()
+    new_deadline = models.DateTimeField()
+    extension_days = models.PositiveIntegerField()
+    reason = models.TextField(blank=True)
+    EXTENSION_TYPE_CHOICES = [
+        ('writer_granted', 'Writer Granted'),
+        ('mutual', 'Mutual Agreement'),
+        ('system_grace', 'System Grace Period'),
+    ]
+    extension_type = models.CharField(
+        max_length=20, choices=EXTENSION_TYPE_CHOICES, default='writer_granted'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Extension for {self.contract_task.title}: +{self.extension_days} days"
+
+
+class MilestoneRating(models.Model):
+    """Per-milestone rating by writer or artist (both rate after each release)."""
+
+    contract_task = models.ForeignKey(
+        ContractTask, on_delete=models.CASCADE, related_name='milestone_ratings'
+    )
+    rater = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='milestone_ratings_given'
+    )
+    rated_user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='milestone_ratings_received'
+    )
+    quality_score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Quality of work (artist) or clarity of brief (writer)"
+    )
+    communication_score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    timeliness_score = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="On-time delivery (artist) or responsiveness (writer)"
+    )
+    private_note = models.TextField(
+        blank=True,
+        help_text="Private feedback — visible only after project completes"
+    )
+    is_visible = models.BooleanField(
+        default=False,
+        help_text="Becomes True when project completes — prevents retaliatory mid-project ratings"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['contract_task', 'rater']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        avg = (self.quality_score + self.communication_score + self.timeliness_score) / 3
+        return f"Rating for {self.contract_task.title} by {self.rater.username}: {avg:.1f}"
+
+
+class ScopeChangeRequest(models.Model):
+    """Request from artist when work exceeds original scope — pauses deadline timer."""
+
+    contract_task = models.ForeignKey(
+        ContractTask, on_delete=models.CASCADE, related_name='scope_changes'
+    )
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    description = models.TextField(
+        help_text="What exceeds the original brief"
+    )
+    STATUS_CHOICES = [
+        ('pending', 'Pending Writer Response'),
+        ('withdrawn', 'Artist Withdrew Extra Scope'),
+        ('amount_increased', 'Milestone Amount Increased'),
+        ('new_milestone_added', 'New Milestone Added'),
+        ('auto_resumed', 'Auto-Resumed (48hr timeout)'),
+    ]
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default='pending'
+    )
+    additional_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Extra amount if writer chose to increase milestone"
+    )
+    auto_resume_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="48hr after creation — timer auto-resumes if writer doesn't respond"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Scope change for {self.contract_task.title}: {self.get_status_display()}"
+
+
+class MilestoneReassignment(models.Model):
+    """Tracks reassignment of a milestone to a new artist."""
+
+    original_task = models.ForeignKey(
+        ContractTask, on_delete=models.CASCADE, related_name='reassignments_from'
+    )
+    new_task = models.ForeignKey(
+        ContractTask, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reassignments_to',
+        help_text="New ContractTask created for the replacement artist"
+    )
+    original_artist = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='milestones_reassigned_from'
+    )
+    new_artist = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='milestones_reassigned_to'
+    )
+    STATUS_CHOICES = [
+        ('pending_acceptance', 'Pending New Artist Acceptance'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+        ('cancelled', 'Cancelled'),
+    ]
+    status = models.CharField(
+        max_length=25, choices=STATUS_CHOICES, default='pending_acceptance'
+    )
+    reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (f"Reassignment: {self.original_task.title} "
+                f"from {self.original_artist.username} to {self.new_artist.username}")
+
+
+class ReputationScore(models.Model):
+    """Computed reputation metrics — recalculated nightly from milestone data."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='reputation')
+
+    # As writer
+    writer_score = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('50.00'))
+    writer_projects_completed = models.PositiveIntegerField(default=0)
+    writer_avg_review_time_hours = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal('0')
+    )
+    writer_cancellation_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0')
+    )
+    writer_auto_approve_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0')
+    )
+
+    # As artist
+    artist_score = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('50.00'))
+    artist_projects_completed = models.PositiveIntegerField(default=0)
+    artist_on_time_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0')
+    )
+    artist_avg_quality_rating = models.DecimalField(
+        max_digits=3, decimal_places=2, default=Decimal('0')
+    )
+    artist_avg_communication_rating = models.DecimalField(
+        max_digits=3, decimal_places=2, default=Decimal('0')
+    )
+    artist_avg_timeliness_rating = models.DecimalField(
+        max_digits=3, decimal_places=2, default=Decimal('0')
+    )
+    artist_stall_count = models.PositiveIntegerField(default=0)
+    artist_cancellation_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0')
+    )
+
+    # Badges
+    is_founding_creator = models.BooleanField(
+        default=False,
+        help_text="First 50 creators with $100+ completed escrow"
+    )
+    last_calculated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Reputation for {self.user.username}: writer={self.writer_score}, artist={self.artist_score}"
 
 
 class MilestoneTemplate(models.Model):
@@ -4632,6 +4993,22 @@ class Notification(models.Model):
         ('creator_review', 'Creator Review'),
         ('content_purchase', 'Content Purchase'),
         ('new_follower', 'New Follower'),
+        # Escrow lifecycle notifications
+        ('milestone_submitted', 'Milestone Submitted'),
+        ('milestone_approved', 'Milestone Approved'),
+        ('milestone_rejected', 'Milestone Rejected'),
+        ('escrow_released', 'Escrow Released'),
+        ('escrow_refunded', 'Escrow Refunded'),
+        ('deadline_warning', 'Deadline Warning'),
+        ('deadline_passed', 'Deadline Passed'),
+        ('grace_expiring', 'Grace Period Expiring'),
+        ('final_rejection', 'Final Rejection'),
+        ('rating_requested', 'Rating Requested'),
+        ('scope_change', 'Scope Change Requested'),
+        ('inactivity_warning', 'Inactivity Warning'),
+        ('reassignment_offer', 'Reassignment Offer'),
+        ('project_cancelled', 'Project Cancelled'),
+        ('completion_bonus', 'Completion Bonus Released'),
     ]
 
     # Core fields
@@ -4650,7 +5027,7 @@ class Notification(models.Model):
 
     # Notification content
     notification_type = models.CharField(
-        max_length=20,
+        max_length=25,
         choices=NOTIFICATION_TYPES,
         db_index=True
     )
@@ -4666,6 +5043,14 @@ class Notification(models.Model):
         related_name='notifications',
         help_text="Related collaborative project"
     )
+    contract_task = models.ForeignKey(
+        'ContractTask',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notifications',
+        help_text="Related contract task (for escrow notifications)"
+    )
 
     # Navigation
     action_url = models.CharField(
@@ -4673,6 +5058,25 @@ class Notification(models.Model):
         blank=True,
         default='',
         help_text="URL to navigate to when notification is clicked"
+    )
+
+    # Actionable notification fields
+    action_required = models.BooleanField(
+        default=False,
+        help_text="Whether this notification requires user action"
+    )
+    action_options = models.JSONField(
+        default=list, blank=True,
+        help_text='Available actions: [{"key":"extend","label":"Extend Deadline","style":"primary"}]'
+    )
+    action_taken = models.CharField(
+        max_length=50, blank=True, default='',
+        help_text="Which action the user took"
+    )
+    action_taken_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When this actionable notification expires"
     )
 
     # State tracking

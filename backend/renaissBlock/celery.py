@@ -68,10 +68,45 @@ app.conf.beat_schedule = {
         'task': 'rb_core.tasks.check_escrow_dormancy',
         'schedule': crontab(hour=1, minute=0),
     },
-    # Check task deadlines and auto-refund overdue escrow tasks - every 2 minutes
+    # Check task deadlines and start grace window - every 2 minutes
     'check-task-deadlines': {
         'task': 'rb_core.tasks.check_task_deadlines',
         'schedule': crontab(minute='*/2'),
+    },
+    # Auto-refund tasks past 48hr grace window - every 15 minutes
+    'check-grace-deadlines': {
+        'task': 'rb_core.tasks.check_grace_deadlines',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Detect stalled artists (7+ days past deadline) - every 2 hours
+    'check-artist-stalls': {
+        'task': 'rb_core.tasks.check_artist_stalls',
+        'schedule': crontab(hour='*/2', minute=15),
+    },
+    # Auto-refund for inactive writers (30+ days) - daily at 3am
+    'check-writer-inactivity': {
+        'task': 'rb_core.tasks.check_writer_inactivity',
+        'schedule': crontab(hour=3, minute=0),
+    },
+    # Auto-resume scope change timers past 48hr - every 15 minutes
+    'check-scope-change-timeouts': {
+        'task': 'rb_core.tasks.check_scope_change_timeouts',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Process cancellation holds (72hr) - every 15 minutes
+    'process-cancellation-holds': {
+        'task': 'rb_core.tasks.process_cancellation_holds',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Remind users to rate completed milestones - daily at 10am
+    'send-rating-reminders': {
+        'task': 'rb_core.tasks.send_rating_reminders',
+        'schedule': crontab(hour=10, minute=0),
+    },
+    # Recalculate reputation scores nightly - daily at 2am
+    'recalculate-reputation-scores': {
+        'task': 'rb_core.tasks.recalculate_reputation_scores',
+        'schedule': crontab(hour=2, minute=0),
     },
 }
 

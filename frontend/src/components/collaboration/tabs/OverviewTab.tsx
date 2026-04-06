@@ -4,6 +4,8 @@ import RevenueSplitChart from '../RevenueSplitChart';
 import { EscrowStatusBar } from '../EscrowStatusBar';
 import { MilestoneTimeline } from '../MilestoneTimeline';
 import { EscrowFundingModal } from '../EscrowFundingModal';
+import MilestoneRatingModal from '../MilestoneRatingModal';
+import MilestoneActionModal from '../MilestoneActionModal';
 import { FileText, MessageSquare, Users, Rocket, BookOpen, Loader2, Upload, ImageIcon, Trash2, Shield, DollarSign, Check } from 'lucide-react';
 
 interface User {
@@ -30,6 +32,8 @@ export default function OverviewTab({
   const [uploadingCover, setUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [fundingModalRole, setFundingModalRole] = useState<CollaboratorRole | null>(null);
+  const [ratingModal, setRatingModal] = useState<{ taskId: number; taskTitle: string; ratedUsername: string } | null>(null);
+  const [actionModal, setActionModal] = useState<{ type: 'deadline' | 'final_rejection' | 'scope_change'; taskId: number; taskTitle: string } | null>(null);
 
   const isProjectLead = project.created_by === currentUser.id;
   const collaborators = project.collaborators || [];
@@ -532,6 +536,18 @@ export default function OverviewTab({
                     <MilestoneTimeline
                       tasks={collab.contract_tasks}
                       trustPhase={collab.trust_phase}
+                      projectId={project.id}
+                      currentUserId={currentUser.id}
+                      isProjectOwner={isProjectLead}
+                      isArtist={collab.user === currentUser.id}
+                      onRateTask={(taskId, taskTitle) => setRatingModal({
+                        taskId,
+                        taskTitle,
+                        ratedUsername: isProjectLead ? collab.username : (project as any).created_by_username || 'writer',
+                      })}
+                      onDeadlineAction={(taskId, taskTitle) => setActionModal({ type: 'deadline', taskId, taskTitle })}
+                      onFinalRejectionAction={(taskId, taskTitle) => setActionModal({ type: 'final_rejection', taskId, taskTitle })}
+                      onScopeChange={(taskId, taskTitle) => setActionModal({ type: 'scope_change', taskId, taskTitle })}
                     />
                   </div>
                 )}
@@ -552,6 +568,38 @@ export default function OverviewTab({
           }}
           projectId={project.id}
           collaborator={fundingModalRole}
+        />
+      )}
+
+      {/* Milestone Rating Modal */}
+      {ratingModal && (
+        <MilestoneRatingModal
+          projectId={project.id}
+          taskId={ratingModal.taskId}
+          taskTitle={ratingModal.taskTitle}
+          ratedUsername={ratingModal.ratedUsername}
+          onClose={() => setRatingModal(null)}
+          onRated={async (bothRated) => {
+            setRatingModal(null);
+            const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+            onProjectUpdate?.(updatedProject);
+          }}
+        />
+      )}
+
+      {/* Milestone Action Modal (deadline, final rejection, scope change) */}
+      {actionModal && (
+        <MilestoneActionModal
+          type={actionModal.type}
+          projectId={project.id}
+          taskId={actionModal.taskId}
+          taskTitle={actionModal.taskTitle}
+          onClose={() => setActionModal(null)}
+          onActionTaken={async () => {
+            setActionModal(null);
+            const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+            onProjectUpdate?.(updatedProject);
+          }}
         />
       )}
 

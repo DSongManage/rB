@@ -1447,6 +1447,127 @@ export const collaborationApi = {
     return handleResponse<CollaboratorRating>(response);
   },
 
+  // ===== Milestone Lifecycle =====
+
+  /**
+   * Rate a completed milestone (both writer and artist must rate)
+   */
+  async rateMilestone(
+    projectId: number,
+    taskId: number,
+    data: { quality_score: number; communication_score: number; timeliness_score: number; private_note?: string }
+  ): Promise<{ status: string; both_rated: boolean; rating_id: number }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/tasks/${taskId}/rate/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse(response);
+  },
+
+  /**
+   * Take action on a deadline-passed milestone (extend, reassign, or refund)
+   */
+  async deadlineAction(
+    projectId: number,
+    taskId: number,
+    data: { action: 'extend' | 'reassign' | 'refund'; extension_days?: number }
+  ): Promise<{ status: string; new_deadline?: string }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/tasks/${taskId}/deadline-action/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse(response);
+  },
+
+  /**
+   * Take action on a final rejection (accept_as_is, cancel, or reassign)
+   */
+  async finalRejectionAction(
+    projectId: number,
+    taskId: number,
+    data: { action: 'accept_as_is' | 'cancel' | 'reassign' }
+  ): Promise<{ status: string }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/tasks/${taskId}/final-rejection-action/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse(response);
+  },
+
+  /**
+   * Create a scope change request (artist flags scope creep)
+   */
+  async createScopeChange(
+    projectId: number,
+    taskId: number,
+    data: { description: string }
+  ): Promise<{ id: number; status: string; auto_resume_at: string }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/tasks/${taskId}/scope-change/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse(response);
+  },
+
+  /**
+   * Cancel a project (writer, artist, or mutual)
+   */
+  async cancelProject(
+    projectId: number,
+    data: { reason: string; cancellation_type: 'writer' | 'artist' | 'mutual' }
+  ): Promise<{ status: string; immediate_refunds: number; hold_until?: string }> {
+    const response = await fetch(
+      `${API_BASE}/api/collaborative-projects/${projectId}/cancel-project/`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': await getFreshCsrfToken(),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    return handleResponse(response);
+  },
+
   /**
    * Get ratings for a user
    */

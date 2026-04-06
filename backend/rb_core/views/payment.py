@@ -740,13 +740,54 @@ class SubmitSponsoredPaymentView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Submit transaction with platform signature
-        from rb_core.services.sponsored_transaction_service import get_sponsored_transaction_service
+        from rb_core.services.sponsored_transaction_service import (
+            get_sponsored_transaction_service,
+            BlockhashExpiredError,
+        )
         try:
             sponsored_service = get_sponsored_transaction_service()
             tx_signature = sponsored_service.submit_user_signed_transaction(
                 signed_transaction=signed_transaction,
                 user_signature_index=user_signature_index,
             )
+        except BlockhashExpiredError:
+            # Blockhash expired between user signing and submission.
+            # Rebuild a fresh transaction for the frontend to re-sign.
+            logger.warning(
+                f"Blockhash expired for intent {intent_id} — "
+                "rebuilding transaction with fresh blockhash"
+            )
+            intent.status = 'awaiting_signature'
+            intent.save(update_fields=['status'])
+
+            # Rebuild the transaction from the intent's payment data
+            try:
+                fresh_tx_data = self._rebuild_transaction_for_intent(intent, user)
+            except Exception as rebuild_err:
+                logger.error(f"Failed to rebuild transaction after blockhash expiry: {rebuild_err}")
+                intent.status = 'failed'
+                intent.failure_reason = f"Blockhash expired and rebuild failed: {rebuild_err}"
+                intent.save()
+                return Response({
+                    'error': 'Transaction expired and could not be rebuilt',
+                    'message': str(rebuild_err)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response({
+                'error': 'blockhash_expired',
+                'error_code': 'BLOCKHASH_EXPIRED',
+                'message': (
+                    'The transaction blockhash expired before submission. '
+                    'A fresh transaction has been generated — please re-sign.'
+                ),
+                'retry': True,
+                'serialized_transaction': fresh_tx_data['serialized_transaction'],
+                'serialized_message': fresh_tx_data['serialized_message'],
+                'blockhash': fresh_tx_data['blockhash'],
+                'platform_pubkey': fresh_tx_data['platform_pubkey'],
+                'user_pubkey': fresh_tx_data['user_pubkey'],
+                'amount': fresh_tx_data['amount'],
+            }, status=status.HTTP_409_CONFLICT)
         except Exception as e:
             logger.error(f"Failed to submit sponsored transaction: {e}")
             intent.status = 'failed'
@@ -818,6 +859,51 @@ class SubmitSponsoredPaymentView(APIView):
             'message': success_message,
             'signature': tx_signature,
         })
+
+    def _rebuild_transaction_for_intent(self, intent, user) -> dict:
+        """
+        Rebuild a sponsored transaction with a fresh blockhash for an intent.
+
+        This re-derives the payment splits from the intent data (same logic as
+        PayWithBalanceView) and builds a brand-new transaction with a current
+        blockhash so the frontend can re-sign and resubmit.
+
+        Returns:
+            Dict with serialized_transaction, serialized_message, blockhash, etc.
+        """
+        from rb_core.services.sponsored_transaction_service import get_sponsored_transaction_service
+
+        # Get platform wallet address
+        platform_wallet = getattr(settings, 'PLATFORM_USDC_ADDRESS', None)
+        if not platform_wallet:
+            raise ValueError("PLATFORM_USDC_ADDRESS not configured")
+
+        # Re-derive the payment transfers using the same logic as PayWithBalanceView
+        # For escrow funding, the transfer is to the platform wallet
+        if intent.is_escrow_funding:
+            transfers = [(platform_wallet, intent.total_amount)]
+        else:
+            # Use PayWithBalanceView's split logic
+            pay_view = PayWithBalanceView()
+            transfers = pay_view._calculate_payment_splits(intent, platform_wallet)
+            if not transfers:
+                raise ValueError("Failed to calculate payment distribution for rebuild")
+
+        sponsored_service = get_sponsored_transaction_service()
+
+        if len(transfers) > 1:
+            tx_data = sponsored_service.build_sponsored_multi_transfer(
+                user_wallet=user.wallet_address,
+                transfers=transfers,
+            )
+        else:
+            tx_data = sponsored_service.build_sponsored_usdc_transfer(
+                user_wallet=user.wallet_address,
+                recipient_wallet=transfers[0][0],
+                amount=transfers[0][1],
+            )
+
+        return tx_data
 
 
 class ConfirmBalancePaymentView(APIView):

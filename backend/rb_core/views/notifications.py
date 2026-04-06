@@ -120,6 +120,54 @@ class NotificationViewSet(DestroyModelMixin, viewsets.ReadOnlyModelViewSet):
 
         return Response({'count': count})
 
+    @action(detail=True, methods=['post'], url_path='action')
+    def take_action(self, request, pk=None):
+        """Execute an action from an actionable notification.
+
+        POST /api/notifications/{id}/action/
+        Body: { "action": "extend" | "refund" | "accept" | ... }
+
+        Dispatches to the appropriate handler based on the notification type.
+        """
+        try:
+            notification = Notification.objects.get(pk=pk, recipient=request.user)
+        except Notification.DoesNotExist:
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not notification.action_required:
+            return Response({'error': 'This notification is not actionable'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        if notification.action_taken:
+            return Response({'error': f'Action already taken: {notification.action_taken}'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        if notification.expires_at and notification.expires_at < timezone.now():
+            return Response({'error': 'This notification has expired'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        action_key = request.data.get('action')
+        valid_keys = [opt['key'] for opt in (notification.action_options or [])]
+        if action_key not in valid_keys:
+            return Response({'error': f'Invalid action. Valid: {valid_keys}'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        # Record the action
+        notification.action_taken = action_key
+        notification.action_taken_at = timezone.now()
+        notification.save(update_fields=['action_taken', 'action_taken_at'])
+
+        # Mark as read
+        notification.mark_as_read()
+
+        return Response({
+            'status': 'action_recorded',
+            'action': action_key,
+            'notification_id': notification.id,
+            'notification_type': notification.notification_type,
+            'task_id': notification.contract_task_id,
+        })
+
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):
         """

@@ -389,9 +389,11 @@ export default function TeamTab({
       setInviteError('Please select a role for the collaborator');
       return;
     }
-    if (invitePercentage <= 0 || invitePercentage > maxInvitePercentage) {
-      setInviteError(`Percentage must be between 1 and ${maxInvitePercentage}%`);
-      return;
+    if (contractType === 'revenue_share' || contractType === 'hybrid') {
+      if (invitePercentage <= 0 || invitePercentage > maxInvitePercentage) {
+        setInviteError(`Percentage must be between 1 and ${maxInvitePercentage}%`);
+        return;
+      }
     }
 
     // Validate tasks have required fields
@@ -447,7 +449,7 @@ export default function TeamTab({
         user_id: selectedUser.id,
         role: inviteRole.trim(),
         role_definition_id: selectedRoleId || undefined,
-        revenue_percentage: invitePercentage,
+        revenue_percentage: contractType === 'work_for_hire' ? 0 : invitePercentage,
         can_edit_text: canEditText,
         can_edit_images: canEditImages,
         can_edit_audio: canEditAudio,

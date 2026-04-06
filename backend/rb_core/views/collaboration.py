@@ -10,7 +10,7 @@ Provides endpoints for:
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.db import transaction
 from django.db.models import Q
 from decimal import Decimal, InvalidOperation
@@ -1229,10 +1229,519 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # TODO: Notify collaborator
+        # Notify artist of revision request (or final rejection)
+        if task.status == 'final_rejection':
+            try:
+                from rb_core.notifications_utils import notify_final_rejection
+                notify_final_rejection(task)
+            except Exception:
+                pass
 
         serializer = ContractTaskSerializer(task)
         return Response(serializer.data)
+
+    # ============================================================
+    # Escrow Lifecycle Endpoints
+    # ============================================================
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/deadline-action')
+    def deadline_action(self, request, pk=None, task_id=None):
+        """Writer chooses action for a deadline-passed milestone.
+
+        POST data:
+        - action: "extend" | "reassign" | "refund"
+        - extension_days: int (required if action="extend")
+        """
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can take this action'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if task.status != 'deadline_passed':
+            return Response({'error': f'Task is not in deadline_passed state (current: {task.status})'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        action_type = request.data.get('action')
+
+        if action_type == 'extend':
+            extension_days = request.data.get('extension_days')
+            if not extension_days or int(extension_days) < 1:
+                return Response({'error': 'extension_days is required and must be >= 1'},
+                              status=status.HTTP_400_BAD_REQUEST)
+            extension_days = int(extension_days)
+
+            from datetime import timedelta
+            from rb_core.models import MilestoneExtension
+
+            old_deadline = task.deadline
+            new_deadline = timezone.now() + timedelta(days=extension_days)
+
+            MilestoneExtension.objects.create(
+                contract_task=task,
+                requested_by=core_user,
+                original_deadline=old_deadline,
+                new_deadline=new_deadline,
+                extension_days=extension_days,
+                extension_type='writer_granted',
+            )
+
+            task.deadline = new_deadline
+            task.status = 'in_progress'
+            task.is_overdue = False
+            task.deadline_action_taken = True
+            task.grace_deadline = None
+            task.save(update_fields=[
+                'deadline', 'status', 'is_overdue', 'deadline_action_taken', 'grace_deadline',
+            ])
+
+            # Reset writer inactivity tracking
+            role = task.collaborator_role
+            role.last_writer_activity = timezone.now()
+            role.consecutive_auto_approvals = 0
+            role.save(update_fields=['last_writer_activity', 'consecutive_auto_approvals'])
+
+            return Response({'status': 'extended', 'new_deadline': new_deadline.isoformat()})
+
+        elif action_type == 'refund':
+            task.status = 'refunded'
+            task.escrow_release_status = 'refunded'
+            task.deadline_action_taken = True
+            task.save(update_fields=['status', 'escrow_release_status', 'deadline_action_taken'])
+
+            from rb_core.tasks import process_escrow_refund
+            process_escrow_refund.delay(task.id)
+
+            return Response({'status': 'refund_triggered'})
+
+        elif action_type == 'reassign':
+            # Reassignment requires new_artist — handled by separate endpoint
+            return Response({
+                'status': 'use_reassign_endpoint',
+                'message': 'Use POST .../tasks/{task_id}/reassign/ with new_artist_user_id',
+            })
+
+        else:
+            return Response({'error': 'action must be extend, reassign, or refund'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/final-rejection-action')
+    def final_rejection_action(self, request, pk=None, task_id=None):
+        """Writer chooses action after revision limit exhausted.
+
+        POST data:
+        - action: "cancel" | "accept_as_is" | "reassign"
+        """
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can take this action'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if task.status != 'final_rejection':
+            return Response({'error': f'Task is not in final_rejection state'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        action_type = request.data.get('action')
+
+        if action_type == 'accept_as_is':
+            task.sign_off(core_user, notes='Accepted as-is after final rejection')
+            serializer = ContractTaskSerializer(task)
+            return Response({'status': 'approved', 'task': serializer.data})
+
+        elif action_type == 'cancel':
+            task.status = 'cancelled'
+            task.escrow_release_status = 'refunded'
+            task.save(update_fields=['status', 'escrow_release_status'])
+
+            from rb_core.tasks import process_escrow_refund
+            process_escrow_refund.delay(task.id)
+
+            return Response({'status': 'cancelled_and_refunding'})
+
+        elif action_type == 'reassign':
+            return Response({
+                'status': 'use_reassign_endpoint',
+                'message': 'Use POST .../tasks/{task_id}/reassign/ with new_artist_user_id',
+            })
+
+        else:
+            return Response({'error': 'action must be accept_as_is, cancel, or reassign'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/rate')
+    def rate_milestone(self, request, pk=None, task_id=None):
+        """Rate a completed milestone (both writer and artist must rate).
+
+        POST data:
+        - quality_score: 1-5
+        - communication_score: 1-5
+        - timeliness_score: 1-5
+        - private_note: str (optional)
+        """
+        from rb_core.models import MilestoneRating
+
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Must be released/approved/signed_off to rate
+        if task.status not in ('released', 'approved', 'signed_off', 'complete'):
+            return Response({'error': 'Task must be released before rating'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        role = task.collaborator_role
+        writer = project.created_by
+        artist = role.user
+
+        # Must be writer or artist
+        if core_user not in (writer, artist):
+            return Response({'error': 'Only the writer or artist can rate'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        # Determine who is being rated
+        rated_user = artist if core_user == writer else writer
+
+        # Prevent duplicate
+        if MilestoneRating.objects.filter(contract_task=task, rater=core_user).exists():
+            return Response({'error': 'You have already rated this milestone'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate scores
+        for field in ('quality_score', 'communication_score', 'timeliness_score'):
+            val = request.data.get(field)
+            if not val or not (1 <= int(val) <= 5):
+                return Response({'error': f'{field} must be between 1 and 5'},
+                              status=status.HTTP_400_BAD_REQUEST)
+
+        rating = MilestoneRating.objects.create(
+            contract_task=task,
+            rater=core_user,
+            rated_user=rated_user,
+            quality_score=int(request.data['quality_score']),
+            communication_score=int(request.data['communication_score']),
+            timeliness_score=int(request.data['timeliness_score']),
+            private_note=request.data.get('private_note', ''),
+        )
+
+        # Check if both parties have now rated → transition task to complete
+        both_rated = MilestoneRating.objects.filter(contract_task=task).count() == 2
+        if both_rated and task.status == 'released':
+            task.status = 'complete'
+            task.save(update_fields=['status'])
+
+        return Response({
+            'status': 'rated',
+            'both_rated': both_rated,
+            'rating_id': rating.id,
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/scope-change')
+    def create_scope_change(self, request, pk=None, task_id=None):
+        """Artist flags scope change — pauses deadline timer.
+
+        POST data:
+        - description: str (required)
+        """
+        from datetime import timedelta
+        from rb_core.models import ScopeChangeRequest
+
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only the assigned artist can flag scope change
+        if core_user != task.collaborator_role.user:
+            return Response({'error': 'Only the assigned artist can flag scope changes'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        if task.status != 'in_progress':
+            return Response({'error': 'Task must be in_progress to flag scope change'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        description = request.data.get('description', '').strip()
+        if not description:
+            return Response({'error': 'description is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        scope_change = ScopeChangeRequest.objects.create(
+            contract_task=task,
+            requested_by=core_user,
+            description=description,
+            auto_resume_at=now + timedelta(hours=48),
+        )
+
+        # Pause the deadline timer
+        task.deadline_paused_at = now
+        task.save(update_fields=['deadline_paused_at'])
+
+        # Notify writer
+        try:
+            from rb_core.notifications_utils import notify_scope_change
+            notify_scope_change(task, scope_change)
+        except Exception:
+            pass
+
+        return Response({
+            'status': 'scope_change_created',
+            'scope_change_id': scope_change.id,
+            'auto_resume_at': scope_change.auto_resume_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/reassign')
+    def reassign_milestone(self, request, pk=None, task_id=None):
+        """Writer reassigns a milestone to a new artist.
+
+        POST data:
+        - new_artist_user_id: int
+        - reason: str (optional)
+        """
+        from rb_core.models import MilestoneReassignment
+
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can reassign'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only reassignable states
+        if task.status not in ('deadline_passed', 'stalled', 'final_rejection'):
+            return Response(
+                {'error': f'Cannot reassign from state: {task.status}. '
+                          f'Must be deadline_passed, stalled, or final_rejection.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        new_artist_id = request.data.get('new_artist_user_id')
+        if not new_artist_id:
+            return Response({'error': 'new_artist_user_id is required'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_artist = CoreUser.objects.get(id=new_artist_id)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'New artist not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        original_artist = task.collaborator_role.user
+
+        reassignment = MilestoneReassignment.objects.create(
+            original_task=task,
+            original_artist=original_artist,
+            new_artist=new_artist,
+            reason=request.data.get('reason', ''),
+        )
+
+        # Mark original task as reassigned
+        task.status = 'reassigned'
+        task.deadline_action_taken = True
+        task.save(update_fields=['status', 'deadline_action_taken'])
+
+        # Reclaim from PDA (funds return to platform wallet)
+        role = task.collaborator_role
+        if role.escrow_pda_address and task.escrow_release_status == 'pending':
+            try:
+                from rb_core.services.escrow_solana_service import EscrowSolanaService
+                svc = EscrowSolanaService()
+                svc.reclaim_milestone(
+                    project_id=project.id,
+                    artist_wallet=role.user.wallet_address,
+                    milestone_index=task.order,
+                )
+            except Exception:
+                logger.exception('[Reassign] Failed to reclaim milestone %s from PDA', task.id)
+
+        # Notify new artist
+        try:
+            from rb_core.notifications_utils import notify_reassignment_offer
+            notify_reassignment_offer(reassignment)
+        except Exception:
+            pass
+
+        return Response({
+            'status': 'reassignment_created',
+            'reassignment_id': reassignment.id,
+            'awaiting_acceptance_from': new_artist.username,
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='cancel-project')
+    def cancel_project(self, request, pk=None):
+        """Cancel the project and refund remaining escrow milestones.
+
+        POST data:
+        - reason: str (required)
+        - cancellation_type: "writer" | "artist" | "mutual"
+        """
+        from datetime import timedelta
+
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Must be project owner or a collaborator
+        is_owner = project.created_by == core_user
+        is_collaborator = project.collaborators.filter(user=core_user, status='accepted').exists()
+        if not is_owner and not is_collaborator:
+            return Response({'error': 'Only project members can cancel'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        reason = request.data.get('reason', '').strip()
+        if not reason:
+            return Response({'error': 'reason is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        cancellation_type = request.data.get('cancellation_type', 'writer' if is_owner else 'artist')
+        if cancellation_type not in ('writer', 'artist', 'mutual'):
+            return Response({'error': 'cancellation_type must be writer, artist, or mutual'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+
+        # Determine if any in-progress tasks need a hold
+        in_progress_tasks = ContractTask.objects.filter(
+            collaborator_role__project=project,
+            status__in=['in_progress', 'submitted', 'under_review'],
+            escrow_release_status='pending',
+        )
+        has_in_progress = in_progress_tasks.exists()
+
+        # Immediately refund funded-but-unstarted tasks
+        funded_tasks = ContractTask.objects.filter(
+            collaborator_role__project=project,
+            status__in=['funded', 'pending'],
+            escrow_release_status='pending',
+        )
+        refund_count = 0
+        for task in funded_tasks:
+            task.status = 'refunded'
+            task.escrow_release_status = 'refunded'
+            task.save(update_fields=['status', 'escrow_release_status'])
+            from rb_core.tasks import process_escrow_refund
+            process_escrow_refund.delay(task.id)
+            refund_count += 1
+
+        # Set project cancellation
+        project.status = 'cancelled'
+        project.cancellation_requested_by = core_user
+        project.cancellation_requested_at = now
+        project.cancellation_reason = reason
+        project.cancellation_type = cancellation_type
+
+        if has_in_progress:
+            # 72hr hold for in-progress tasks
+            project.cancellation_hold_until = now + timedelta(hours=72)
+        project.save()
+
+        # Track cancellation on user profile
+        try:
+            profile = core_user.profile
+            if cancellation_type == 'artist':
+                profile.projects_cancelled_as_artist += 1
+                profile.save(update_fields=['projects_cancelled_as_artist'])
+            elif cancellation_type == 'writer':
+                profile.projects_cancelled_as_writer += 1
+                profile.save(update_fields=['projects_cancelled_as_writer'])
+        except Exception:
+            pass
+
+        # Notify all collaborators
+        try:
+            from rb_core.notifications_utils import notify_project_cancelled
+            notify_project_cancelled(project, core_user)
+        except Exception:
+            pass
+
+        return Response({
+            'status': 'cancelled',
+            'immediate_refunds': refund_count,
+            'hold_until': project.cancellation_hold_until.isoformat() if project.cancellation_hold_until else None,
+        })
+
+    @action(detail=True, methods=['get'],
+            url_path='tasks/(?P<task_id>[^/.]+)/ratings')
+    def milestone_ratings(self, request, pk=None, task_id=None):
+        """Get ratings for a milestone. Own rating always visible; both visible after project completes."""
+        from rb_core.models import MilestoneRating
+
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        ratings = MilestoneRating.objects.filter(contract_task=task)
+        project_complete = project.status == 'complete'
+
+        result = []
+        for rating in ratings:
+            is_own = rating.rater == core_user
+            if is_own or project_complete or rating.is_visible:
+                result.append({
+                    'rater': rating.rater.username,
+                    'rated_user': rating.rated_user.username,
+                    'quality_score': rating.quality_score,
+                    'communication_score': rating.communication_score,
+                    'timeliness_score': rating.timeliness_score,
+                    'private_note': rating.private_note if is_own or project_complete else '',
+                    'created_at': rating.created_at.isoformat(),
+                })
+
+        return Response({
+            'task_id': task.id,
+            'ratings': result,
+            'both_rated': ratings.count() >= 2,
+        })
 
     @action(detail=True, methods=['post'], url_path='handle-breach/(?P<role_id>[^/.]+)')
     def handle_breach(self, request, pk=None, role_id=None):
@@ -2991,6 +3500,49 @@ def get_user_ratings(request, user_id):
             'public_feedback': r.public_feedback,
             'created_at': r.created_at.isoformat(),
         } for r in ratings]
+    })
+
+
+@api_view(['GET'])
+@drf_permission_classes([AllowAny])
+def get_user_reputation(request, username):
+    """Get public reputation score for a user."""
+    from rb_core.models import ReputationScore
+
+    try:
+        user = CoreUser.objects.get(username=username)
+    except CoreUser.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        score = ReputationScore.objects.get(user=user)
+    except ReputationScore.DoesNotExist:
+        return Response({
+            'username': username,
+            'has_reputation': False,
+        })
+
+    return Response({
+        'username': username,
+        'has_reputation': True,
+        'writer': {
+            'score': str(score.writer_score),
+            'projects_completed': score.writer_projects_completed,
+            'auto_approve_rate': str(score.writer_auto_approve_rate),
+            'cancellation_rate': str(score.writer_cancellation_rate),
+        },
+        'artist': {
+            'score': str(score.artist_score),
+            'projects_completed': score.artist_projects_completed,
+            'on_time_rate': str(score.artist_on_time_rate),
+            'avg_quality_rating': str(score.artist_avg_quality_rating),
+            'avg_communication_rating': str(score.artist_avg_communication_rating),
+            'avg_timeliness_rating': str(score.artist_avg_timeliness_rating),
+            'stall_count': score.artist_stall_count,
+            'cancellation_rate': str(score.artist_cancellation_rate),
+        },
+        'is_founding_creator': score.is_founding_creator,
+        'last_calculated': score.last_calculated.isoformat(),
     })
 
 

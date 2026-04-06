@@ -21,7 +21,7 @@ from .views.library import LibraryView, FullContentView, ReadingProgressView, Co
 from .views.collaboration import (
     CollaborativeProjectViewSet, ProjectSectionViewSet, ProjectCommentViewSet,
     ProposalViewSet, CollaboratorRatingViewSet, get_user_ratings, RoleDefinitionViewSet,
-    MilestoneTemplateViewSet
+    MilestoneTemplateViewSet, get_user_reputation
 )
 from .views.comic import (
     ComicPageViewSet, ComicPanelViewSet, SpeechBubbleViewSet,
@@ -238,6 +238,9 @@ urlpatterns = [
     path('api/users/<int:user_id>/ratings/',
          get_user_ratings,
          name='user-ratings'),
+    path('api/users/<str:username>/reputation/',
+         get_user_reputation,
+         name='user-reputation'),
     # Artwork Library for collaborative comics
     path('api/collaborative-projects/<int:project_pk>/artwork-library/',
          ArtworkLibraryViewSet.as_view({'get': 'list', 'post': 'create'}),
