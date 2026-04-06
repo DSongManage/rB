@@ -120,6 +120,32 @@ class CampaignSolanaService:
         resp = self.client.get_latest_blockhash(Confirmed)
         return resp.value.blockhash
 
+    def _get_nonce_info(self) -> tuple:
+        """Get the durable nonce account pubkey and current nonce hash.
+        Returns (nonce_pubkey, nonce_hash) for use as blockhash replacement.
+        """
+        import json
+        nonce_path = str(Path.home() / '.solana' / 'nonce-account.json')
+        with open(nonce_path) as f:
+            data = json.load(f)
+        nonce_pubkey = Pubkey.from_string(data['pubkey'])
+        # Fetch current nonce value from on-chain
+        acct = self.client.get_account_info(nonce_pubkey, commitment=Confirmed)
+        if not acct.value:
+            raise Exception('Nonce account not found on-chain')
+        acct_data = acct.value.data
+        # Nonce account layout: 4 bytes version + 4 bytes state + 32 bytes authority + 32 bytes nonce_hash
+        nonce_hash = Hash.from_bytes(acct_data[40:72])
+        return nonce_pubkey, nonce_hash
+
+    def _build_nonce_advance_ix(self, nonce_pubkey: Pubkey) -> Instruction:
+        """Build the AdvanceNonceAccount instruction (must be first ix in tx)."""
+        from solders.system_program import advance_nonce_account, AdvanceNonceAccountParams
+        return advance_nonce_account(AdvanceNonceAccountParams(
+            nonce_pubkey=nonce_pubkey,
+            authorized_pubkey=self.platform_pubkey,
+        ))
+
     def _build_and_send(self, instructions: list, signers: list) -> str:
         """Build a versioned transaction, sign it, send and confirm."""
         from solana.rpc.types import TxOpts
@@ -259,10 +285,14 @@ class CampaignSolanaService:
 
         amount_lamports = self._usd_to_lamports(amount)
 
+        # Get durable nonce — never expires, unlike recent blockhash
+        nonce_pubkey, nonce_hash = self._get_nonce_info()
+        nonce_advance_ix = self._build_nonce_advance_ix(nonce_pubkey)
+
         # Build the contribute instruction
         # Account order must match Anchor struct: payer, backer, campaign_vault, backer_record, ...
         data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
-        accounts = [
+        contribute_ix = Instruction(PROGRAM_ID, data, [
             AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),  # payer (platform sponsors rent)
             AccountMeta(backer_pubkey, is_signer=True, is_writable=False),        # backer (signs USDC transfer)
             AccountMeta(campaign_pda, is_signer=False, is_writable=True),         # campaign_vault
@@ -271,22 +301,19 @@ class CampaignSolanaService:
             AccountMeta(vault_ata, is_signer=False, is_writable=True),            # vault_token_account
             AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
-        ]
-        ix = Instruction(PROGRAM_ID, data, accounts)
+        ])
 
-        # Get recent blockhash
-        blockhash = self._get_recent_blockhash()
-
-        # Build MessageV0 with platform as fee payer
+        # Build MessageV0 with nonce hash as blockhash (durable — never expires)
+        # AdvanceNonceAccount MUST be the first instruction
         message = MessageV0.try_compile(
             payer=self.platform_pubkey,
-            instructions=[ix],
+            instructions=[nonce_advance_ix, contribute_ix],
             address_lookup_table_accounts=[],
-            recent_blockhash=blockhash,
+            recent_blockhash=nonce_hash,  # Nonce value replaces blockhash
         )
 
         # Create transaction with placeholder signatures
-        # Signers: [platform (fee payer), backer (token authority)]
+        # Signers: [platform (fee payer + nonce authority), backer (token authority)]
         placeholder_sig = Signature.default()
         unsigned_tx = VersionedTransaction.populate(message, [placeholder_sig, placeholder_sig])
         tx_bytes = bytes(unsigned_tx)
@@ -294,7 +321,7 @@ class CampaignSolanaService:
         return {
             'serialized_transaction': base64.b64encode(tx_bytes).decode('utf-8'),
             'serialized_message': base64.b64encode(bytes(message)).decode('utf-8'),
-            'blockhash': str(blockhash),
+            'nonce_pubkey': str(nonce_pubkey),
             'user_pubkey': backer_wallet,
             'platform_pubkey': str(self.platform_pubkey),
             'amount_lamports': amount_lamports,
@@ -321,26 +348,20 @@ class CampaignSolanaService:
         tx_bytes = base64.b64decode(signed_transaction_b64)
         user_signed_tx = VersionedTransaction.from_bytes(tx_bytes)
 
-        # Extract the user signature and the original instructions
-        user_sig = user_signed_tx.signatures[1]  # [platform_placeholder, user_sig]
-        old_message = user_signed_tx.message
+        # Extract user signature (index 1: [platform_placeholder, user_sig])
+        user_sig = user_signed_tx.signatures[1]
+        message = user_signed_tx.message
 
-        # Rebuild message with FRESH blockhash to avoid expiry
-        # The user signed the old message, but we need a new blockhash.
-        # Unfortunately, changing the blockhash invalidates the user's signature.
-        # So we must use the original message as-is and hope the blockhash is still valid.
-        # If it fails, the frontend should retry (rebuild + re-sign).
-        message = old_message
-
-        # Platform signs the same message
+        # Platform co-signs the same message
         platform_sig = self.platform_keypair.sign_message(bytes(message))
 
-        # Build the fully-signed transaction with both real signatures
+        # Build fully-signed transaction
         signed_tx = VersionedTransaction.populate(message, [platform_sig, user_sig])
 
+        # Submit — with durable nonces, blockhash never expires
         resp = self.client.send_transaction(
             signed_tx,
-            opts=TxOpts(skip_preflight=True, preflight_commitment=Confirmed),
+            opts=TxOpts(skip_preflight=False, preflight_commitment=Confirmed),
         )
         sig = str(resp.value)
         logger.info('[CampaignSolana] Sponsored contribution submitted. TX: %s', sig)
