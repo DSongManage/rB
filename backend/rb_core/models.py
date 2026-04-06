@@ -511,10 +511,11 @@ class UserProfile(models.Model):
         ).distinct().count()
         completed_projects = completed_as_collaborator + completed_as_owner
 
-        # Count total milestones signed off
+        # Count total milestones completed (signed_off or approved via escrow)
+        COMPLETED_STATUSES = ['signed_off', 'approved', 'released', 'complete']
         milestones_completed = ContractTask.objects.filter(
             collaborator_role__user=self.user,
-            status='signed_off',
+            status__in=COMPLETED_STATUSES,
         ).count()
 
         # On-time delivery rate (includes deadline-breached cancellations as misses)
@@ -527,7 +528,7 @@ class UserProfile(models.Model):
         if total_for_rate > 0:
             on_time = ContractTask.objects.filter(
                 collaborator_role__user=self.user,
-                status='signed_off',
+                status__in=COMPLETED_STATUSES,
                 deadline__isnull=False,
                 signed_off_at__lte=F('deadline'),
             ).count()
@@ -539,7 +540,7 @@ class UserProfile(models.Model):
         from django.db.models import Avg, ExpressionWrapper, DurationField
         avg_duration = ContractTask.objects.filter(
             collaborator_role__user=self.user,
-            status='signed_off',
+            status__in=COMPLETED_STATUSES,
             created_at__isnull=False,
             marked_complete_at__isnull=False,
         ).aggregate(
@@ -1995,6 +1996,10 @@ class CollaborativeProject(models.Model):
         default=False,
         help_text="True if this is a solo project (single creator, no collaborators)"
     )
+    is_campaign_funded = models.BooleanField(
+        default=False,
+        help_text="True if this project was funded via a campaign (refunds go to PDA1, not creator)"
+    )
     # Cover image for the project
     cover_image = models.ImageField(
         upload_to='project_covers/',
@@ -2118,6 +2123,31 @@ class CollaborativeProject(models.Model):
             'can_mint': len(blockers) == 0,
             'blockers': blockers
         }
+
+    def is_campaign_eligible(self):
+        """Check if this project can be linked to a campaign.
+        Returns (eligible: bool, reasons: list[str])."""
+        reasons = []
+        if self.status not in ('draft', 'active'):
+            reasons.append(f'Project status is "{self.status}", must be draft or active')
+        if self.is_solo:
+            reasons.append('Solo projects use the solo campaign flow')
+        active_work_statuses = [
+            'in_progress', 'submitted', 'under_review', 'resubmitted',
+            'approved', 'released', 'complete', 'signed_off',
+        ]
+        has_active_work = ContractTask.objects.filter(
+            collaborator_role__project=self,
+            status__in=active_work_statuses,
+        ).exists()
+        if has_active_work:
+            reasons.append('Project already has work in progress')
+        has_funded_escrow = self.collaborators.filter(escrow_funded_amount__gt=0).exists()
+        if has_funded_escrow:
+            reasons.append('Escrow already funded for this project')
+        if hasattr(self, 'campaign') and self.campaign is not None:
+            reasons.append('Project already linked to a campaign')
+        return len(reasons) == 0, reasons
 
     def is_fully_approved(self):
         """Check if all collaborators have approved the current version and revenue split."""
@@ -2876,7 +2906,12 @@ class ContractTask(models.Model):
         help_text="Detailed description of what's expected"
     )
     deadline = models.DateTimeField(
-        help_text="Deadline for task completion"
+        null=True, blank=True,
+        help_text="Absolute deadline for task completion (computed from days_after_funding for campaign projects)"
+    )
+    deadline_days_after_funding = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Days after escrow funding that this milestone is due. Used for campaign-funded projects."
     )
     status = models.CharField(
         max_length=25,
@@ -4965,6 +5000,32 @@ NOTIFICATION_DEFAULTS = {
     'section_update':      {'in_app': True, 'email': False},
     'comment':             {'in_app': True, 'email': False},
     'new_follower':        {'in_app': True, 'email': False},
+    # Campaign — backer notifications (in_app=True, email=True)
+    'campaign_backed':         {'in_app': True, 'email': True},
+    'campaign_funded':         {'in_app': True, 'email': True},
+    'campaign_failed':         {'in_app': True, 'email': True},
+    'campaign_refund':         {'in_app': True, 'email': True},
+    'campaign_partial_refund': {'in_app': True, 'email': True},
+    'campaign_prod_update':    {'in_app': True, 'email': True},
+    'campaign_complete':       {'in_app': True, 'email': True},
+    'campaign_stretch_hit':    {'in_app': True, 'email': True},
+    'backer_content_access':   {'in_app': True, 'email': True},
+    # Campaign — creator notifications (in_app=True, email=True)
+    'campaign_launched':       {'in_app': True, 'email': True},
+    'campaign_new_backer':     {'in_app': True, 'email': True},
+    'campaign_withdrew':       {'in_app': True, 'email': True},
+    'campaign_goal_reached':   {'in_app': True, 'email': True},
+    'campaign_closed':         {'in_app': True, 'email': True},
+    'campaign_role_interest':  {'in_app': True, 'email': True},
+    'campaign_role_warn':      {'in_app': True, 'email': True},
+    'campaign_role_refund':    {'in_app': True, 'email': True},
+    # Campaign — collaborator notifications (in_app=True, email=True)
+    'campaign_role_avail':     {'in_app': True, 'email': True},
+    'campaign_assigned':       {'in_app': True, 'email': True},
+    'campaign_prod_start':     {'in_app': True, 'email': True},
+    # Campaign — team notifications (in_app=True, email=False)
+    'campaign_team_joined':    {'in_app': True, 'email': False},
+    'campaign_team_complete':  {'in_app': True, 'email': False},
 }
 
 
@@ -5009,6 +5070,32 @@ class Notification(models.Model):
         ('reassignment_offer', 'Reassignment Offer'),
         ('project_cancelled', 'Project Cancelled'),
         ('completion_bonus', 'Completion Bonus Released'),
+        # Campaign — backer notifications
+        ('campaign_backed', 'Campaign Backed'),
+        ('campaign_funded', 'Campaign Funded'),
+        ('campaign_failed', 'Campaign Failed'),
+        ('campaign_refund', 'Campaign Refund Processed'),
+        ('campaign_partial_refund', 'Campaign Partial Refund'),
+        ('campaign_prod_update', 'Campaign Production Update'),
+        ('campaign_complete', 'Campaign Complete'),
+        ('campaign_stretch_hit', 'Stretch Goal Reached'),
+        ('backer_content_access', 'Backer Content Access'),
+        # Campaign — creator notifications
+        ('campaign_launched', 'Campaign Launched'),
+        ('campaign_new_backer', 'New Campaign Backer'),
+        ('campaign_withdrew', 'Backer Withdrew'),
+        ('campaign_goal_reached', 'Campaign Goal Reached'),
+        ('campaign_closed', 'Campaign Closed'),
+        ('campaign_role_interest', 'Role Interest Received'),
+        ('campaign_role_warn', 'Role Assignment Deadline Warning'),
+        ('campaign_role_refund', 'Role Milestones Refunded'),
+        # Campaign — collaborator notifications
+        ('campaign_role_avail', 'Campaign Role Available'),
+        ('campaign_assigned', 'Campaign Role Assigned'),
+        ('campaign_prod_start', 'Campaign Production Started'),
+        # Campaign — team notifications
+        ('campaign_team_joined', 'Team Member Joined'),
+        ('campaign_team_complete', 'Team Complete'),
     ]
 
     # Core fields
@@ -5027,7 +5114,7 @@ class Notification(models.Model):
 
     # Notification content
     notification_type = models.CharField(
-        max_length=25,
+        max_length=40,
         choices=NOTIFICATION_TYPES,
         db_index=True
     )
@@ -5050,6 +5137,14 @@ class Notification(models.Model):
         blank=True,
         related_name='notifications',
         help_text="Related contract task (for escrow notifications)"
+    )
+    campaign = models.ForeignKey(
+        'Campaign',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='notifications',
+        help_text="Related campaign (for campaign notifications)"
     )
 
     # Navigation
@@ -5113,7 +5208,7 @@ class NotificationPreference(models.Model):
         on_delete=models.CASCADE,
         related_name='notification_preferences',
     )
-    notification_type = models.CharField(max_length=20)
+    notification_type = models.CharField(max_length=40)
     in_app = models.BooleanField(default=True)
     email = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
@@ -7097,6 +7192,37 @@ class Campaign(models.Model):
         help_text="Creator's production budget (printing, tools, etc.) — released directly to creator"
     )
 
+    # Campaign lifecycle settings
+    production_start_deadline_days = models.PositiveIntegerField(
+        default=30,
+        help_text="Days after funding to begin production before auto-refund triggers"
+    )
+    role_assignment_deadline_days = models.PositiveIntegerField(
+        default=60,
+        help_text="Days after funding to fill all open roles before unfilled role milestones refund"
+    )
+    allow_overfunding = models.BooleanField(
+        default=True,
+        help_text="Whether to accept contributions beyond the funding goal"
+    )
+    max_overfunding_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Cap on overfunding amount above goal (null = no cap)"
+    )
+    previous_campaign = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='sequel_campaigns',
+        help_text="Link to a previous campaign (e.g., Issue #1 → Issue #2)"
+    )
+    closed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When campaign officially stopped accepting backers"
+    )
+    cancelled_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When creator cancelled the campaign"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -7134,6 +7260,10 @@ class Campaign(models.Model):
         self.funded_at = timezone.now()
         self.escrow_creation_deadline = self.funded_at + timedelta(days=60)
         self.save(update_fields=['status', 'funded_at', 'escrow_creation_deadline', 'updated_at'])
+        # Mark linked project as campaign-funded (changes refund routing to PDA1)
+        if self.project:
+            self.project.is_campaign_funded = True
+            self.project.save(update_fields=['is_campaign_funded'])
 
     def mark_failed(self):
         """Transition to failed when deadline passes without meeting goal."""
@@ -7202,6 +7332,25 @@ class CampaignContribution(models.Model):
         related_name='campaign_contributions'
     )
 
+    # Extended tracking
+    percentage_of_total = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('0.00'),
+        help_text="Backer's share of total raised — used for proportional refunds"
+    )
+    reward_tier = models.ForeignKey(
+        'CampaignTier', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='contributions',
+        help_text="Selected reward tier"
+    )
+    withdrawn = models.BooleanField(default=False)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    refunded = models.BooleanField(default=False)
+    refund_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Actual refund amount (may differ from contribution in partial refund scenarios)"
+    )
+    refunded_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -7213,13 +7362,22 @@ class CampaignContribution(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['campaign', 'backer'],
-                condition=models.Q(status__in=['pending', 'confirmed', 'transferred']),
+                condition=models.Q(status__in=['pending', 'confirmed', 'transferred']) & models.Q(withdrawn=False),
                 name='unique_active_campaign_backer',
             ),
         ]
 
     def __str__(self):
         return f"{self.backer.username} backed {self.campaign.title}: ${self.amount}"
+
+    def calculate_percentage(self):
+        """Recalculate this backer's percentage of total raised."""
+        total = self.campaign.current_amount
+        if total > 0:
+            self.percentage_of_total = (self.amount / total * 100).quantize(Decimal('0.01'))
+        else:
+            self.percentage_of_total = Decimal('0.00')
+        self.save(update_fields=['percentage_of_total'])
 
 
 class CampaignUpdate(models.Model):
@@ -7268,6 +7426,22 @@ class CampaignTier(models.Model):
     current_backers = models.PositiveIntegerField(default=0)
     order = models.PositiveIntegerField(default=0)
 
+    # Reward details
+    includes_digital_copy = models.BooleanField(default=False)
+    includes_print_copy = models.BooleanField(default=False)
+    includes_early_access = models.BooleanField(default=False)
+    includes_credits = models.BooleanField(default=False, help_text="Backer name in credits")
+    custom_rewards = models.JSONField(default=list, blank=True, help_text="Custom tier perks")
+
+    FULFILLMENT_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('fulfilled', 'Fulfilled'),
+    ]
+    fulfillment_status = models.CharField(
+        max_length=15, choices=FULFILLMENT_CHOICES, default='pending'
+    )
+
     class Meta:
         ordering = ['order', 'minimum_amount']
 
@@ -7299,3 +7473,77 @@ class CampaignMedia(models.Model):
 
     def __str__(self):
         return f"Media for {self.campaign.title}: {self.caption or 'image'}"
+
+
+class StretchGoal(models.Model):
+    """Stretch goal that unlocks additional milestones when overfunding crosses a threshold."""
+
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name='stretch_goals'
+    )
+    threshold_amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text="Amount raised that triggers this stretch goal"
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    reached = models.BooleanField(default=False)
+    reached_at = models.DateTimeField(null=True, blank=True)
+    linked_milestones = models.ManyToManyField(
+        'ContractTask', blank=True, related_name='stretch_goals',
+        help_text="Milestones added to PDA2 when this stretch goal is hit"
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'threshold_amount']
+
+    def __str__(self):
+        status = 'Reached' if self.reached else 'Pending'
+        return f"Stretch: {self.title} at ${self.threshold_amount} ({status})"
+
+
+class BackerContentAccess(models.Model):
+    """Grants a backer access to completed milestone deliverables on partial production failure."""
+
+    contribution = models.ForeignKey(
+        CampaignContribution, on_delete=models.CASCADE, related_name='content_access'
+    )
+    milestone = models.ForeignKey(
+        'ContractTask', on_delete=models.CASCADE, related_name='backer_access_grants'
+    )
+    granted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['contribution', 'milestone']
+
+    def __str__(self):
+        return f"Access: {self.contribution.backer.username} → {self.milestone.title}"
+
+
+class CampaignRoleInterest(models.Model):
+    """Tracks creators who express interest in open campaign roles (pre-funding team assembly)."""
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('declined', 'Declined'),
+    ]
+
+    campaign = models.ForeignKey(
+        Campaign, on_delete=models.CASCADE, related_name='role_interests'
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='campaign_role_interests'
+    )
+    role_name = models.CharField(max_length=100)
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['campaign', 'user', 'role_name']
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} interested in {self.role_name} on {self.campaign.title}"

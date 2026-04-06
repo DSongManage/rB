@@ -49,6 +49,8 @@ DISC_RECLAIM_CONTRIBUTION = _anchor_discriminator("reclaim_contribution")
 DISC_INITIALIZE_ESCROW = _anchor_discriminator("initialize_escrow")
 DISC_SUBMIT_MILESTONE = _anchor_discriminator("submit_milestone")
 DISC_APPROVE_MILESTONE = _anchor_discriminator("approve_milestone")
+DISC_WITHDRAW_CONTRIBUTION = _anchor_discriminator("withdraw_contribution")
+DISC_ADD_STRETCH_MILESTONE = _anchor_discriminator("add_stretch_milestone")
 
 
 class CampaignSolanaService:
@@ -239,6 +241,108 @@ class CampaignSolanaService:
             'backer_record_pda': str(backer_record_pda),
             'amount_lamports': amount_lamports,
         }
+
+    def build_sponsored_contribute_tx(self, campaign, backer_wallet: str, amount: Decimal) -> dict:
+        """Build a sponsored VersionedTransaction for campaign contribution.
+
+        Platform pays gas fees. User signs as backer (USDC authority + account init).
+        Returns serialized_transaction for frontend Web3Auth signing.
+        """
+        import base64
+        from solders.signature import Signature
+
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+        backer_pubkey = Pubkey.from_string(backer_wallet)
+        backer_record_pda, _ = self.derive_backer_pda(campaign_pda, backer_pubkey)
+        vault_ata = self.derive_ata(campaign_pda, self.usdc_mint)
+        backer_ata = self.derive_ata(backer_pubkey, self.usdc_mint)
+
+        amount_lamports = self._usd_to_lamports(amount)
+
+        # Build the contribute instruction
+        data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
+        accounts = [
+            AccountMeta(backer_pubkey, is_signer=True, is_writable=True),        # backer
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),         # campaign_vault
+            AccountMeta(backer_record_pda, is_signer=False, is_writable=True),    # backer_record (init)
+            AccountMeta(backer_ata, is_signer=False, is_writable=True),           # backer_token_account
+            AccountMeta(vault_ata, is_signer=False, is_writable=True),            # vault_token_account
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+        ]
+        ix = Instruction(PROGRAM_ID, data, accounts)
+
+        # Get recent blockhash
+        blockhash = self._get_recent_blockhash()
+
+        # Build MessageV0 with platform as fee payer
+        message = MessageV0.try_compile(
+            payer=self.platform_pubkey,
+            instructions=[ix],
+            address_lookup_table_accounts=[],
+            recent_blockhash=blockhash,
+        )
+
+        # Create transaction with placeholder signatures
+        # Signers: [platform (fee payer), backer (token authority)]
+        placeholder_sig = Signature.default()
+        unsigned_tx = VersionedTransaction.populate(message, [placeholder_sig, placeholder_sig])
+        tx_bytes = bytes(unsigned_tx)
+
+        return {
+            'serialized_transaction': base64.b64encode(tx_bytes).decode('utf-8'),
+            'serialized_message': base64.b64encode(bytes(message)).decode('utf-8'),
+            'blockhash': str(blockhash),
+            'user_pubkey': backer_wallet,
+            'platform_pubkey': str(self.platform_pubkey),
+            'amount_lamports': amount_lamports,
+        }
+
+    def submit_contribution_with_platform_sig(self, serialized_message: str, signed_transaction_b64: str) -> str:
+        """Add platform signature to user-signed contribution and submit.
+
+        The frontend sends the full user-signed VersionedTransaction.
+        We extract the message from it, sign with platform, rebuild with both sigs.
+
+        Args:
+            serialized_message: Base64 encoded MessageV0 (from intent, for reference)
+            signed_transaction_b64: Base64 encoded VersionedTransaction with user's signature
+
+        Returns:
+            Transaction signature string
+        """
+        import base64
+        from solders.signature import Signature
+        from solana.rpc.types import TxOpts
+
+        # Decode the user-signed transaction
+        tx_bytes = base64.b64decode(signed_transaction_b64)
+        user_signed_tx = VersionedTransaction.from_bytes(tx_bytes)
+
+        # Extract the user signature and the original instructions
+        user_sig = user_signed_tx.signatures[1]  # [platform_placeholder, user_sig]
+        old_message = user_signed_tx.message
+
+        # Rebuild message with FRESH blockhash to avoid expiry
+        # The user signed the old message, but we need a new blockhash.
+        # Unfortunately, changing the blockhash invalidates the user's signature.
+        # So we must use the original message as-is and hope the blockhash is still valid.
+        # If it fails, the frontend should retry (rebuild + re-sign).
+        message = old_message
+
+        # Platform signs the same message
+        platform_sig = self.platform_keypair.sign_message(bytes(message))
+
+        # Build the fully-signed transaction with both real signatures
+        signed_tx = VersionedTransaction.populate(message, [platform_sig, user_sig])
+
+        resp = self.client.send_transaction(
+            signed_tx,
+            opts=TxOpts(skip_preflight=True, preflight_commitment=Confirmed),
+        )
+        sig = str(resp.value)
+        logger.info('[CampaignSolana] Sponsored contribution submitted. TX: %s', sig)
+        return sig
 
     def verify_contribution_tx(self, signature: str, campaign, backer_wallet: str, expected_amount: Decimal) -> bool:
         """Verify a contribution transaction on-chain.
@@ -546,3 +650,74 @@ class CampaignSolanaService:
 
         logger.info('[CampaignSolana] Transfer details: %s', details)
         return details
+
+    # ============================================================
+    # Withdraw & Stretch Goal Methods
+    # ============================================================
+
+    def get_withdraw_instruction_params(self, campaign, backer_wallet: str) -> dict:
+        """Return instruction params for frontend to build a withdraw_contribution tx.
+
+        Uses the same account layout as reclaim_contribution but calls
+        withdraw_contribution instruction (pre-deadline withdrawal).
+        """
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+        backer_pubkey = Pubkey.from_string(backer_wallet)
+        backer_record_pda, _ = self.derive_backer_pda(campaign_pda, backer_pubkey)
+
+        usdc_mint = Pubkey.from_string(self.usdc_mint)
+        backer_ata = self.derive_ata(backer_pubkey, usdc_mint)
+        vault_ata = self.derive_ata(campaign_pda, usdc_mint)
+
+        return {
+            'instruction': 'withdraw_contribution',
+            'program_id': str(PROGRAM_ID),
+            'accounts': {
+                'backer': backer_wallet,
+                'campaign_vault': str(campaign_pda),
+                'backer_record': str(backer_record_pda),
+                'backer_token_account': str(backer_ata),
+                'vault_token_account': str(vault_ata),
+                'token_program': str(TOKEN_PROGRAM_ID),
+            },
+            'discriminator': DISC_WITHDRAW_CONTRIBUTION.hex(),
+        }
+
+    def add_stretch_milestone_on_chain(self, campaign, milestone_amount: Decimal, deadline_timestamp: int) -> str:
+        """Add a stretch milestone to the escrow vault on-chain.
+
+        Called when a stretch goal threshold is crossed by overfunding.
+        Transfers additional USDC from campaign vault to escrow vault.
+        """
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+
+        # Get the escrow vault pubkey from campaign
+        escrow_pda = Pubkey.from_string(campaign.escrow_pda)
+        usdc_mint = Pubkey.from_string(self.usdc_mint)
+
+        campaign_ata = self.derive_ata(campaign_pda, usdc_mint)
+        escrow_ata = self.derive_ata(escrow_pda, usdc_mint)
+
+        amount_lamports = self._usd_to_lamports(milestone_amount)
+
+        data = (
+            DISC_ADD_STRETCH_MILESTONE
+            + struct.pack('<Q', amount_lamports)        # milestone_amount: u64
+            + struct.pack('<q', deadline_timestamp)     # milestone_deadline: i64
+        )
+
+        accounts = [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),    # platform
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),            # campaign_vault
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),              # escrow_vault
+            AccountMeta(campaign_ata, is_signer=False, is_writable=True),            # campaign_token_account
+            AccountMeta(escrow_ata, is_signer=False, is_writable=True),              # escrow_token_account
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        logger.info('[CampaignSolana] Stretch milestone added: $%s, deadline %d, campaign %d. TX: %s',
+                    milestone_amount, deadline_timestamp, campaign.id, sig)
+        return sig

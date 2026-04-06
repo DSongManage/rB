@@ -303,7 +303,7 @@ export default function CampaignDetailPage() {
           <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
             The Pitch
           </h2>
-          <div className="ql-editor" style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.7, padding: 0 }}
+          <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.7 }}
             dangerouslySetInnerHTML={{ __html: campaign.pitch_html }} />
         </div>
       )}

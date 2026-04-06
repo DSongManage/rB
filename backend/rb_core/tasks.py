@@ -3195,6 +3195,206 @@ def check_escrow_dormancy():
     return results
 
 
+@shared_task
+def check_production_start_deadline():
+    """Periodic task: auto-refund if creator never starts production after funding.
+
+    Runs daily. Finds transferred campaigns where no milestones have progressed
+    beyond 'funded' status within the production_start_deadline_days window.
+    Triggers full refund: PDA2 → PDA1 → backers can reclaim.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import Campaign, ContractTask
+
+    now = timezone.now()
+    transferred = Campaign.objects.filter(
+        status='transferred',
+        funded_at__isnull=False,
+    ).select_related('project')
+
+    results = {'refunded': 0, 'errors': 0}
+
+    for campaign in transferred:
+        deadline = campaign.funded_at + timedelta(days=campaign.production_start_deadline_days)
+        if now < deadline:
+            continue
+
+        # Check if any milestone has started (status beyond funded/pending)
+        if not campaign.project:
+            continue
+        started_statuses = [
+            'in_progress', 'submitted', 'under_review', 'resubmitted',
+            'approved', 'released', 'complete', 'signed_off',
+        ]
+        has_started = ContractTask.objects.filter(
+            collaborator_role__project=campaign.project,
+            status__in=started_statuses,
+        ).exists()
+
+        if has_started:
+            continue
+
+        try:
+            # Return funds PDA2 → PDA1
+            if campaign.on_chain_initialized and campaign.escrow_pda:
+                try:
+                    from .services.campaign_solana_service import CampaignSolanaService
+                    service = CampaignSolanaService()
+                    service.return_to_campaign_on_chain(campaign)
+                except Exception as e:
+                    logger.warning('[ProductionStart] On-chain return failed for %s: %s', campaign.id, e)
+
+            campaign.mark_reclaimable()
+            results['refunded'] += 1
+
+            # Notify
+            from .notifications_utils import notify_campaign_failed
+            notify_campaign_failed(campaign)
+
+            logger.info(
+                '[ProductionStart] Campaign %s: no production started within %d days — marked reclaimable',
+                campaign.id, campaign.production_start_deadline_days,
+            )
+        except Exception:
+            results['errors'] += 1
+            logger.exception('[ProductionStart] Error processing campaign %s', campaign.id)
+
+    if results['refunded'] > 0:
+        logger.info('[ProductionStart] Results: %s', results)
+    return results
+
+
+@shared_task
+def check_role_assignment_deadline():
+    """Periodic task: refund unfilled role milestones after deadline.
+
+    Runs daily. For transferred campaigns past their role_assignment_deadline_days,
+    finds unfilled CollaboratorRoles and refunds their milestones proportionally
+    to backers. Other roles with assigned collaborators continue production.
+    Also sends a warning 7 days before the deadline.
+    """
+    from django.utils import timezone
+    from datetime import timedelta
+    from .models import Campaign, ContractTask, CollaboratorRole
+
+    now = timezone.now()
+    transferred = Campaign.objects.filter(
+        status='transferred',
+        funded_at__isnull=False,
+    ).select_related('project')
+
+    results = {'warned': 0, 'refunded_roles': 0, 'errors': 0}
+
+    for campaign in transferred:
+        if not campaign.project:
+            continue
+
+        deadline = campaign.funded_at + timedelta(days=campaign.role_assignment_deadline_days)
+        warning_date = deadline - timedelta(days=7)
+
+        # Find unfilled roles (DB records + TBD allocations in JSON)
+        unfilled_db_roles = list(campaign.project.collaborators.exclude(status='accepted'))
+        tbd_allocations = [a for a in (campaign.collaborator_allocations or []) if a.get('is_tbd')]
+
+        unfilled_role_names = [r.role for r in unfilled_db_roles] + [a['role'] for a in tbd_allocations]
+        if not unfilled_role_names:
+            continue
+
+        # 7-day warning
+        if warning_date <= now < deadline:
+            days_remaining = (deadline - now).days
+            from .notifications_utils import notify_campaign_role_deadline_warning
+            for role_name in unfilled_role_names:
+                notify_campaign_role_deadline_warning(campaign, role_name, days_remaining)
+            results['warned'] += 1
+            continue
+
+        # Past deadline — refund unfilled role milestones
+        if now >= deadline:
+            # Refund DB-backed unfilled roles
+            for role in unfilled_db_roles:
+                try:
+                    tasks = ContractTask.objects.filter(
+                        collaborator_role=role,
+                        status__in=['funded', 'pending'],
+                    )
+                    for task in tasks:
+                        task.status = 'refunded'
+                        task.save(update_fields=['status'])
+
+                    from .notifications_utils import notify_campaign_role_refunded
+                    notify_campaign_role_refunded(campaign, role.role)
+                    results['refunded_roles'] += 1
+
+                    logger.info(
+                        '[RoleAssignment] Campaign %s: unfilled role "%s" milestones refunded',
+                        campaign.id, role.role,
+                    )
+                except Exception:
+                    results['errors'] += 1
+                    logger.exception('[RoleAssignment] Error refunding role %s on campaign %s',
+                                     role.role, campaign.id)
+
+            # Refund TBD allocations (roles that never got a CollaboratorRole record)
+            for alloc in tbd_allocations:
+                role_name = alloc.get('role', 'Unknown')
+                from .notifications_utils import notify_campaign_role_refunded
+                notify_campaign_role_refunded(campaign, role_name)
+                results['refunded_roles'] += 1
+                logger.info(
+                    '[RoleAssignment] Campaign %s: TBD role "%s" refunded (never assigned)',
+                    campaign.id, role_name,
+                )
+
+    if results['refunded_roles'] > 0 or results['warned'] > 0:
+        logger.info('[RoleAssignment] Results: %s', results)
+    return results
+
+
+@shared_task
+def grant_backer_content_access(campaign_id):
+    """Grant all backers access to completed milestone deliverables.
+
+    Called when a campaign-funded production partially fails. Backers
+    get access to all approved/completed work.
+    """
+    from .models import Campaign, ContractTask, BackerContentAccess
+
+    try:
+        campaign = Campaign.objects.get(id=campaign_id)
+    except Campaign.DoesNotExist:
+        logger.error('[BackerAccess] Campaign %s not found', campaign_id)
+        return
+
+    if not campaign.project:
+        return
+
+    # Find completed milestones
+    completed_tasks = ContractTask.objects.filter(
+        collaborator_role__project=campaign.project,
+        status__in=['complete', 'signed_off', 'released', 'approved'],
+    )
+
+    contributions = campaign.contributions.filter(
+        status__in=['confirmed', 'transferred'], withdrawn=False,
+    ).select_related('backer')
+
+    created = 0
+    for contribution in contributions:
+        for task in completed_tasks:
+            _, was_created = BackerContentAccess.objects.get_or_create(
+                contribution=contribution, milestone=task,
+            )
+            if was_created:
+                created += 1
+                from .notifications_utils import notify_backer_content_access
+                notify_backer_content_access(contribution, task)
+
+    logger.info('[BackerAccess] Campaign %s: granted %d access records', campaign_id, created)
+    return {'campaign_id': campaign_id, 'access_records_created': created}
+
+
 # ============================================================
 # Escrow Lifecycle Tasks (Phases 2-11)
 # ============================================================

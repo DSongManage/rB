@@ -4,7 +4,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import {
   ArrowLeft, ArrowRight, Rocket, Book, Layers, Image as ImageIcon,
-  Users, User, Upload, X, Plus, Trash2, Gift, DollarSign, UserCheck,
+  Users, User, Upload, X, Plus, Trash2, Gift, DollarSign, UserCheck, Lock, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import campaignApi, { CampaignTier } from '../services/campaignApi';
 import { collaborationApi, CollaborativeProjectListItem, CollaboratorRole } from '../services/collaborationApi';
@@ -21,6 +21,12 @@ const quillModules = {
   ],
 };
 
+interface MilestoneInfo {
+  title: string;
+  amount: string;
+  deadline: string;
+}
+
 interface CollaboratorAllocation {
   collaborator_role_id: number;
   username: string;
@@ -28,6 +34,9 @@ interface CollaboratorAllocation {
   avatar_url?: string;
   role: string;
   amount: string;
+  fromProject: boolean;
+  milestones: MilestoneInfo[];
+  contractType: string;
 }
 
 export default function CampaignCreatePage() {
@@ -79,7 +88,7 @@ export default function CampaignCreatePage() {
     collaborationApi.getCollaborativeProjects().then(setProjects).catch(() => {});
   }, []);
 
-  // Fetch collaborators when project is selected
+  // Fetch collaborators when project is selected — auto-populate from milestones
   useEffect(() => {
     if (!selectedProjectId) {
       setCollaborators([]);
@@ -90,14 +99,36 @@ export default function CampaignCreatePage() {
     collaborationApi.getCollaborativeProject(selectedProjectId).then(project => {
       const accepted = project.collaborators.filter(c => c.status === 'accepted');
       setCollaborators(accepted);
-      setAllocations(accepted.map(c => ({
-        collaborator_role_id: c.id,
-        username: c.username,
-        display_name: c.display_name || c.username,
-        avatar_url: c.avatar_url,
-        role: c.role || c.effective_role_name || 'Collaborator',
-        amount: '',
-      })));
+
+      let totalFromMilestones = 0;
+      const newAllocations = accepted.map(c => {
+        const hasMilestones = c.contract_tasks && c.contract_tasks.length > 0;
+        const milestoneTotal = hasMilestones
+          ? c.contract_tasks.reduce((sum, t) => sum + parseFloat(t.payment_amount || '0'), 0)
+          : 0;
+        totalFromMilestones += milestoneTotal;
+        return {
+          collaborator_role_id: c.id,
+          username: c.username,
+          display_name: c.display_name || c.username,
+          avatar_url: c.avatar_url,
+          role: c.role || c.effective_role_name || 'Collaborator',
+          amount: milestoneTotal > 0 ? String(milestoneTotal) : '',
+          fromProject: milestoneTotal > 0,
+          milestones: hasMilestones ? c.contract_tasks.map(t => ({
+            title: t.title,
+            amount: t.payment_amount,
+            deadline: t.deadline,
+          })) : [],
+          contractType: c.contract_type || 'revenue_share',
+        };
+      });
+      setAllocations(newAllocations);
+
+      // Auto-fill from project data
+      if (!title && project.title) setTitle(project.title);
+      if (project.content_type) setContentType(project.content_type as 'book' | 'comic' | 'art');
+      if (totalFromMilestones > 0) setFundingGoal(String(totalFromMilestones));
     }).catch(() => {}).finally(() => setLoadingProject(false));
   }, [selectedProjectId]);
 
@@ -138,15 +169,18 @@ export default function CampaignCreatePage() {
   };
 
   const updateAllocation = (index: number, amount: string) => {
-    setAllocations(prev => prev.map((a, i) => i === index ? { ...a, amount } : a));
+    setAllocations(prev => prev.map((a, i) => i === index && !a.fromProject ? { ...a, amount } : a));
   };
 
-  // Auto-suggest funding goal from allocations
-  const suggestGoal = () => {
-    if (totalBudget > 0) {
-      setFundingGoal(fmt(totalBudget));
+  // Whether all allocations are sourced from project milestones
+  const allFromProject = allocations.length > 0 && allocations.every(a => a.fromProject);
+
+  // Auto-sync funding goal when production costs change and all allocations are from project
+  useEffect(() => {
+    if (allFromProject) {
+      setFundingGoal(fmt(totalAllocated + prodCosts));
     }
-  };
+  }, [allFromProject, totalAllocated, prodCosts]);
 
   const handleCreate = async () => {
     setSubmitting(true);
@@ -322,11 +356,14 @@ export default function CampaignCreatePage() {
                   style={{ ...inputStyle, cursor: 'pointer' }}
                 >
                   <option value="">Select a collaborative project...</option>
-                  {eligibleProjects.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.title} ({p.total_collaborators} collaborator{p.total_collaborators !== 1 ? 's' : ''})
-                    </option>
-                  ))}
+                  {eligibleProjects.map(p => {
+                    const cleanTitle = p.title?.replace(/^Collaboration Invite - .*?"([^"]+)".*$/, '$1') || p.title;
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {cleanTitle} ({p.total_collaborators} collaborator{p.total_collaborators !== 1 ? 's' : ''})
+                      </option>
+                    );
+                  })}
                 </select>
               ) : (
                 <div style={{
@@ -406,9 +443,10 @@ export default function CampaignCreatePage() {
                 <button key={type} onClick={() => setContentType(type)} style={{
                   flex: 1, padding: '10px 8px', borderRadius: 8,
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  background: contentType === type ? '#4f46e520' : '#1e293b',
-                  border: `1px solid ${contentType === type ? '#4f46e5' : '#334155'}`,
-                  color: 'var(--text)', fontSize: 12, cursor: 'pointer',
+                  background: contentType === type ? '#4f46e520' : 'var(--bg-secondary)',
+                  border: `1px solid ${contentType === type ? '#4f46e5' : 'var(--border)'}`,
+                  color: contentType === type ? '#4f46e5' : 'var(--text)',
+                  fontSize: 12, cursor: 'pointer',
                 }}>
                   <Icon size={16} /> {label}
                 </button>
@@ -487,54 +525,97 @@ export default function CampaignCreatePage() {
           {/* Collaborator allocation cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {allocations.map((alloc, i) => (
-              <div key={alloc.collaborator_role_id} style={{
-                display: 'flex', alignItems: 'center', gap: 14,
-                padding: '14px 16px', borderRadius: 10,
-                background: 'var(--panel)', border: '1px solid var(--panel-border)',
-              }}>
-                {/* Avatar */}
+              <div key={alloc.collaborator_role_id}>
                 <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: '#334155', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  overflow: 'hidden', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  padding: '14px 16px', borderRadius: alloc.fromProject && alloc.milestones.length > 0 ? '10px 10px 0 0' : 10,
+                  background: 'var(--panel)', border: '1px solid var(--panel-border)',
+                  borderBottom: alloc.fromProject && alloc.milestones.length > 0 ? 'none' : undefined,
                 }}>
-                  {alloc.avatar_url ? (
-                    <img src={alloc.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <User size={16} style={{ color: 'var(--text-muted)' }} />
-                  )}
+                  {/* Avatar */}
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    background: '#334155', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden', flexShrink: 0,
+                  }}>
+                    {alloc.avatar_url ? (
+                      <img src={alloc.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <User size={16} style={{ color: 'var(--text-muted)' }} />
+                    )}
+                  </div>
+
+                  {/* Name + role */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                      @{alloc.username}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                      {alloc.role}
+                      {alloc.fromProject && (
+                        <span style={{ marginLeft: 6, color: '#8b5cf6', textTransform: 'none' }}>
+                          {alloc.contractType === 'work_for_hire' ? 'work-for-hire' : alloc.contractType}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Amount — read-only when from project milestones */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    background: alloc.fromProject ? 'var(--bg-secondary)' : 'var(--dropdown-bg)',
+                    border: `1px solid ${alloc.fromProject ? '#8b5cf640' : 'var(--border)'}`,
+                    borderRadius: 8, overflow: 'hidden', width: 140, flexShrink: 0,
+                  }}>
+                    <span style={{ padding: '0 8px', color: 'var(--text-muted)', fontSize: 13 }}>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={alloc.amount}
+                      onChange={e => updateAllocation(i, e.target.value)}
+                      readOnly={alloc.fromProject}
+                      placeholder="0"
+                      style={{
+                        width: '100%', padding: '8px 8px 8px 0', border: 'none',
+                        background: 'transparent', color: 'var(--text)', fontSize: 14, outline: 'none',
+                        cursor: alloc.fromProject ? 'default' : undefined,
+                      }}
+                    />
+                    {alloc.fromProject && <Lock size={12} style={{ color: '#8b5cf6', marginRight: 8, flexShrink: 0 }} />}
+                  </div>
                 </div>
 
-                {/* Name + role */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
-                    @{alloc.username}
+                {/* Milestone breakdown (when from project) */}
+                {alloc.fromProject && alloc.milestones.length > 0 && (
+                  <div style={{
+                    padding: '8px 16px 12px 66px',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--panel-border)',
+                    borderTop: 'none',
+                    borderRadius: '0 0 10px 10px',
+                  }}>
+                    {alloc.milestones.map((m, mi) => (
+                      <div key={mi} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '4px 0',
+                        borderBottom: mi < alloc.milestones.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {m.title}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap', marginLeft: 8 }}>
+                          ${parseFloat(m.amount || '0').toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {m.deadline && (
+                            <span style={{ marginLeft: 6, color: 'var(--subtle)' }}>
+                              due {new Date(m.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                    {alloc.role}
-                  </div>
-                </div>
-
-                {/* Amount input */}
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  background: 'var(--dropdown-bg)', border: '1px solid var(--border)',
-                  borderRadius: 8, overflow: 'hidden', width: 140, flexShrink: 0,
-                }}>
-                  <span style={{ padding: '0 8px', color: 'var(--text-muted)', fontSize: 13 }}>$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={alloc.amount}
-                    onChange={e => updateAllocation(i, e.target.value)}
-                    placeholder="0"
-                    style={{
-                      width: '100%', padding: '8px 8px 8px 0', border: 'none',
-                      background: 'transparent', color: 'var(--text)', fontSize: 14, outline: 'none',
-                    }}
-                  />
-                </div>
+                )}
               </div>
             ))}
 
@@ -582,7 +663,9 @@ export default function CampaignCreatePage() {
             background: 'var(--panel)', border: '1px solid var(--panel-border)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Collaborator escrow</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                Collaborator escrow{allFromProject ? ' (from milestones)' : ''}
+              </span>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                 ${fmt(totalAllocated)} {goalNum > 0 && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({escrowPercent}%)</span>}
               </span>
@@ -594,27 +677,29 @@ export default function CampaignCreatePage() {
               </span>
             </div>
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Total budget</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: totalBudget > goalNum && goalNum > 0 ? '#ef4444' : '#10b981' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                {allFromProject ? 'Funding goal' : 'Total budget'}
+              </span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: totalBudget > goalNum && goalNum > 0 && !allFromProject ? '#ef4444' : '#10b981' }}>
                 ${fmt(totalBudget)}
               </span>
             </div>
 
-            {/* Mismatch warnings */}
-            {goalNum > 0 && totalBudget > goalNum && (
+            {/* Mismatch warnings — only when amounts are manually entered */}
+            {!allFromProject && goalNum > 0 && totalBudget > goalNum && (
               <div style={{ fontSize: 12, color: '#ef4444', marginTop: 8 }}>
                 Budget exceeds funding goal by ${fmt(totalBudget - goalNum)}. Go back and increase your goal.
               </div>
             )}
-            {goalNum > 0 && totalBudget > 0 && totalBudget < goalNum && (
+            {!allFromProject && goalNum > 0 && totalBudget > 0 && totalBudget < goalNum && (
               <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 8 }}>
                 ${fmt(goalNum - totalBudget)} unallocated. This surplus will stay in campaign escrow.
               </div>
             )}
 
-            {/* Auto-suggest goal */}
-            {totalBudget > 0 && totalBudget !== goalNum && (
-              <button onClick={suggestGoal} style={{
+            {/* Auto-suggest goal — only when amounts are manually entered */}
+            {!allFromProject && totalBudget > 0 && totalBudget !== goalNum && (
+              <button onClick={() => setFundingGoal(fmt(totalBudget))} style={{
                 marginTop: 8, padding: '6px 12px', borderRadius: 6,
                 background: '#4f46e520', border: '1px solid #4f46e5',
                 color: '#a78bfa', fontSize: 12, cursor: 'pointer',

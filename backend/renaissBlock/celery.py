@@ -108,6 +108,16 @@ app.conf.beat_schedule = {
         'task': 'rb_core.tasks.recalculate_reputation_scores',
         'schedule': crontab(hour=2, minute=0),
     },
+    # Campaign: auto-refund if no production started within deadline - daily at 4am
+    'check-production-start-deadline': {
+        'task': 'rb_core.tasks.check_production_start_deadline',
+        'schedule': crontab(hour=4, minute=0),
+    },
+    # Campaign: refund unfilled role milestones after deadline - daily at 5am
+    'check-role-assignment-deadline': {
+        'task': 'rb_core.tasks.check_role_assignment_deadline',
+        'schedule': crontab(hour=5, minute=0),
+    },
 }
 
 

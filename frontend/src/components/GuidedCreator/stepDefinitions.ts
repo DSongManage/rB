@@ -1,4 +1,4 @@
-export type StepId = 0 | 1 | 2 | 3 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 99;
+export type StepId = 0 | 1 | 2 | 3 | 4 | 6 | 9 | 10 | 11 | 12 | 99;
 
 export type ContentType = 'comic' | 'book' | 'art';
 
@@ -23,7 +23,7 @@ export interface OutcomeItem {
   text: string;
 }
 
-export type DirectAction = 'createProject' | 'publish' | 'browseCollaborators' | 'campaign' | 'campaignSolo';
+export type DirectAction = 'createProject' | 'publish' | 'browseCollaborators' | 'campaign' | 'campaignSolo' | 'campaignWizard';
 
 export interface StepDefinition {
   id: StepId;
@@ -191,62 +191,20 @@ export const STEPS: Record<StepId, StepDefinition> = {
 
   6: {
     id: 6,
-    title: "Do you already have a team?",
-    subtitle: "This determines how campaign funds are structured when your campaign succeeds.",
-    breadcrumb: ["Launch campaign", "Team status", "Campaign setup"],
-    breadcrumbActive: 0,
-    variant: 'options',
-    options: [
-      {
-        label: "Yes — team is assembled with agreed rates",
-        description: "You know who's doing the art, coloring, and lettering, and you've agreed on rates. Campaign funds will auto-split into pre-configured escrow contracts when funded. Backers see exactly where every dollar goes.",
-        tag: "Strongest backer trust",
-        tagColor: 'green',
-        targetStep: 7,
-      },
-      {
-        label: "No — I'm raising funds to hire",
-        description: "Campaign funds will go into a project escrow. You'll hire and set up contracts after the campaign succeeds. Funds are locked until work delivers.",
-        targetStep: 8,
-      },
-    ],
-  },
-
-  7: {
-    id: 7,
-    title: "Set up your team budget",
-    subtitle: "During campaign creation, you'll assign budgets to each collaborator. Backers see exactly where their money goes. When funded, escrow contracts activate instantly.",
-    breadcrumb: ["Launch campaign", "Team assembled", "Auto-split setup"],
-    breadcrumbActive: 2,
+    title: "Launch your campaign",
+    subtitle: "Set up your project, team, and campaign in one go. Add team members now or leave roles open — you can fill them later.",
+    breadcrumb: ["Launch campaign", "Setup"],
+    breadcrumbActive: 1,
     variant: 'outcome',
-    previewImage: '/campaign-team-preview.png',
     outcomeTitle: "HOW IT WORKS:",
     outcomeItems: [
-      { bold: "Assign budgets", text: "set a dollar amount for each collaborator during campaign setup" },
-      { bold: "Backers see the breakdown", text: "your campaign page shows exactly how funds are allocated" },
-      { bold: "Auto-fund on success", text: "when the campaign hits its goal, escrow contracts activate for each collaborator" },
-      { bold: "Milestone releases", text: "funds release as collaborators deliver approved work (3% escrow fee)" },
+      { bold: "One wizard, everything set up", text: "create your project, add team members (or mark roles as TBD), set milestones and budgets" },
+      { bold: "Backers see the breakdown", text: "your campaign page shows exactly how funds are allocated and who's on the team" },
+      { bold: "Relative deadlines", text: "milestones start counting after your campaign is funded — no wasted time" },
+      { bold: "Auto-escrow on success", text: "when the campaign hits its goal, escrow contracts activate automatically (3% fee on releases)" },
     ],
-    afterOutcome: "Team members confirm their participation during setup. When funded, their escrow contracts activate instantly — no delay, no manual setup.",
-    directAction: { label: "Set up your campaign", action: 'campaign' },
-  },
-
-  8: {
-    id: 8,
-    title: "Campaign funds go to project escrow",
-    subtitle: "Since you haven't assembled your team yet, all funds will be locked in a secure project escrow. You'll hire and set up contracts after the campaign succeeds.",
-    breadcrumb: ["Launch campaign", "Raising to hire", "Campaign escrow"],
-    breadcrumbActive: 2,
-    variant: 'outcome',
-    previewImage: '/campaign-solo-preview.png',
-    outcomeTitle: "HOW THIS WORKS FOR BACKERS:",
-    outcomeItems: [
-      { bold: "All funds locked", text: "nothing is released until you hire team members and they deliver work" },
-      { bold: "Transparent progress", text: "backers see when you create contracts and milestones start completing" },
-      { bold: "60-day activity requirement", text: "if no escrow contracts are created within 60 days, backers can reclaim" },
-      { bold: "Full protection", text: "funds only leave escrow as approved work is delivered" },
-    ],
-    directAction: { label: "Set up your campaign", action: 'campaignSolo' },
+    afterOutcome: "Team members get invited during setup. Open roles can be filled later through the campaign page. Funds are protected by on-chain escrow.",
+    directAction: { label: "Start campaign wizard", action: 'campaignWizard' },
   },
 
   // ── Hire path (step 9) — terminal with direct action ──
@@ -455,25 +413,9 @@ export function getStepForContentType(stepId: StepId, contentType: ContentType):
     };
   }
 
-  // Step 6: Team status for campaign
+  // Step 6: Campaign wizard launch — no content-type override needed
   if (stepId === 6) {
-    return {
-      ...STEPS[6],
-      options: [
-        {
-          label: "Yes — team is assembled with agreed rates",
-          description: `You know who's handling the work and you've agreed on rates. Campaign funds will auto-split into pre-configured escrow contracts when funded. Backers see exactly where every dollar goes.`,
-          tag: "Strongest backer trust",
-          tagColor: 'green',
-          targetStep: 7,
-        },
-        {
-          label: "No — I'm raising funds to hire",
-          description: "Campaign funds will go into a project escrow. You'll hire and set up contracts after the campaign succeeds. Funds are locked until work delivers.",
-          targetStep: 8,
-        },
-      ],
-    };
+    return { ...STEPS[6] };
   }
 
   // Step 9: Hire through escrow

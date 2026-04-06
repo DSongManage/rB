@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, DollarSign, Shield, Loader2, CheckCircle, Gift, Users, CreditCard, Wallet, ExternalLink } from 'lucide-react';
 import campaignApi, { Campaign, CampaignTier, ContributionIntentResponse } from '../../services/campaignApi';
+import { signMessageForSponsoredTx } from '../../services/web3authService';
 
 interface CampaignContributionModalProps {
   isOpen: boolean;
@@ -56,7 +57,31 @@ export function CampaignContributionModal({
     if (!intent) return;
     setStep('processing');
     try {
-      await campaignApi.confirmContribution(intent.contribution_id);
+      if (intent.on_chain) {
+        // On-chain flow: fetch a FRESH sponsored tx right before signing
+        // (avoids blockhash expiry between intent creation and user clicking sign)
+        const freshIntent = await campaignApi.createContributionIntent(intent.campaign_id, intent.amount);
+
+        if (!freshIntent.serialized_transaction || !freshIntent.serialized_message) {
+          throw new Error('On-chain transaction could not be built');
+        }
+
+        // Sign with Web3Auth
+        const { signedTransaction } = await signMessageForSponsoredTx(
+          freshIntent.serialized_transaction
+        );
+
+        // Send the full signed transaction to backend
+        await campaignApi.submitSignedContribution(
+          freshIntent.contribution_id,
+          freshIntent.serialized_message,
+          signedTransaction,
+        );
+      } else {
+        // Off-chain / balance-based flow
+        await campaignApi.confirmContribution(intent.contribution_id);
+      }
+
       setStep('success');
       setTimeout(() => {
         onContributed();
@@ -121,8 +146,8 @@ export function CampaignContributionModal({
                       onClick={() => available && handleSelectTier(tier)}
                       style={{
                         padding: 14, borderRadius: 10, cursor: available ? 'pointer' : 'not-allowed',
-                        background: isSelected ? '#4f46e510' : '#1e293b',
-                        border: `2px solid ${isSelected ? '#4f46e5' : '#334155'}`,
+                        background: isSelected ? '#4f46e515' : 'var(--bg-secondary)',
+                        border: `2px solid ${isSelected ? '#4f46e5' : 'var(--border)'}`,
                         opacity: available ? 1 : 0.5,
                         transition: 'all 0.2s',
                       }}
@@ -132,7 +157,7 @@ export function CampaignContributionModal({
                         marginBottom: 6,
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Gift size={14} style={{ color: isSelected ? '#8b5cf6' : '#64748b' }} />
+                          <Gift size={14} style={{ color: isSelected ? '#8b5cf6' : 'var(--text-muted)' }} />
                           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
                             {tier.title}
                           </span>
@@ -168,7 +193,7 @@ export function CampaignContributionModal({
                   style={{
                     padding: 12, borderRadius: 10, cursor: 'pointer',
                     background: !selectedTier && !amount ? '#4f46e510' : 'transparent',
-                    border: `1px dashed ${!selectedTier ? '#4f46e540' : '#334155'}`,
+                    border: `1px dashed ${!selectedTier ? '#4f46e540' : 'var(--border)'}`,
                     textAlign: 'center',
                   }}
                 >
@@ -188,8 +213,8 @@ export function CampaignContributionModal({
                     onClick={() => setAmount(String(preset))}
                     style={{
                       flex: 1, padding: '8px 4px', borderRadius: 8,
-                      background: amount === String(preset) ? '#4f46e520' : '#1e293b',
-                      border: `1px solid ${amount === String(preset) ? '#4f46e5' : '#334155'}`,
+                      background: amount === String(preset) ? '#4f46e520' : 'var(--bg-secondary)',
+                      border: `1px solid ${amount === String(preset) ? '#4f46e5' : 'var(--border)'}`,
                       color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                     }}
                   >
@@ -247,8 +272,8 @@ export function CampaignContributionModal({
 
             {/* Fee note */}
             <div style={{
-              background: '#1e3a5f', borderRadius: 8, padding: 10,
-              display: 'flex', gap: 8, fontSize: 12, color: '#93c5fd',
+              background: 'var(--bg-secondary)', borderRadius: 8, padding: 10, border: '1px solid var(--border)',
+              display: 'flex', gap: 8, fontSize: 12, color: '#8b5cf6',
               marginBottom: 16, lineHeight: 1.4,
             }}>
               <Shield size={14} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -301,33 +326,46 @@ export function CampaignContributionModal({
               {selectedTier && (
                 <div style={{
                   fontSize: 12, color: '#a78bfa', marginBottom: 8,
-                  background: '#1e1b4b', borderRadius: 6, padding: '6px 10px', display: 'inline-block',
+                  background: '#4f46e515', borderRadius: 6, padding: '6px 10px', display: 'inline-block',
                 }}>
                   {selectedTier.title} tier
                 </div>
               )}
             </div>
 
-            {intent.has_sufficient_balance ? (
+            {(intent.has_sufficient_balance || intent.has_wallet_balance) ? (
               <>
                 {/* Sufficient balance — show confirm */}
                 <div style={{
-                  background: '#1e3b2f', borderRadius: 8, padding: 12,
+                  background: '#10b98110', borderRadius: 8, padding: 12, border: '1px solid #10b98130',
                   marginBottom: 16, textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: 13, color: '#4ade80' }}>
-                    Balance: <strong>${intent.current_balance}</strong>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    After contribution: ${(parseFloat(intent.current_balance) - parseFloat(intent.amount)).toFixed(2)}
-                  </div>
+                  {intent.has_wallet_balance && intent.on_chain ? (
+                    <>
+                      <div style={{ fontSize: 13, color: '#10b981' }}>
+                        Wallet USDC: <strong>${parseFloat(intent.wallet_balance || '0').toFixed(2)}</strong>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        Pays directly from your wallet via on-chain escrow
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 13, color: '#10b981' }}>
+                        Balance: <strong>${intent.current_balance}</strong>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                        After contribution: ${(parseFloat(intent.current_balance) - parseFloat(intent.amount)).toFixed(2)}
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button
                     onClick={() => { setStep('amount'); setIntent(null); }}
                     style={{
                       flex: 1, padding: '10px 16px', borderRadius: 8,
-                      background: '#334155', border: 'none', color: 'var(--text)',
+                      background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text)',
                       fontSize: 13, cursor: 'pointer',
                     }}
                   >
@@ -341,7 +379,7 @@ export function CampaignContributionModal({
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                     }}
                   >
-                    Confirm — Pay ${intent.amount}
+                    {intent.on_chain ? 'Sign & Back' : `Confirm — Pay $${intent.amount}`}
                   </button>
                 </div>
               </>
@@ -435,7 +473,7 @@ export function CampaignContributionModal({
                   onClick={() => { setStep('amount'); setIntent(null); }}
                   style={{
                     width: '100%', padding: '10px 16px', borderRadius: 8,
-                    background: '#334155', border: 'none', color: 'var(--text)',
+                    background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text)',
                     fontSize: 13, cursor: 'pointer',
                   }}
                 >
@@ -479,7 +517,7 @@ export function CampaignContributionModal({
               onClick={() => { setStep('amount'); setError(''); }}
               style={{
                 padding: '10px 24px', borderRadius: 8,
-                background: '#334155', border: 'none', color: 'var(--text)',
+                background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text)',
                 fontSize: 13, cursor: 'pointer',
               }}
             >

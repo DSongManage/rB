@@ -66,6 +66,8 @@ from .views.campaign import (
     CampaignViewSet,
     CreateCampaignContributionIntentView,
     ConfirmCampaignContributionView,
+    SubmitSignedContributionView,
+    CreateCampaignProjectView,
 )
 
 # Router for collaboration and notification ViewSets
@@ -217,6 +219,8 @@ urlpatterns = [
     # Admin treasury dashboard
     path('staff/treasury/', treasury_dashboard, name='admin_treasury_dashboard'),
     path('api/staff/treasury/', treasury_api, name='admin_treasury_api'),
+    # Campaign unified creation (must be before router to avoid campaigns/<pk> catching it)
+    path('api/campaigns/create-with-project/', CreateCampaignProjectView.as_view(), name='create_campaign_project'),
     # Collaboration API endpoints
     path('api/', include(router.urls)),
     # Nested routes for proposals and ratings under collaborative projects
@@ -285,6 +289,7 @@ urlpatterns = [
     path('api/payment/escrow-intent/', CreateEscrowFundingIntentView.as_view(), name='create_escrow_intent'),
     path('api/payment/campaign-intent/', CreateCampaignContributionIntentView.as_view(), name='campaign_contribution_intent'),
     path('api/payment/campaign-confirm/', ConfirmCampaignContributionView.as_view(), name='confirm_campaign_contribution'),
+    path('api/payment/campaign-submit-signed/', SubmitSignedContributionView.as_view(), name='submit_signed_contribution'),
     path('api/payment/intent/<int:intent_id>/select/', SelectPaymentMethodView.as_view(), name='select_payment_method'),
     path('api/payment/intent/<int:intent_id>/pay-with-balance/', PayWithBalanceView.as_view(), name='pay_with_balance'),
     path('api/payment/intent/<int:intent_id>/submit/', SubmitSponsoredPaymentView.as_view(), name='submit_sponsored_payment'),

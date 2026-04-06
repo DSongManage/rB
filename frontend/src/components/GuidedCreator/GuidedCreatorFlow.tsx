@@ -13,6 +13,7 @@ const ICON_MAP: Record<string, React.ComponentType<any>> = {
 type TerminalAction =
   | { type: 'campaign' }
   | { type: 'campaignSolo' }
+  | { type: 'campaignWizard' }
   | { type: 'createProject' }
   | { type: 'publish' }
   | { type: 'browseCollaborators' };
@@ -59,6 +60,9 @@ export default function GuidedCreatorFlow() {
         case 'campaignSolo':
           navigate('/studio/campaign/new?type=solo');
           break;
+        case 'campaignWizard':
+          navigate('/studio/campaign/wizard');
+          break;
         case 'createProject': {
           const timestamp = new Date().toLocaleString('en-US', {
             month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
@@ -96,9 +100,7 @@ export default function GuidedCreatorFlow() {
   // When navigating to step 99 via navNext, determine the pending action
   const handleNavNext = useCallback((stepId: StepId) => {
     if (stepId === 99) {
-      if (currentStep === 8) {
-        setPendingAction({ type: 'campaign' }); // collaborative — raising to hire
-      } else if (currentStep === 12) {
+      if (currentStep === 12) {
         setPendingAction({ type: 'campaignSolo' }); // solo self-escrow
       }
     }

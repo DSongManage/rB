@@ -39,6 +39,7 @@ def create_notification(
     project: Optional[CollaborativeProject] = None,
     action_url: Optional[str] = None,
     contract_task=None,
+    campaign=None,
     action_required: bool = False,
     action_options: Optional[list] = None,
     expires_at=None,
@@ -50,7 +51,7 @@ def create_notification(
     Queues an email via Celery if the user has email enabled.
 
     Supports actionable notifications with action_required, action_options,
-    contract_task, and expires_at for escrow lifecycle events.
+    contract_task, campaign, and expires_at for escrow/campaign lifecycle events.
     """
     pref = get_notification_preference(recipient, notification_type)
     resolved_action_url = action_url or (f'/studio/{project.id}' if project else '')
@@ -65,6 +66,7 @@ def create_notification(
             message=message,
             project=project,
             contract_task=contract_task,
+            campaign=campaign,
             action_url=resolved_action_url,
             action_required=action_required,
             action_options=action_options or [],
@@ -828,3 +830,238 @@ def get_unread_count(user: User) -> int:
         recipient=user,
         read=False
     ).count()
+
+
+# ============================================================
+# Campaign Notification Helpers
+# ============================================================
+
+def _notify_all_backers(campaign, notification_type: str, title: str, message: str):
+    """Bulk-create notifications for all confirmed, non-withdrawn backers."""
+    contributions = campaign.contributions.filter(
+        status__in=['confirmed', 'transferred'], withdrawn=False
+    ).select_related('backer')
+    notifications = [
+        Notification(
+            recipient=c.backer,
+            from_user=campaign.creator,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            campaign=campaign,
+            action_url=f'/campaigns/{campaign.id}',
+        )
+        for c in contributions
+    ]
+    if notifications:
+        Notification.objects.bulk_create(notifications)
+
+
+def notify_campaign_backed(backer_user: User, campaign) -> Optional[Notification]:
+    """Confirm backing to the backer."""
+    return create_notification(
+        recipient=backer_user,
+        from_user=campaign.creator,
+        notification_type='campaign_backed',
+        title=f'Backed: {campaign.title}',
+        message=f'You backed "{campaign.title}". Thank you for your support!',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_campaign_new_backer(backer_user: User, campaign) -> Optional[Notification]:
+    """Alert creator about a new backer."""
+    return create_notification(
+        recipient=campaign.creator,
+        from_user=backer_user,
+        notification_type='campaign_new_backer',
+        title=f'New Backer: {campaign.title}',
+        message=f'{backer_user.username} backed "{campaign.title}".',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_campaign_goal_reached(campaign) -> Optional[Notification]:
+    """Notify creator that campaign reached its funding goal."""
+    return create_notification(
+        recipient=campaign.creator,
+        from_user=campaign.creator,
+        notification_type='campaign_goal_reached',
+        title=f'Goal Reached: {campaign.title}',
+        message=f'"{campaign.title}" has reached its funding goal of ${campaign.funding_goal}!',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_campaign_funded(campaign):
+    """Bulk notify all backers that campaign is funded."""
+    _notify_all_backers(
+        campaign,
+        'campaign_funded',
+        f'Campaign Funded: {campaign.title}',
+        f'"{campaign.title}" has reached its funding goal of ${campaign.funding_goal}!',
+    )
+
+
+def notify_campaign_failed(campaign):
+    """Bulk notify all backers that campaign failed."""
+    _notify_all_backers(
+        campaign,
+        'campaign_failed',
+        f'Campaign Not Funded: {campaign.title}',
+        f'"{campaign.title}" did not reach its funding goal. Your contribution will be refunded.',
+    )
+
+
+def notify_campaign_launched(campaign) -> Optional[Notification]:
+    """Confirm campaign launch to creator."""
+    return create_notification(
+        recipient=campaign.creator,
+        from_user=campaign.creator,
+        notification_type='campaign_launched',
+        title=f'Campaign Live: {campaign.title}',
+        message=f'"{campaign.title}" is now live and accepting backers!',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_campaign_backer_withdrew(backer_user: User, campaign) -> Optional[Notification]:
+    """Notify creator that a backer withdrew."""
+    return create_notification(
+        recipient=campaign.creator,
+        from_user=backer_user,
+        notification_type='campaign_withdrew',
+        title=f'Backer Withdrew: {campaign.title}',
+        message=f'A backer withdrew their contribution from "{campaign.title}".',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_campaign_stretch_reached(campaign, stretch_goal):
+    """Bulk notify all backers that a stretch goal was reached."""
+    _notify_all_backers(
+        campaign,
+        'campaign_stretch_hit',
+        f'Stretch Goal Unlocked: {stretch_goal.title}',
+        f'"{campaign.title}" unlocked stretch goal "{stretch_goal.title}" at ${stretch_goal.threshold_amount}!',
+    )
+
+
+def notify_campaign_role_interest(user: User, campaign, role_name: str) -> Optional[Notification]:
+    """Notify creator that someone expressed interest in an open role."""
+    return create_notification(
+        recipient=campaign.creator,
+        from_user=user,
+        notification_type='campaign_role_interest',
+        title=f'Role Interest: {role_name}',
+        message=f'{user.username} expressed interest in the {role_name} role on "{campaign.title}".',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_campaign_team_joined(campaign, user: User, role_name: str):
+    """Bulk notify all backers that a team member joined."""
+    _notify_all_backers(
+        campaign,
+        'campaign_team_joined',
+        f'Team Update: {campaign.title}',
+        f'{user.username} has joined "{campaign.title}" as {role_name}.',
+    )
+
+
+def notify_campaign_team_complete(campaign):
+    """Bulk notify all backers that all roles are filled."""
+    _notify_all_backers(
+        campaign,
+        'campaign_team_complete',
+        f'Team Complete: {campaign.title}',
+        f'All roles on "{campaign.title}" are now filled! The team is ready for production.',
+    )
+
+
+def notify_campaign_update_posted(campaign, update):
+    """Bulk notify all backers about a new campaign update."""
+    _notify_all_backers(
+        campaign,
+        'campaign_prod_update',
+        f'Update: {update.title}',
+        f'{campaign.creator.username} posted an update on "{campaign.title}": {update.title}',
+    )
+
+
+def notify_campaign_role_deadline_warning(campaign, role_name: str, days_remaining: int) -> Optional[Notification]:
+    """Warn creator that a role assignment deadline is approaching."""
+    return create_notification(
+        recipient=campaign.creator,
+        from_user=campaign.creator,
+        notification_type='campaign_role_warn',
+        title=f'Role Deadline: {role_name}',
+        message=(
+            f'The {role_name} role on "{campaign.title}" must be filled within {days_remaining} days '
+            f'or its milestones will be refunded to backers.'
+        ),
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_campaign_role_refunded(campaign, role_name: str):
+    """Notify creator and backers that unfilled role milestones were refunded."""
+    create_notification(
+        recipient=campaign.creator,
+        from_user=campaign.creator,
+        notification_type='campaign_role_refund',
+        title=f'Role Refunded: {role_name}',
+        message=f'The {role_name} role on "{campaign.title}" was not filled. Milestones have been refunded to backers.',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+    _notify_all_backers(
+        campaign,
+        'campaign_partial_refund',
+        f'Partial Refund: {campaign.title}',
+        f'The {role_name} role on "{campaign.title}" was not filled. A proportional refund is being processed.',
+    )
+
+
+def notify_campaign_complete(campaign):
+    """Bulk notify all backers that the campaign project is complete."""
+    _notify_all_backers(
+        campaign,
+        'campaign_complete',
+        f'Project Complete: {campaign.title}',
+        f'"{campaign.title}" has been completed! Your rewards will be fulfilled soon.',
+    )
+
+
+def notify_campaign_refund(campaign, contribution, amount):
+    """Notify a backer that their refund has been processed."""
+    return create_notification(
+        recipient=contribution.backer,
+        from_user=campaign.creator,
+        notification_type='campaign_refund',
+        title=f'Refund Processed: {campaign.title}',
+        message=f'Your refund of ${amount:.2f} for "{campaign.title}" has been processed.',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
+
+
+def notify_backer_content_access(contribution, milestone) -> Optional[Notification]:
+    """Notify backer that they have access to completed work."""
+    campaign = contribution.campaign
+    return create_notification(
+        recipient=contribution.backer,
+        from_user=campaign.creator,
+        notification_type='backer_content_access',
+        title=f'Content Unlocked: {milestone.title}',
+        message=f'You now have access to completed work from "{milestone.title}" on "{campaign.title}".',
+        campaign=campaign,
+        action_url=f'/campaigns/{campaign.id}',
+    )
