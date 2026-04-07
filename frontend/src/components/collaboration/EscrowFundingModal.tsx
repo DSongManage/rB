@@ -128,9 +128,9 @@ export function EscrowFundingModal({
 
       setStep('success');
 
-      // Refresh project data after short delay
-      setTimeout(() => {
-        onFunded();
+      // Refresh project data after short delay, await before closing
+      setTimeout(async () => {
+        await onFunded();
         onClose();
       }, 2000);
     } catch (err: any) {
