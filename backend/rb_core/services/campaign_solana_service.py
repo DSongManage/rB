@@ -429,17 +429,12 @@ class CampaignSolanaService:
             data += struct.pack('<q', dl)
         data += struct.pack('<H', 300)  # 3% fee
 
-        # Derive ATAs for writer and vault
-        writer_ata = self.derive_ata(self.platform_pubkey, self.usdc_mint)
-        vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
-
+        # No token accounts needed — init only creates the PDA, no funds transfer
         accounts = [
             AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),   # writer/payer
             AccountMeta(artist_pubkey, is_signer=False, is_writable=False),         # artist
             AccountMeta(self.platform_pubkey, is_signer=False, is_writable=False),  # platform_wallet
             AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # vault (PDA, init)
-            AccountMeta(writer_ata, is_signer=False, is_writable=True),             # writer_token_account
-            AccountMeta(vault_ata, is_signer=False, is_writable=True),              # vault_token_account
             AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
         ]
