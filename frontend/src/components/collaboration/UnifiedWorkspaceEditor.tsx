@@ -492,8 +492,20 @@ export default function UnifiedWorkspaceEditor({
               Workspace Setup — {pagesWithDesc}/{totalPageCount} pages have descriptions
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Write page briefs for your artist. Complete setup to notify them and fund escrow.
+              Write page briefs and assign each page to a milestone. Complete setup to notify your artist.
             </div>
+            {/* Show unassigned milestones */}
+            {(() => {
+              const allTasks = (project.collaborators || []).flatMap(c => c.contract_tasks || []);
+              const assignedMilestoneIds = new Set(pages.filter(p => p.milestone).map(p => p.milestone));
+              const unassigned = allTasks.filter(t => !assignedMilestoneIds.has(t.id));
+              if (unassigned.length === 0) return null;
+              return (
+                <div style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>
+                  {unassigned.map(t => `Milestone "${t.title}" has no pages assigned.`).join('\n')}
+                </div>
+              );
+            })()}
             {setupError && (
               <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6, whiteSpace: 'pre-line' }}>{setupError}</div>
             )}
@@ -745,6 +757,45 @@ export default function UnifiedWorkspaceEditor({
             {selectedPage && (
               <PageStatusBadge status={selectedPage.page_status || 'script_only'} />
             )}
+            {/* Milestone assignment (owner only) */}
+            {selectedPage && isProjectOwner && (() => {
+              const allTasks = (project.collaborators || []).flatMap(c =>
+                (c.contract_tasks || []).map(t => ({ ...t, collaborator: c.username || c.display_name || 'TBD' }))
+              );
+              if (allTasks.length === 0) return null;
+              return (
+                <select
+                  value={selectedPage.milestone || ''}
+                  onChange={async (e) => {
+                    const milestoneId = e.target.value ? parseInt(e.target.value) : null;
+                    try {
+                      const { API_URL } = await import('../../config');
+                      const csrfMatch = document.cookie.match(/csrftoken=([^;]+)/);
+                      await fetch(`${API_URL}/api/comic-pages/${selectedPage.id}/`, {
+                        method: 'PATCH',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfMatch?.[1] || '' },
+                        body: JSON.stringify({ milestone: milestoneId }),
+                      });
+                      setPages(prev => prev.map(p => p.id === selectedPage.id ? { ...p, milestone: milestoneId } : p));
+                    } catch (err) { console.error('Failed to assign milestone:', err); }
+                  }}
+                  style={{
+                    fontSize: 12, padding: '4px 8px', borderRadius: 6,
+                    border: '1px solid var(--panel-border)', background: 'var(--bg)',
+                    color: selectedPage.milestone ? '#10b981' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="">No milestone</option>
+                  {allTasks.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.title} ({t.collaborator}) — ${parseFloat(t.payment_amount || '0').toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              );
+            })()}
             {!canEditScript && !canUploadArt && (
               <span style={{ fontSize: 12, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <AlertCircle size={12} /> View only

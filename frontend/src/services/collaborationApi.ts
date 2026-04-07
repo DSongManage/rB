@@ -2857,6 +2857,8 @@ export interface ComicPage {
   script_data: ScriptData;
   // Workspace workflow
   page_status: PageStatus;
+  milestone?: number | null;
+  brief_complete?: boolean;
   // Content
   panels: ComicPanel[];
   divider_lines: DividerLine[];
@@ -2869,7 +2871,7 @@ export interface ComicPage {
 
 // ===== Workspace Types =====
 
-export type PageStatus = 'script_only' | 'in_progress' | 'art_delivered' | 'revision_requested' | 'approved';
+export type PageStatus = 'setup' | 'ready' | 'funded' | 'script_only' | 'in_progress' | 'art_delivered' | 'revision_requested' | 'approved';
 
 export interface PageReferenceImage {
   id: number;
