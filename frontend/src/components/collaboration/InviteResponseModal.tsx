@@ -349,7 +349,7 @@ export function InviteResponseModal({
                     <div style={{ color: 'var(--text)', fontSize: 32, fontWeight: 700, marginBottom: 4 }}>
                       ${totalAmount.toFixed(2)} <span style={{ fontSize: 16, color: 'var(--text-muted)', fontWeight: 400 }}>USD</span>
                     </div>
-                    <div style={{ color: '#6ee7b7', fontSize: 13, lineHeight: 1.5 }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
                       {isWorkForHire
                         ? 'This amount will be held in on-chain escrow and released to you as you complete each milestone.'
                         : `$${totalAmount.toFixed(2)} upfront via escrow, plus ${myRole.revenue_percentage}% of ongoing sales revenue.`
@@ -592,7 +592,7 @@ export function InviteResponseModal({
                       {isEscrow ? 'Escrow Protection' : 'On-Chain Agreement'}
                     </span>
                   </div>
-                  <p style={{ margin: 0, color: '#c4b5fd', fontSize: 13, lineHeight: 1.6 }}>
+                  <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6 }}>
                     {isWorkForHire
                       ? `By accepting, you agree to deliver the milestones above for $${totalAmount.toFixed(2)}. The full amount will be held in on-chain escrow and released to you automatically as each milestone is completed and approved.`
                       : isEscrow
