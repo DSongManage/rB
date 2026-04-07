@@ -427,6 +427,13 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             if escrow_funded:
                 invitation.contract_tasks.filter(status='pending').update(status='in_progress')
 
+        # Auto-generate workspace pages from milestones
+        if invitation.contract_tasks.exists() and project.content_type == 'comic':
+            try:
+                project.auto_generate_workspace_pages(invitation)
+            except Exception as e:
+                logger.warning('Failed to auto-generate workspace pages: %s', e)
+
         # Notify project creator and other collaborators
         notify_invitation_response(invitation, accepted=True)
 
@@ -472,6 +479,109 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         notify_invitation_response(invitation, accepted=False)
 
         return Response({'message': 'Invitation declined'})
+
+    @action(detail=True, methods=['get'], url_path='workspace/setup-status')
+    def workspace_setup_status(self, request, pk=None):
+        """Get workspace setup status for the project owner."""
+        project = self.get_object()
+        if project.created_by != request.user:
+            return Response({'error': 'Only the project owner can view setup status.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get all milestones across all collaborators
+        from ..models import ContractTask, ComicPage
+        tasks = ContractTask.objects.filter(
+            collaborator_role__project=project,
+            collaborator_role__status='accepted',
+        ).order_by('collaborator_role__id', 'order')
+
+        milestones = []
+        for task in tasks:
+            pages = ComicPage.objects.filter(milestone=task).order_by('page_number')
+            pages_with_desc = pages.exclude(
+                script_data={},
+            ).exclude(
+                script_data__page_description='',
+            ).count()
+            # Also count pages where page_description is non-empty
+            total_pages_with_desc = 0
+            for p in pages:
+                desc = (p.script_data or {}).get('page_description', '')
+                if desc.strip():
+                    total_pages_with_desc += 1
+
+            milestones.append({
+                'task_id': task.id,
+                'title': task.title,
+                'description': task.description,
+                'amount': str(task.payment_amount),
+                'collaborator': task.collaborator_role.user.username if task.collaborator_role.user else 'TBD',
+                'role': task.collaborator_role.role,
+                'page_count': pages.count(),
+                'pages_with_description': total_pages_with_desc,
+                'pages': [{
+                    'id': p.id,
+                    'page_number': p.page_number,
+                    'has_description': bool((p.script_data or {}).get('page_description', '').strip()),
+                    'status': p.page_status,
+                } for p in pages],
+            })
+
+        total_pages = sum(m['page_count'] for m in milestones)
+        total_with_desc = sum(m['pages_with_description'] for m in milestones)
+        all_have_pages = all(m['page_count'] > 0 for m in milestones)
+
+        return Response({
+            'workspace_setup_complete': project.workspace_setup_complete,
+            'milestones': milestones,
+            'total_pages': total_pages,
+            'pages_with_description': total_with_desc,
+            'all_milestones_have_pages': all_have_pages,
+            'ready_to_complete': all_have_pages and total_with_desc >= total_pages and total_pages > 0,
+        })
+
+    @action(detail=True, methods=['post'], url_path='workspace/complete-setup')
+    def workspace_complete_setup(self, request, pk=None):
+        """Mark workspace setup as complete. Validates all pages have descriptions."""
+        project = self.get_object()
+        if project.created_by != request.user:
+            return Response({'error': 'Only the project owner can complete setup.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if project.workspace_setup_complete:
+            return Response({'error': 'Workspace setup already complete.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from ..models import ContractTask, ComicPage
+
+        # Validate: every milestone has pages, every page has description
+        tasks = ContractTask.objects.filter(
+            collaborator_role__project=project,
+            collaborator_role__status='accepted',
+        )
+        errors = []
+        for task in tasks:
+            pages = ComicPage.objects.filter(milestone=task)
+            if not pages.exists():
+                errors.append(f'Milestone "{task.title}" has no pages assigned.')
+                continue
+            for p in pages:
+                desc = (p.script_data or {}).get('page_description', '')
+                if not desc.strip():
+                    errors.append(f'Page {p.page_number} (milestone "{task.title}") needs a description.')
+
+        if errors:
+            return Response({'error': 'Setup incomplete', 'missing': errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            project.workspace_setup_complete = True
+            project.workspace_setup_completed_at = timezone.now()
+            project.save(update_fields=['workspace_setup_complete', 'workspace_setup_completed_at'])
+
+            # Transition all setup pages to ready
+            ComicPage.objects.filter(
+                milestone__collaborator_role__project=project,
+                page_status='setup',
+            ).update(page_status='ready')
+
+        return Response({'status': 'complete', 'message': 'Workspace setup complete. Fund escrow to begin production.'})
 
     @action(detail=True, methods=['post'])
     def counter_propose(self, request, pk=None):
@@ -1104,6 +1214,22 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 {'error': 'Only the assigned collaborator can mark this task complete'},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        # Validate all linked pages have art delivered (for comic projects)
+        from ..models import ComicPage
+        linked_pages = ComicPage.objects.filter(milestone=task)
+        if linked_pages.exists():
+            pages_without_art = linked_pages.exclude(
+                page_status__in=['art_delivered', 'approved']
+            )
+            if pages_without_art.exists():
+                missing = [{'page_number': p.page_number, 'status': p.page_status} for p in pages_without_art]
+                return Response({
+                    'error': 'Not all pages have art uploaded.',
+                    'pages_remaining': missing,
+                    'total': linked_pages.count(),
+                    'delivered': linked_pages.count() - pages_without_art.count(),
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         # Mark complete
         try:
@@ -2134,6 +2260,15 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             activated = role.contract_tasks.filter(status='pending').update(status='in_progress')
             if activated:
                 logger.info(f"[FundEscrow] Activated {activated} pending tasks for {role.user.username}")
+
+        # Transition workspace pages: ready → funded
+        from ..models import ComicPage
+        funded_pages = ComicPage.objects.filter(
+            milestone__collaborator_role=role,
+            page_status='ready',
+        ).update(page_status='funded')
+        if funded_pages:
+            logger.info(f"[FundEscrow] Transitioned {funded_pages} pages to 'funded' for {role.user.username}")
 
         # Notify collaborator that escrow is funded
         notify_escrow_funded(core_user, role)

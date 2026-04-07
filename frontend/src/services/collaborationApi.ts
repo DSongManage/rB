@@ -52,6 +52,10 @@ export interface CollaborativeProject {
   has_active_dispute: boolean;
   has_active_breach: boolean;
   can_mint_status?: CanMintStatus;
+  // Workspace setup
+  workspace_setup_complete?: boolean;
+  workspace_setup_completed_at?: string;
+  is_campaign_funded?: boolean;
 }
 
 export interface CollaborativeProjectListItem {

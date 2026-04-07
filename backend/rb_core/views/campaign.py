@@ -756,6 +756,17 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 role.escrow_pda_address = escrow_pda
                 role.save(update_fields=['escrow_pda_address'])
 
+            # Auto-generate workspace pages for comic projects
+            if campaign.project and campaign.project.content_type == 'comic':
+                for role in campaign.project.collaborators.filter(
+                    status='accepted', contract_type__in=['work_for_hire', 'hybrid']
+                ):
+                    if role.contract_tasks.exists():
+                        try:
+                            campaign.project.auto_generate_workspace_pages(role)
+                        except Exception as e:
+                            logger.warning('[CampaignTransfer] Failed to auto-generate pages for %s: %s', role, e)
+
             logger.info('[CampaignTransfer] Campaign %d transferred. PDA2: %s, TX: %s',
                         campaign.id, escrow_pda, transfer_sig)
 

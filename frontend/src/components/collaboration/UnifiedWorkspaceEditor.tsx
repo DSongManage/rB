@@ -333,6 +333,56 @@ export default function UnifiedWorkspaceEditor({
     );
   }
 
+  // ── Workspace access gating ──
+  // Non-owners see holding state if workspace isn't set up or funded
+  const hasEscrowCollaborators = project.collaborators?.some(
+    c => c.contract_type === 'work_for_hire' || c.contract_type === 'hybrid'
+  );
+
+  if (!isProjectOwner && hasEscrowCollaborators) {
+    const myRole = project.collaborators?.find(c => c.user === currentUser.id);
+    const isEscrowRole = myRole && (myRole.contract_type === 'work_for_hire' || myRole.contract_type === 'hybrid');
+
+    if (isEscrowRole) {
+      // Check if workspace is set up
+      if (!project.workspace_setup_complete) {
+        return (
+          <div style={{
+            background: 'var(--panel)', border: '1px solid var(--panel-border)',
+            borderRadius: 12, padding: 48, textAlign: 'center', maxWidth: 480, margin: '40px auto',
+          }}>
+            <FileText size={48} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
+            <h3 style={{ fontFamily: 'var(--font-heading)', margin: '0 0 8px', color: 'var(--text)', fontSize: 22, fontWeight: 400 }}>
+              Workspace is being prepared
+            </h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6 }}>
+              The project owner is setting up your workspace — writing page briefs, adding references, and defining deliverables. You'll be notified when it's ready to work on.
+            </p>
+          </div>
+        );
+      }
+
+      // Workspace set up but escrow not funded
+      const escrowFunded = myRole.escrow_funded_amount && parseFloat(myRole.escrow_funded_amount) > 0;
+      if (!escrowFunded) {
+        return (
+          <div style={{
+            background: 'var(--panel)', border: '1px solid var(--panel-border)',
+            borderRadius: 12, padding: 48, textAlign: 'center', maxWidth: 480, margin: '40px auto',
+          }}>
+            <FileText size={48} style={{ color: '#f59e0b', marginBottom: 16 }} />
+            <h3 style={{ fontFamily: 'var(--font-heading)', margin: '0 0 8px', color: 'var(--text)', fontSize: 22, fontWeight: 400 }}>
+              Workspace ready — awaiting funding
+            </h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6 }}>
+              Your workspace has been set up. The project owner needs to fund the escrow before production begins. You'll be notified when funding is complete.
+            </p>
+          </div>
+        );
+      }
+    }
+  }
+
   const handleCreateFirstIssue = async () => {
     setError('');
     try {
@@ -387,7 +437,82 @@ export default function UnifiedWorkspaceEditor({
     );
   }
 
+  // Setup completion handler for project owner
+  const [completingSetup, setCompletingSetup] = useState(false);
+  const [setupError, setSetupError] = useState('');
+
+  const handleCompleteSetup = async () => {
+    setCompletingSetup(true);
+    setSetupError('');
+    try {
+      const { API_URL } = await import('../../config');
+      const res = await fetch(`${API_URL}/api/collaborative-projects/${project.id}/workspace/complete-setup/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSetupError(data.error || 'Setup incomplete');
+        if (data.missing) setSetupError(data.missing.join('\n'));
+      } else {
+        onProjectUpdate?.({ ...project, workspace_setup_complete: true } as any);
+      }
+    } catch (err: any) {
+      setSetupError(err.message || 'Failed to complete setup');
+    } finally {
+      setCompletingSetup(false);
+    }
+  };
+
+  // Count pages with descriptions for setup progress
+  const totalPageCount = pages.length;
+  const pagesWithDesc = pages.filter(p => {
+    const desc = (p.script_data as any)?.page_description || '';
+    return desc.trim().length > 0;
+  }).length;
+
   return (
+    <div>
+      {/* Setup banner for project owner */}
+      {isProjectOwner && !project.workspace_setup_complete && hasEscrowCollaborators && totalPageCount > 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #f59e0b15 0%, #8b5cf615 100%)',
+          border: '1px solid #f59e0b40',
+          borderRadius: 12, padding: 16, marginBottom: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexWrap: 'wrap', gap: 12,
+        }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+              Workspace Setup — {pagesWithDesc}/{totalPageCount} pages have descriptions
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Write page briefs for your artist. Complete setup to notify them and fund escrow.
+            </div>
+            {setupError && (
+              <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6, whiteSpace: 'pre-line' }}>{setupError}</div>
+            )}
+          </div>
+          <button
+            onClick={handleCompleteSetup}
+            disabled={completingSetup || pagesWithDesc < totalPageCount}
+            style={{
+              padding: '10px 20px', borderRadius: 8, border: 'none',
+              background: pagesWithDesc >= totalPageCount ? '#10b981' : 'var(--bg-secondary)',
+              color: pagesWithDesc >= totalPageCount ? '#fff' : 'var(--text-muted)',
+              fontSize: 13, fontWeight: 600,
+              cursor: pagesWithDesc >= totalPageCount ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {completingSetup ? 'Completing...' : 'Complete Setup'}
+          </button>
+        </div>
+      )}
+
     <div style={{
       display: 'flex',
       flexDirection: isPhone ? 'column' : 'row',
@@ -1007,6 +1132,7 @@ export default function UnifiedWorkspaceEditor({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

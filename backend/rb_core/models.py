@@ -2052,6 +2052,16 @@ class CollaborativeProject(models.Model):
         help_text="Whether this project has already triggered founding creator checks"
     )
 
+    # Workspace setup tracking
+    workspace_setup_complete = models.BooleanField(
+        default=False,
+        help_text="Author has completed workspace setup (all pages have briefs)"
+    )
+    workspace_setup_completed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When workspace setup was marked complete"
+    )
+
     # Dispute/freeze status
     has_active_dispute = models.BooleanField(
         default=False,
@@ -2144,6 +2154,61 @@ class CollaborativeProject(models.Model):
             'can_mint': len(blockers) == 0,
             'blockers': blockers
         }
+
+    def auto_generate_workspace_pages(self, collaborator_role):
+        """Auto-generate ComicPage entries from a collaborator's milestones.
+
+        Called after invitation acceptance or campaign transfer.
+        Creates pages linked to each ContractTask milestone.
+        """
+        import re
+        tasks = collaborator_role.contract_tasks.all().order_by('order')
+        if not tasks.exists():
+            return
+
+        # Get or create a default issue for workspace pages
+        issue = self.issues.first()
+        if not issue:
+            issue = ComicIssue.objects.create(
+                project=self,
+                series=None,
+                title='Workspace',
+                issue_number=1,
+            )
+
+        # Get current max page number
+        max_page = issue.issue_pages.aggregate(
+            max_num=models.Max('page_number')
+        )['max_num'] or 0
+
+        for task in tasks:
+            # Determine page count from page_range or title
+            page_count = 1
+            if task.page_range_start and task.page_range_end:
+                page_count = task.page_range_end - task.page_range_start + 1
+            else:
+                # Try to parse page count from title (e.g., "Pages 1-5" or "5 pages")
+                match = re.search(r'(\d+)\s*pages?', task.title, re.IGNORECASE)
+                if match:
+                    page_count = int(match.group(1))
+                match2 = re.search(r'pages?\s*(\d+)\s*-\s*(\d+)', task.title, re.IGNORECASE)
+                if match2:
+                    page_count = int(match2.group(2)) - int(match2.group(1)) + 1
+
+            for i in range(page_count):
+                max_page += 1
+                ComicPage.objects.create(
+                    issue=issue,
+                    project=self,
+                    page_number=max_page,
+                    milestone=task,
+                    page_status='setup',
+                    brief_complete=False,
+                    script_data={
+                        'page_description': task.description or '',
+                        'panels': [],
+                    },
+                )
 
     def is_campaign_eligible(self):
         """Check if this project can be linked to a campaign.
@@ -4395,11 +4460,27 @@ class ComicPage(models.Model):
         help_text="Structured script data for this page (description, panel scripts)"
     )
 
+    # Link to milestone (ContractTask)
+    milestone = models.ForeignKey(
+        'ContractTask',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='linked_pages',
+        help_text="The milestone/contract task this page belongs to"
+    )
+    brief_complete = models.BooleanField(
+        default=False,
+        help_text="Author has finished writing the description/references for this page"
+    )
+
     # Workspace workflow status
     PAGE_STATUS_CHOICES = [
-        ('script_only', 'Script Only'),
-        ('in_progress', 'In Progress'),
-        ('art_delivered', 'Art Delivered'),
+        ('setup', 'Setup'),                     # Auto-created, author needs to fill brief
+        ('ready', 'Ready'),                     # Author completed brief, waiting for funding
+        ('funded', 'Funded'),                   # Escrow funded, artist can begin
+        ('script_only', 'Script Only'),         # Legacy: script provided
+        ('in_progress', 'In Progress'),         # Artist working
+        ('art_delivered', 'Art Delivered'),      # Artist uploaded art
         ('revision_requested', 'Revision Requested'),
         ('approved', 'Approved'),
     ]

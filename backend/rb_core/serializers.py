@@ -820,12 +820,15 @@ class CollaborativeProjectSerializer(serializers.ModelSerializer):
             'authors_note', 'copyright_preview', 'is_solo', 'cover_image',
             'reading_direction',
             # Dispute/breach status
-            'has_active_dispute', 'has_active_breach', 'can_mint_status'
+            'has_active_dispute', 'has_active_breach', 'can_mint_status',
+            # Workspace setup
+            'workspace_setup_complete', 'workspace_setup_completed_at', 'is_campaign_funded',
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'created_by', 'created_by_username',
             'is_fully_approved', 'total_collaborators', 'is_solo', 'estimated_earnings', 'copyright_preview',
-            'has_active_dispute', 'has_active_breach', 'can_mint_status'
+            'has_active_dispute', 'has_active_breach', 'can_mint_status',
+            'workspace_setup_complete', 'workspace_setup_completed_at', 'is_campaign_funded',
         ]
 
     def get_recent_comments(self, obj):
@@ -1844,7 +1847,7 @@ class ComicPageSerializer(serializers.ModelSerializer):
             # Script data for writer-artist collaboration
             'script_data',
             # Workspace workflow
-            'page_status',
+            'page_status', 'milestone', 'brief_complete',
             # Nested content
             'panels', 'divider_lines',
             'reference_images', 'art_deliveries',
