@@ -105,6 +105,10 @@ export default function UnifiedWorkspaceEditor({
   const [showPreview, setShowPreview] = useState(false);
   const [previewPageIndex, setPreviewPageIndex] = useState(0);
 
+  // Setup completion state (must be before any early returns)
+  const [completingSetup, setCompletingSetup] = useState(false);
+  const [setupError, setSetupError] = useState('');
+
   // Current page's script data (local state for editing)
   const [scriptData, setScriptData] = useState<ScriptData>(createEmptyScriptData());
 
@@ -438,9 +442,6 @@ export default function UnifiedWorkspaceEditor({
   }
 
   // Setup completion handler for project owner
-  const [completingSetup, setCompletingSetup] = useState(false);
-  const [setupError, setSetupError] = useState('');
-
   const handleCompleteSetup = async () => {
     setCompletingSetup(true);
     setSetupError('');
