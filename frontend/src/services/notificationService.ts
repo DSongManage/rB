@@ -613,7 +613,7 @@ export function getTimeAgo(dateString: string): string {
  */
 export function getNotificationIcon(type: NotificationType): string {
   const icons: Record<NotificationType, string> = {
-    invitation: '📬',
+    invitation: '🤝',
     invitation_response: '✉️',
     counter_proposal: '🔄',
     comment: '💬',
