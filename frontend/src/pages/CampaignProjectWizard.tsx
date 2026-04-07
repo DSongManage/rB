@@ -8,7 +8,7 @@
  * Milestones use relative deadlines (days after funding).
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -16,6 +16,8 @@ import {
   ArrowLeft, ArrowRight, Rocket, Book, Layers, Image as ImageIcon,
   User, Upload, X, Plus, Trash2, DollarSign, Lock, Search, UserPlus,
 } from 'lucide-react';
+
+const DRAFT_KEY = 'rb_campaign_wizard_draft';
 import campaignApi, { CampaignTier } from '../services/campaignApi';
 import { collaborationApi } from '../services/collaborationApi';
 import { API_URL as API_BASE } from '../config';
@@ -111,8 +113,51 @@ export default function CampaignProjectWizard() {
   const [tierAmount, setTierAmount] = useState('');
   const [tierMaxBackers, setTierMaxBackers] = useState('');
 
+  // Cancel confirmation
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
   const defaultDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     .toISOString().split('T')[0];
+
+  // ── Draft save/restore ──
+  const isRestoring = useRef(false);
+
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (!saved) return;
+      const draft = JSON.parse(saved);
+      isRestoring.current = true;
+      if (draft.step) setStep(draft.step);
+      if (draft.title) setTitle(draft.title);
+      if (draft.description) setDescription(draft.description);
+      if (draft.contentType) setContentType(draft.contentType);
+      if (draft.deadline) setDeadline(draft.deadline);
+      if (draft.team) setTeam(draft.team);
+      if (draft.productionCosts) setProductionCosts(draft.productionCosts);
+      if (draft.pitchHtml) setPitchHtml(draft.pitchHtml);
+      if (draft.tiers) setTiers(draft.tiers);
+      if (draft.coverPreview) setCoverPreview(draft.coverPreview);
+      setTimeout(() => { isRestoring.current = false; }, 100);
+    } catch { /* ignore corrupt draft */ }
+  }, []);
+
+  // Auto-save draft on changes
+  useEffect(() => {
+    if (isRestoring.current) return;
+    const draft = { step, title, description, contentType, deadline, team, productionCosts, pitchHtml, tiers, coverPreview };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }, [step, title, description, contentType, deadline, team, productionCosts, pitchHtml, tiers, coverPreview]);
+
+  const clearDraft = useCallback(() => {
+    localStorage.removeItem(DRAFT_KEY);
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    clearDraft();
+    navigate('/studio');
+  }, [clearDraft, navigate]);
 
   // Computed
   const totalMilestones = team.reduce((sum, m) => sum + parseFloat(m.total_amount || '0'), 0);
@@ -251,6 +296,7 @@ export default function CampaignProjectWizard() {
 
       // Launch the campaign
       await campaignApi.launchCampaign(result.campaign_id);
+      clearDraft();
       navigate(`/campaigns/${result.campaign_id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to create campaign');
@@ -275,13 +321,21 @@ export default function CampaignProjectWizard() {
       minHeight: '100vh',
     }}>
       {/* Header */}
-      <button onClick={() => navigate(-1)} style={{
-        background: 'none', border: 'none', color: '#8b5cf6',
-        fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-        marginBottom: 16, padding: 0,
-      }}>
-        <ArrowLeft size={16} /> Back
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <button onClick={() => navigate(-1)} style={{
+          background: 'none', border: 'none', color: '#8b5cf6',
+          fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          padding: 0,
+        }}>
+          <ArrowLeft size={16} /> Back
+        </button>
+        <button onClick={() => setShowCancelConfirm(true)} style={{
+          background: 'none', border: '1px solid var(--border)', borderRadius: 8,
+          color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', padding: '6px 14px',
+        }}>
+          Cancel
+        </button>
+      </div>
 
       <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>
         Launch Campaign
@@ -804,7 +858,7 @@ export default function CampaignProjectWizard() {
           <button onClick={() => setStep(STEPS[stepIdx + 1].key)} disabled={!canNext} style={{
             flex: 2, padding: '14px 20px', borderRadius: 10, border: 'none',
             background: canNext ? 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)' : 'var(--bg-secondary)',
-            color: '#fff', fontWeight: 600, fontSize: 14, cursor: canNext ? 'pointer' : 'not-allowed',
+            color: canNext ? '#fff' : 'var(--text-muted)', fontWeight: 600, fontSize: 14, cursor: canNext ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
             Next: {STEPS[stepIdx + 1]?.label} <ArrowRight size={16} />
@@ -821,6 +875,57 @@ export default function CampaignProjectWizard() {
           </button>
         )}
       </div>
+
+      {/* Draft saved indicator */}
+      {title.trim().length > 0 && (
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 12, opacity: 0.6 }}>
+          Draft auto-saved
+        </p>
+      )}
+
+      {/* Cancel confirmation modal */}
+      {showCancelConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }} onClick={() => setShowCancelConfirm(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--panel, #fff)', borderRadius: 16, padding: 28,
+            maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: '0 0 8px' }}>
+              Cancel campaign?
+            </h3>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 24px', lineHeight: 1.5 }}>
+              Your draft is saved and will be restored next time you open the wizard.
+              To discard it permanently, choose "Discard draft".
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowCancelConfirm(false)} style={{
+                flex: 1, padding: '10px 16px', borderRadius: 8,
+                background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Keep editing
+              </button>
+              <button onClick={() => { clearDraft(); navigate('/studio'); }} style={{
+                flex: 1, padding: '10px 16px', borderRadius: 8,
+                background: '#ef4444', border: 'none',
+                color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Discard draft
+              </button>
+              <button onClick={() => navigate('/studio')} style={{
+                flex: 1, padding: '10px 16px', borderRadius: 8,
+                background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Save & exit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

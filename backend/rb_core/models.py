@@ -392,6 +392,12 @@ class UserProfile(models.Model):
     )
     revisions_requested = models.PositiveIntegerField(default=0, help_text="Total revision requests made as project owner")
 
+    # Campaign reputation
+    campaigns_created = models.PositiveIntegerField(default=0, help_text="Campaigns created by this user")
+    campaigns_successful = models.PositiveIntegerField(default=0, help_text="Campaigns that reached funded/transferred/completed")
+    campaigns_failed = models.PositiveIntegerField(default=0, help_text="Campaigns that failed or were cancelled")
+    total_campaign_raised_usd = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Total USDC raised across all campaigns")
+
     # Cancellation tracking (Phase 9)
     projects_cancelled_as_artist = models.PositiveIntegerField(default=0)
     projects_cancelled_as_writer = models.PositiveIntegerField(default=0)
@@ -573,10 +579,25 @@ class UserProfile(models.Model):
             revisions_used__gt=0,
         ).aggregate(total=Sum('revisions_used'))['total'] or 0
 
+        # Campaign reputation stats
+        user_campaigns = Campaign.objects.filter(creator=self.user)
+        self.campaigns_created = user_campaigns.count()
+        self.campaigns_successful = user_campaigns.filter(
+            status__in=['funded', 'transferred', 'completed']
+        ).count()
+        self.campaigns_failed = user_campaigns.filter(
+            status__in=['failed', 'cancelled', 'reclaimable', 'reclaimed']
+        ).count()
+        self.total_campaign_raised_usd = user_campaigns.filter(
+            status__in=['funded', 'transferred', 'completed']
+        ).aggregate(total=Sum('current_amount'))['total'] or 0
+
         self.save(update_fields=[
             'projects_completed', 'milestones_completed',
             'on_time_delivery_rate', 'avg_response_time_hours',
             'projects_funded', 'total_escrow_funded_usd', 'revisions_requested',
+            'campaigns_created', 'campaigns_successful', 'campaigns_failed',
+            'total_campaign_raised_usd',
         ])
 
 
@@ -7253,6 +7274,13 @@ class Campaign(models.Model):
             return Decimal('0.00')
         return (self.funding_goal / self.chapter_count).quantize(Decimal('0.01'))
 
+    def _update_creator_campaign_stats(self):
+        """Recalculate campaign reputation stats on the creator's profile."""
+        try:
+            self.creator.profile.update_collaboration_stats()
+        except Exception:
+            pass
+
     def mark_funded(self):
         """Transition to funded status when goal is met."""
         from datetime import timedelta
@@ -7264,22 +7292,26 @@ class Campaign(models.Model):
         if self.project:
             self.project.is_campaign_funded = True
             self.project.save(update_fields=['is_campaign_funded'])
+        self._update_creator_campaign_stats()
 
     def mark_failed(self):
         """Transition to failed when deadline passes without meeting goal."""
         self.status = 'failed'
         self.save(update_fields=['status', 'updated_at'])
+        self._update_creator_campaign_stats()
 
     def mark_reclaimable(self):
         """Transition to reclaimable when 60-day escrow creation window expires."""
         self.status = 'reclaimable'
         self.save(update_fields=['status', 'updated_at'])
+        self._update_creator_campaign_stats()
 
     def mark_completed(self):
         """Transition to completed when all milestones/chapters are delivered."""
         self.status = 'completed'
         self.completed_at = timezone.now()
         self.save(update_fields=['status', 'completed_at', 'updated_at'])
+        self._update_creator_campaign_stats()
 
     def mark_transferred(self, escrow_pda, escrow_pda_bump=None):
         """Transition to transferred after PDA1 → PDA2 on-chain transfer."""

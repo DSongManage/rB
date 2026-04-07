@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, Users, Shield, Send, AlertTriangle, PartyPopper, Rocket, ExternalLink } from 'lucide-react';
-import campaignApi, { Campaign, CampaignUpdate as CampaignUpdateType } from '../services/campaignApi';
+import { ArrowLeft, Clock, Users, Shield, Send, AlertTriangle, PartyPopper, Rocket, ExternalLink, User, UserPlus } from 'lucide-react';
+import campaignApi, { Campaign, CampaignUpdate as CampaignUpdateType, RoleInterest } from '../services/campaignApi';
 import { CampaignProgressBar } from '../components/campaign/CampaignProgressBar';
 import { CampaignContributionModal } from '../components/campaign/CampaignContributionModal';
 import { CampaignStatusBadge } from '../components/campaign/CampaignStatusBadge';
@@ -32,18 +32,25 @@ export default function CampaignDetailPage() {
   const [updateBody, setUpdateBody] = useState('');
   const [postingUpdate, setPostingUpdate] = useState(false);
   const [showAuthGate, setShowAuthGate] = useState(false);
+  const [roleInterests, setRoleInterests] = useState<RoleInterest[]>([]);
 
   const loadCampaign = async () => {
     if (!id) return;
     try {
       const campaignData = await campaignApi.getCampaign(parseInt(id));
       setCampaign(campaignData);
-      // Updates may fail for non-authenticated users — don't break the page
+      // Updates + role interests may fail for non-authenticated users
       try {
         const updatesData = await campaignApi.getUpdates(parseInt(id));
         setUpdates(updatesData);
       } catch {
         setUpdates([]);
+      }
+      try {
+        const interests = await campaignApi.getRoleInterests(parseInt(id));
+        setRoleInterests(interests);
+      } catch {
+        setRoleInterests([]);
       }
     } catch (err) {
       console.error('Failed to load campaign:', err);
@@ -162,6 +169,18 @@ export default function CampaignDetailPage() {
         <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
           by {campaign.creator_display_name || campaign.creator_username}
         </div>
+        {campaign.previous_campaign_info && (
+          <div
+            onClick={() => navigate(`/campaigns/${campaign.previous_campaign_info!.id}`)}
+            style={{
+              fontSize: 12, color: '#8b5cf6', marginTop: 6, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            Sequel to: {campaign.previous_campaign_info.title}
+            <ExternalLink size={10} />
+          </div>
+        )}
       </div>
 
       {/* Progress section */}
@@ -308,6 +327,201 @@ export default function CampaignDetailPage() {
         </div>
       )}
 
+      {/* Team & Open Roles */}
+      {((campaign.team_members && campaign.team_members.length > 0) || (campaign.open_roles && campaign.open_roles.length > 0)) && (
+        <div style={{
+          background: 'var(--panel)', border: '1px solid var(--panel-border)',
+          borderRadius: 12, padding: 24, marginBottom: 24,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+              Team
+            </h2>
+            {campaign.team_completion_percentage != null && (
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+                background: campaign.team_completion_percentage === 100 ? '#10b98115' : '#f59e0b15',
+                color: campaign.team_completion_percentage === 100 ? '#10b981' : '#f59e0b',
+              }}>
+                {campaign.team_completion_percentage}% filled
+              </span>
+            )}
+          </div>
+
+          {/* Team members */}
+          {campaign.team_members && campaign.team_members.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: campaign.open_roles?.length ? 16 : 0 }}>
+              {campaign.team_members.map((member, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                  borderRadius: 10, border: '1px solid var(--panel-border)',
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%', background: '#8b5cf620',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden', flexShrink: 0,
+                  }}>
+                    {member.avatar_url
+                      ? <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <User size={16} color="#8b5cf6" />
+                    }
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                      {member.display_name || member.username}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{member.role}</div>
+                  </div>
+                  <div style={{
+                    fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12,
+                    background: '#10b98115', color: '#10b981', textTransform: 'uppercase',
+                  }}>
+                    Confirmed
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Open roles */}
+          {campaign.open_roles && campaign.open_roles.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {campaign.open_roles.map((openRole, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                  borderRadius: 10, border: '1px dashed var(--panel-border)',
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%', background: '#f59e0b15',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <UserPlus size={16} color="#f59e0b" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                      {openRole.role}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {openRole.milestone_count} milestone{openRole.milestone_count !== 1 ? 's' : ''} · ${openRole.budget}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12,
+                      background: '#f59e0b15', color: '#f59e0b', textTransform: 'uppercase',
+                    }}>
+                      Open
+                    </div>
+                    {openRole.interest_count > 0 && (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                        {openRole.interest_count} interested
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Role Interest Management (creator only) */}
+      {isCreator && roleInterests.filter(ri => ri.status === 'pending').length > 0 && (
+        <div style={{
+          background: 'var(--panel)', border: '1px solid var(--panel-border)',
+          borderRadius: 12, padding: 24, marginBottom: 24,
+        }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>
+            Role Applications ({roleInterests.filter(ri => ri.status === 'pending').length} pending)
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {roleInterests.filter(ri => ri.status === 'pending').map(ri => (
+              <div key={ri.id} style={{
+                padding: 14, borderRadius: 10, border: '1px solid var(--panel-border)',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%', background: '#8b5cf620',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <User size={16} color="#8b5cf6" />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                    {ri.display_name || ri.username}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Applying for: {ri.role_name}
+                  </div>
+                  {ri.message && (
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4, fontStyle: 'italic' }}>
+                      "{ri.message}"
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await campaignApi.acceptRoleInterest(campaign!.id, ri.id);
+                        loadCampaign();
+                      } catch (err) { console.error(err); }
+                    }}
+                    style={{
+                      padding: '6px 12px', borderRadius: 6, border: 'none',
+                      background: '#10b981', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await campaignApi.declineRoleInterest(campaign!.id, ri.id);
+                        loadCampaign();
+                      } catch (err) { console.error(err); }
+                    }}
+                    style={{
+                      padding: '6px 12px', borderRadius: 6,
+                      background: 'transparent', border: '1px solid var(--border)',
+                      color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Production Progress */}
+      {campaign.production_progress && (campaign.status === 'transferred' || campaign.status === 'completed') && (
+        <div style={{
+          background: 'var(--panel)', border: '1px solid var(--panel-border)',
+          borderRadius: 12, padding: 24, marginBottom: 24,
+        }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
+            Production Progress
+          </h2>
+          <div style={{
+            height: 6, borderRadius: 3, background: 'var(--border)', marginBottom: 12, overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%', borderRadius: 3,
+              background: 'linear-gradient(90deg, #10b981, #059669)',
+              width: `${campaign.production_progress.percentage}%`,
+              transition: 'width 0.5s ease',
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)' }}>
+            <span>{campaign.production_progress.completed} of {campaign.production_progress.total_milestones} milestones complete</span>
+            <span style={{ fontWeight: 600, color: '#10b981' }}>{campaign.production_progress.percentage}%</span>
+          </div>
+        </div>
+      )}
+
       {/* Reward Tiers */}
       {campaign.tiers && campaign.tiers.length > 0 && (
         <div style={{
@@ -330,12 +544,49 @@ export default function CampaignDetailPage() {
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#10b981' }}>${tier.minimum_amount}+</span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.5 }}>{tier.description}</div>
-                {tier.max_backers && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                    {tier.current_backers || 0}/{tier.max_backers} claimed
-                    {!tier.is_available && <span style={{ color: '#ef4444', marginLeft: 6 }}>Sold out</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {tier.max_backers && (
+                      <span>
+                        {tier.current_backers || 0}/{tier.max_backers} claimed
+                        {!tier.is_available && <span style={{ color: '#ef4444', marginLeft: 6 }}>Sold out</span>}
+                      </span>
+                    )}
                   </div>
-                )}
+                  {/* Fulfillment status */}
+                  {tier.fulfillment_status && (campaign.status === 'transferred' || campaign.status === 'completed') && (
+                    isCreator && tier.id ? (
+                      <select
+                        value={tier.fulfillment_status}
+                        onChange={async (e) => {
+                          try {
+                            await campaignApi.updateTierFulfillment(campaign.id, tier.id!, e.target.value);
+                            loadCampaign();
+                          } catch (err) { console.error(err); }
+                        }}
+                        style={{
+                          fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 8,
+                          border: '1px solid var(--border)', background: 'var(--bg-secondary)',
+                          color: tier.fulfillment_status === 'fulfilled' ? '#10b981' : tier.fulfillment_status === 'in_progress' ? '#f59e0b' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="fulfilled">Fulfilled</option>
+                      </select>
+                    ) : (
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 8,
+                        background: tier.fulfillment_status === 'fulfilled' ? '#10b98115' : tier.fulfillment_status === 'in_progress' ? '#f59e0b15' : '#6b728015',
+                        color: tier.fulfillment_status === 'fulfilled' ? '#10b981' : tier.fulfillment_status === 'in_progress' ? '#f59e0b' : '#6b7280',
+                        textTransform: 'uppercase',
+                      }}>
+                        {tier.fulfillment_status === 'in_progress' ? 'In Progress' : tier.fulfillment_status}
+                      </span>
+                    )
+                  )}
+                </div>
               </div>
             ))}
           </div>

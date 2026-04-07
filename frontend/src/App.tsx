@@ -12,9 +12,7 @@ import NotificationBell from './components/notifications/NotificationBell';
 import NotificationToastContainer from './components/notifications/NotificationToastContainer';
 import notificationService from './services/notificationService';
 import { disconnectWeb3Auth } from './services/web3authService';
-import { BetaBadge, TestModeBanner } from './components/BetaBadge';
 import { useAuth } from './hooks/useAuth';
-import BetaOnboarding from './components/BetaOnboarding';
 import { Footer } from './components/legal/Footer';
 import { CookieBanner } from './components/legal/CookieBanner';
 import { API_URL } from './config';
@@ -66,6 +64,7 @@ const CampaignsDiscoverPage = lazy(() => import('./pages/CampaignsDiscoverPage')
 const CampaignDetailPage = lazy(() => import('./pages/CampaignDetailPage'));
 const CampaignCreatePage = lazy(() => import('./pages/CampaignCreatePage'));
 const CampaignProjectWizard = lazy(() => import('./pages/CampaignProjectWizard'));
+const BackerDashboardPage = lazy(() => import('./pages/BackerDashboardPage'));
 
 // Marketing pages
 const MarketingHome = lazy(() => import('./pages/marketing/MarketingHome'));
@@ -530,6 +529,7 @@ export default function App() {
                 <Route path="/cart/success" element={<ProtectedRoute><CartSuccessPage /></ProtectedRoute>} />
                 <Route path="/studio/:projectId" element={<ProtectedRoute><CollaborativeProjectPage /></ProtectedRoute>} />
                 <Route path="/campaigns" element={<CampaignsDiscoverPage />} />
+                <Route path="/campaigns/backed" element={<ProtectedRoute><BackerDashboardPage /></ProtectedRoute>} />
                 <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
                 <Route path="/studio/campaign/new" element={<ProtectedRoute><CampaignCreatePage /></ProtectedRoute>} />
                 <Route path="/studio/campaign/wizard" element={<ProtectedRoute><CampaignProjectWizard /></ProtectedRoute>} />
@@ -544,7 +544,6 @@ export default function App() {
       {showFooter && <Footer />}
       <NotificationToastContainer />
       <CookieBanner />
-      <BetaOnboarding />
     </div>
     </BalanceProvider>
     </CartProvider>

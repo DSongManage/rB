@@ -19,6 +19,9 @@ export interface CampaignTier {
   current_backers?: number;
   order?: number;
   is_available?: boolean;
+  includes_digital_copy?: boolean;
+  custom_rewards?: string;
+  fulfillment_status?: 'pending' | 'in_progress' | 'fulfilled';
 }
 
 export interface CampaignMediaItem {
@@ -64,6 +67,49 @@ export interface Campaign {
   user_contribution?: string;
   created_at: string;
   updated_at?: string;
+  // Team
+  team_members?: { username: string; display_name: string; role: string; avatar_url: string | null }[];
+  open_roles?: { role: string; milestone_count: number; budget: string; interest_count: number }[];
+  team_completion_percentage?: number;
+  role_interest_counts?: Record<string, number>;
+  budget_breakdown?: { role: string; assigned_to: string | null; total: string; contract_type: string; milestone_count: number; status: string }[];
+  production_progress?: { total_milestones: number; completed: number; in_progress: number; pending: number; percentage: number };
+  collaborator_allocations?: { collaborator_role_id?: number; username?: string; role: string; amount: string }[];
+  production_costs?: string;
+  days_remaining?: number;
+  previous_campaign_info?: { id: number; title: string; status: string } | null;
+}
+
+export interface BackedCampaign {
+  contribution_id: number;
+  amount: string;
+  status: string;
+  withdrawn: boolean;
+  refunded: boolean;
+  tier_title: string | null;
+  contributed_at: string;
+  campaign: {
+    id: number;
+    title: string;
+    cover_image: string | null;
+    status: string;
+    funding_goal: string;
+    current_amount: string;
+    funding_percentage: number;
+    creator_username: string;
+    content_type: string;
+    deadline: string | null;
+  };
+}
+
+export interface RoleInterest {
+  id: number;
+  username: string;
+  display_name: string;
+  role_name: string;
+  message: string;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
 }
 
 export interface CampaignContribution {
@@ -349,6 +395,57 @@ export const campaignApi = {
     return handleResponse<CampaignUpdate>(res);
   },
 
+  async updateTierFulfillment(campaignId: number, tierId: number, fulfillmentStatus: string): Promise<{ id: number; fulfillment_status: string }> {
+    const csrfToken = await getFreshCsrfToken();
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/update-tier-fulfillment/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ tier_id: tierId, fulfillment_status: fulfillmentStatus }),
+    });
+    return handleResponse(res);
+  },
+
+  // ===== Role Interests =====
+
+  async getRoleInterests(campaignId: number): Promise<RoleInterest[]> {
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/role-interests/`, {
+      credentials: 'include',
+    });
+    return handleResponse<RoleInterest[]>(res);
+  },
+
+  async expressInterest(campaignId: number, roleName: string, message?: string): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/express-interest/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ role_name: roleName, message: message || '' }),
+    });
+    return handleResponse(res);
+  },
+
+  async acceptRoleInterest(campaignId: number, interestId: number): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/role-interests/${interestId}/accept/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    return handleResponse(res);
+  },
+
+  async declineRoleInterest(campaignId: number, interestId: number): Promise<void> {
+    const csrfToken = await getFreshCsrfToken();
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/role-interests/${interestId}/decline/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    return handleResponse(res);
+  },
+
   // ===== Tiers =====
 
   async getTiers(campaignId: number): Promise<CampaignTier[]> {
@@ -440,6 +537,15 @@ export const campaignApi = {
       credentials: 'include',
     });
     return handleResponse(res);
+  },
+
+  // ===== Backer Dashboard =====
+
+  async getMyBackedCampaigns(): Promise<BackedCampaign[]> {
+    const res = await fetch(`${API_BASE}/api/campaigns/my-backed/`, {
+      credentials: 'include',
+    });
+    return handleResponse<BackedCampaign[]>(res);
   },
 
   // ===== Discovery =====

@@ -534,6 +534,27 @@ class CampaignViewSet(viewsets.ModelViewSet):
         serializer = CampaignContributionSerializer(qs, many=True)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post'], url_path='update-tier-fulfillment')
+    def update_tier_fulfillment(self, request, pk=None):
+        """Creator updates fulfillment status of a tier."""
+        campaign = self.get_object()
+        if campaign.creator != request.user:
+            return Response({'error': 'Only the campaign creator can update fulfillment.'}, status=status.HTTP_403_FORBIDDEN)
+
+        tier_id = request.data.get('tier_id')
+        new_status = request.data.get('fulfillment_status')
+        if new_status not in ('pending', 'in_progress', 'fulfilled'):
+            return Response({'error': 'Invalid status.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            tier = campaign.tiers.get(id=tier_id)
+        except CampaignTier.DoesNotExist:
+            return Response({'error': 'Tier not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        tier.fulfillment_status = new_status
+        tier.save(update_fields=['fulfillment_status'])
+        return Response({'id': tier.id, 'fulfillment_status': tier.fulfillment_status})
+
     @action(detail=True, methods=['get', 'post'], url_path='updates')
     def campaign_updates(self, request, pk=None):
         """List or create campaign updates."""
@@ -772,6 +793,48 @@ class CampaignViewSet(viewsets.ModelViewSet):
         ).select_related('creator', 'project').order_by('-created_at')
         serializer = CampaignListSerializer(campaigns, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='my-backed')
+    def my_backed(self, request):
+        """List campaigns the current user has backed, with their contribution details."""
+        contributions = CampaignContribution.objects.filter(
+            backer=request.user
+        ).select_related(
+            'campaign', 'campaign__creator', 'campaign__project', 'reward_tier'
+        ).order_by('-created_at')
+
+        results = []
+        for c in contributions:
+            campaign = c.campaign
+            tier_title = None
+            if c.reward_tier:
+                tier_title = c.reward_tier.title
+            else:
+                tier = campaign.tiers.filter(minimum_amount__lte=c.amount).order_by('-minimum_amount').first()
+                tier_title = tier.title if tier else None
+
+            results.append({
+                'contribution_id': c.id,
+                'amount': str(c.amount),
+                'status': c.status,
+                'withdrawn': c.withdrawn,
+                'refunded': c.refunded,
+                'tier_title': tier_title,
+                'contributed_at': c.created_at,
+                'campaign': {
+                    'id': campaign.id,
+                    'title': campaign.title,
+                    'cover_image': campaign.cover_image.url if campaign.cover_image else None,
+                    'status': campaign.status,
+                    'funding_goal': str(campaign.funding_goal),
+                    'current_amount': str(campaign.current_amount),
+                    'funding_percentage': campaign.funding_percentage,
+                    'creator_username': campaign.creator.username,
+                    'content_type': campaign.content_type,
+                    'deadline': campaign.deadline.isoformat() if campaign.deadline else None,
+                },
+            })
+        return Response(results)
 
     @action(detail=True, methods=['post'])
     def reclaim(self, request, pk=None):
@@ -1054,6 +1117,25 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 'status': role.status,
             })
         return Response(result)
+
+    @action(detail=True, methods=['get'], url_path='role-interests')
+    def list_role_interests(self, request, pk=None):
+        """List role interests for a campaign (creator sees all, others see own)."""
+        campaign = self.get_object()
+        if campaign.creator == request.user:
+            qs = campaign.role_interests.select_related('user').order_by('-created_at')
+        else:
+            qs = campaign.role_interests.filter(user=request.user).select_related('user')
+        data = [{
+            'id': ri.id,
+            'username': ri.user.username,
+            'display_name': getattr(ri.user, 'display_name', '') or ri.user.username,
+            'role_name': ri.role_name,
+            'message': ri.message,
+            'status': ri.status,
+            'created_at': ri.created_at.isoformat(),
+        } for ri in qs]
+        return Response(data)
 
     @action(detail=True, methods=['post'], url_path='express-interest')
     def express_interest(self, request, pk=None):
