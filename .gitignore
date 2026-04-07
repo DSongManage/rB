@@ -42,3 +42,5 @@ blockchain/target/
 # Mac
 .DS_Store
 
+test-screenshots/
+backend/test.db
