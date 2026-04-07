@@ -107,8 +107,8 @@ export default function OverviewTab({
       gridTemplateColumns: 'repeat(12, 1fr)',
       gap: 20,
     }}>
-      {/* Cover Art */}
-      <div className="overview-cover-art" style={{
+      {/* Cover Art — hide empty state for non-owners */}
+      {(project.cover_image || isProjectLead) && <div className="overview-cover-art" style={{
         gridColumn: project.content_type === 'art' && project.is_solo ? 'span 12' : 'span 6',
         background: 'var(--panel)',
         border: '1px solid var(--panel-border)',
@@ -224,7 +224,7 @@ export default function OverviewTab({
             Upload your artwork in the <strong>Gallery</strong> tab
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Proposal Summary - Full width (hidden for solo art projects) */}
       {!(project.content_type === 'art' && project.is_solo) && <div style={{
