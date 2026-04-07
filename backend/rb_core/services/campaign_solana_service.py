@@ -285,10 +285,6 @@ class CampaignSolanaService:
 
         amount_lamports = self._usd_to_lamports(amount)
 
-        # Get durable nonce — never expires, unlike recent blockhash
-        nonce_pubkey, nonce_hash = self._get_nonce_info()
-        nonce_advance_ix = self._build_nonce_advance_ix(nonce_pubkey)
-
         # Build the contribute instruction
         # Account order must match Anchor struct: payer, backer, campaign_vault, backer_record, ...
         data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
@@ -303,17 +299,20 @@ class CampaignSolanaService:
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
         ])
 
-        # Build MessageV0 with nonce hash as blockhash (durable — never expires)
-        # AdvanceNonceAccount MUST be the first instruction
+        # Use recent blockhash with Processed commitment for maximum freshness
+        from solana.rpc.commitment import Processed
+        resp = self.client.get_latest_blockhash(Processed)
+        blockhash = resp.value.blockhash
+
         message = MessageV0.try_compile(
             payer=self.platform_pubkey,
-            instructions=[nonce_advance_ix, contribute_ix],
+            instructions=[contribute_ix],
             address_lookup_table_accounts=[],
-            recent_blockhash=nonce_hash,  # Nonce value replaces blockhash
+            recent_blockhash=blockhash,
         )
 
         # Create transaction with placeholder signatures
-        # Signers: [platform (fee payer + nonce authority), backer (token authority)]
+        # Signers: [platform (fee payer), backer (token authority)]
         placeholder_sig = Signature.default()
         unsigned_tx = VersionedTransaction.populate(message, [placeholder_sig, placeholder_sig])
         tx_bytes = bytes(unsigned_tx)
@@ -321,7 +320,7 @@ class CampaignSolanaService:
         return {
             'serialized_transaction': base64.b64encode(tx_bytes).decode('utf-8'),
             'serialized_message': base64.b64encode(bytes(message)).decode('utf-8'),
-            'nonce_pubkey': str(nonce_pubkey),
+            'blockhash': str(blockhash),
             'user_pubkey': backer_wallet,
             'platform_pubkey': str(self.platform_pubkey),
             'amount_lamports': amount_lamports,
@@ -344,24 +343,25 @@ class CampaignSolanaService:
         from solders.signature import Signature
         from solana.rpc.types import TxOpts
 
-        # Decode the user-signed transaction
-        tx_bytes = base64.b64decode(signed_transaction_b64)
-        user_signed_tx = VersionedTransaction.from_bytes(tx_bytes)
+        # Decode the user-signed transaction bytes
+        tx_bytes = bytearray(base64.b64decode(signed_transaction_b64))
 
-        # Extract user signature (index 1: [platform_placeholder, user_sig])
-        user_sig = user_signed_tx.signatures[1]
-        message = user_signed_tx.message
+        # TX layout: [num_sigs(1 byte), sig0(64 bytes), sig1(64 bytes), message_bytes...]
+        # sig[0] = platform placeholder (all zeros) — we need to fill this
+        # sig[1] = user's real signature from Web3Auth
+        msg_start = 1 + (2 * 64)  # after compact-u16 prefix + 2 signatures
+        msg_bytes = bytes(tx_bytes[msg_start:])
 
-        # Platform co-signs the same message
-        platform_sig = self.platform_keypair.sign_message(bytes(message))
+        # Platform signs the message bytes
+        platform_sig = self.platform_keypair.sign_message(msg_bytes)
 
-        # Build fully-signed transaction
-        signed_tx = VersionedTransaction.populate(message, [platform_sig, user_sig])
+        # Inject platform signature at slot [0] (bytes 1-64)
+        tx_bytes[1:65] = bytes(platform_sig)
 
-        # Submit — with durable nonces, blockhash never expires
-        resp = self.client.send_transaction(
-            signed_tx,
-            opts=TxOpts(skip_preflight=False, preflight_commitment=Confirmed),
+        # Submit raw transaction bytes directly
+        resp = self.client.send_raw_transaction(
+            bytes(tx_bytes),
+            opts=TxOpts(skip_preflight=True, preflight_commitment=Confirmed),
         )
         sig = str(resp.value)
         logger.info('[CampaignSolana] Sponsored contribution submitted. TX: %s', sig)
