@@ -65,6 +65,7 @@ const PayoutSettingsPage = lazy(() => import('./pages/PayoutSettingsPage'));
 const CampaignsDiscoverPage = lazy(() => import('./pages/CampaignsDiscoverPage'));
 const CampaignDetailPage = lazy(() => import('./pages/CampaignDetailPage'));
 const CampaignCreatePage = lazy(() => import('./pages/CampaignCreatePage'));
+const CampaignProjectWizard = lazy(() => import('./pages/CampaignProjectWizard'));
 
 // Marketing pages
 const MarketingHome = lazy(() => import('./pages/marketing/MarketingHome'));
@@ -196,12 +197,8 @@ function Header() {
         <Link to="/" className="rb-logo-link">
           <img src="/rb-logo.png" alt="renaissBlock" className="rb-logo-img"/>
         </Link>
-        {isAuthPage ? (
+        {isAuthPage && (
           <span style={{ fontFamily: 'var(--font-body, "DM Sans")', fontSize: 18, fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>renaissBlock</span>
-        ) : (
-          <>
-            <BetaBadge variant="header" showTestMode={true} />
-          </>
         )}
       </div>
       {isStorePage && (
@@ -535,6 +532,7 @@ export default function App() {
                 <Route path="/campaigns" element={<CampaignsDiscoverPage />} />
                 <Route path="/campaigns/:id" element={<CampaignDetailPage />} />
                 <Route path="/studio/campaign/new" element={<ProtectedRoute><CampaignCreatePage /></ProtectedRoute>} />
+                <Route path="/studio/campaign/wizard" element={<ProtectedRoute><CampaignProjectWizard /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                 <Route path="/payout-settings" element={<ProtectedRoute><PayoutSettingsPage /></ProtectedRoute>} />
                 <Route path="/feed" element={<ProtectedRoute><FollowingFeedPage /></ProtectedRoute>} />
@@ -546,7 +544,6 @@ export default function App() {
       {showFooter && <Footer />}
       <NotificationToastContainer />
       <CookieBanner />
-      <TestModeBanner />
       <BetaOnboarding />
     </div>
     </BalanceProvider>

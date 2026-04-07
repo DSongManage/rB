@@ -36,7 +36,7 @@ from spl.token.constants import TOKEN_PROGRAM_ID
 
 logger = logging.getLogger(__name__)
 
-PROGRAM_ID = Pubkey.from_string('AiKX6rLM3kTJfcDPt8pwrmbeVR6WaT8PXAHuJhJZYLSH')
+PROGRAM_ID = Pubkey.from_string('4bHUxyXHijqKCh6WnrpaG7V8U67tcgXN44aSwSMgnstg')
 
 # Anchor instruction discriminators (first 8 bytes of sha256("global:<instruction_name>"))
 def _anchor_discriminator(name: str) -> bytes:
@@ -49,6 +49,8 @@ DISC_RECLAIM_CONTRIBUTION = _anchor_discriminator("reclaim_contribution")
 DISC_INITIALIZE_ESCROW = _anchor_discriminator("initialize_escrow")
 DISC_SUBMIT_MILESTONE = _anchor_discriminator("submit_milestone")
 DISC_APPROVE_MILESTONE = _anchor_discriminator("approve_milestone")
+DISC_WITHDRAW_CONTRIBUTION = _anchor_discriminator("withdraw_contribution")
+DISC_ADD_STRETCH_MILESTONE = _anchor_discriminator("add_stretch_milestone")
 
 
 class CampaignSolanaService:
@@ -117,6 +119,32 @@ class CampaignSolanaService:
     def _get_recent_blockhash(self) -> Hash:
         resp = self.client.get_latest_blockhash(Confirmed)
         return resp.value.blockhash
+
+    def _get_nonce_info(self) -> tuple:
+        """Get the durable nonce account pubkey and current nonce hash.
+        Returns (nonce_pubkey, nonce_hash) for use as blockhash replacement.
+        """
+        import json
+        nonce_path = str(Path.home() / '.solana' / 'nonce-account.json')
+        with open(nonce_path) as f:
+            data = json.load(f)
+        nonce_pubkey = Pubkey.from_string(data['pubkey'])
+        # Fetch current nonce value from on-chain
+        acct = self.client.get_account_info(nonce_pubkey, commitment=Confirmed)
+        if not acct.value:
+            raise Exception('Nonce account not found on-chain')
+        acct_data = acct.value.data
+        # Nonce account layout: 4 bytes version + 4 bytes state + 32 bytes authority + 32 bytes nonce_hash
+        nonce_hash = Hash.from_bytes(acct_data[40:72])
+        return nonce_pubkey, nonce_hash
+
+    def _build_nonce_advance_ix(self, nonce_pubkey: Pubkey) -> Instruction:
+        """Build the AdvanceNonceAccount instruction (must be first ix in tx)."""
+        from solders.system_program import advance_nonce_account, AdvanceNonceAccountParams
+        return advance_nonce_account(AdvanceNonceAccountParams(
+            nonce_pubkey=nonce_pubkey,
+            authorized_pubkey=self.platform_pubkey,
+        ))
 
     def _build_and_send(self, instructions: list, signers: list) -> str:
         """Build a versioned transaction, sign it, send and confirm."""
@@ -218,14 +246,14 @@ class CampaignSolanaService:
         # Instruction data: discriminator + amount(u64)
         data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
 
-        # Accounts the frontend must include when building the ix
+        # Accounts must match Anchor struct order: payer, backer, campaign_vault, backer_record, ...
         accounts = [
-            {'pubkey': str(backer_pubkey), 'is_signer': True, 'is_writable': True},     # backer
-            {'pubkey': str(campaign_pda), 'is_signer': False, 'is_writable': True},      # campaign_vault
-            {'pubkey': str(backer_record_pda), 'is_signer': False, 'is_writable': True}, # backer_record (init)
-            {'pubkey': str(backer_ata), 'is_signer': False, 'is_writable': True},        # backer_token_account
-            {'pubkey': str(vault_ata), 'is_signer': False, 'is_writable': True},         # vault_token_account
-            {'pubkey': str(self.usdc_mint), 'is_signer': False, 'is_writable': False},   # mint
+            {'pubkey': str(self.platform_pubkey), 'is_signer': True, 'is_writable': True},  # payer
+            {'pubkey': str(backer_pubkey), 'is_signer': True, 'is_writable': False},         # backer
+            {'pubkey': str(campaign_pda), 'is_signer': False, 'is_writable': True},           # campaign_vault
+            {'pubkey': str(backer_record_pda), 'is_signer': False, 'is_writable': True},      # backer_record (init)
+            {'pubkey': str(backer_ata), 'is_signer': False, 'is_writable': True},             # backer_token_account
+            {'pubkey': str(vault_ata), 'is_signer': False, 'is_writable': True},              # vault_token_account
             {'pubkey': str(TOKEN_PROGRAM_ID), 'is_signer': False, 'is_writable': False},
             {'pubkey': str(SYSTEM_PROGRAM_ID), 'is_signer': False, 'is_writable': False},
         ]
@@ -239,6 +267,105 @@ class CampaignSolanaService:
             'backer_record_pda': str(backer_record_pda),
             'amount_lamports': amount_lamports,
         }
+
+    def build_sponsored_contribute_tx(self, campaign, backer_wallet: str, amount: Decimal) -> dict:
+        """Build a sponsored VersionedTransaction for campaign contribution.
+
+        Platform pays gas fees. User signs as backer (USDC authority + account init).
+        Returns serialized_transaction for frontend Web3Auth signing.
+        """
+        import base64
+        from solders.signature import Signature
+
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+        backer_pubkey = Pubkey.from_string(backer_wallet)
+        backer_record_pda, _ = self.derive_backer_pda(campaign_pda, backer_pubkey)
+        vault_ata = self.derive_ata(campaign_pda, self.usdc_mint)
+        backer_ata = self.derive_ata(backer_pubkey, self.usdc_mint)
+
+        amount_lamports = self._usd_to_lamports(amount)
+
+        # Build the contribute instruction
+        # Account order must match Anchor struct: payer, backer, campaign_vault, backer_record, ...
+        data = DISC_CONTRIBUTE + struct.pack('<Q', amount_lamports)
+        contribute_ix = Instruction(PROGRAM_ID, data, [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),  # payer (platform sponsors rent)
+            AccountMeta(backer_pubkey, is_signer=True, is_writable=False),        # backer (signs USDC transfer)
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),         # campaign_vault
+            AccountMeta(backer_record_pda, is_signer=False, is_writable=True),    # backer_record (init)
+            AccountMeta(backer_ata, is_signer=False, is_writable=True),           # backer_token_account
+            AccountMeta(vault_ata, is_signer=False, is_writable=True),            # vault_token_account
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+        ])
+
+        # Use recent blockhash with Processed commitment for maximum freshness
+        from solana.rpc.commitment import Processed
+        resp = self.client.get_latest_blockhash(Processed)
+        blockhash = resp.value.blockhash
+
+        message = MessageV0.try_compile(
+            payer=self.platform_pubkey,
+            instructions=[contribute_ix],
+            address_lookup_table_accounts=[],
+            recent_blockhash=blockhash,
+        )
+
+        # Create transaction with placeholder signatures
+        # Signers: [platform (fee payer), backer (token authority)]
+        placeholder_sig = Signature.default()
+        unsigned_tx = VersionedTransaction.populate(message, [placeholder_sig, placeholder_sig])
+        tx_bytes = bytes(unsigned_tx)
+
+        return {
+            'serialized_transaction': base64.b64encode(tx_bytes).decode('utf-8'),
+            'serialized_message': base64.b64encode(bytes(message)).decode('utf-8'),
+            'blockhash': str(blockhash),
+            'user_pubkey': backer_wallet,
+            'platform_pubkey': str(self.platform_pubkey),
+            'amount_lamports': amount_lamports,
+        }
+
+    def submit_contribution_with_platform_sig(self, serialized_message: str, signed_transaction_b64: str) -> str:
+        """Add platform signature to user-signed contribution and submit.
+
+        The frontend sends the full user-signed VersionedTransaction.
+        We extract the message from it, sign with platform, rebuild with both sigs.
+
+        Args:
+            serialized_message: Base64 encoded MessageV0 (from intent, for reference)
+            signed_transaction_b64: Base64 encoded VersionedTransaction with user's signature
+
+        Returns:
+            Transaction signature string
+        """
+        import base64
+        from solders.signature import Signature
+        from solana.rpc.types import TxOpts
+
+        # Decode the user-signed transaction bytes
+        tx_bytes = bytearray(base64.b64decode(signed_transaction_b64))
+
+        # TX layout: [num_sigs(1 byte), sig0(64 bytes), sig1(64 bytes), message_bytes...]
+        # sig[0] = platform placeholder (all zeros) — we need to fill this
+        # sig[1] = user's real signature from Web3Auth
+        msg_start = 1 + (2 * 64)  # after compact-u16 prefix + 2 signatures
+        msg_bytes = bytes(tx_bytes[msg_start:])
+
+        # Platform signs the message bytes
+        platform_sig = self.platform_keypair.sign_message(msg_bytes)
+
+        # Inject platform signature at slot [0] (bytes 1-64)
+        tx_bytes[1:65] = bytes(platform_sig)
+
+        # Submit raw transaction bytes directly
+        resp = self.client.send_raw_transaction(
+            bytes(tx_bytes),
+            opts=TxOpts(skip_preflight=True, preflight_commitment=Confirmed),
+        )
+        sig = str(resp.value)
+        logger.info('[CampaignSolana] Sponsored contribution submitted. TX: %s', sig)
+        return sig
 
     def verify_contribution_tx(self, signature: str, campaign, backer_wallet: str, expected_amount: Decimal) -> bool:
         """Verify a contribution transaction on-chain.
@@ -286,22 +413,28 @@ class CampaignSolanaService:
         campaign_id = campaign.id
         escrow_pda, escrow_bump = self.derive_escrow_pda(campaign_id, artist_pubkey)
 
-        # Instruction data: discriminator + project_id(u64) + milestone_count(u8) +
-        #   [milestone_amount(u64)]... + [milestone_deadline(i64)]... + fee_bps(u16)
+        # Instruction data: discriminator + project_id(u64) +
+        #   Vec<u64> milestone_amounts (Borsh: u32 len + items) +
+        #   Vec<i64> milestone_deadlines (Borsh: u32 len + items) +
+        #   fee_bps(u16)
         data = DISC_INITIALIZE_ESCROW
         data += struct.pack('<Q', campaign_id)
-        data += struct.pack('<B', len(milestone_amounts))
+        # Borsh Vec<u64>: 4-byte length prefix + items
+        data += struct.pack('<I', len(milestone_amounts))
         for amt in milestone_amounts:
             data += struct.pack('<Q', amt)
+        # Borsh Vec<i64>: 4-byte length prefix + items
+        data += struct.pack('<I', len(milestone_deadlines))
         for dl in milestone_deadlines:
             data += struct.pack('<q', dl)
         data += struct.pack('<H', 300)  # 3% fee
 
+        # No token accounts needed — init only creates the PDA, no funds transfer
         accounts = [
             AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),   # writer/payer
             AccountMeta(artist_pubkey, is_signer=False, is_writable=False),         # artist
             AccountMeta(self.platform_pubkey, is_signer=False, is_writable=False),  # platform_wallet
-            AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # escrow_vault (init)
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # vault (PDA, init)
             AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
         ]
@@ -327,13 +460,14 @@ class CampaignSolanaService:
                 raise ValueError(f"Creator {campaign.creator.username} has no wallet address")
             artist_pubkey = Pubkey.from_string(creator_wallet)
         else:
-            # Collaborative: use the first collaborator or project creator
+            # Collaborative: use the campaign CREATOR's wallet for single PDA2
+            # All funds go to one escrow vault managed by the creator
             project = campaign.project
             if not project:
                 raise ValueError("Collaborative campaign has no linked project")
-            first_collab = project.collaborators.filter(status='accepted').first()
-            if first_collab and first_collab.user.wallet_address:
-                artist_pubkey = Pubkey.from_string(first_collab.user.wallet_address)
+            creator_wallet = campaign.creator.wallet_address
+            if creator_wallet:
+                artist_pubkey = Pubkey.from_string(creator_wallet)
             else:
                 raise ValueError("No collaborator with wallet address found")
 
@@ -546,3 +680,74 @@ class CampaignSolanaService:
 
         logger.info('[CampaignSolana] Transfer details: %s', details)
         return details
+
+    # ============================================================
+    # Withdraw & Stretch Goal Methods
+    # ============================================================
+
+    def get_withdraw_instruction_params(self, campaign, backer_wallet: str) -> dict:
+        """Return instruction params for frontend to build a withdraw_contribution tx.
+
+        Uses the same account layout as reclaim_contribution but calls
+        withdraw_contribution instruction (pre-deadline withdrawal).
+        """
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+        backer_pubkey = Pubkey.from_string(backer_wallet)
+        backer_record_pda, _ = self.derive_backer_pda(campaign_pda, backer_pubkey)
+
+        usdc_mint = Pubkey.from_string(self.usdc_mint)
+        backer_ata = self.derive_ata(backer_pubkey, usdc_mint)
+        vault_ata = self.derive_ata(campaign_pda, usdc_mint)
+
+        return {
+            'instruction': 'withdraw_contribution',
+            'program_id': str(PROGRAM_ID),
+            'accounts': {
+                'backer': backer_wallet,
+                'campaign_vault': str(campaign_pda),
+                'backer_record': str(backer_record_pda),
+                'backer_token_account': str(backer_ata),
+                'vault_token_account': str(vault_ata),
+                'token_program': str(TOKEN_PROGRAM_ID),
+            },
+            'discriminator': DISC_WITHDRAW_CONTRIBUTION.hex(),
+        }
+
+    def add_stretch_milestone_on_chain(self, campaign, milestone_amount: Decimal, deadline_timestamp: int) -> str:
+        """Add a stretch milestone to the escrow vault on-chain.
+
+        Called when a stretch goal threshold is crossed by overfunding.
+        Transfers additional USDC from campaign vault to escrow vault.
+        """
+        campaign_pda, _ = self.derive_campaign_pda(campaign.id)
+
+        # Get the escrow vault pubkey from campaign
+        escrow_pda = Pubkey.from_string(campaign.escrow_pda)
+        usdc_mint = Pubkey.from_string(self.usdc_mint)
+
+        campaign_ata = self.derive_ata(campaign_pda, usdc_mint)
+        escrow_ata = self.derive_ata(escrow_pda, usdc_mint)
+
+        amount_lamports = self._usd_to_lamports(milestone_amount)
+
+        data = (
+            DISC_ADD_STRETCH_MILESTONE
+            + struct.pack('<Q', amount_lamports)        # milestone_amount: u64
+            + struct.pack('<q', deadline_timestamp)     # milestone_deadline: i64
+        )
+
+        accounts = [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),    # platform
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),            # campaign_vault
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),              # escrow_vault
+            AccountMeta(campaign_ata, is_signer=False, is_writable=True),            # campaign_token_account
+            AccountMeta(escrow_ata, is_signer=False, is_writable=True),              # escrow_token_account
+            AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+        ]
+
+        ix = Instruction(PROGRAM_ID, data, accounts)
+        sig = self._build_and_send([ix], [self.platform_keypair])
+
+        logger.info('[CampaignSolana] Stretch milestone added: $%s, deadline %d, campaign %d. TX: %s',
+                    milestone_amount, deadline_timestamp, campaign.id, sig)
+        return sig

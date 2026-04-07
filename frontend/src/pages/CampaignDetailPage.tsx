@@ -120,9 +120,9 @@ export default function CampaignDetailPage() {
           borderRadius: 12, padding: 20, marginBottom: 24,
           textAlign: 'center', border: '1px solid #4f46e540',
         }}>
-          <PartyPopper size={28} style={{ color: '#8b5cf6', marginBottom: 8 }} />
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>Campaign Funded!</div>
-          <div style={{ fontSize: 13, color: '#a78bfa', marginTop: 4 }}>
+          <PartyPopper size={28} style={{ color: '#a78bfa', marginBottom: 8 }} />
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Campaign Funded!</div>
+          <div style={{ fontSize: 13, color: '#c4b5fd', marginTop: 4 }}>
             {isCreator
               ? 'Your campaign reached its goal. Transfer funds to escrow to begin production.'
               : 'This campaign reached its goal! The creator is preparing to begin production.'}
@@ -248,7 +248,7 @@ export default function CampaignDetailPage() {
         {campaign.status === 'funded' && !isCreator && isBacker && (
           <div style={{
             marginTop: 16, padding: 12, borderRadius: 8,
-            background: '#1e1b4b', fontSize: 13, color: '#a78bfa', textAlign: 'center',
+            background: '#4f46e515', border: '1px solid #4f46e530', fontSize: 13, color: '#6d28d9', textAlign: 'center',
           }}>
             Awaiting creator to begin production. You'll be notified when work starts.
           </div>
@@ -303,7 +303,7 @@ export default function CampaignDetailPage() {
           <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
             The Pitch
           </h2>
-          <div className="ql-editor" style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.7, padding: 0 }}
+          <div style={{ color: 'var(--text)', fontSize: 14, lineHeight: 1.7 }}
             dangerouslySetInnerHTML={{ __html: campaign.pitch_html }} />
         </div>
       )}

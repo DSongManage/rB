@@ -72,8 +72,8 @@ class ComicPageViewSetTests(APITestCase):
         response = self.client.get(f'/api/comic-pages/?project={self.project.id}')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # API returns paginated response
-        self.assertEqual(response.json()['results'], [])
+        # API returns plain list (pagination_class = None)
+        self.assertEqual(response.json(), [])
 
     def test_list_pages_requires_project_param(self):
         """GET /api/comic-pages/ without project param returns empty."""
@@ -81,8 +81,8 @@ class ComicPageViewSetTests(APITestCase):
         response = self.client.get('/api/comic-pages/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # API returns paginated response
-        self.assertEqual(response.json()['results'], [])
+        # API returns plain list (pagination_class = None)
+        self.assertEqual(response.json(), [])
 
     def test_create_page(self):
         """POST /api/comic-pages/ creates a page."""
@@ -170,8 +170,8 @@ class ComicPageViewSetTests(APITestCase):
         response = self.client.get(f'/api/comic-pages/?project={self.project.id}')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # API returns paginated response with empty results
-        self.assertEqual(response.json()['results'], [])  # Returns empty, not 403
+        # API returns plain list (pagination_class = None) with empty results
+        self.assertEqual(response.json(), [])  # Returns empty, not 403
 
     def test_collaborator_can_access(self):
         """Accepted collaborators can access pages."""
@@ -181,8 +181,8 @@ class ComicPageViewSetTests(APITestCase):
         response = self.client.get(f'/api/comic-pages/?project={self.project.id}')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # API returns paginated response
-        self.assertEqual(len(response.json()['results']), 1)
+        # API returns plain list (pagination_class = None)
+        self.assertEqual(len(response.json()), 1)
 
 
 class ComicPanelViewSetTests(APITestCase):
@@ -455,8 +455,8 @@ class ComicProjectIntegrationTests(APITestCase):
         # Verify list endpoint shows the page
         list_response = self.client.get(f'/api/comic-pages/?project={project.id}')
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
-        # API returns paginated response
-        pages = list_response.json()['results']
+        # API returns plain list (pagination_class = None)
+        pages = list_response.json()
         self.assertEqual(len(pages), 1)
 
         # Verify full structure via detail endpoint (includes nested panels)

@@ -3,7 +3,9 @@ from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from .models import (
     User, UserProfile, Content, Collaboration, TestFeeLog, BookProject, Chapter,
     CollaborativeProject, CollaboratorRole, ProjectSection, ProjectComment, BetaInvite,
-    DelistApproval, CollaboratorApproval, Purchase, CollaboratorPayment, BlockchainAuditLog
+    DelistApproval, CollaboratorApproval, Purchase, CollaboratorPayment, BlockchainAuditLog,
+    Campaign, CampaignContribution, CampaignTier, CampaignUpdate, CampaignMedia,
+    StretchGoal, BackerContentAccess, CampaignRoleInterest,
 )
 from .views.beta import send_beta_invite_email
 
@@ -427,3 +429,56 @@ class BlockchainAuditLogAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Disable deleting audit logs for audit trail integrity."""
         return False
+
+
+# ============================================================
+# Campaign Admin
+# ============================================================
+
+
+@admin.register(Campaign)
+class CampaignAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'creator', 'status', 'funding_goal', 'current_amount', 'backer_count', 'deadline')
+    list_filter = ('status', 'campaign_type', 'content_type')
+    search_fields = ('title', 'creator__username')
+    readonly_fields = ('created_at', 'updated_at', 'funded_at', 'completed_at')
+
+
+@admin.register(CampaignContribution)
+class CampaignContributionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'campaign', 'backer', 'amount', 'status', 'withdrawn', 'refunded', 'created_at')
+    list_filter = ('status', 'withdrawn', 'refunded')
+    search_fields = ('backer__username', 'campaign__title')
+
+
+@admin.register(CampaignTier)
+class CampaignTierAdmin(admin.ModelAdmin):
+    list_display = ('id', 'campaign', 'title', 'minimum_amount', 'max_backers', 'current_backers', 'fulfillment_status')
+    list_filter = ('fulfillment_status',)
+
+
+@admin.register(CampaignUpdate)
+class CampaignUpdateAdmin(admin.ModelAdmin):
+    list_display = ('id', 'campaign', 'author', 'title', 'created_at')
+
+
+@admin.register(CampaignMedia)
+class CampaignMediaAdmin(admin.ModelAdmin):
+    list_display = ('id', 'campaign', 'caption', 'order')
+
+
+@admin.register(StretchGoal)
+class StretchGoalAdmin(admin.ModelAdmin):
+    list_display = ('id', 'campaign', 'title', 'threshold_amount', 'reached', 'sort_order')
+    list_filter = ('reached',)
+
+
+@admin.register(BackerContentAccess)
+class BackerContentAccessAdmin(admin.ModelAdmin):
+    list_display = ('id', 'contribution', 'milestone', 'granted_at')
+
+
+@admin.register(CampaignRoleInterest)
+class CampaignRoleInterestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'campaign', 'user', 'role_name', 'status', 'created_at')
+    list_filter = ('status',)

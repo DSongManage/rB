@@ -90,8 +90,18 @@ export interface ContributionIntentResponse {
   campaign_title: string;
   has_sufficient_balance: boolean;
   current_balance: string;
+  wallet_balance?: string;
+  has_wallet_balance?: boolean;
   fee: string;
   fee_note: string;
+  on_chain: boolean;
+  // Sponsored transaction (when on_chain=true)
+  serialized_transaction?: string;
+  serialized_message?: string;
+  blockhash?: string;
+  user_pubkey?: string;
+  platform_pubkey?: string;
+  amount_lamports?: number;
 }
 
 export interface ContributionConfirmResponse {
@@ -101,6 +111,7 @@ export interface ContributionConfirmResponse {
   current_amount: string;
   funding_percentage: number;
   is_goal_met: boolean;
+  transaction_signature?: string;
 }
 
 // ===== Helper =====
@@ -279,6 +290,25 @@ export const campaignApi = {
     return handleResponse<ContributionIntentResponse>(res);
   },
 
+  async submitSignedContribution(
+    contributionId: number,
+    serializedMessage: string,
+    userSignature: string,
+  ): Promise<ContributionConfirmResponse> {
+    const csrfToken = await getFreshCsrfToken();
+    const res = await fetch(`${API_BASE}/api/payment/campaign-submit-signed/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({
+        contribution_id: contributionId,
+        serialized_message: serializedMessage,
+        user_signature: userSignature,
+      }),
+    });
+    return handleResponse<ContributionConfirmResponse>(res);
+  },
+
   async confirmContribution(contributionId: number, transactionSignature?: string): Promise<ContributionConfirmResponse> {
     const csrfToken = await getFreshCsrfToken();
     const res = await fetch(`${API_BASE}/api/payment/campaign-confirm/`, {
@@ -426,6 +456,56 @@ export const campaignApi = {
       credentials: 'include',
     });
     return handleResponse<Campaign[]>(res);
+  },
+
+  /**
+   * Create a campaign + project atomically.
+   * Used by the unified campaign wizard — creates CollaborativeProject, Campaign,
+   * team roles, milestones with relative deadlines, and reward tiers in one call.
+   */
+  async createCampaignProject(data: {
+    title: string;
+    description: string;
+    content_type: string;
+    pitch_html?: string;
+    deadline: string;
+    production_costs?: string;
+    cover_image?: File;
+    team: {
+      user_id: number | null;
+      username?: string;
+      role: string;
+      contract_type: string;
+      total_amount: string;
+      milestones: {
+        title: string;
+        description?: string;
+        amount: string;
+        days_after_funding: number;
+        milestone_type?: string;
+      }[];
+    }[];
+    tiers: CampaignTier[];
+  }): Promise<{ campaign_id: number; project_id: number; funding_goal: string; status: string }> {
+    const csrfToken = await getFreshCsrfToken();
+    const formData = new FormData();
+    formData.append('title', data.title);
+    formData.append('description', data.description);
+    formData.append('content_type', data.content_type);
+    if (data.pitch_html) formData.append('pitch_html', data.pitch_html);
+    formData.append('deadline', data.deadline);
+    if (data.production_costs) formData.append('production_costs', data.production_costs);
+    if (data.cover_image) formData.append('cover_image', data.cover_image);
+    formData.append('team', JSON.stringify(data.team));
+    formData.append('tiers', JSON.stringify(data.tiers));
+
+    const res = await fetch(`${API_BASE}/api/campaigns/create-with-project/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrfToken },
+      body: formData,
+    });
+    return handleResponse(res);
   },
 };
 

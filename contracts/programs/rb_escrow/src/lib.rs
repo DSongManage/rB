@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-declare_id!("AiKX6rLM3kTJfcDPt8pwrmbeVR6WaT8PXAHuJhJZYLSH");
+declare_id!("4bHUxyXHijqKCh6WnrpaG7V8U67tcgXN44aSwSMgnstg");
 
 /// Grace period after deadline (48 hours in seconds)
 const GRACE_PERIOD_SECONDS: i64 = 48 * 60 * 60;
@@ -74,19 +74,11 @@ pub mod rb_escrow {
             };
         }
 
-        // Transfer USDC from writer to vault token account
-        let transfer_ctx = CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.writer_token_account.to_account_info(),
-                to: ctx.accounts.vault_token_account.to_account_info(),
-                authority: ctx.accounts.writer.to_account_info(),
-            },
-        );
-        token::transfer(transfer_ctx, total_amount)?;
-
+        // NOTE: No token transfer here. For campaign-funded escrows, funds come
+        // from PDA1 via transfer_to_escrow instruction. For direct escrows,
+        // the writer funds separately after initialization.
         msg!(
-            "Escrow initialized: {} USDC locked for {} milestones",
+            "Escrow initialized: {} USDC capacity for {} milestones (awaiting funding)",
             total_amount,
             milestone_amounts.len()
         );
@@ -454,6 +446,8 @@ pub mod rb_escrow {
 
         // Initialize backer record
         let backer_record = &mut ctx.accounts.backer_record;
+        // Verify this is a fresh backer record (defense in depth — Anchor init already guarantees this)
+        require!(backer_record.amount == 0, EscrowError::AlreadyContributed);
         backer_record.campaign = campaign_key;
         backer_record.backer = backer_key;
         backer_record.amount = amount;
@@ -547,10 +541,20 @@ pub mod rb_escrow {
             campaign_status == CampaignStatus::Funded,
             EscrowError::CampaignNotFunded
         );
+        // CRITICAL: Prevent double-transfer
+        require!(
+            ctx.accounts.campaign_vault.escrow_vault == Pubkey::default(),
+            EscrowError::AlreadyTransferred
+        );
         require!(
             ctx.accounts.escrow_vault.project_id == project_id,
             EscrowError::ProjectMismatch
         );
+
+        // Update status BEFORE transfer to prevent re-entry
+        let campaign = &mut ctx.accounts.campaign_vault;
+        campaign.status = CampaignStatus::Transferred;
+        campaign.escrow_vault = ctx.accounts.escrow_vault.key();
 
         // Transfer from campaign vault token account to escrow vault token account
         let project_id_bytes = project_id.to_le_bytes();
@@ -567,10 +571,6 @@ pub mod rb_escrow {
             signer_seeds,
         );
         token::transfer(transfer_ctx, current_amount)?;
-
-        let campaign = &mut ctx.accounts.campaign_vault;
-        campaign.status = CampaignStatus::Transferred;
-        campaign.escrow_vault = ctx.accounts.escrow_vault.key();
         msg!("Campaign funds ({} USDC) transferred to project escrow", current_amount);
         Ok(())
     }
@@ -661,6 +661,10 @@ pub mod rb_escrow {
             return Ok(());
         }
 
+        // CRITICAL: Update status BEFORE transfer to prevent double-call
+        let campaign = &mut ctx.accounts.campaign_vault;
+        campaign.status = CampaignStatus::Reclaimable;
+
         // Transfer remaining from escrow token account → campaign token account
         let project_id_bytes = vault.project_id.to_le_bytes();
         let artist_key = vault.artist;
@@ -678,10 +682,6 @@ pub mod rb_escrow {
             signer_seeds,
         );
         token::transfer(transfer_ctx, remaining)?;
-
-        // Mark campaign as reclaimable
-        let campaign = &mut ctx.accounts.campaign_vault;
-        campaign.status = CampaignStatus::Reclaimable;
 
         msg!("Returned {} USDC from escrow to campaign. Backers can now reclaim.", remaining);
         Ok(())
@@ -709,7 +709,10 @@ pub mod rb_escrow {
 
         // Proportional: backer_gets = backer_amount * vault_balance / total_funded
         let backer_gets = if total_funded > 0 {
-            (backer_amount as u128 * vault_balance as u128 / total_funded as u128) as u64
+            std::cmp::min(
+                (backer_amount as u128 * vault_balance as u128 / total_funded as u128) as u64,
+                vault_balance, // Cap at actual balance to prevent over-withdrawal
+            )
         } else {
             0
         };
@@ -734,6 +737,112 @@ pub mod rb_escrow {
         token::transfer(transfer_ctx, backer_gets)?;
 
         msg!("Backer reclaimed {} USDC (proportional)", backer_gets);
+        Ok(())
+    }
+
+    /// Backer withdraws their contribution before the campaign deadline.
+    /// Only allowed while campaign is Active or Funded and deadline has not passed.
+    /// If withdrawal drops below goal and campaign was Funded, reverts to Active.
+    pub fn withdraw_contribution(
+        ctx: Context<ReclaimContribution>,
+    ) -> Result<()> {
+        let vault = &mut ctx.accounts.campaign_vault;
+        let backer_record = &mut ctx.accounts.backer_record;
+
+        require!(!backer_record.reclaimed, EscrowError::AlreadyReclaimed);
+
+        let clock = Clock::get()?;
+        require!(clock.unix_timestamp <= vault.deadline, EscrowError::CampaignDeadlinePassed);
+        require!(
+            vault.status == CampaignStatus::Active || vault.status == CampaignStatus::Funded,
+            EscrowError::CampaignNotActive
+        );
+
+        let amount = backer_record.amount;
+        backer_record.reclaimed = true;
+        require!(vault.current_amount >= amount, EscrowError::InsufficientBalance);
+        vault.current_amount -= amount;
+        require!(vault.backer_count > 0, EscrowError::InsufficientBalance);
+        vault.backer_count -= 1;
+
+        // If was funded and now below goal, revert to Active
+        if vault.status == CampaignStatus::Funded && vault.current_amount < vault.funding_goal {
+            vault.status = CampaignStatus::Active;
+            vault.funded_at = 0;
+            vault.escrow_creation_deadline = 0;
+        }
+
+        // Transfer USDC from vault back to backer
+        let project_id_bytes = vault.project_id.to_le_bytes();
+        let bump = vault.bump;
+        let seeds: &[&[u8]] = &[b"campaign", &project_id_bytes, &[bump]];
+        let signer_seeds = &[seeds];
+
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.vault_token_account.to_account_info(),
+                to: ctx.accounts.backer_token_account.to_account_info(),
+                authority: ctx.accounts.campaign_vault.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_ctx, amount)?;
+
+        msg!("Backer withdrew {} USDC from campaign (pre-deadline)", amount);
+        Ok(())
+    }
+
+    /// Add a stretch milestone to the escrow vault when a stretch goal threshold
+    /// is crossed by overfunding. Transfers additional USDC from campaign vault
+    /// to escrow vault to fund the new milestone.
+    pub fn add_stretch_milestone(
+        ctx: Context<AddStretchMilestone>,
+        milestone_amount: u64,
+        milestone_deadline: i64,
+    ) -> Result<()> {
+        let escrow = &mut ctx.accounts.escrow_vault;
+        let idx = escrow.milestone_count as usize;
+        require!(idx < MAX_MILESTONES, EscrowError::InvalidMilestoneCount);
+        require!(milestone_amount > 0, EscrowError::ZeroAmount);
+
+        let clock = Clock::get()?;
+        require!(milestone_deadline > clock.unix_timestamp, EscrowError::InvalidDeadline);
+
+        // Initialize the new milestone
+        escrow.milestones[idx] = MilestoneData {
+            payment_amount: milestone_amount,
+            deadline: milestone_deadline,
+            grace_deadline: milestone_deadline + GRACE_PERIOD_SECONDS,
+            hard_backstop: clock.unix_timestamp + HARD_BACKSTOP_SECONDS,
+            status: MilestoneStatus::Pending,
+            submitted_at: 0,
+            review_deadline: 0,
+        };
+        escrow.milestone_count += 1;
+        escrow.total_amount = escrow.total_amount
+            .checked_add(milestone_amount)
+            .ok_or(EscrowError::ArithmeticOverflow)?;
+
+        // Transfer additional USDC from campaign vault to escrow vault
+        let campaign = &ctx.accounts.campaign_vault;
+        let project_id_bytes = campaign.project_id.to_le_bytes();
+        let bump = campaign.bump;
+        let seeds: &[&[u8]] = &[b"campaign", &project_id_bytes, &[bump]];
+        let signer_seeds = &[seeds];
+
+        let transfer_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.campaign_token_account.to_account_info(),
+                to: ctx.accounts.escrow_token_account.to_account_info(),
+                authority: ctx.accounts.campaign_vault.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::transfer(transfer_ctx, milestone_amount)?;
+
+        msg!("Added stretch milestone #{}: {} USDC, deadline {}", idx, milestone_amount, milestone_deadline);
         Ok(())
     }
 
@@ -789,21 +898,8 @@ pub struct InitializeEscrow<'info> {
     )]
     pub vault: Box<Account<'info, EscrowVault>>,
 
-    /// Writer's USDC token account (source of funds)
-    #[account(
-        mut,
-        constraint = writer_token_account.owner == writer.key() @ EscrowError::InvalidTokenOwner,
-    )]
-    pub writer_token_account: Box<Account<'info, TokenAccount>>,
-
-    /// Vault's USDC token account (escrow destination)
-    /// This is an ATA owned by the vault PDA
-    #[account(
-        mut,
-        constraint = vault_token_account.owner == vault.key() @ EscrowError::InvalidTokenOwner,
-    )]
-    pub vault_token_account: Box<Account<'info, TokenAccount>>,
-
+    // No token accounts needed — init only creates the PDA structure.
+    // Funding happens via transfer_to_escrow (from campaign PDA1).
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
@@ -835,10 +931,13 @@ pub struct ApproveMilestone<'info> {
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
-    /// Artist's USDC token account (receives payment)
+    /// Recipient's USDC token account (receives payment).
+    /// For direct escrow: the artist. For campaign escrow: any collaborator.
+    /// Writer (signer) authorizes who gets paid by approving the milestone.
+    /// Must be same mint as the vault to prevent cross-token theft.
     #[account(
         mut,
-        constraint = artist_token_account.owner == vault.artist @ EscrowError::InvalidTokenOwner,
+        constraint = artist_token_account.mint == vault_token_account.mint @ EscrowError::InvalidTokenOwner,
     )]
     pub artist_token_account: Account<'info, TokenAccount>,
 
@@ -950,7 +1049,12 @@ pub struct InitializeCampaign<'info> {
 
 #[derive(Accounts)]
 pub struct Contribute<'info> {
+    /// Fee payer — platform wallet that sponsors rent for backer_record PDA.
+    /// In sponsored transactions, this is the platform; backer only signs for USDC authority.
     #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// Backer — signs to authorize the USDC transfer from their token account.
     pub backer: Signer<'info>,
 
     #[account(mut)]
@@ -958,7 +1062,7 @@ pub struct Contribute<'info> {
 
     #[account(
         init,
-        payer = backer,
+        payer = payer,
         space = BackerRecord::SIZE,
         seeds = [b"backer", campaign_vault.key().as_ref(), backer.key().as_ref()],
         bump,
@@ -1092,6 +1196,38 @@ pub struct ReturnToCampaign<'info> {
         constraint = campaign_token_account.owner == campaign_vault.key() @ EscrowError::InvalidTokenOwner,
     )]
     pub campaign_token_account: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+#[derive(Accounts)]
+pub struct AddStretchMilestone<'info> {
+    /// Platform signer (only platform can add stretch milestones)
+    pub platform: Signer<'info>,
+
+    #[account(
+        mut,
+        constraint = campaign_vault.status == CampaignStatus::Transferred @ EscrowError::CampaignNotTransferred,
+        constraint = campaign_vault.escrow_vault == escrow_vault.key() @ EscrowError::ProjectMismatch,
+    )]
+    pub campaign_vault: Account<'info, CampaignVault>,
+
+    #[account(mut)]
+    pub escrow_vault: Box<Account<'info, EscrowVault>>,
+
+    /// Campaign vault's USDC token account (source of additional funds)
+    #[account(
+        mut,
+        constraint = campaign_token_account.owner == campaign_vault.key() @ EscrowError::InvalidTokenOwner,
+    )]
+    pub campaign_token_account: Account<'info, TokenAccount>,
+
+    /// Escrow vault's USDC token account (destination)
+    #[account(
+        mut,
+        constraint = escrow_token_account.owner == escrow_vault.key() @ EscrowError::InvalidTokenOwner,
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -1263,4 +1399,12 @@ pub enum EscrowError {
     EscrowNotDormant,
     #[msg("Campaign must be in Transferred status for this operation")]
     CampaignNotTransferred,
+    #[msg("Funds have already been transferred to escrow")]
+    AlreadyTransferred,
+    #[msg("Arithmetic overflow")]
+    ArithmeticOverflow,
+    #[msg("Insufficient balance for this operation")]
+    InsufficientBalance,
+    #[msg("Already contributed to this campaign")]
+    AlreadyContributed,
 }

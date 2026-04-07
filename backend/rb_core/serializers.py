@@ -527,6 +527,7 @@ class ContractTaskSerializer(serializers.ModelSerializer):
             'auto_approve_deadline', 'auto_approved',
             # Milestone classification
             'milestone_type', 'page_range_start', 'page_range_end',
+            'deadline_days_after_funding',
             # Breach status
             'is_overdue', 'overdue_notified_at', 'is_late', 'days_until_deadline',
             # Timestamps
@@ -914,14 +915,18 @@ class CollaborativeProjectListSerializer(serializers.ModelSerializer):
     created_by_username = serializers.CharField(source='created_by.username', read_only=True)
     total_collaborators = serializers.SerializerMethodField()
     is_solo = serializers.SerializerMethodField()
+    is_campaign_eligible = serializers.SerializerMethodField()
+    campaign_ineligible_reasons = serializers.SerializerMethodField()
 
     class Meta:
         model = CollaborativeProject
         fields = [
             'id', 'title', 'content_type', 'status', 'created_by', 'created_by_username',
-            'total_collaborators', 'created_at', 'updated_at', 'price_usd', 'is_solo', 'cover_image'
+            'total_collaborators', 'created_at', 'updated_at', 'price_usd', 'is_solo', 'cover_image',
+            'is_campaign_eligible', 'campaign_ineligible_reasons',
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by', 'created_by_username', 'total_collaborators', 'is_solo']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by', 'created_by_username',
+                            'total_collaborators', 'is_solo', 'is_campaign_eligible', 'campaign_ineligible_reasons']
 
     def get_total_collaborators(self, obj):
         """Count accepted collaborators."""
@@ -930,6 +935,14 @@ class CollaborativeProjectListSerializer(serializers.ModelSerializer):
     def get_is_solo(self, obj):
         """A project is solo if it has only 1 accepted collaborator."""
         return obj.collaborators.filter(status='accepted').count() <= 1
+
+    def get_is_campaign_eligible(self, obj):
+        eligible, _ = obj.is_campaign_eligible()
+        return eligible
+
+    def get_campaign_ineligible_reasons(self, obj):
+        _, reasons = obj.is_campaign_eligible()
+        return reasons
 
 
 class NotificationUserSerializer(serializers.ModelSerializer):
