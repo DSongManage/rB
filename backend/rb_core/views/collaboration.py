@@ -374,10 +374,14 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Find invitation
+        # Find invitation — if already accepted, return success (idempotent)
         try:
             invitation = project.collaborators.get(user=core_user, status='invited')
         except CollaboratorRole.DoesNotExist:
+            already_accepted = project.collaborators.filter(user=core_user, status='accepted').first()
+            if already_accepted:
+                serializer = CollaboratorRoleSerializer(already_accepted)
+                return Response(serializer.data)
             return Response(
                 {'error': 'No pending invitation found'},
                 status=status.HTTP_404_NOT_FOUND

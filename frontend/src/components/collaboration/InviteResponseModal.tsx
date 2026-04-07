@@ -100,9 +100,9 @@ export function InviteResponseModal({
         onClose();
         navigate(`/studio/${projectId}`);
       }, 1500);
+      // Keep submitting=true to prevent double-click during redirect
     } catch (err: any) {
       setError(err.message || 'Failed to accept invitation');
-    } finally {
       setSubmitting(false);
     }
   };
