@@ -298,6 +298,9 @@ export interface InviteCollaboratorData {
   total_contract_amount?: string;
   milestone_template_id?: number;
   upfront_percentage?: string;
+  escrow_fee_mode?: 'writer_pays' | 'artist_pays' | 'split';
+  message?: string;
+  funding_deadline?: string;
 }
 
 export interface MilestoneTemplate {

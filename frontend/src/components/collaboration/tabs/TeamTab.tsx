@@ -136,6 +136,13 @@ export default function TeamTab({
   // Contract tasks state
   const [tasks, setTasks] = useState<ContractTask[]>([]);
 
+  // Escrow fee mode, message, funding deadline
+  const [escrowFeeMode, setEscrowFeeMode] = useState<'writer_pays' | 'artist_pays' | 'split'>('writer_pays');
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [fundingDeadline, setFundingDeadline] = useState(
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  );
+
   // Permissions state
   const [canEditText, setCanEditText] = useState(true);
   const [canEditImages, setCanEditImages] = useState(true);
@@ -457,6 +464,9 @@ export default function TeamTab({
         contract_type: contractType,
         total_contract_amount: contractType !== 'revenue_share' ? totalContractAmount : undefined,
         milestone_template_id: selectedTemplateId || undefined,
+        escrow_fee_mode: contractType !== 'revenue_share' ? escrowFeeMode : undefined,
+        message: inviteMessage || undefined,
+        funding_deadline: contractType !== 'revenue_share' ? fundingDeadline : undefined,
         tasks: tasks.length > 0 && !selectedTemplateId ? tasks.map(t => ({
           title: t.title,
           description: t.description,
@@ -1477,6 +1487,112 @@ export default function TeamTab({
               </div>
             )}
           </div>
+
+          {/* Escrow Fee Mode (work_for_hire / hybrid only) */}
+          {contractType !== 'revenue_share' && (
+            <div style={{ marginTop: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <Shield size={14} style={{ color: '#8b5cf6' }} /> Escrow Fee (3%) — Who Pays?
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {([
+                  { value: 'writer_pays', label: 'I Pay', sub: '+3% on top' },
+                  { value: 'artist_pays', label: 'Artist Pays', sub: '-3% from payout' },
+                  { value: 'split', label: 'Split', sub: '1.5% each' },
+                ] as const).map(opt => (
+                  <button key={opt.value} type="button" onClick={() => setEscrowFeeMode(opt.value)} style={{
+                    padding: '10px 8px', borderRadius: 8, cursor: 'pointer', textAlign: 'center',
+                    background: escrowFeeMode === opt.value ? 'rgba(139, 92, 246, 0.12)' : 'var(--bg)',
+                    border: `1.5px solid ${escrowFeeMode === opt.value ? '#8b5cf6' : 'var(--panel-border)'}`,
+                    color: escrowFeeMode === opt.value ? '#8b5cf6' : 'var(--text)',
+                    fontSize: 13, fontWeight: 600,
+                  }}>
+                    {opt.label}
+                    <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginTop: 2 }}>{opt.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Funding Deadline */}
+          {contractType !== 'revenue_share' && (
+            <div style={{ marginTop: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+                Escrow Funding Deadline
+              </label>
+              <input
+                type="date"
+                value={fundingDeadline}
+                onChange={(e) => setFundingDeadline(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: 8,
+                  border: '1px solid var(--panel-border)', background: 'var(--bg)',
+                  color: 'var(--text)', fontSize: 14,
+                }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Escrow must be funded by this date. Work begins after funding.
+              </div>
+            </div>
+          )}
+
+          {/* Project Pitch / Message */}
+          <div style={{ marginTop: 16 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+              Message to Collaborator
+            </label>
+            <textarea
+              value={inviteMessage}
+              onChange={(e) => setInviteMessage(e.target.value)}
+              placeholder="Describe your project vision and what you're looking for..."
+              maxLength={1000}
+              rows={3}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 8,
+                border: '1px solid var(--panel-border)', background: 'var(--bg)',
+                color: 'var(--text)', fontSize: 13, resize: 'vertical',
+              }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', marginTop: 2 }}>
+              {inviteMessage.length}/1000
+            </div>
+          </div>
+
+          {/* Preview */}
+          {selectedUser && inviteRole.trim() && (
+            <div style={{
+              marginTop: 16, padding: 16, borderRadius: 10,
+              background: 'var(--bg-secondary)', border: '1px solid var(--panel-border)',
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                Preview
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                {project.title}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
+                Inviting @{selectedUser.username} as {inviteRole}
+                {contractType !== 'revenue_share' && totalContractAmount && ` · $${totalContractAmount} via escrow`}
+                {contractType === 'revenue_share' && ` · ${invitePercentage}% revenue share`}
+              </div>
+              {inviteMessage && (
+                <div style={{ fontSize: 13, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 8, lineHeight: 1.5 }}>
+                  "{inviteMessage}"
+                </div>
+              )}
+              {tasks.length > 0 && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {tasks.length} milestone{tasks.length !== 1 ? 's' : ''} defined
+                </div>
+              )}
+              {contractType !== 'revenue_share' && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Escrow fee: {escrowFeeMode === 'writer_pays' ? 'You pay (+3%)' : escrowFeeMode === 'artist_pays' ? 'Artist pays (-3%)' : 'Split (1.5% each)'}
+                </div>
+              )}
+            </div>
+          )}
 
           {inviteError && (
             <div style={{
