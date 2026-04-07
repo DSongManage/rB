@@ -475,20 +475,33 @@ class CampaignSolanaService:
         campaign_vault_ata = self.derive_ata(campaign_pda, self.usdc_mint)
         escrow_vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
 
-        data = DISC_TRANSFER_TO_ESCROW
+        # Build instructions — create escrow vault ATA if it doesn't exist
+        instructions = []
+        ata_info = self.client.get_account_info(escrow_vault_ata, commitment=Confirmed)
+        if ata_info.value is None:
+            from spl.token.constants import ASSOCIATED_TOKEN_PROGRAM_ID
+            instructions.append(Instruction(ASSOCIATED_TOKEN_PROGRAM_ID, bytes(), [
+                AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),
+                AccountMeta(escrow_vault_ata, is_signer=False, is_writable=True),
+                AccountMeta(escrow_pda, is_signer=False, is_writable=False),
+                AccountMeta(self.usdc_mint, is_signer=False, is_writable=False),
+                AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+                AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
+            ]))
+            logger.info('[CampaignSolana] Creating escrow vault ATA: %s', escrow_vault_ata)
 
-        accounts = [
-            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),    # creator/signer
-            AccountMeta(campaign_pda, is_signer=False, is_writable=True),            # campaign_vault
-            AccountMeta(escrow_pda, is_signer=False, is_writable=True),              # escrow_vault
-            AccountMeta(campaign_vault_ata, is_signer=False, is_writable=True),      # campaign_token_account
-            AccountMeta(escrow_vault_ata, is_signer=False, is_writable=True),        # escrow_token_account
+        data = DISC_TRANSFER_TO_ESCROW
+        instructions.append(Instruction(PROGRAM_ID, data, [
+            AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),
+            AccountMeta(campaign_pda, is_signer=False, is_writable=True),
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),
+            AccountMeta(campaign_vault_ata, is_signer=False, is_writable=True),
+            AccountMeta(escrow_vault_ata, is_signer=False, is_writable=True),
             AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
-        ]
+        ]))
 
-        ix = Instruction(PROGRAM_ID, data, accounts)
-        sig = self._build_and_send([ix], [self.platform_keypair])
+        sig = self._build_and_send(instructions, [self.platform_keypair])
 
         logger.info('[CampaignSolana] Transferred PDA1→PDA2 for campaign %d. TX: %s', campaign.id, sig)
         return sig

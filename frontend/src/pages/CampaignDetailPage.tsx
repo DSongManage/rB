@@ -429,8 +429,10 @@ export default function CampaignDetailPage() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '6px 14px', borderRadius: 6,
-                  background: updateTitle && updateBody ? '#4f46e5' : 'var(--panel-border)',
-                  border: 'none', color: '#fff', fontSize: 12, cursor: 'pointer',
+                  background: updateTitle && updateBody ? '#4f46e5' : 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
+                  color: updateTitle && updateBody ? '#fff' : 'var(--text-muted)',
+                  fontSize: 12, cursor: updateTitle && updateBody ? 'pointer' : 'not-allowed',
                 }}
               >
                 <Send size={12} /> Post Update
