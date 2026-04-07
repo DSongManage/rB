@@ -2398,6 +2398,7 @@ def process_escrow_release(self, task_id):
                     project_id=role.project.id,
                     artist_wallet=wallet_address,
                     milestone_index=task.order,
+                    escrow_pda_address=role.escrow_pda_address,
                 )
                 logger.info('[EscrowRelease] PDA release confirmed: %s (milestone %d)',
                             tx_sig, task.order)

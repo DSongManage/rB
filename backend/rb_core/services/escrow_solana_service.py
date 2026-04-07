@@ -250,6 +250,7 @@ class EscrowSolanaService:
         project_id: int,
         artist_wallet: str,
         milestone_index: int,
+        escrow_pda_address: str = None,
     ) -> str:
         """
         Release a milestone — writer directly releases funds from PDA vault.
@@ -261,7 +262,9 @@ class EscrowSolanaService:
         Args:
             project_id: Django project ID
             artist_wallet: Artist's Solana wallet address
-            milestone_index: 0-based milestone index (max 9)
+            milestone_index: 0-based milestone index (max 24)
+            escrow_pda_address: Optional PDA address override (for campaign escrow
+                where PDA is derived from creator wallet, not artist wallet)
 
         Returns:
             Transaction signature
@@ -271,8 +274,14 @@ class EscrowSolanaService:
         except Exception:
             raise ValueError(f"Invalid artist wallet address: {artist_wallet}")
         if milestone_index < 0 or milestone_index > 24:
-            raise ValueError(f"Milestone index must be 0-9, got {milestone_index}")
-        escrow_pda, _ = self.derive_escrow_pda(project_id, artist_pubkey)
+            raise ValueError(f"Milestone index must be 0-24, got {milestone_index}")
+
+        if escrow_pda_address:
+            # Campaign escrow: PDA provided directly (derived from creator wallet)
+            escrow_pda = Pubkey.from_string(escrow_pda_address)
+        else:
+            # Direct escrow: derive from project_id + artist wallet
+            escrow_pda, _ = self.derive_escrow_pda(project_id, artist_pubkey)
 
         instructions = []
 

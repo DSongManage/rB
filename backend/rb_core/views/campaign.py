@@ -727,6 +727,14 @@ class CampaignViewSet(viewsets.ModelViewSet):
             campaign.mark_transferred(escrow_pda, escrow_bump)
             campaign.contributions.filter(status='confirmed').update(status='transferred')
 
+            # Set escrow_pda_address on all accepted work-for-hire roles
+            # This wires them into the existing process_escrow_release Celery flow
+            for role in campaign.project.collaborators.filter(
+                status='accepted', contract_type__in=['work_for_hire', 'hybrid']
+            ):
+                role.escrow_pda_address = escrow_pda
+                role.save(update_fields=['escrow_pda_address'])
+
             logger.info('[CampaignTransfer] Campaign %d transferred. PDA2: %s, TX: %s',
                         campaign.id, escrow_pda, transfer_sig)
 
