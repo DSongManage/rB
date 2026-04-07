@@ -2,6 +2,9 @@ import React from 'react';
 import { PageStatus } from '../../../services/collaborationApi';
 
 const STATUS_CONFIG: Record<PageStatus, { label: string; color: string; bg: string }> = {
+  setup: { label: 'Setup', color: '#6b7280', bg: 'rgba(107, 114, 128, 0.15)' },
+  ready: { label: 'Ready', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)' },
+  funded: { label: 'Funded', color: '#059669', bg: 'rgba(5, 150, 105, 0.15)' },
   script_only: { label: 'Script Only', color: 'var(--text-muted)', bg: 'rgba(148, 163, 184, 0.15)' },
   in_progress: { label: 'In Progress', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
   art_delivered: { label: 'Art Delivered', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' },
