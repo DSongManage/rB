@@ -465,19 +465,14 @@ class CampaignSolanaService:
                 raise ValueError(f"Creator {campaign.creator.username} has no wallet address")
             artist_pubkey = Pubkey.from_string(creator_wallet)
         else:
-            # Collaborative: use the first non-creator accepted collaborator (artist)
+            # Collaborative: use the campaign CREATOR's wallet for single PDA2
+            # All funds go to one escrow vault managed by the creator
             project = campaign.project
             if not project:
                 raise ValueError("Collaborative campaign has no linked project")
-            first_collab = project.collaborators.filter(
-                status='accepted', contract_type__in=['work_for_hire', 'hybrid']
-            ).exclude(user=campaign.creator).first()
-            if not first_collab:
-                first_collab = project.collaborators.filter(
-                    status='accepted'
-                ).exclude(user=campaign.creator).first()
-            if first_collab and first_collab.user.wallet_address:
-                artist_pubkey = Pubkey.from_string(first_collab.user.wallet_address)
+            creator_wallet = campaign.creator.wallet_address
+            if creator_wallet:
+                artist_pubkey = Pubkey.from_string(creator_wallet)
             else:
                 raise ValueError("No collaborator with wallet address found")
 

@@ -676,20 +676,18 @@ class CampaignViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-                # Get first collaborator's wallet for escrow PDA derivation
-                first_collab = campaign.project.collaborators.filter(
-                    status='accepted'
-                ).select_related('user').first()
-                if not first_collab or not first_collab.user.wallet_address:
+                # Use CREATOR's wallet for single PDA2 — all campaign funds go to one escrow
+                creator_wallet = campaign.creator.wallet_address
+                if not creator_wallet:
                     return Response(
-                        {'error': 'No collaborator with a wallet address found.'},
+                        {'error': 'Creator has no wallet address.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-                artist_pubkey_obj = Pubkey.from_string(first_collab.user.wallet_address)
-                total_lamports = service._usd_to_lamports(campaign.funding_goal)
+                creator_pubkey_obj = Pubkey.from_string(creator_wallet)
+                total_campaign_lamports = service._usd_to_lamports(campaign.current_amount)
 
-                # Use project milestones as source of truth for escrow amounts
+                # Compute milestones from project tasks
                 import time
                 base_deadline = int(time.time()) + (90 * 86400)
                 funding_time = timezone.now()
@@ -700,7 +698,6 @@ class CampaignViewSet(viewsets.ModelViewSet):
                 ).order_by('collaborator_role__id', 'order')
 
                 if project_tasks.exists():
-                    # Recalculate absolute deadlines from relative days_after_funding
                     for task in project_tasks:
                         if task.deadline_days_after_funding and not task.deadline:
                             task.deadline = funding_time + timedelta(days=task.deadline_days_after_funding)
@@ -712,20 +709,17 @@ class CampaignViewSet(viewsets.ModelViewSet):
                         for i, t in enumerate(project_tasks)
                     ]
                 else:
-                    # Fallback: use campaign allocations if no milestones defined
-                    allocations = campaign.collaborator_allocations or []
-                    if allocations:
-                        milestone_amounts = [service._usd_to_lamports(Decimal(str(a.get('amount', 0)))) for a in allocations]
-                    else:
-                        milestone_amounts = [total_lamports]
-                    milestone_deadlines = [base_deadline + (i * 30 * 86400) for i in range(len(milestone_amounts))]
+                    # Fallback: single milestone for full amount
+                    milestone_amounts = [total_campaign_lamports]
+                    milestone_deadlines = [base_deadline]
 
+                # Initialize escrow with creator as owner — ALL campaign funds
                 service.initialize_escrow_on_chain(
-                    campaign, artist_pubkey_obj, milestone_amounts, milestone_deadlines
+                    campaign, creator_pubkey_obj, milestone_amounts, milestone_deadlines
                 )
                 transfer_sig = service.transfer_to_escrow_on_chain(campaign)
 
-                escrow_pda_obj, escrow_bump = service.derive_escrow_pda(campaign.id, artist_pubkey_obj)
+                escrow_pda_obj, escrow_bump = service.derive_escrow_pda(campaign.id, creator_pubkey_obj)
                 escrow_pda = str(escrow_pda_obj)
 
             # Update DB state

@@ -937,11 +937,10 @@ pub struct ApproveMilestone<'info> {
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
-    /// Artist's USDC token account (receives payment)
-    #[account(
-        mut,
-        constraint = artist_token_account.owner == vault.artist @ EscrowError::InvalidTokenOwner,
-    )]
+    /// Recipient's USDC token account (receives payment).
+    /// For direct escrow: the artist. For campaign escrow: any collaborator.
+    /// Writer (signer) authorizes who gets paid by approving the milestone.
+    #[account(mut)]
     pub artist_token_account: Account<'info, TokenAccount>,
 
     /// Platform's USDC token account (receives fee)
