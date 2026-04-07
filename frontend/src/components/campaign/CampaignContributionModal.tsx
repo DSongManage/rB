@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, DollarSign, Shield, Loader2, CheckCircle, Gift, Users, CreditCard, Wallet, ExternalLink } from 'lucide-react';
+import { X, DollarSign, Shield, Loader2, CheckCircle, Gift, Users, CreditCard, Wallet, ExternalLink, AlertTriangle } from 'lucide-react';
 import campaignApi, { Campaign, CampaignTier, ContributionIntentResponse } from '../../services/campaignApi';
-import { signMessageForSponsoredTx } from '../../services/web3authService';
+import { signMessageForSponsoredTx, connectWeb3Auth } from '../../services/web3authService';
 
 interface CampaignContributionModalProps {
   isOpen: boolean;
@@ -58,8 +58,22 @@ export function CampaignContributionModal({
     setStep('processing');
     try {
       if (intent.on_chain) {
+        // Wallet mismatch check — verify Web3Auth wallet matches the expected backer
+        try {
+          const provider = await connectWeb3Auth();
+          const accounts = await provider.request({ method: 'getAccounts' }) as string[];
+          if (accounts[0] && intent.user_pubkey && accounts[0] !== intent.user_pubkey) {
+            throw new Error(
+              `Wrong wallet connected. Expected ${intent.user_pubkey.slice(0, 8)}..., ` +
+              `got ${accounts[0].slice(0, 8)}... — please sign out of Web3Auth and sign in with the correct account.`
+            );
+          }
+        } catch (e: any) {
+          if (e.message?.includes('Wrong wallet')) throw e;
+          // If Web3Auth isn't connected yet, the signing step will handle it
+        }
+
         // On-chain flow: fetch a FRESH sponsored tx right before signing
-        // (avoids blockhash expiry between intent creation and user clicking sign)
         const freshIntent = await campaignApi.createContributionIntent(intent.campaign_id, intent.amount);
 
         if (!freshIntent.serialized_transaction || !freshIntent.serialized_message) {

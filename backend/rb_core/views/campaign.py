@@ -1083,6 +1083,127 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
         return Response(CampaignRoleInterestSerializer(interest).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['post'], url_path='role-interests/(?P<interest_id>[^/.]+)/accept')
+    def accept_role_interest(self, request, pk=None, interest_id=None):
+        """Accept a role interest — creates CollaboratorRole + ContractTasks from TBD allocation."""
+        campaign = self.get_object()
+        if campaign.creator != request.user:
+            return Response({'error': 'Only the creator can accept role interests.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            interest = CampaignRoleInterest.objects.get(
+                id=interest_id, campaign=campaign, status='pending',
+            )
+        except CampaignRoleInterest.DoesNotExist:
+            return Response({'error': 'Pending interest not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Find matching TBD allocation
+        allocations = campaign.collaborator_allocations or []
+        tbd_alloc = None
+        tbd_idx = None
+        for i, alloc in enumerate(allocations):
+            if alloc.get('is_tbd') and alloc.get('role') == interest.role_name:
+                tbd_alloc = alloc
+                tbd_idx = i
+                break
+
+        if not tbd_alloc:
+            return Response({'error': 'No TBD allocation found for role: %s' % interest.role_name},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            # Create CollaboratorRole
+            role = CollaboratorRole.objects.create(
+                project=campaign.project,
+                user=interest.user,
+                role=interest.role_name,
+                status='invited',
+                revenue_percentage=Decimal('0'),
+                contract_type='work_for_hire',
+                total_contract_amount=Decimal(str(tbd_alloc.get('amount', '0'))),
+            )
+
+            # Set escrow_pda_address if campaign already transferred
+            if campaign.escrow_pda:
+                role.escrow_pda_address = campaign.escrow_pda
+                role.save(update_fields=['escrow_pda_address'])
+
+            # Create ContractTasks from TBD milestones
+            milestones = tbd_alloc.get('milestones', [])
+            for i, m in enumerate(milestones):
+                days_after = int(m.get('days_after_funding', 30))
+                # Compute absolute deadline if campaign is already funded
+                deadline = None
+                if campaign.funded_at:
+                    from datetime import timedelta
+                    deadline = campaign.funded_at + timedelta(days=days_after)
+
+                ContractTask.objects.create(
+                    collaborator_role=role,
+                    title=m.get('title', 'Milestone %d' % (i + 1)),
+                    description=m.get('description', ''),
+                    deadline=deadline,
+                    deadline_days_after_funding=days_after,
+                    payment_amount=Decimal(str(m.get('amount', '0'))),
+                    status='pending',
+                    escrow_release_status='pending',
+                    milestone_type=m.get('milestone_type', 'custom'),
+                    order=i,
+                )
+
+            # Update allocation — mark as assigned
+            allocations[tbd_idx] = {
+                **tbd_alloc,
+                'is_tbd': False,
+                'collaborator_role_id': role.id,
+                'username': interest.user.username,
+            }
+            campaign.collaborator_allocations = allocations
+            campaign.save(update_fields=['collaborator_allocations'])
+
+            # Update interest status
+            interest.status = 'accepted'
+            interest.save(update_fields=['status'])
+
+            # Decline all other pending interests for this role
+            CampaignRoleInterest.objects.filter(
+                campaign=campaign, role_name=interest.role_name, status='pending',
+            ).exclude(id=interest.id).update(status='declined')
+
+        # Notifications
+        from ..notifications_utils import notify_collaboration_invitation, notify_campaign_team_joined
+        notify_collaboration_invitation(request.user, interest.user, campaign.project, interest.role_name)
+        if campaign.status in ('active', 'funded', 'transferred'):
+            notify_campaign_team_joined(campaign, interest.user, interest.role_name)
+
+        return Response({
+            'status': 'accepted',
+            'collaborator_role_id': role.id,
+            'username': interest.user.username,
+            'role': interest.role_name,
+            'milestones_created': len(milestones),
+        })
+
+    @action(detail=True, methods=['post'], url_path='role-interests/(?P<interest_id>[^/.]+)/decline')
+    def decline_role_interest(self, request, pk=None, interest_id=None):
+        """Decline a role interest."""
+        campaign = self.get_object()
+        if campaign.creator != request.user:
+            return Response({'error': 'Only the creator can decline role interests.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            interest = CampaignRoleInterest.objects.get(
+                id=interest_id, campaign=campaign, status='pending',
+            )
+        except CampaignRoleInterest.DoesNotExist:
+            return Response({'error': 'Pending interest not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        interest.status = 'declined'
+        interest.save(update_fields=['status'])
+        return Response({'status': 'declined'})
+
     @action(detail=True, methods=['get', 'post', 'delete'], url_path='stretch-goals')
     def manage_stretch_goals(self, request, pk=None):
         """CRUD for campaign stretch goals."""
