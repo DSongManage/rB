@@ -413,22 +413,33 @@ class CampaignSolanaService:
         campaign_id = campaign.id
         escrow_pda, escrow_bump = self.derive_escrow_pda(campaign_id, artist_pubkey)
 
-        # Instruction data: discriminator + project_id(u64) + milestone_count(u8) +
-        #   [milestone_amount(u64)]... + [milestone_deadline(i64)]... + fee_bps(u16)
+        # Instruction data: discriminator + project_id(u64) +
+        #   Vec<u64> milestone_amounts (Borsh: u32 len + items) +
+        #   Vec<i64> milestone_deadlines (Borsh: u32 len + items) +
+        #   fee_bps(u16)
         data = DISC_INITIALIZE_ESCROW
         data += struct.pack('<Q', campaign_id)
-        data += struct.pack('<B', len(milestone_amounts))
+        # Borsh Vec<u64>: 4-byte length prefix + items
+        data += struct.pack('<I', len(milestone_amounts))
         for amt in milestone_amounts:
             data += struct.pack('<Q', amt)
+        # Borsh Vec<i64>: 4-byte length prefix + items
+        data += struct.pack('<I', len(milestone_deadlines))
         for dl in milestone_deadlines:
             data += struct.pack('<q', dl)
         data += struct.pack('<H', 300)  # 3% fee
+
+        # Derive ATAs for writer and vault
+        writer_ata = self.derive_ata(self.platform_pubkey, self.usdc_mint)
+        vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
 
         accounts = [
             AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),   # writer/payer
             AccountMeta(artist_pubkey, is_signer=False, is_writable=False),         # artist
             AccountMeta(self.platform_pubkey, is_signer=False, is_writable=False),  # platform_wallet
-            AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # escrow_vault (init)
+            AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # vault (PDA, init)
+            AccountMeta(writer_ata, is_signer=False, is_writable=True),             # writer_token_account
+            AccountMeta(vault_ata, is_signer=False, is_writable=True),              # vault_token_account
             AccountMeta(Pubkey.from_string(str(TOKEN_PROGRAM_ID)), is_signer=False, is_writable=False),
             AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
         ]
@@ -454,11 +465,17 @@ class CampaignSolanaService:
                 raise ValueError(f"Creator {campaign.creator.username} has no wallet address")
             artist_pubkey = Pubkey.from_string(creator_wallet)
         else:
-            # Collaborative: use the first collaborator or project creator
+            # Collaborative: use the first non-creator accepted collaborator (artist)
             project = campaign.project
             if not project:
                 raise ValueError("Collaborative campaign has no linked project")
-            first_collab = project.collaborators.filter(status='accepted').first()
+            first_collab = project.collaborators.filter(
+                status='accepted', contract_type__in=['work_for_hire', 'hybrid']
+            ).exclude(user=campaign.creator).first()
+            if not first_collab:
+                first_collab = project.collaborators.filter(
+                    status='accepted'
+                ).exclude(user=campaign.creator).first()
             if first_collab and first_collab.user.wallet_address:
                 artist_pubkey = Pubkey.from_string(first_collab.user.wallet_address)
             else:
