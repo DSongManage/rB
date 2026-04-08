@@ -25,6 +25,8 @@ interface StageInput {
   name: string;
   icon: string;
   collaborator_username: string;
+  collaborator_display_name: string;
+  is_tbd: boolean;
   price_per_page: string;
   same_as_stage: number | null;
 }
@@ -82,6 +84,8 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
       name: s.name,
       icon: s.icon,
       collaborator_username: '',
+      collaborator_display_name: '',
+      is_tbd: false,
       price_per_page: '',
       same_as_stage: null,
     })));
@@ -101,18 +105,58 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
     } catch { /* ignore */ }
   };
 
-  const selectUser = (stageIdx: number, username: string) => {
+  const [exactLookupLoading, setExactLookupLoading] = useState(false);
+  const [exactLookupError, setExactLookupError] = useState('');
+
+  const selectUser = (stageIdx: number, username: string, displayName?: string) => {
     setStages(prev => prev.map((s, i) =>
-      i === stageIdx ? { ...s, collaborator_username: username, same_as_stage: null } : s
+      i === stageIdx ? { ...s, collaborator_username: username, collaborator_display_name: displayName || username, is_tbd: false, same_as_stage: null } : s
+    ));
+    setSearchResults([]);
+    setSearchingFor(null);
+    setSearchQuery('');
+    setExactLookupError('');
+  };
+
+  const setTbd = (stageIdx: number) => {
+    setStages(prev => prev.map((s, i) =>
+      i === stageIdx ? { ...s, collaborator_username: '', collaborator_display_name: '', is_tbd: true, same_as_stage: null } : s
     ));
     setSearchResults([]);
     setSearchingFor(null);
     setSearchQuery('');
   };
 
+  const clearAssignment = (stageIdx: number) => {
+    setStages(prev => prev.map((s, i) =>
+      i === stageIdx ? { ...s, collaborator_username: '', collaborator_display_name: '', is_tbd: false, same_as_stage: null } : s
+    ));
+  };
+
+  const handleExactLookup = async (stageIdx: number) => {
+    if (!searchQuery.trim()) return;
+    setExactLookupLoading(true);
+    setExactLookupError('');
+    try {
+      const res = await fetch(`${API_URL}/api/users/lookup/?username=${encodeURIComponent(searchQuery.trim())}`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const user = await res.json();
+        selectUser(stageIdx, user.username, user.display_name || user.username);
+      } else {
+        setExactLookupError(`No user found with username "${searchQuery.trim()}"`);
+      }
+    } catch {
+      setExactLookupError('Failed to look up user');
+    } finally {
+      setExactLookupLoading(false);
+    }
+  };
+
   const setSameAs = (stageIdx: number, sourceIdx: number) => {
     setStages(prev => prev.map((s, i) =>
-      i === stageIdx ? { ...s, same_as_stage: sourceIdx, collaborator_username: '' } : s
+      i === stageIdx ? { ...s, same_as_stage: sourceIdx, collaborator_username: '', is_tbd: false } : s
     ));
   };
 
@@ -147,7 +191,8 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
           pages_per_batch: pagesPerBatch,
           stages: stages.map(s => ({
             name: s.name,
-            collaborator_username: s.same_as_stage != null ? null : s.collaborator_username || null,
+            collaborator_username: s.is_tbd ? null : (s.same_as_stage != null ? null : s.collaborator_username || null),
+            is_tbd: s.is_tbd,
             price_per_page: s.price_per_page || '0',
             same_as_stage: s.same_as_stage,
           })),
@@ -164,7 +209,7 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
   };
 
   const canProceedToTeam = activeStages.length > 0 && totalPages > 0 && pagesPerBatch > 0;
-  const canProceedToReview = stages.every(s => s.same_as_stage != null || s.collaborator_username);
+  const canProceedToReview = stages.every(s => s.same_as_stage != null || s.collaborator_username || s.is_tbd);
 
   return (
     <div style={{
@@ -292,60 +337,111 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
                 <label style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>
                   Assigned to
                 </label>
-                {s.same_as_stage != null ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, color: '#8b5cf6', fontWeight: 500 }}>
-                      Same as {stages[s.same_as_stage]?.name}
+
+                {/* Confirmed state: show chip */}
+                {(s.same_as_stage != null || s.collaborator_username || s.is_tbd) ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                    borderRadius: 8, border: '1px solid #8b5cf640', background: '#8b5cf608',
+                  }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: s.is_tbd ? '#f59e0b20' : '#8b5cf620',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, color: s.is_tbd ? '#f59e0b' : '#8b5cf6', fontWeight: 700,
+                    }}>
+                      {s.is_tbd ? '?' : (s.same_as_stage != null ? stages[s.same_as_stage]?.collaborator_username?.[0]?.toUpperCase() : s.collaborator_username[0]?.toUpperCase())}
+                    </div>
+                    <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>
+                      {s.is_tbd ? 'TBD — Open Role' :
+                       s.same_as_stage != null ? `Same as ${stages[s.same_as_stage]?.name} (@${stages[s.same_as_stage]?.collaborator_username})` :
+                       `@${s.collaborator_username}`}
+                      {s.collaborator_display_name && s.collaborator_display_name !== s.collaborator_username && (
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({s.collaborator_display_name})</span>
+                      )}
                     </span>
-                    <button onClick={() => setSameAs(i, -1 as any)} style={{
-                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
-                    }}>Change</button>
-                  </div>
-                ) : s.collaborator_username ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 500 }}>@{s.collaborator_username}</span>
-                    <button onClick={() => selectUser(i, '')} style={{
-                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12,
-                    }}>Change</button>
+                    <button onClick={() => clearAssignment(i)} style={{
+                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                    }}><X size={16} /></button>
                   </div>
                 ) : (
+                  /* Search state */
                   <div>
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                      <input value={searchingFor === i ? searchQuery : ''}
-                        onChange={e => handleSearch(e.target.value, i)}
-                        onFocus={() => setSearchingFor(i)}
-                        placeholder="Search @username..."
-                        style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13 }}
-                      />
-                    </div>
-                    {searchingFor === i && searchResults.length > 0 && (
-                      <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 120, overflow: 'auto', marginBottom: 8 }}>
-                        {searchResults.map(u => (
-                          <button key={u.id} onClick={() => selectUser(i, u.username)} style={{
-                            display: 'block', width: '100%', padding: '6px 10px', border: 'none',
-                            background: 'transparent', color: 'var(--text)', fontSize: 13,
-                            cursor: 'pointer', textAlign: 'left',
-                          }}>
-                            @{u.username} {u.display_name ? `(${u.display_name})` : ''}
-                          </button>
-                        ))}
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)' }}>
+                        <Search size={14} style={{ color: 'var(--text-muted)' }} />
+                        <input
+                          value={searchingFor === i ? searchQuery : ''}
+                          onChange={e => handleSearch(e.target.value, i)}
+                          onFocus={() => { setSearchingFor(i); setExactLookupError(''); }}
+                          placeholder="Search @username..."
+                          style={{ flex: 1, border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13, outline: 'none' }}
+                        />
                       </div>
-                    )}
-                    {/* Same-as options */}
-                    {i > 0 && (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {stages.slice(0, i).map((prev, j) => (
-                          prev.collaborator_username ? (
-                            <button key={j} onClick={() => setSameAs(i, j)} style={{
-                              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
-                              background: 'var(--bg)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer',
-                            }}>
-                              Same as {prev.name} (@{prev.collaborator_username})
+
+                      {/* Search results dropdown */}
+                      {searchingFor === i && searchQuery.length >= 2 && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                          background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8,
+                          marginTop: 4, maxHeight: 160, overflow: 'auto',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                        }}>
+                          {searchResults.length > 0 ? searchResults.map(u => (
+                            <button key={u.id} onClick={() => selectUser(i, u.username, u.display_name)} style={{
+                              display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
+                              border: 'none', background: 'transparent', color: 'var(--text)', fontSize: 13,
+                              cursor: 'pointer', textAlign: 'left',
+                            }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#8b5cf620', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#8b5cf6', fontWeight: 700 }}>
+                                {u.username[0]?.toUpperCase()}
+                              </div>
+                              @{u.username} {u.display_name ? <span style={{ color: 'var(--text-muted)' }}>({u.display_name})</span> : ''}
                             </button>
-                          ) : null
-                        ))}
-                      </div>
-                    )}
+                          )) : (
+                            <div style={{ padding: '12px 16px', textAlign: 'center' }}>
+                              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                                No collaborators found for "{searchQuery}"
+                              </div>
+                              <button onClick={() => handleExactLookup(i)} disabled={exactLookupLoading} style={{
+                                width: '100%', padding: '8px 12px', borderRadius: 6, border: 'none',
+                                background: '#8b5cf6', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              }}>
+                                {exactLookupLoading ? 'Looking up...' : `Invite @${searchQuery} by exact username`}
+                              </button>
+                              {exactLookupError && (
+                                <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6, padding: '4px 8px', background: '#ef444415', borderRadius: 4 }}>
+                                  {exactLookupError}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick options: TBD + Same-as */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                      <button onClick={() => setTbd(i)} style={{
+                        padding: '4px 12px', borderRadius: 6, border: '1px dashed #f59e0b',
+                        background: '#f59e0b08', color: '#f59e0b', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                      }}>
+                        TBD — fill later
+                      </button>
+                      {i > 0 && stages.slice(0, i).map((prev, j) => (
+                        (prev.collaborator_username || prev.is_tbd) ? (
+                          <button key={j} onClick={() => prev.is_tbd ? setTbd(i) : setSameAs(i, j)} style={{
+                            padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                            background: 'var(--bg)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer',
+                          }}>
+                            Same as {prev.name}
+                          </button>
+                        ) : null
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -429,7 +525,7 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
             {(() => {
               const collabMap: Record<string, { stages: string[]; total: number }> = {};
               stages.forEach(s => {
-                const username = s.same_as_stage != null ? stages[s.same_as_stage]?.collaborator_username : s.collaborator_username;
+                const username = s.is_tbd ? 'TBD' : (s.same_as_stage != null ? stages[s.same_as_stage]?.collaborator_username : s.collaborator_username);
                 if (!username) return;
                 if (!collabMap[username]) collabMap[username] = { stages: [], total: 0 };
                 collabMap[username].stages.push(s.name);
