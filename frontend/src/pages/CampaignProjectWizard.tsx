@@ -878,7 +878,7 @@ export default function CampaignProjectWizard() {
             </p>
           </div>
           <div className="campaign-pitch-editor">
-            <style>{`.campaign-pitch-editor .ql-editor { color: var(--text); font-size: 15px; min-height: 250px; } .campaign-pitch-editor .ql-editor.ql-blank::before { color: var(--text-muted); }`}</style>
+            <style>{`.campaign-pitch-editor .ql-editor { color: #1a1816 !important; font-size: 15px; min-height: 250px; } .campaign-pitch-editor .ql-editor p, .campaign-pitch-editor .ql-editor span { color: #1a1816 !important; } .campaign-pitch-editor .ql-editor.ql-blank::before { color: #9e9a95 !important; } .campaign-pitch-editor .ql-toolbar { border-color: var(--border) !important; } .campaign-pitch-editor .ql-container { border-color: var(--border) !important; }`}</style>
             <ReactQuill
               value={pitchHtml}
               onChange={setPitchHtml}
