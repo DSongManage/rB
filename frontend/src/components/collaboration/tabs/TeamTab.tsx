@@ -1398,21 +1398,32 @@ export default function TeamTab({
                             />
                           </div>
                         )}
-                        {/* Page range linkage */}
+                        {/* Page count for this milestone */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <label style={{ color: 'var(--text-muted)', fontSize: 13, whiteSpace: 'nowrap' }}>
-                            Page:
+                            Pages:
                           </label>
                           <input
                             type="number"
                             min={1}
-                            value={task.page_range_start || ''}
+                            max={50}
+                            value={task.page_range_end && task.page_range_start
+                              ? task.page_range_end - task.page_range_start + 1
+                              : task.page_range_start || ''}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value) || undefined;
-                              updateTask(task.id, 'page_range_start', val as any);
-                              updateTask(task.id, 'page_range_end', val as any);
+                              const count = parseInt(e.target.value) || 1;
+                              // Calculate page range based on previous tasks' ranges
+                              const taskIndex = tasks.findIndex(t => t.id === task.id);
+                              let startPage = 1;
+                              for (let i = 0; i < taskIndex; i++) {
+                                const prev = tasks[i];
+                                if (prev.page_range_end) startPage = prev.page_range_end + 1;
+                                else if (prev.page_range_start) startPage = prev.page_range_start + 1;
+                              }
+                              updateTask(task.id, 'page_range_start', startPage as any);
+                              updateTask(task.id, 'page_range_end', (startPage + count - 1) as any);
                             }}
-                            placeholder="#"
+                            placeholder="1"
                             style={{
                               width: '60px',
                               background: 'var(--bg)',
@@ -1424,7 +1435,9 @@ export default function TeamTab({
                             }}
                           />
                           <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                            Links to comic page for auto escrow release
+                            {task.page_range_start && task.page_range_end
+                              ? `Pages ${task.page_range_start}–${task.page_range_end} will be auto-created in workspace`
+                              : 'How many pages this milestone covers'}
                           </span>
                         </div>
                       </div>
