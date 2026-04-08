@@ -159,7 +159,7 @@ export function BalanceDisplay({
           </span>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ ...styles.balance, color: 'var(--text-primary, #f1f5f9)' }}>
+          <span style={{ ...styles.balance, color: 'var(--text)' }}>
             {displayBalance || '$0.00'}
           </span>
           {syncStatus === 'syncing' && (

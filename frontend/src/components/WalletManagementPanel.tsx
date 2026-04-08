@@ -424,7 +424,7 @@ export function WalletManagementPanel({
             marginBottom: 8,
           }}>
             <CheckCircle size={20} style={{ color: '#10b981' }} />
-            <span style={{ fontWeight: 600, color: '#f1f5f9', fontSize: 16 }}>
+            <span style={{ fontWeight: 600, color: 'var(--text)', fontSize: 16 }}>
               Wallet Connected
             </span>
             <span style={{

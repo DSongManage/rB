@@ -47,7 +47,7 @@ function StarRating({
             <Star
               size={28}
               fill={(hover || value) >= star ? '#f59e0b' : 'transparent'}
-              color={(hover || value) >= star ? '#f59e0b' : 'var(--text-tertiary)'}
+              color={(hover || value) >= star ? '#f59e0b' : '#cbd5e1'}
             />
           </button>
         ))}
