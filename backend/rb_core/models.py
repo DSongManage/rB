@@ -3325,8 +3325,22 @@ class ContractTask(models.Model):
             pass  # Don't break sign-off if stats update fails
 
     @classmethod
-    def find_tasks_for_page(cls, project, page_number):
-        """Find contract tasks whose page range covers the given page number."""
+    def find_tasks_for_page(cls, project, page_number, page_id=None):
+        """Find contract tasks linked to a page — via milestone FK or page range."""
+        # Try milestone FK first (new system)
+        if page_id:
+            try:
+                page = ComicPage.objects.get(id=page_id)
+                if page.milestone_id:
+                    return cls.objects.filter(
+                        id=page.milestone_id,
+                        status__in=['in_progress', 'complete', 'submitted', 'under_review',
+                                   'revision_requested', 'resubmitted'],
+                    ).select_for_update()
+            except ComicPage.DoesNotExist:
+                pass
+
+        # Fallback: page range lookup (legacy)
         return cls.objects.filter(
             collaborator_role__project=project,
             page_range_start__lte=page_number,
@@ -3336,11 +3350,16 @@ class ContractTask(models.Model):
         ).select_for_update()
 
     def all_pages_approved(self):
-        """Check if all pages in this task's page range have approved art."""
+        """Check if all pages linked to this task have approved art."""
+        # Prefer direct milestone FK linking (new system)
+        milestone_pages = ComicPage.objects.filter(milestone=self)
+        if milestone_pages.exists():
+            return not milestone_pages.exclude(page_status='approved').exists()
+
+        # Fallback: page range lookup (legacy)
         if self.page_range_start is None or self.page_range_end is None:
             return False
         project = self.collaborator_role.project
-        # Query pages from both direct project attachment and issue-based attachment
         pages = ComicPage.objects.filter(
             models.Q(project=project) | models.Q(issue__project=project),
             page_number__gte=self.page_range_start,

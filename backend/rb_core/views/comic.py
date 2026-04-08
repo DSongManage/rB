@@ -1455,7 +1455,7 @@ class PageArtDeliveryViewSet(viewsets.ModelViewSet):
             from django.db import transaction as db_transaction
             try:
                 with db_transaction.atomic():
-                    linked = ContractTask.find_tasks_for_page(project, page.page_number)
+                    linked = ContractTask.find_tasks_for_page(project, page.page_number, page_id=page.id)
                     for task in linked:
                         if task.all_pages_approved():
                             try:
