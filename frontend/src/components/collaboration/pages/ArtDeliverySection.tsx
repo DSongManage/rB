@@ -58,6 +58,7 @@ export default function ArtDeliverySection({
   const [submitting, setSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [revisionError, setRevisionError] = useState('');
+  const [confirmApproveId, setConfirmApproveId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isPhone } = useMobile();
 
@@ -80,21 +81,21 @@ export default function ArtDeliverySection({
     }
   };
 
-  const handleApprove = async (id: number) => {
-    // Confirm if this will trigger escrow release
+  const handleApproveClick = (id: number) => {
     if (linkedTask) {
-      const confirmed = window.confirm(
-        `Approving this art will sign off task "${linkedTask.task_title}" and release $${parseFloat(linkedTask.payment_amount).toFixed(2)} from escrow to @${linkedTask.collaborator_username}. This is irreversible. Continue?`
-      );
-      if (!confirmed) return;
+      setConfirmApproveId(id);
+    } else {
+      executeApprove(id);
     }
+  };
 
+  const executeApprove = async (id: number) => {
+    setConfirmApproveId(null);
     setSubmitting(true);
     try {
       const updated = await collaborationApi.approveArtDelivery(id);
       onDeliveriesChange(deliveries.map(d => d.id === id ? updated : d));
       onPageStatusChange('approved');
-      // Check if tasks were auto-signed off (escrow released)
       if ((updated as any).auto_signed_tasks?.length > 0) {
         onTaskAutoSigned?.();
       }
@@ -278,7 +279,7 @@ export default function ArtDeliverySection({
             {canReview && latestDelivery.status === 'delivered' && (
               <div style={{ display: 'flex', flexDirection: isPhone ? 'column' : 'row', gap: 8, marginTop: 4 }}>
                 <button
-                  onClick={() => handleApprove(latestDelivery.id)}
+                  onClick={() => handleApproveClick(latestDelivery.id)}
                   disabled={submitting}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -475,6 +476,62 @@ export default function ArtDeliverySection({
               ))}
             </div>
           )}
+        </div>
+      )}
+      {/* Approval confirmation modal */}
+      {confirmApproveId !== null && linkedTask && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }} onClick={() => setConfirmApproveId(null)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--panel, #fff)', borderRadius: 16, padding: 28,
+            maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%', background: '#10b98115',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Check size={20} color="#10b981" />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
+                Approve & Release Funds
+              </h3>
+            </div>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6, margin: '0 0 8px' }}>
+              Approving this art will sign off milestone <strong style={{ color: 'var(--text)' }}>"{linkedTask.task_title}"</strong> and release funds from escrow.
+            </p>
+            <div style={{
+              padding: 12, borderRadius: 8, background: '#10b98110',
+              border: '1px solid #10b98130', marginBottom: 20,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Release to @{linkedTask.collaborator_username}</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>${parseFloat(linkedTask.payment_amount).toFixed(2)}</span>
+            </div>
+            <p style={{ fontSize: 12, color: '#f59e0b', margin: '0 0 20px' }}>
+              This action is irreversible. Funds will be released immediately.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmApproveId(null)} style={{
+                flex: 1, padding: '12px 16px', borderRadius: 10,
+                background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                color: 'var(--text)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Cancel
+              </button>
+              <button onClick={() => executeApprove(confirmApproveId)} disabled={submitting} style={{
+                flex: 1, padding: '12px 16px', borderRadius: 10, border: 'none',
+                background: '#10b981', color: '#fff', fontSize: 14, fontWeight: 600,
+                cursor: submitting ? 'not-allowed' : 'pointer',
+              }}>
+                {submitting ? 'Releasing...' : 'Approve & Release'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
