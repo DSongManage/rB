@@ -10,6 +10,7 @@ import { TaskTracker } from '../TaskTracker';
 import { EscrowStatusBar } from '../EscrowStatusBar';
 import { MilestoneTimeline } from '../MilestoneTimeline';
 import { EscrowFundingModal } from '../EscrowFundingModal';
+import ProductionWizard from '../ProductionWizard';
 import { API_URL } from '../../../config';
 import {
   ClipboardList, AlertTriangle, Search, X, User as UserIcon, Check, XCircle, Loader2,
@@ -148,6 +149,9 @@ export default function TeamTab({
   const [canEditImages, setCanEditImages] = useState(true);
   const [canEditAudio, setCanEditAudio] = useState(false);
   const [canEditVideo, setCanEditVideo] = useState(false);
+
+  // Production wizard
+  const [showProductionWizard, setShowProductionWizard] = useState(false);
 
   // Counter-proposal response state
   const [respondingToCounterProposal, setRespondingToCounterProposal] = useState<number | null>(null);
@@ -566,6 +570,27 @@ export default function TeamTab({
           >
             + Invite Collaborator
           </button>
+          {project.content_type === 'comic' && (
+            <button
+              type="button"
+              onClick={() => setShowProductionWizard(true)}
+              style={{
+                background: 'linear-gradient(135deg, #E8981F 0%, #d48a18 100%)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px 20px',
+                color: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: 14,
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                minHeight: 44,
+              }}
+            >
+              🔧 Production Pipeline
+            </button>
+          )}
         )}
       </div>
 
@@ -2261,6 +2286,26 @@ export default function TeamTab({
           projectId={project.id}
           collaborator={fundingModalRole}
         />
+      )}
+
+      {/* Production Pipeline Wizard */}
+      {showProductionWizard && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }}>
+          <ProductionWizard
+            project={project}
+            onComplete={async () => {
+              setShowProductionWizard(false);
+              const updatedProject = await collaborationApi.getCollaborativeProject(project.id);
+              onProjectUpdate?.(updatedProject);
+            }}
+            onCancel={() => setShowProductionWizard(false)}
+          />
+        </div>
       )}
     </div>
   );

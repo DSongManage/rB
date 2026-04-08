@@ -587,6 +587,184 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         return Response({'status': 'complete', 'message': 'Workspace setup complete. Fund escrow to begin production.'})
 
+    @action(detail=True, methods=['post'], url_path='production-wizard')
+    def production_wizard(self, request, pk=None):
+        """Set up production pipeline via guided wizard.
+
+        POST data:
+        {
+            "total_pages": 24,
+            "pages_per_batch": 5,
+            "stages": [
+                {
+                    "name": "Pencils",
+                    "collaborator_username": "Learn6",  // or null for TBD
+                    "price_per_page": "10.00",
+                    "same_as_stage": null  // index of stage to share collaborator with
+                },
+                {
+                    "name": "Inks",
+                    "collaborator_username": null,
+                    "price_per_page": "5.00",
+                    "same_as_stage": 0  // same collaborator as stage 0 (Pencils)
+                }
+            ]
+        }
+        """
+        project = self.get_object()
+        if project.created_by != request.user:
+            return Response({'error': 'Only the project owner can set up production.'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        total_pages = request.data.get('total_pages', 24)
+        pages_per_batch = request.data.get('pages_per_batch', 5)
+        stages_data = request.data.get('stages', [])
+
+        if not stages_data:
+            return Response({'error': 'At least one production stage is required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if total_pages < 1 or total_pages > 200:
+            return Response({'error': 'Total pages must be between 1 and 200.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        from ..models import ProductionStage, ContractTask, ComicPage, ComicIssue
+
+        with transaction.atomic():
+            # Calculate batches
+            batches = []
+            page_start = 1
+            while page_start <= total_pages:
+                page_end = min(page_start + pages_per_batch - 1, total_pages)
+                batches.append((page_start, page_end))
+                page_start = page_end + 1
+
+            # Create stages and resolve collaborators
+            created_stages = []
+            collaborator_roles = {}  # username → CollaboratorRole
+
+            for i, stage_data in enumerate(stages_data):
+                stage_name = stage_data.get('name', f'Stage {i+1}')
+                price_per_page = Decimal(str(stage_data.get('price_per_page', '0')))
+                same_as = stage_data.get('same_as_stage')
+                collab_username = stage_data.get('collaborator_username')
+
+                # Resolve collaborator role
+                role = None
+                if same_as is not None and 0 <= same_as < len(created_stages):
+                    role = created_stages[same_as].collaborator_role
+                elif collab_username:
+                    if collab_username in collaborator_roles:
+                        role = collaborator_roles[collab_username]
+                    else:
+                        # Find or create collaborator role
+                        try:
+                            user = CoreUser.objects.get(username=collab_username)
+                            role = project.collaborators.filter(user=user, status__in=['invited', 'accepted']).first()
+                            if not role:
+                                # Create invitation
+                                role = CollaboratorRole.objects.create(
+                                    project=project,
+                                    user=user,
+                                    role=stage_name,
+                                    status='invited',
+                                    revenue_percentage=Decimal('0'),
+                                    contract_type='work_for_hire',
+                                    total_contract_amount=Decimal('0'),
+                                )
+                            collaborator_roles[collab_username] = role
+                        except CoreUser.DoesNotExist:
+                            pass
+
+                stage = ProductionStage.objects.create(
+                    project=project,
+                    name=stage_name,
+                    order=i + 1,
+                    collaborator_role=role,
+                    price_per_page=price_per_page,
+                )
+                created_stages.append(stage)
+
+            # Create milestones with dependencies
+            # prev_batch_tasks[batch_idx] = task from previous stage for that batch
+            prev_batch_tasks = [None] * len(batches)
+
+            for stage in created_stages:
+                role = stage.collaborator_role
+                if not role:
+                    continue
+
+                stage_batch_tasks = []
+                for batch_idx, (ps, pe) in enumerate(batches):
+                    page_count = pe - ps + 1
+                    amount = stage.price_per_page * page_count if stage.price_per_page else Decimal('0')
+
+                    task = ContractTask.objects.create(
+                        collaborator_role=role,
+                        title=f'{stage.name} — Pages {ps}-{pe}',
+                        description=f'{stage.name} for pages {ps} through {pe}',
+                        payment_amount=amount,
+                        status='pending',
+                        escrow_release_status='pending',
+                        milestone_type='production_block',
+                        page_range_start=ps,
+                        page_range_end=pe,
+                        order=batch_idx,
+                        stage=stage,
+                        depends_on=prev_batch_tasks[batch_idx],
+                    )
+                    stage_batch_tasks.append(task)
+
+                # Update role total contract amount
+                total = role.contract_tasks.aggregate(
+                    total=models.Sum('payment_amount')
+                )['total'] or Decimal('0')
+                role.total_contract_amount = total
+                role.save(update_fields=['total_contract_amount'])
+
+                # Update prev_batch_tasks for next stage
+                for batch_idx, task in enumerate(stage_batch_tasks):
+                    prev_batch_tasks[batch_idx] = task
+
+            # Create workspace pages (linked to first stage milestones)
+            first_stage = created_stages[0] if created_stages else None
+            first_stage_tasks = ContractTask.objects.filter(stage=first_stage).order_by('order') if first_stage else []
+
+            issue = project.issues.first()
+            if not issue:
+                issue = ComicIssue.objects.create(
+                    project=project, series=None, title='Issue #1', issue_number=1,
+                )
+
+            for task in first_stage_tasks:
+                if task.page_range_start and task.page_range_end:
+                    for pn in range(task.page_range_start, task.page_range_end + 1):
+                        ComicPage.objects.get_or_create(
+                            issue=issue,
+                            page_number=pn,
+                            defaults={
+                                'project': project,
+                                'milestone': task,
+                                'current_stage': first_stage,
+                                'page_status': 'setup',
+                                'brief_complete': False,
+                                'script_data': {'page_description': '', 'panels': []},
+                            }
+                        )
+
+        # Build response summary
+        summary = {
+            'stages': len(created_stages),
+            'batches': len(batches),
+            'total_milestones': ContractTask.objects.filter(stage__project=project).count(),
+            'total_pages': total_pages,
+            'collaborators_invited': len(collaborator_roles),
+            'batch_breakdown': [
+                {'pages': f'{ps}-{pe}', 'page_count': pe - ps + 1}
+                for ps, pe in batches
+            ],
+        }
+        return Response(summary, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'])
     def counter_propose(self, request, pk=None):
         """Submit a counter-proposal for a collaboration invitation.
@@ -1299,10 +1477,30 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Pipeline unlock: activate dependent milestones
+        unlocked_tasks = []
+        dependents = ContractTask.objects.filter(depends_on=task, status='pending')
+        for dep in dependents:
+            dep.status = 'in_progress'
+            dep.save(update_fields=['status'])
+            unlocked_tasks.append(dep.title)
+            logger.info('[PipelineUnlock] %s unlocked by completion of %s', dep.title, task.title)
+
+            # Update page current_stage if stage exists
+            if dep.stage and dep.page_range_start and dep.page_range_end:
+                from ..models import ComicPage
+                ComicPage.objects.filter(
+                    project=project,
+                    page_number__gte=dep.page_range_start,
+                    page_number__lte=dep.page_range_end,
+                ).update(current_stage=dep.stage, milestone=dep)
+
         # TODO: Notify collaborator
 
-        serializer = ContractTaskSerializer(task)
-        return Response(serializer.data)
+        data = ContractTaskSerializer(task).data
+        if unlocked_tasks:
+            data['unlocked_milestones'] = unlocked_tasks
+        return Response(data)
 
     @action(detail=True, methods=['post'], url_path='tasks/(?P<task_id>[^/.]+)/reject-completion')
     def reject_task_completion(self, request, pk=None, task_id=None):

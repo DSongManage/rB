@@ -2910,6 +2910,36 @@ class CollaboratorRole(models.Model):
         return False
 
 
+class ProductionStage(models.Model):
+    """A stage in comic production pipeline (e.g., Pencils, Inks, Colors, Letters).
+
+    Stages are sequential — stage 2 batches unlock as stage 1 batches complete.
+    Multiple stages can be assigned to the same collaborator.
+    """
+    project = models.ForeignKey(
+        CollaborativeProject, on_delete=models.CASCADE, related_name='production_stages'
+    )
+    name = models.CharField(max_length=100)
+    order = models.PositiveIntegerField(default=0, help_text="Sequential order: 1=first stage, 2=second, etc.")
+    collaborator_role = models.ForeignKey(
+        'CollaboratorRole', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='production_stages',
+        help_text="Who handles this stage"
+    )
+    price_per_page = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Price per page for this stage (used to auto-calculate milestone amounts)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order']
+        unique_together = ['project', 'order']
+
+    def __str__(self):
+        return f"{self.name} (Stage {self.order}) — {self.project.title}"
+
+
 class ContractTask(models.Model):
     """Individual task within a collaboration contract.
 
@@ -3169,6 +3199,18 @@ class ContractTask(models.Model):
         null=True,
         blank=True,
         help_text="Ending page number for page-based milestones"
+    )
+
+    # Production pipeline
+    stage = models.ForeignKey(
+        ProductionStage, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='milestones',
+        help_text="Which production stage this milestone belongs to"
+    )
+    depends_on = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dependents',
+        help_text="Milestone that must complete before this one unlocks"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -4471,6 +4513,11 @@ class ComicPage(models.Model):
     brief_complete = models.BooleanField(
         default=False,
         help_text="Author has finished writing the description/references for this page"
+    )
+    current_stage = models.ForeignKey(
+        ProductionStage, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='active_pages',
+        help_text="Which production stage this page is currently in"
     )
 
     # Workspace workflow status
