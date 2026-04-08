@@ -122,7 +122,7 @@ export default function ReviewerInterface({
           alignItems: 'center',
           gap: 8,
           marginBottom: 16,
-          color: '#f8fafc',
+          color: 'var(--text)',
           fontWeight: 600,
         }}>
           <Eye size={18} />
@@ -197,7 +197,7 @@ export default function ReviewerInterface({
               borderBottom: '1px solid var(--border)',
             }}>
               <div>
-                <h3 style={{ color: '#f8fafc', margin: 0, fontSize: 18 }}>
+                <h3 style={{ color: 'var(--text)', margin: 0, fontSize: 18 }}>
                   {selectedSection.title}
                 </h3>
                 <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
@@ -276,7 +276,7 @@ export default function ReviewerInterface({
           alignItems: 'center',
           gap: 8,
           marginBottom: 16,
-          color: '#f8fafc',
+          color: 'var(--text)',
           fontWeight: 600,
         }}>
           <MessageSquare size={18} />
@@ -350,7 +350,7 @@ export default function ReviewerInterface({
               border: '1px solid var(--border)',
               borderRadius: 8,
               padding: 12,
-              color: '#f8fafc',
+              color: 'var(--text)',
               fontSize: 13,
               fontFamily: 'inherit',
               resize: 'none',

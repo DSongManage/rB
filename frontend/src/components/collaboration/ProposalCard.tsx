@@ -187,7 +187,7 @@ export function ProposalCard({
               {statusBadge.text}
             </span>
           </div>
-          <h4 style={{ margin: 0, color: '#f8fafc', fontSize: 15, fontWeight: 600 }}>
+          <h4 style={{ margin: 0, color: 'var(--text)', fontSize: 15, fontWeight: 600 }}>
             {proposal.title}
           </h4>
           <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>

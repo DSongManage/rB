@@ -99,7 +99,7 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Keyboard size={24} style={{ color: '#f59e0b' }} />
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#f8fafc' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>
               Keyboard Shortcuts
             </h2>
           </div>
@@ -186,7 +186,7 @@ export function KeyboardShortcutsHelp({ onClose, isRTL = false }: KeyboardShortc
                               borderRadius: 4,
                               fontSize: 12,
                               fontFamily: 'monospace',
-                              color: '#f8fafc',
+                              color: 'var(--text)',
                               border: '1px solid var(--border)',
                               minWidth: 28,
                               textAlign: 'center',

@@ -972,7 +972,7 @@ export default function ProfilePageRedesigned() {
           style={{
             background: profile?.wallet_address ? 'transparent' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             border: profile?.wallet_address ? '1px solid var(--panel-border-strong)' : 'none',
-            color: '#fff',
+            color: profile?.wallet_address ? 'var(--text)' : '#fff',
             padding: '8px 16px',
             borderRadius: 8,
             fontSize: 13,

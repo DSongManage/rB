@@ -262,7 +262,7 @@ export function WalletManagementPanel({
         padding: 16,
         marginBottom: 16,
       }}>
-        <div style={{ fontWeight: 600, color: '#f1f5f9', fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ fontWeight: 600, color: 'var(--text)', fontSize: 16, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Wallet size={20} /> Wallet Setup
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
@@ -465,7 +465,7 @@ export function WalletManagementPanel({
               style={{
                 background: '#1e293b',
                 border: '1px solid #334155',
-                color: '#e2e8f0',
+                color: 'var(--text)',
                 padding: '8px 14px',
                 borderRadius: 8,
                 fontSize: 13,
@@ -490,7 +490,7 @@ export function WalletManagementPanel({
               style={{
                 background: '#1e293b',
                 border: '1px solid #334155',
-                color: '#e2e8f0',
+                color: 'var(--text)',
                 padding: '8px 14px',
                 borderRadius: 8,
                 fontSize: 13,
@@ -515,7 +515,7 @@ export function WalletManagementPanel({
                 style={{
                   background: '#1e293b',
                   border: '1px solid #334155',
-                  color: '#e2e8f0',
+                  color: 'var(--text)',
                   padding: '8px 14px',
                   borderRadius: 8,
                   fontSize: 13,

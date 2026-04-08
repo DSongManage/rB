@@ -1724,7 +1724,7 @@ export default function TeamTab({
               padding: 16,
               marginBottom: 20,
             }}>
-              <div style={{ color: '#f8fafc', fontSize: 15, lineHeight: 1.6 }}>
+              <div style={{ color: 'var(--text)', fontSize: 15, lineHeight: 1.6 }}>
                 By allocating <strong style={{ color: '#f59e0b' }}>{invitePercentage}%</strong> revenue share to this collaborator, you will:
               </div>
               <ul style={{
@@ -2133,7 +2133,7 @@ export default function TeamTab({
                                 background: 'var(--bg)',
                                 border: '1px solid var(--border)',
                                 borderRadius: 6,
-                                color: '#f8fafc',
+                                color: 'var(--text)',
                                 fontSize: 13,
                                 resize: 'vertical',
                                 marginBottom: 10,

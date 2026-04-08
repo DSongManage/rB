@@ -145,7 +145,7 @@ export function VotingModal({
           <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
             NEW COLLABORATOR
           </div>
-          <div style={{ color: '#f8fafc', fontSize: 14, fontWeight: 500 }}>
+          <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 500 }}>
             @{data.invitee.username}
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
@@ -192,7 +192,7 @@ export function VotingModal({
           <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
             DEADLINE EXTENSION REQUEST
           </div>
-          <div style={{ color: '#f8fafc', fontSize: 14 }}>
+          <div style={{ color: 'var(--text)', fontSize: 14 }}>
             Extend by: <span style={{ color: '#f59e0b', fontWeight: 600 }}>{data.extension.days} days</span>
           </div>
           {data.extension.reason && (
@@ -254,7 +254,7 @@ export function VotingModal({
                 {typeInfo.label}
               </span>
             </div>
-            <h2 style={{ margin: 0, color: '#f8fafc', fontSize: 18, fontWeight: 600 }}>
+            <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
               {proposal.title}
             </h2>
             <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>
@@ -428,7 +428,7 @@ export function VotingModal({
                 border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
                 resize: 'vertical',
               }}

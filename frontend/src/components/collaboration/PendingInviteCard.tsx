@@ -143,7 +143,7 @@ export function PendingInviteCard({
           <h3
             style={{
               margin: 0,
-              color: '#f8fafc',
+              color: 'var(--text)',
               fontSize: 16,
               fontWeight: 600,
               whiteSpace: 'nowrap',

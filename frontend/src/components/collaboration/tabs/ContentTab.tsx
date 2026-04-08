@@ -127,7 +127,7 @@ export default function ContentTab({
         color: 'var(--text-muted)',
       }}>
         <AlertCircle size={48} style={{ marginBottom: 16, color: '#f59e0b' }} />
-        <h3 style={{ color: '#f8fafc', marginBottom: 8 }}>No Content Access</h3>
+        <h3 style={{ color: 'var(--text)', marginBottom: 8 }}>No Content Access</h3>
         <p style={{ fontSize: 14 }}>
           You don't have permission to view or edit content in this project yet.
           <br />

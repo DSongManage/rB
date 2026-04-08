@@ -3383,6 +3383,27 @@ class ContractTask(models.Model):
             if self.status in ('complete', 'submitted', 'under_review', 'resubmitted'):
                 self.sign_off(owner, notes)
 
+            # DB-based escrow release (no PDA — platform-managed escrow)
+            role = self.collaborator_role
+            if (self.escrow_release_status == 'approved' and
+                not role.escrow_pda_address and
+                self.payment_amount and self.payment_amount > 0):
+                from decimal import Decimal
+                release_amount = self.payment_amount
+                role.escrow_released_amount += release_amount
+                role.save(update_fields=['escrow_released_amount'])
+                EscrowTransaction.objects.create(
+                    collaborator_role=role,
+                    transaction_type='release',
+                    amount=release_amount,
+                    escrow_balance_after=role.escrow_funded_amount - role.escrow_released_amount,
+                    initiated_by=owner,
+                    notes=f'Auto-release: {self.title} approved',
+                    on_chain_status='confirmed',
+                )
+                self.escrow_release_status = 'released'
+                self.save(update_fields=['escrow_release_status'])
+
             # Check if ALL tasks across ALL collaborators are now resolved
             project = self.collaborator_role.project
             all_tasks = ContractTask.objects.filter(collaborator_role__project=project)

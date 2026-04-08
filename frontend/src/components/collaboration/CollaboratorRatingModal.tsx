@@ -86,7 +86,7 @@ export function CollaboratorRatingModal({
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
-          <div style={{ color: '#f8fafc', fontSize: 14, fontWeight: 600 }}>{label}</div>
+          <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>{label}</div>
           <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{description}</div>
         </div>
         <div style={{ color: '#f59e0b', fontSize: 13, fontWeight: 600 }}>
@@ -169,7 +169,7 @@ export function CollaboratorRatingModal({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{ fontSize: 24 }}>⭐</span>
-                <h2 style={{ margin: 0, color: '#f8fafc', fontSize: 18, fontWeight: 600 }}>
+                <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 18, fontWeight: 600 }}>
                   Rate Collaborator
                 </h2>
               </div>
@@ -223,7 +223,7 @@ export function CollaboratorRatingModal({
               {collaboratorUsername.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: 14 }}>
+              <div style={{ color: 'var(--text)', fontWeight: 600, fontSize: 14 }}>
                 @{collaboratorUsername}
               </div>
               <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
@@ -284,7 +284,7 @@ export function CollaboratorRatingModal({
             <label
               style={{
                 display: 'block',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
                 fontWeight: 600,
                 marginBottom: 4,
@@ -306,7 +306,7 @@ export function CollaboratorRatingModal({
                 border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
                 resize: 'vertical',
               }}
@@ -318,7 +318,7 @@ export function CollaboratorRatingModal({
             <label
               style={{
                 display: 'block',
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
                 fontWeight: 600,
                 marginBottom: 4,
@@ -340,7 +340,7 @@ export function CollaboratorRatingModal({
                 border: '1px solid var(--border)',
                 borderRadius: 8,
                 padding: 12,
-                color: '#f8fafc',
+                color: 'var(--text)',
                 fontSize: 14,
                 resize: 'vertical',
               }}

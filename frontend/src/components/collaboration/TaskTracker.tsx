@@ -311,7 +311,7 @@ export function TaskTracker({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <ClipboardList size={20} style={{ color: 'var(--text-muted)' }} />
-            <h3 style={{ margin: 0, color: '#f8fafc', fontSize: 16, fontWeight: 600 }}>
+            <h3 style={{ margin: 0, color: 'var(--text)', fontSize: 16, fontWeight: 600 }}>
               Contract Tasks for @{collaboratorRole.username}
             </h3>
           </div>
@@ -433,7 +433,7 @@ export function TaskTracker({
                     <StatusBadge status={task.status} isOverdue={task.is_overdue} />
                     <span
                       style={{
-                        color: '#f8fafc',
+                        color: 'var(--text)',
                         fontSize: 14,
                         fontWeight: 600,
                       }}
@@ -558,7 +558,7 @@ export function TaskTracker({
                           border: '1px solid var(--border)',
                           borderRadius: 6,
                           padding: 10,
-                          color: '#f8fafc',
+                          color: 'var(--text)',
                           fontSize: 13,
                           resize: 'vertical',
                           minHeight: 60,
@@ -599,7 +599,7 @@ export function TaskTracker({
                           border: '1px solid var(--border)',
                           borderRadius: 6,
                           padding: 10,
-                          color: '#f8fafc',
+                          color: 'var(--text)',
                           fontSize: 13,
                           resize: 'vertical',
                           minHeight: 60,
@@ -658,7 +658,7 @@ export function TaskTracker({
                           border: '1px solid #ef4444',
                           borderRadius: 6,
                           padding: 10,
-                          color: '#f8fafc',
+                          color: 'var(--text)',
                           fontSize: 13,
                           resize: 'vertical',
                           minHeight: 80,
