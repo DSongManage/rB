@@ -877,14 +877,17 @@ export default function CampaignProjectWizard() {
               Tell backers about your project. Include sample pages, vision, and what makes it special.
             </p>
           </div>
-          <ReactQuill
-            value={pitchHtml}
-            onChange={setPitchHtml}
-            modules={quillModules}
-            theme="snow"
-            placeholder="Write your campaign pitch..."
-            style={{ background: 'var(--dropdown-bg)', borderRadius: 8, minHeight: 300 }}
-          />
+          <div className="campaign-pitch-editor">
+            <style>{`.campaign-pitch-editor .ql-editor { color: var(--text); font-size: 15px; min-height: 250px; } .campaign-pitch-editor .ql-editor.ql-blank::before { color: var(--text-muted); }`}</style>
+            <ReactQuill
+              value={pitchHtml}
+              onChange={setPitchHtml}
+              modules={quillModules}
+              theme="snow"
+              placeholder="Write your campaign pitch..."
+              style={{ background: 'var(--dropdown-bg)', borderRadius: 8 }}
+            />
+          </div>
         </div>
       )}
 
