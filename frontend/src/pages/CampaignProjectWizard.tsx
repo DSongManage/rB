@@ -116,6 +116,17 @@ export default function CampaignProjectWizard() {
   // Cancel confirmation
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
+  // Pipeline mode for comic campaigns
+  const [usePipeline, setUsePipeline] = useState(false);
+  const [pipelinePages, setPipelinePages] = useState(24);
+  const [pipelineBatchSize, setPipelineBatchSize] = useState(5);
+  const [pipelineStages, setPipelineStages] = useState([
+    { name: 'Pencils', enabled: true, username: '', is_tbd: false, price_per_page: '', same_as: null as number | null },
+    { name: 'Inks', enabled: true, username: '', is_tbd: false, price_per_page: '', same_as: null as number | null },
+    { name: 'Colors', enabled: true, username: '', is_tbd: false, price_per_page: '', same_as: null as number | null },
+    { name: 'Letters', enabled: false, username: '', is_tbd: false, price_per_page: '', same_as: null as number | null },
+  ]);
+
   const defaultDeadline = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     .toISOString().split('T')[0];
 
@@ -160,7 +171,12 @@ export default function CampaignProjectWizard() {
   }, [clearDraft, navigate]);
 
   // Computed
-  const totalMilestones = team.reduce((sum, m) => sum + parseFloat(m.total_amount || '0'), 0);
+  const pipelineTotal = usePipeline && contentType === 'comic'
+    ? pipelineStages.filter(s => s.enabled).reduce((sum, s) => sum + (parseFloat(s.price_per_page) || 0) * pipelinePages, 0)
+    : 0;
+  const totalMilestones = usePipeline && contentType === 'comic'
+    ? pipelineTotal
+    : team.reduce((sum, m) => sum + parseFloat(m.total_amount || '0'), 0);
   const prodCosts = parseFloat(productionCosts) || 0;
   const fundingGoal = totalMilestones + prodCosts;
 
@@ -441,9 +457,151 @@ export default function CampaignProjectWizard() {
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: '0 0 4px' }}>Team & Budget</h2>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-              Add team members or open roles. Set milestones with deadlines relative to funding.
+              {contentType === 'comic' ? 'Set up your production pipeline or add team members manually.' : 'Add team members or open roles. Set milestones with deadlines relative to funding.'}
             </p>
           </div>
+
+          {/* Comic: Pipeline toggle */}
+          {contentType === 'comic' && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setUsePipeline(true)} style={{
+                flex: 1, padding: '10px 14px', borderRadius: 8,
+                border: `1.5px solid ${usePipeline ? '#E8981F' : 'var(--border)'}`,
+                background: usePipeline ? '#E8981F08' : 'transparent',
+                color: usePipeline ? '#E8981F' : 'var(--text-muted)',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                🔧 Production Pipeline
+              </button>
+              <button onClick={() => setUsePipeline(false)} style={{
+                flex: 1, padding: '10px 14px', borderRadius: 8,
+                border: `1.5px solid ${!usePipeline ? '#8b5cf6' : 'var(--border)'}`,
+                background: !usePipeline ? '#8b5cf608' : 'transparent',
+                color: !usePipeline ? '#8b5cf6' : 'var(--text-muted)',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Manual Setup
+              </button>
+            </div>
+          )}
+
+          {/* Pipeline mode for comics */}
+          {usePipeline && contentType === 'comic' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16, borderRadius: 12, border: '1px solid #E8981F30', background: '#E8981F05' }}>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4, display: 'block' }}>Total pages</label>
+                  <input type="number" min={1} max={200} value={pipelinePages}
+                    onChange={e => setPipelinePages(parseInt(e.target.value) || 1)}
+                    style={{ width: 80, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--dropdown-bg)', color: 'var(--text)', fontSize: 14 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4, display: 'block' }}>Pages per batch</label>
+                  <input type="number" min={1} max={pipelinePages} value={pipelineBatchSize}
+                    onChange={e => setPipelineBatchSize(parseInt(e.target.value) || 1)}
+                    style={{ width: 80, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--dropdown-bg)', color: 'var(--text)', fontSize: 14 }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {Math.ceil(pipelinePages / pipelineBatchSize)} batches × {pipelineStages.filter(s => s.enabled).length} stages = {Math.ceil(pipelinePages / pipelineBatchSize) * pipelineStages.filter(s => s.enabled).length} milestones
+              </div>
+
+              {/* Stage toggles */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {pipelineStages.map((ps, i) => (
+                  <div key={i} style={{
+                    padding: '10px 14px', borderRadius: 8,
+                    border: `1px solid ${ps.enabled ? '#E8981F40' : 'var(--border)'}`,
+                    background: ps.enabled ? '#E8981F05' : 'transparent',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: ps.enabled ? 8 : 0 }}>
+                      <input type="checkbox" checked={ps.enabled}
+                        onChange={() => setPipelineStages(prev => prev.map((s, j) => j === i ? { ...s, enabled: !s.enabled } : s))}
+                        style={{ accentColor: '#E8981F' }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: ps.enabled ? 'var(--text)' : 'var(--text-muted)', flex: 1 }}>{ps.name}</span>
+                      {ps.enabled && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>$</span>
+                          <input type="number" min={0} step={0.01} value={ps.price_per_page}
+                            onChange={e => setPipelineStages(prev => prev.map((s, j) => j === i ? { ...s, price_per_page: e.target.value } : s))}
+                            placeholder="0" style={{ width: 60, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--dropdown-bg)', color: 'var(--text)', fontSize: 12 }}
+                          />
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/pg</span>
+                        </div>
+                      )}
+                    </div>
+                    {ps.enabled && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 26 }}>
+                        {ps.username ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: '#8b5cf610', border: '1px solid #8b5cf630' }}>
+                            <span style={{ fontSize: 12, color: 'var(--text)' }}>@{ps.username}</span>
+                            <button onClick={() => setPipelineStages(prev => prev.map((s, j) => j === i ? { ...s, username: '', is_tbd: false, same_as: null } : s))}
+                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}><X size={12} /></button>
+                          </div>
+                        ) : ps.is_tbd ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: '#f59e0b10', border: '1px dashed #f59e0b' }}>
+                            <span style={{ fontSize: 12, color: '#f59e0b' }}>TBD — Open Role</span>
+                            <button onClick={() => setPipelineStages(prev => prev.map((s, j) => j === i ? { ...s, is_tbd: false } : s))}
+                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}><X size={12} /></button>
+                          </div>
+                        ) : ps.same_as != null ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 6, background: '#8b5cf610' }}>
+                            <span style={{ fontSize: 12, color: '#8b5cf6' }}>Same as {pipelineStages[ps.same_as]?.name}</span>
+                            <button onClick={() => setPipelineStages(prev => prev.map((s, j) => j === i ? { ...s, same_as: null } : s))}
+                              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0 }}><X size={12} /></button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            <input placeholder="@username"
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  const val = (e.target as HTMLInputElement).value.replace('@', '').trim();
+                                  if (val) setPipelineStages(prev => prev.map((s, j) => j === i ? { ...s, username: val } : s));
+                                }
+                              }}
+                              style={{ width: 100, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--dropdown-bg)', color: 'var(--text)', fontSize: 12 }}
+                            />
+                            <button onClick={() => setPipelineStages(prev => prev.map((s, j) => j === i ? { ...s, is_tbd: true } : s))}
+                              style={{ padding: '4px 8px', borderRadius: 4, border: '1px dashed #f59e0b', background: 'transparent', color: '#f59e0b', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                              TBD
+                            </button>
+                            {i > 0 && pipelineStages.slice(0, i).filter(p => p.enabled && (p.username || p.is_tbd)).map((p, j) => (
+                              <button key={j} onClick={() => setPipelineStages(prev => prev.map((s, k) => k === i ? { ...s, same_as: j, username: p.username } : s))}
+                                style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 10, cursor: 'pointer' }}>
+                                = {p.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {ps.enabled && ps.price_per_page && (
+                          <span style={{ fontSize: 11, color: '#10b981', marginLeft: 'auto' }}>
+                            = ${((parseFloat(ps.price_per_page) || 0) * pipelinePages).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Pipeline total */}
+              {(() => {
+                const pipelineTotal = pipelineStages.filter(s => s.enabled).reduce((sum, s) => sum + (parseFloat(s.price_per_page) || 0) * pipelinePages, 0);
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 8, background: '#10b98110', border: '1px solid #10b98130' }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Pipeline total</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>${pipelineTotal.toFixed(2)}</span>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Team member cards (manual mode) */}
+          {(!usePipeline || contentType !== 'comic') && (<>
 
           {/* Team member cards */}
           {team.map((member) => (
@@ -642,6 +800,8 @@ export default function CampaignProjectWizard() {
               <Plus size={16} /> Add team member
             </button>
           )}
+
+          </>)}
 
           {/* Production costs */}
           <div style={{
