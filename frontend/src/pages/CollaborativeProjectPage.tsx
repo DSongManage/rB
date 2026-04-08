@@ -9,6 +9,7 @@ import PublishTab from '../components/collaboration/tabs/PublishTab';
 import ContentTab from '../components/collaboration/tabs/ContentTab';
 import CollaborativeScriptEditor from '../components/collaboration/CollaborativeScriptEditor';
 import UnifiedWorkspaceEditor from '../components/collaboration/UnifiedWorkspaceEditor';
+import ProductionWizard from '../components/collaboration/ProductionWizard';
 import {
   collaborationApi,
   CollaborativeProject,
@@ -44,6 +45,11 @@ export default function CollaborativeProjectPage() {
   // Delete project state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingProject, setDeletingProject] = useState(false);
+
+  // Production pipeline wizard (auto-opened via ?setup=pipeline)
+  const [showPipelineWizard, setShowPipelineWizard] = useState(
+    searchParams.get('setup') === 'pipeline'
+  );
 
   // Tab state from URL or default to 'overview'
   const activeTab = (searchParams.get('tab') as TabId) || 'overview';
@@ -572,6 +578,34 @@ export default function CollaborativeProjectPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Production Pipeline Wizard (auto-opens for new comic projects) */}
+      {showPipelineWizard && project && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, overflowY: 'auto',
+        }}>
+          <ProductionWizard
+            project={project}
+            onComplete={async () => {
+              setShowPipelineWizard(false);
+              // Clear the URL param
+              searchParams.delete('setup');
+              setSearchParams(searchParams, { replace: true });
+              // Refresh project
+              const updated = await collaborationApi.getCollaborativeProject(project.id);
+              setProject(updated);
+            }}
+            onCancel={() => {
+              setShowPipelineWizard(false);
+              searchParams.delete('setup');
+              setSearchParams(searchParams, { replace: true });
+            }}
+          />
         </div>
       )}
     </div>

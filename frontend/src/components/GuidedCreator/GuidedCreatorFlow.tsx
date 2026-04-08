@@ -105,7 +105,12 @@ export default function GuidedCreatorFlow() {
             content_type: ct,
             description: '',
           });
-          navigate(`/studio/${project.id}`);
+          // Comic projects: launch production pipeline wizard
+          if (ct === 'comic') {
+            navigate(`/studio/${project.id}?setup=pipeline`);
+          } else {
+            navigate(`/studio/${project.id}`);
+          }
           break;
         }
         case 'publish':
