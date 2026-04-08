@@ -550,7 +550,7 @@ export default function TeamTab({
         <h2 style={{ margin: 0, color: 'var(--text)', fontSize: 20 }}>
           Team Members
         </h2>
-        {isProjectLead && !showInviteForm && (
+        {isProjectLead && !showInviteForm && (<>
           <button
             type="button"
             onClick={() => setShowInviteForm(true)}
@@ -591,7 +591,7 @@ export default function TeamTab({
               🔧 Production Pipeline
             </button>
           )}
-        )}
+        </>)}
       </div>
 
       {/* Invite Form */}
