@@ -71,6 +71,7 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
     DEFAULT_STAGES.map(s => ({ ...s }))
   );
   const [customStageName, setCustomStageName] = useState('');
+  const [daysPerBatch, setDaysPerBatch] = useState(7); // days after funding per batch
 
   // Escrow fee
   const [escrowFeeMode, setEscrowFeeMode] = useState<'writer_pays' | 'artist_pays' | 'split'>('writer_pays');
@@ -204,6 +205,7 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
           project_description: projectDescription.trim(),
           total_pages: totalPages,
           pages_per_batch: pagesPerBatch,
+          days_per_batch: daysPerBatch,
           escrow_fee_mode: escrowFeeMode,
           stages: stages.map(s => ({
             name: s.name,
@@ -358,6 +360,19 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
             />
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
               Creates {batchCount} batch{batchCount !== 1 ? 'es' : ''} × {activeStages.length} stage{activeStages.length !== 1 ? 's' : ''} = {totalMilestones} milestones total
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+              Days per batch (after escrow funded)
+            </label>
+            <input type="number" min={1} max={365} value={daysPerBatch}
+              onChange={e => setDaysPerBatch(parseInt(e.target.value) || 7)}
+              style={{ width: 120, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 16, fontWeight: 600 }}
+            />
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+              Batch 1 due in {daysPerBatch} days, Batch 2 in {daysPerBatch * 2} days, etc. Deadlines start after escrow is funded.
             </div>
           </div>
         </div>

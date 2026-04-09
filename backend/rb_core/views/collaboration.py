@@ -631,6 +631,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
         total_pages = request.data.get('total_pages', 24)
         pages_per_batch = request.data.get('pages_per_batch', 5)
+        days_per_batch = request.data.get('days_per_batch', 7)
         stages_data = request.data.get('stages', [])
         escrow_fee_mode = request.data.get('escrow_fee_mode', 'writer_pays')
         if escrow_fee_mode not in ('writer_pays', 'artist_pays', 'split'):
@@ -719,6 +720,13 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                     page_count = pe - ps + 1
                     amount = stage.price_per_page * page_count if stage.price_per_page else Decimal('0')
 
+                    # Calculate deadline: days_per_batch * (batch + 1) * (stage_order)
+                    # Stage 1 Batch 1: 7 days, Batch 2: 14 days
+                    # Stage 2 Batch 1: after stage 1 batch 1 + 7 days, etc.
+                    stage_multiplier = created_stages.index(stage)
+                    total_batches_before = stage_multiplier * len(batches)
+                    deadline_days = days_per_batch * (total_batches_before + batch_idx + 1)
+
                     task = ContractTask.objects.create(
                         collaborator_role=role,
                         title=f'{stage.name} — Pages {ps}-{pe}',
@@ -732,6 +740,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                         order=batch_idx,
                         stage=stage,
                         depends_on=prev_batch_tasks[batch_idx],
+                        deadline_days_after_funding=deadline_days,
                     )
                     stage_batch_tasks.append(task)
 
