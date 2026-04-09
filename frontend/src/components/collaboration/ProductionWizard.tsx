@@ -68,6 +68,9 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
   );
   const [customStageName, setCustomStageName] = useState('');
 
+  // Escrow fee
+  const [escrowFeeMode, setEscrowFeeMode] = useState<'writer_pays' | 'artist_pays' | 'split'>('writer_pays');
+
   // Team
   const [stages, setStages] = useState<StageInput[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -195,6 +198,7 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
         body: JSON.stringify({
           total_pages: totalPages,
           pages_per_batch: pagesPerBatch,
+          escrow_fee_mode: escrowFeeMode,
           stages: stages.map(s => ({
             name: s.name,
             collaborator_username: s.is_tbd ? null : (s.same_as_stage != null ? null : s.collaborator_username || null),
@@ -472,14 +476,51 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
             </div>
           ))}
 
-          {/* Total */}
-          <div style={{
-            padding: 14, borderRadius: 10, background: '#10b98110', border: '1px solid #10b98130',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Total project cost</span>
-            <span style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>${totalCost.toFixed(2)}</span>
+          {/* Escrow Fee */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              Escrow Fee (3%) — Who Pays?
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              {([
+                { value: 'writer_pays' as const, label: 'I Pay', sub: '+3% on top' },
+                { value: 'artist_pays' as const, label: 'Artist Pays', sub: '-3% from payout' },
+                { value: 'split' as const, label: 'Split', sub: '1.5% each' },
+              ]).map(opt => (
+                <button key={opt.value} type="button" onClick={() => setEscrowFeeMode(opt.value)} style={{
+                  padding: '10px 8px', borderRadius: 8, cursor: 'pointer', textAlign: 'center',
+                  background: escrowFeeMode === opt.value ? 'rgba(139, 92, 246, 0.12)' : 'var(--bg)',
+                  border: `1.5px solid ${escrowFeeMode === opt.value ? '#8b5cf6' : 'var(--panel-border)'}`,
+                  color: escrowFeeMode === opt.value ? '#8b5cf6' : 'var(--text)',
+                  fontSize: 13, fontWeight: 600,
+                }}>
+                  {opt.label}
+                  <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)', marginTop: 2 }}>{opt.sub}</div>
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Total */}
+          {(() => {
+            const feeMultiplier = escrowFeeMode === 'writer_pays' ? 1.03 : escrowFeeMode === 'split' ? 1.015 : 1;
+            const totalWithFee = totalCost * feeMultiplier;
+            return (
+              <div style={{
+                padding: 14, borderRadius: 10, background: '#10b98110', border: '1px solid #10b98130',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Total project cost</span>
+                  <span style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>${totalWithFee.toFixed(2)}</span>
+                </div>
+                {escrowFeeMode !== 'artist_pays' && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Artist work: ${totalCost.toFixed(2)} + {escrowFeeMode === 'writer_pays' ? '3%' : '1.5%'} escrow fee = ${totalWithFee.toFixed(2)}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

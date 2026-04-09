@@ -619,6 +619,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         total_pages = request.data.get('total_pages', 24)
         pages_per_batch = request.data.get('pages_per_batch', 5)
         stages_data = request.data.get('stages', [])
+        escrow_fee_mode = request.data.get('escrow_fee_mode', 'writer_pays')
+        if escrow_fee_mode not in ('writer_pays', 'artist_pays', 'split'):
+            escrow_fee_mode = 'writer_pays'
 
         if not stages_data:
             return Response({'error': 'At least one production stage is required.'},
@@ -660,6 +663,10 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                         try:
                             user = CoreUser.objects.get(username=collab_username)
                             role = project.collaborators.filter(user=user, status__in=['invited', 'accepted']).first()
+                            if role:
+                                # Update fee mode on existing role
+                                role.escrow_fee_mode = escrow_fee_mode
+                                role.save(update_fields=['escrow_fee_mode'])
                             if not role:
                                 # Create invitation
                                 role = CollaboratorRole.objects.create(
@@ -670,6 +677,7 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                                     revenue_percentage=Decimal('0'),
                                     contract_type='work_for_hire',
                                     total_contract_amount=Decimal('0'),
+                                    escrow_fee_mode=escrow_fee_mode,
                                 )
                             collaborator_roles[collab_username] = role
                         except CoreUser.DoesNotExist:
