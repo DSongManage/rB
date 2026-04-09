@@ -2335,22 +2335,35 @@ def process_escrow_release(self, task_id):
         except Exception:
             pass  # Fall through to re-attempt
 
-    try:
-        task = ContractTask.objects.select_related(
-            'collaborator_role', 'collaborator_role__user',
-            'collaborator_role__project'
-        ).get(id=task_id)
-    except ContractTask.DoesNotExist:
-        logger.error('[EscrowRelease] Task %s not found', task_id)
-        return
+    from django.db import transaction as db_tx
 
-    if task.escrow_release_status != 'approved':
-        logger.warning(
-            '[EscrowRelease] Task %s status is %s, expected approved',
-            task_id, task.escrow_release_status
-        )
-        return
+    # Use select_for_update to prevent duplicate releases from concurrent workers
+    with db_tx.atomic():
+        try:
+            task = ContractTask.objects.select_for_update().select_related(
+                'collaborator_role', 'collaborator_role__user',
+                'collaborator_role__project'
+            ).get(id=task_id)
+        except ContractTask.DoesNotExist:
+            logger.error('[EscrowRelease] Task %s not found', task_id)
+            return
 
+        if task.escrow_release_status != 'approved':
+            logger.warning(
+                '[EscrowRelease] Task %s status is %s, expected approved',
+                task_id, task.escrow_release_status
+            )
+            return
+
+        # Mark as processing immediately to prevent duplicates
+        task.escrow_release_status = 'processing'
+        task.save(update_fields=['escrow_release_status'])
+
+    # Re-fetch without lock for the actual release
+    task = ContractTask.objects.select_related(
+        'collaborator_role', 'collaborator_role__user',
+        'collaborator_role__project'
+    ).get(id=task_id)
     role = task.collaborator_role
 
     # Get wallet address
