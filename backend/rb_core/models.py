@@ -2172,12 +2172,11 @@ class CollaborativeProject(models.Model):
             return
 
         # Get or create a default issue for workspace pages
-        issue = self.issues.first()
+        issue = self.comic_issues.first()
         if not issue:
             issue = ComicIssue.objects.create(
                 project=self,
-                series=None,
-                title='Workspace',
+                title='Issue #1',
                 issue_number=1,
             )
 
