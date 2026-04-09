@@ -138,12 +138,18 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
     setExactLookupLoading(true);
     setExactLookupError('');
     try {
-      const res = await fetch(`${API_URL}/api/users/lookup/?username=${encodeURIComponent(searchQuery.trim())}`, {
+      const params = new URLSearchParams({ exact_username: searchQuery.trim() });
+      const res = await fetch(`${API_URL}/api/users/search/?${params.toString()}`, {
         credentials: 'include',
       });
       if (res.ok) {
-        const user = await res.json();
-        selectUser(stageIdx, user.username, user.display_name || user.username);
+        const data = await res.json();
+        const results = data.results || [];
+        if (results.length > 0) {
+          selectUser(stageIdx, results[0].username, results[0].display_name || results[0].username);
+        } else {
+          setExactLookupError(`No user found with username "${searchQuery.trim()}"`);
+        }
       } else {
         setExactLookupError(`No user found with username "${searchQuery.trim()}"`);
       }
