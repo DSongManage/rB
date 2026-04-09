@@ -2171,6 +2171,11 @@ class CollaborativeProject(models.Model):
         if not tasks.exists():
             return
 
+        # Skip if pages already exist for these milestones (wizard already created them)
+        existing = ComicPage.objects.filter(milestone__in=tasks).exists()
+        if existing:
+            return
+
         # Get or create a default issue for workspace pages
         issue = self.comic_issues.first()
         if not issue:
