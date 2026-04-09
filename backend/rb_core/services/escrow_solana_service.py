@@ -74,6 +74,10 @@ class EscrowSolanaService:
 
     @property
     def usdc_mint(self) -> Pubkey:
+        # Prefer explicit setting, fall back to network detection
+        mint_addr = getattr(settings, 'USDC_MINT_ADDRESS', '')
+        if mint_addr:
+            return Pubkey.from_string(mint_addr)
         network = getattr(settings, 'SOLANA_NETWORK', 'devnet')
         if network == 'mainnet-beta':
             return Pubkey.from_string('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')
@@ -169,7 +173,7 @@ class EscrowSolanaService:
         """
         artist_pubkey = Pubkey.from_string(artist_wallet)
         escrow_pda, _ = self.derive_escrow_pda(project_id, artist_pubkey)
-        vault_ata = get_associated_token_address(escrow_pda, USDC_MINT)
+        vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
 
         # Safety: verify 0 USDC balance
         balance_resp = self.client.get_token_account_balance(vault_ata)
@@ -320,13 +324,13 @@ class EscrowSolanaService:
         from spl.token.instructions import transfer_checked, TransferCheckedParams
 
         vault_ata = Pubkey.from_string(vault_ata_str)
-        platform_ata = get_associated_token_address(self.platform_pubkey, USDC_MINT)
+        platform_ata = self.derive_ata(self.platform_pubkey, self.usdc_mint)
 
         ix = transfer_checked(
             TransferCheckedParams(
                 program_id=TOKEN_PROGRAM_ID,
                 source=platform_ata,
-                mint=USDC_MINT,
+                mint=self.usdc_mint,
                 dest=vault_ata,
                 owner=self.platform_pubkey,
                 amount=amount_lamports,
