@@ -351,7 +351,7 @@ export function WalletManagementPanel({
               }
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = '#334155';
+              e.currentTarget.style.borderColor = 'var(--border)';
               e.currentTarget.style.background = 'transparent';
             }}
           >
@@ -463,8 +463,8 @@ export function WalletManagementPanel({
             <button
               onClick={copyAddress}
               style={{
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 color: 'var(--text)',
                 padding: '8px 14px',
                 borderRadius: 8,
@@ -474,10 +474,10 @@ export function WalletManagementPanel({
                 transition: 'all 0.2s',
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = '#334155';
+                e.currentTarget.style.background = 'var(--panel-border)';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = '#1e293b';
+                e.currentTarget.style.background = 'var(--bg-secondary)';
               }}
             >
               <Copy size={14} style={{ marginRight: 4 }} /> Copy
@@ -488,8 +488,8 @@ export function WalletManagementPanel({
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                background: '#1e293b',
-                border: '1px solid #334155',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border)',
                 color: 'var(--text)',
                 padding: '8px 14px',
                 borderRadius: 8,
@@ -500,10 +500,10 @@ export function WalletManagementPanel({
                 transition: 'all 0.2s',
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.background = '#334155';
+                e.currentTarget.style.background = 'var(--panel-border)';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.background = '#1e293b';
+                e.currentTarget.style.background = 'var(--bg-secondary)';
               }}
             >
               <ExternalLink size={14} style={{ marginRight: 4 }} /> Explorer
@@ -513,8 +513,8 @@ export function WalletManagementPanel({
               <button
                 onClick={() => setShowManageMenu(!showManageMenu)}
                 style={{
-                  background: '#1e293b',
-                  border: '1px solid #334155',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   color: 'var(--text)',
                   padding: '8px 14px',
                   borderRadius: 8,
@@ -524,10 +524,10 @@ export function WalletManagementPanel({
                   transition: 'all 0.2s',
                 }}
                 onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#334155';
+                  e.currentTarget.style.background = 'var(--panel-border)';
                 }}
                 onMouseOut={(e) => {
-                  e.currentTarget.style.background = '#1e293b';
+                  e.currentTarget.style.background = 'var(--bg-secondary)';
                 }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -565,7 +565,7 @@ export function WalletManagementPanel({
                       transition: 'all 0.2s',
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.background = '#334155';
+                      e.currentTarget.style.background = 'var(--panel-border)';
                     }}
                     onMouseOut={(e) => {
                       e.currentTarget.style.background = 'transparent';
@@ -586,7 +586,7 @@ export function WalletManagementPanel({
 
                   <div style={{
                     height: 1,
-                    background: '#334155',
+                    background: 'var(--panel-border)',
                     margin: '8px 0',
                   }} />
 
