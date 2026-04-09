@@ -3404,6 +3404,27 @@ class ContractTask(models.Model):
                     contract_type__in=('work_for_hire', 'hybrid')
                 ).update(trust_phase='completed')
 
+                # Sweep rounding dust: any remaining escrow balance → platform
+                for role in project.collaborators.filter(
+                    contract_type__in=('work_for_hire', 'hybrid'),
+                    escrow_funded_amount__gt=0,
+                ):
+                    dust = role.escrow_funded_amount - role.escrow_released_amount
+                    if dust > 0:
+                        EscrowTransaction.objects.create(
+                            collaborator_role=role,
+                            transaction_type='dust_sweep',
+                            amount=dust,
+                            platform_fee_amount=dust,
+                            artist_net_amount=Decimal('0'),
+                            escrow_balance_after=Decimal('0'),
+                            initiated_by=owner,
+                            notes=f'Rounding dust swept to platform on project completion (${dust})',
+                            on_chain_status='confirmed',
+                        )
+                        role.escrow_released_amount = role.escrow_funded_amount
+                        role.save(update_fields=['escrow_released_amount'])
+
     @staticmethod
     def _schedule_escrow_release(task_id):
         """Schedule the Celery task for escrow release after transaction commits."""
