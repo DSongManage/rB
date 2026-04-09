@@ -123,6 +123,12 @@ export default function UnifiedWorkspaceEditor({
     isProjectOwner;
   const canUploadArt = currentUserRole?.can_edit_images ||
     currentUserRole?.role?.toLowerCase().includes('artist') ||
+    currentUserRole?.role?.toLowerCase().includes('pencil') ||
+    currentUserRole?.role?.toLowerCase().includes('ink') ||
+    currentUserRole?.role?.toLowerCase().includes('color') ||
+    currentUserRole?.role?.toLowerCase().includes('letter') ||
+    currentUserRole?.role?.toLowerCase().includes('illustrat') ||
+    currentUserRole?.contract_type === 'work_for_hire' ||
     isProjectOwner;
   const canReview = isProjectOwner;
 
@@ -366,24 +372,8 @@ export default function UnifiedWorkspaceEditor({
         );
       }
 
-      // Workspace set up but escrow not funded
-      const escrowFunded = myRole.escrow_funded_amount && parseFloat(myRole.escrow_funded_amount) > 0;
-      if (!escrowFunded) {
-        return (
-          <div style={{
-            background: 'var(--panel)', border: '1px solid var(--panel-border)',
-            borderRadius: 12, padding: 48, textAlign: 'center', maxWidth: 480, margin: '40px auto',
-          }}>
-            <FileText size={48} style={{ color: '#f59e0b', marginBottom: 16 }} />
-            <h3 style={{ fontFamily: 'var(--font-heading)', margin: '0 0 8px', color: 'var(--text)', fontSize: 22, fontWeight: 400 }}>
-              Workspace ready — awaiting funding
-            </h3>
-            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6 }}>
-              Your workspace has been set up. The project owner needs to fund the escrow before production begins. You'll be notified when funding is complete.
-            </p>
-          </div>
-        );
-      }
+      // Note: artist can VIEW workspace before funding, but Art Delivery
+      // upload is gated by canUploadArt which requires escrow to be funded
     }
   }
 
