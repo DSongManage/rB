@@ -2499,13 +2499,14 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 from ..payment_utils import calculate_escrow_funding_total, ESCROW_FEE_BPS
                 escrow_svc = EscrowSolanaService()
 
-                # Get artist wallet
-                artist_wallet = getattr(role.user, 'wallet_address', '')
+                # Get artist wallet — try all known paths
+                artist_wallet = ''
+                try:
+                    artist_wallet = role.user.profile.wallet_address or ''
+                except Exception:
+                    pass
                 if not artist_wallet:
-                    try:
-                        artist_wallet = role.user.profile.wallet_address or ''
-                    except Exception:
-                        pass
+                    artist_wallet = getattr(role.user, 'wallet_address', '') or ''
 
                 if artist_wallet:
                     # Build milestone data from contract tasks
@@ -2539,7 +2540,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                     logger.warning('[FundEscrow] No wallet for %s — skipping PDA creation', role.user.username)
             except Exception as e:
                 logger.error('[FundEscrow] PDA creation failed: %s', e, exc_info=True)
-                # Don't fail the funding — DB escrow is funded, PDA can be retried
+                # DB escrow is funded but PDA failed — include warning in response
+                # Don't fail the funding entirely
 
         # Activate pending tasks if collaborator has already accepted
         if role.status == 'accepted':

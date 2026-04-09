@@ -3399,11 +3399,16 @@ class ContractTask(models.Model):
                 task_id = self.id
                 db_tx.on_commit(lambda: self._schedule_escrow_release(task_id))
 
-            # Check if ALL tasks across ALL collaborators are now resolved
+            # Check if ALL tasks are resolved AND all escrow releases are complete
             project = self.collaborator_role.project
             all_tasks = ContractTask.objects.filter(collaborator_role__project=project)
             unresolved = all_tasks.exclude(status__in=self.RESOLVED_STATES)
-            if all_tasks.exists() and not unresolved.exists():
+            # Also check that no releases are still pending/processing
+            pending_releases = all_tasks.filter(
+                escrow_release_status__in=['approved', 'processing'],
+                payment_amount__gt=0,
+            ).exists()
+            if all_tasks.exists() and not unresolved.exists() and not pending_releases:
                 # All tasks done — transition project to complete
                 if project.status in ('draft', 'active'):
                     project.status = 'complete'
