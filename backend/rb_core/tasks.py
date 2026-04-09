@@ -2363,7 +2363,7 @@ def process_escrow_release(self, task_id):
 
     # Calculate fee breakdown
     from .payment_utils import calculate_escrow_release_breakdown
-    fee_mode = role.escrow_fee_mode or 'artist_pays'
+    fee_mode = role.escrow_fee_mode or 'writer_pays'
     breakdown = calculate_escrow_release_breakdown(task.payment_amount, fee_mode)
 
     # Create escrow transaction record FIRST (on_chain_status='pending')
@@ -2639,7 +2639,7 @@ def process_escrow_refund(self, task_id):
 
     # Full refund — no platform fee
     from .payment_utils import calculate_escrow_release_breakdown
-    fee_mode = role.escrow_fee_mode or 'artist_pays'
+    fee_mode = role.escrow_fee_mode or 'writer_pays'
     breakdown = calculate_escrow_release_breakdown(task.payment_amount, fee_mode)
     refund_amount = breakdown['writer_funded']
 
