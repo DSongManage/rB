@@ -11,7 +11,7 @@ No processing fee is charged at purchase time — the buyer already has USDC
 in their Web3Auth wallet (funded via Coinbase On-Ramp, which is a separate step).
 """
 
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
 
 # Default platform fee (standard tier)
 DEFAULT_PLATFORM_FEE_RATE = Decimal('0.10')  # 10%
@@ -54,8 +54,9 @@ def calculate_escrow_release_breakdown(milestone_amount, fee_mode='artist_pays')
     """
     milestone_amount = Decimal(str(milestone_amount))
     fee_rate = Decimal(str(ESCROW_FEE_BPS)) / Decimal('10000')  # 0.03
+    # Use ROUND_DOWN so per-milestone fees never exceed what was funded in total
     platform_fee = (milestone_amount * fee_rate).quantize(
-        Decimal('0.01'), rounding=ROUND_HALF_UP
+        Decimal('0.01'), rounding=ROUND_DOWN
     )
 
     if fee_mode == 'writer_pays':

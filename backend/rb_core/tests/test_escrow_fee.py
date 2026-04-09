@@ -10,7 +10,7 @@ Verifies that:
 6. Fee is separate from content sales platform fee (no double taxation)
 """
 
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from django.test import TestCase
 from rb_core.payment_utils import (
     calculate_escrow_release_breakdown,
@@ -48,9 +48,10 @@ class EscrowFeeCalculationTest(TestCase):
         self.assertEqual(breakdown['platform_fee'], Decimal('300.00'))
 
     def test_fee_on_odd_amount(self):
+        # 33.33 * 0.03 = 0.9999 → ROUND_DOWN = 0.99 (prevents overdraft)
         breakdown = calculate_escrow_release_breakdown('33.33', 'artist_pays')
-        self.assertEqual(breakdown['platform_fee'], Decimal('1.00'))
-        self.assertEqual(breakdown['artist_net'], Decimal('32.33'))
+        self.assertEqual(breakdown['platform_fee'], Decimal('0.99'))
+        self.assertEqual(breakdown['artist_net'], Decimal('32.34'))
         self.assertEqual(
             breakdown['artist_net'] + breakdown['platform_fee'],
             Decimal('33.33')
@@ -106,7 +107,7 @@ class WriterPaysFeeTest(TestCase):
         """Platform fee = milestone * 0.03 regardless."""
         for amount in [1, 50, 100, 333.33, 10000]:
             b = calculate_escrow_release_breakdown(amount, 'writer_pays')
-            expected_fee = (Decimal(str(amount)) * Decimal('0.03')).quantize(Decimal('0.01'))
+            expected_fee = (Decimal(str(amount)) * Decimal('0.03')).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
             self.assertEqual(b['platform_fee'], expected_fee, f"Failed for ${amount}")
 
     def test_artist_always_gets_full_milestone(self):
@@ -165,7 +166,7 @@ class SplitFeeTest(TestCase):
         """Platform fee = milestone * 0.03 regardless of split."""
         for amount in [1, 50, 100, 333.33, 10000]:
             b = calculate_escrow_release_breakdown(amount, 'split')
-            expected_fee = (Decimal(str(amount)) * Decimal('0.03')).quantize(Decimal('0.01'))
+            expected_fee = (Decimal(str(amount)) * Decimal('0.03')).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
             self.assertEqual(b['platform_fee'], expected_fee, f"Failed for ${amount}")
 
     def test_accounting_identity(self):
@@ -179,12 +180,11 @@ class SplitFeeTest(TestCase):
             )
 
     def test_odd_fee_rounding(self):
-        """$33.33: fee=$1.00, half_fee=$0.50. Both sides pay $0.50."""
+        """$33.33: fee=$0.99 (ROUND_DOWN), half=$0.50. Writer +$0.50, artist -$0.49."""
         b = calculate_escrow_release_breakdown('33.33', 'split')
-        self.assertEqual(b['platform_fee'], Decimal('1.00'))
-        # Writer pays $0.50 extra, artist loses $0.50
+        self.assertEqual(b['platform_fee'], Decimal('0.99'))
         self.assertEqual(b['writer_funded'], Decimal('33.83'))
-        self.assertEqual(b['artist_net'], Decimal('32.83'))
+        self.assertEqual(b['artist_net'], Decimal('32.84'))
         # Accounting: writer_funded = artist_net + platform_fee
         self.assertEqual(b['writer_funded'], b['artist_net'] + b['platform_fee'])
 
