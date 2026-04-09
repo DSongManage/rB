@@ -772,6 +772,11 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                             }
                         )
 
+        # Send invitation notifications
+        for username, role in collaborator_roles.items():
+            if role.user and role.status == 'invited':
+                notify_collaboration_invitation(request.user, role.user, project, role.role)
+
         # Build response summary
         summary = {
             'stages': len(created_stages),
