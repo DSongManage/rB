@@ -737,10 +737,10 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             first_stage = created_stages[0] if created_stages else None
             first_stage_tasks = ContractTask.objects.filter(stage=first_stage).order_by('order') if first_stage else []
 
-            issue = project.issues.first()
+            issue = project.comic_issues.first()
             if not issue:
                 issue = ComicIssue.objects.create(
-                    project=project, series=None, title='Issue #1', issue_number=1,
+                    project=project, title='Issue #1', issue_number=1,
                 )
 
             for task in first_stage_tasks:
