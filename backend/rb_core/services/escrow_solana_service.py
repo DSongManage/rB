@@ -272,13 +272,8 @@ class EscrowSolanaService:
 
         instructions = []
 
-        # 1. Ensure vault ATA exists (platform pays rent)
-        vault_ata = self._ensure_ata_exists(escrow_pda, instructions)
-
-        # 2. Ensure platform ATA exists (source of funds)
-        platform_ata = self._ensure_ata_exists(self.platform_pubkey, instructions)
-
-        # 3. Build initialize_escrow instruction
+        # Build initialize_escrow instruction
+        # Note: init only creates the PDA structure, no token accounts needed
         data = DISC_INITIALIZE_ESCROW
         data += struct.pack('<Q', project_id)                    # project_id: u64
         data += struct.pack('<I', len(milestone_amounts_lamports))  # Vec length prefix (Borsh)
@@ -289,20 +284,29 @@ class EscrowSolanaService:
             data += struct.pack('<q', dl)                        # milestone_deadline: i64
         data += struct.pack('<H', fee_bps)                       # fee_bps: u16
 
+        # Account order must match Anchor's InitializeEscrow struct:
+        # writer, artist, platform_wallet, vault, token_program, system_program
         accounts = [
             AccountMeta(self.platform_pubkey, is_signer=True, is_writable=True),   # writer (payer)
             AccountMeta(artist_pubkey, is_signer=False, is_writable=False),         # artist
             AccountMeta(self.platform_pubkey, is_signer=False, is_writable=False),  # platform_wallet
             AccountMeta(escrow_pda, is_signer=False, is_writable=True),             # vault (init)
-            AccountMeta(platform_ata, is_signer=False, is_writable=True),           # writer_token_account
-            AccountMeta(vault_ata, is_signer=False, is_writable=True),              # vault_token_account
-            AccountMeta(TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),
-            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+            AccountMeta(TOKEN_PROGRAM_ID, is_signer=False, is_writable=False),      # token_program
+            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),     # system_program
         ]
 
         instructions.append(Instruction(PROGRAM_ID, data, accounts))
 
         sig = self._build_and_send(instructions, [self.platform_keypair])
+
+        # Create vault ATA for USDC deposits (separate from init)
+        vault_ata = self._ensure_ata_exists(escrow_pda, [])
+        # If ATA doesn't exist yet, create it
+        ata_instructions = []
+        self._ensure_ata_exists(escrow_pda, ata_instructions)
+        if ata_instructions:
+            self._build_and_send(ata_instructions, [self.platform_keypair])
+        vault_ata = self.derive_ata(escrow_pda, self.usdc_mint)
 
         logger.info(
             '[EscrowSolana] Escrow initialized: project=%d, PDA=%s, milestones=%d, TX=%s',
