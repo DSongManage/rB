@@ -3383,26 +3383,12 @@ class ContractTask(models.Model):
             if self.status in ('complete', 'submitted', 'under_review', 'resubmitted'):
                 self.sign_off(owner, notes)
 
-            # DB-based escrow release (no PDA — platform-managed escrow)
-            role = self.collaborator_role
+            # Schedule escrow release via Celery (handles both PDA and direct transfer)
             if (self.escrow_release_status == 'approved' and
-                not role.escrow_pda_address and
                 self.payment_amount and self.payment_amount > 0):
-                from decimal import Decimal
-                release_amount = self.payment_amount
-                role.escrow_released_amount += release_amount
-                role.save(update_fields=['escrow_released_amount'])
-                EscrowTransaction.objects.create(
-                    collaborator_role=role,
-                    transaction_type='release',
-                    amount=release_amount,
-                    escrow_balance_after=role.escrow_funded_amount - role.escrow_released_amount,
-                    initiated_by=owner,
-                    notes=f'Auto-release: {self.title} approved',
-                    on_chain_status='confirmed',
-                )
-                self.escrow_release_status = 'released'
-                self.save(update_fields=['escrow_release_status'])
+                from django.db import transaction as db_tx
+                task_id = self.id
+                db_tx.on_commit(lambda: self._schedule_escrow_release(task_id))
 
             # Check if ALL tasks across ALL collaborators are now resolved
             project = self.collaborator_role.project
@@ -3417,6 +3403,18 @@ class ContractTask(models.Model):
                 project.collaborators.filter(
                     contract_type__in=('work_for_hire', 'hybrid')
                 ).update(trust_phase='completed')
+
+    @staticmethod
+    def _schedule_escrow_release(task_id):
+        """Schedule the Celery task for escrow release after transaction commits."""
+        try:
+            from rb_core.tasks import process_escrow_release
+            process_escrow_release.delay(task_id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                'Failed to schedule escrow release for task %s', task_id
+            )
 
     def reject_completion(self, owner, reason):
         """Owner rejects the completion and sends back for revision.
