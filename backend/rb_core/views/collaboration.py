@@ -616,6 +616,19 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Only the project owner can set up production.'},
                             status=status.HTTP_403_FORBIDDEN)
 
+        # Update project title and description if provided
+        project_title = request.data.get('project_title', '').strip()
+        project_description = request.data.get('project_description', '').strip()
+        if project_title:
+            project.title = project_title
+        if project_description:
+            project.description = project_description
+        if project_title or project_description:
+            update_fields = []
+            if project_title: update_fields.append('title')
+            if project_description: update_fields.append('description')
+            project.save(update_fields=update_fields)
+
         total_pages = request.data.get('total_pages', 24)
         pages_per_batch = request.data.get('pages_per_batch', 5)
         stages_data = request.data.get('stages', [])

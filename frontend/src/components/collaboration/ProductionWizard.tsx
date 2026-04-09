@@ -60,6 +60,10 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Project basics
+  const [projectTitle, setProjectTitle] = useState(project.title || '');
+  const [projectDescription, setProjectDescription] = useState(project.description || '');
+
   // Structure
   const [totalPages, setTotalPages] = useState(24);
   const [pagesPerBatch, setPagesPerBatch] = useState(5);
@@ -196,6 +200,8 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfMatch?.[1] || '' },
         body: JSON.stringify({
+          project_title: projectTitle.trim(),
+          project_description: projectDescription.trim(),
           total_pages: totalPages,
           pages_per_batch: pagesPerBatch,
           escrow_fee_mode: escrowFeeMode,
@@ -218,7 +224,7 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
     }
   };
 
-  const canProceedToTeam = activeStages.length > 0 && totalPages > 0 && pagesPerBatch > 0;
+  const canProceedToTeam = activeStages.length > 0 && totalPages > 0 && pagesPerBatch > 0 && projectTitle.trim().length > 0;
   const canProceedToReview = stages.every(s => s.same_as_stage != null || s.collaborator_username || s.is_tbd);
 
   return (
@@ -262,6 +268,33 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
       {/* Step 1: Structure */}
       {step === 'structure' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Project Title */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+              Project Title *
+            </label>
+            <input value={projectTitle}
+              onChange={e => setProjectTitle(e.target.value)}
+              placeholder="e.g., VOID RUNNER — Issue #1"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 15, fontWeight: 600 }}
+            />
+          </div>
+
+          {/* Project Description */}
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
+              Project Description
+            </label>
+            <textarea value={projectDescription}
+              onChange={e => setProjectDescription(e.target.value)}
+              placeholder="Describe your project — genre, story, vision. This is what collaborators see when they get your invite."
+              rows={3}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13, resize: 'vertical' }}
+            />
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6, display: 'block' }}>
               Total pages in your comic

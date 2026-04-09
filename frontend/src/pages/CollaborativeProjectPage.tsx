@@ -431,8 +431,8 @@ export default function CollaborativeProjectPage() {
             }}>
               {project.content_type.charAt(0).toUpperCase() + project.content_type.slice(1)} Project
             </span>
-            {/* Only show mint badge when project is actually ready to mint */}
-            {project.can_mint_status?.can_mint && (
+            {/* Only show mint badge when project has content and is truly ready */}
+            {project.can_mint_status?.can_mint && project.status !== 'draft' && project.status !== 'active' && (
               <span style={{
                 background: 'rgba(16, 185, 129, 0.1)',
                 color: '#10b981',
