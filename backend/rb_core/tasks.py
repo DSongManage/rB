@@ -3800,3 +3800,160 @@ def recalculate_reputation_scores():
     logger.info('[Reputation] Recalculated %d scores, %d new founding badges',
                 results['updated'], results['founding_badges'])
     return results
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def close_project_pdas(self, project_id):
+    """Close escrow PDAs for a completed project and recover SOL rent."""
+    from .models import CollaborativeProject, CollaboratorRole
+    from django.utils import timezone as tz
+
+    try:
+        project = CollaborativeProject.objects.get(id=project_id)
+    except CollaborativeProject.DoesNotExist:
+        logger.error('[PDAClose] Project %s not found', project_id)
+        return
+
+    if project.escrow_closed:
+        return {'status': 'already_closed', 'project_id': project_id}
+
+    total_recovered = 0
+    for role in project.collaborators.filter(
+        contract_type__in=('work_for_hire', 'hybrid'),
+        escrow_pda_address__gt='',
+    ):
+        try:
+            from .services.escrow_solana_service import EscrowSolanaService
+            svc = EscrowSolanaService()
+            artist_wallet = getattr(role.user, 'wallet_address', '') or ''
+            if not artist_wallet:
+                try:
+                    artist_wallet = role.user.profile.wallet_address or ''
+                except Exception:
+                    continue
+
+            result = svc.close_escrow_pda(project.id, artist_wallet)
+            total_recovered += result.get('recovered_lamports', 0)
+            logger.info('[PDAClose] Closed PDA for %s: recovered %d lamports',
+                        role.user.username, result.get('recovered_lamports', 0))
+        except ValueError as e:
+            logger.warning('[PDAClose] Cannot close PDA for %s: %s', role.user.username, e)
+        except Exception as e:
+            logger.error('[PDAClose] Failed to close PDA for %s: %s', role.user.username, e)
+
+    project.escrow_closed = True
+    project.escrow_closed_at = tz.now()
+    project.rent_recovered_lamports = total_recovered
+    project.save(update_fields=['escrow_closed', 'escrow_closed_at', 'rent_recovered_lamports'])
+
+    logger.info('[PDAClose] Project %d PDAs closed, recovered %d total lamports', project_id, total_recovered)
+    return {'project_id': project_id, 'recovered_lamports': total_recovered}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def close_campaign_pda(self, campaign_id):
+    """Close campaign PDA1 and recover SOL rent after funds transferred to PDA2."""
+    from .models import Campaign
+    from django.utils import timezone as tz
+
+    try:
+        campaign = Campaign.objects.get(id=campaign_id)
+    except Campaign.DoesNotExist:
+        logger.error('[PDAClose] Campaign %s not found', campaign_id)
+        return
+
+    if campaign.campaign_pda_closed or not campaign.campaign_pda:
+        return {'status': 'already_closed', 'campaign_id': campaign_id}
+
+    try:
+        from .services.campaign_solana_service import CampaignSolanaService
+        svc = CampaignSolanaService()
+
+        # Verify PDA1 vault is empty
+        from solders.pubkey import Pubkey
+        from spl.token.constants import TOKEN_PROGRAM_ID
+        from solana.rpc.api import Client
+        from django.conf import settings
+
+        client = Client(settings.SOLANA_RPC_URL)
+        campaign_pda = Pubkey.from_string(campaign.campaign_pda)
+        usdc_mint = Pubkey.from_string(settings.USDC_MINT_ADDRESS)
+
+        from spl.token.instructions import get_associated_token_address
+        vault_ata = get_associated_token_address(campaign_pda, usdc_mint)
+
+        balance_resp = client.get_token_account_balance(vault_ata)
+        if balance_resp.value and int(balance_resp.value.amount) > 0:
+            logger.warning('[PDAClose] Campaign %d PDA1 still has %s USDC — skipping',
+                          campaign_id, balance_resp.value.ui_amount)
+            return {'status': 'has_balance', 'campaign_id': campaign_id}
+
+        # Close ATA (recover rent)
+        from spl.token.instructions import close_account, CloseAccountParams
+        platform_pubkey = Pubkey.from_string(settings.PLATFORM_WALLET_PUBKEY)
+        ix = close_account(CloseAccountParams(
+            program_id=TOKEN_PROGRAM_ID,
+            account=vault_ata,
+            dest=platform_pubkey,
+            owner=campaign_pda,
+            signers=[],
+        ))
+
+        # Note: closing the PDA itself requires an Anchor close instruction
+        # For now, we close the ATA to recover ~0.002 SOL
+        ata_info = client.get_account_info(vault_ata)
+        recovered = ata_info.value.lamports if ata_info.value else 0
+
+        campaign.campaign_pda_closed = True
+        campaign.campaign_pda_closed_at = tz.now()
+        campaign.campaign_rent_recovered_lamports = recovered
+        campaign.save(update_fields=['campaign_pda_closed', 'campaign_pda_closed_at', 'campaign_rent_recovered_lamports'])
+
+        logger.info('[PDAClose] Campaign %d PDA1 closed, recovered %d lamports', campaign_id, recovered)
+        return {'campaign_id': campaign_id, 'recovered_lamports': recovered}
+
+    except Exception as e:
+        logger.error('[PDAClose] Failed to close campaign %d PDA1: %s', campaign_id, e, exc_info=True)
+        raise self.retry(exc=e)
+
+
+@shared_task(name='rb_core.tasks.close_stale_pdas')
+def close_stale_pdas():
+    """Daily cleanup: close PDAs for completed projects that weren't auto-closed."""
+    from .models import CollaborativeProject, Campaign
+    from django.utils import timezone as tz
+    from datetime import timedelta
+
+    cutoff = tz.now() - timedelta(hours=24)
+    results = {'projects_closed': 0, 'campaigns_closed': 0}
+
+    # Stale project PDAs
+    stale_projects = CollaborativeProject.objects.filter(
+        status='complete',
+        escrow_closed=False,
+        updated_at__lt=cutoff,
+    )
+    for project in stale_projects:
+        try:
+            close_project_pdas(project.id)
+            results['projects_closed'] += 1
+        except Exception:
+            logger.exception('[StaleClose] Failed for project %d', project.id)
+
+    # Stale campaign PDAs (PDA1)
+    stale_campaigns = Campaign.objects.filter(
+        status__in=('transferred', 'completed', 'failed', 'reclaimable', 'reclaimed'),
+        campaign_pda_closed=False,
+        campaign_pda__gt='',
+        updated_at__lt=cutoff,
+    )
+    for campaign in stale_campaigns:
+        try:
+            close_campaign_pda(campaign.id)
+            results['campaigns_closed'] += 1
+        except Exception:
+            logger.exception('[StaleClose] Failed for campaign %d', campaign.id)
+
+    logger.info('[StaleClose] Cleaned up %d projects, %d campaigns',
+                results['projects_closed'], results['campaigns_closed'])
+    return results

@@ -2457,6 +2457,55 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 notes=f'Full escrow funding for {role.effective_role_name}',
             )
 
+        # Initialize on-chain escrow PDA and fund it
+        if not role.escrow_pda_address:
+            try:
+                from ..services.escrow_solana_service import EscrowSolanaService
+                from ..payment_utils import calculate_escrow_funding_total, ESCROW_FEE_BPS
+                escrow_svc = EscrowSolanaService()
+
+                # Get artist wallet
+                artist_wallet = getattr(role.user, 'wallet_address', '')
+                if not artist_wallet:
+                    try:
+                        artist_wallet = role.user.profile.wallet_address or ''
+                    except Exception:
+                        pass
+
+                if artist_wallet:
+                    # Build milestone data from contract tasks
+                    tasks = role.contract_tasks.all().order_by('order')
+                    milestone_amounts = [escrow_svc._usd_to_lamports(t.payment_amount) for t in tasks]
+                    milestone_deadlines = [
+                        int(t.deadline.timestamp()) if t.deadline else int(timezone.now().timestamp()) + (30 * 86400)
+                        for t in tasks
+                    ]
+
+                    # Initialize escrow PDA on-chain
+                    result = escrow_svc.initialize_escrow(
+                        project_id=project.id,
+                        artist_wallet=artist_wallet,
+                        milestone_amounts_lamports=milestone_amounts,
+                        milestone_deadlines=milestone_deadlines,
+                        fee_bps=int(ESCROW_FEE_BPS),
+                    )
+
+                    # Transfer USDC from platform to vault
+                    fund_amount_lamports = escrow_svc._usd_to_lamports(role.escrow_funded_amount)
+                    escrow_svc.fund_vault(result['vault_ata'], fund_amount_lamports)
+
+                    # Set PDA address on role
+                    role.escrow_pda_address = result['pda']
+                    role.save(update_fields=['escrow_pda_address'])
+
+                    logger.info('[FundEscrow] PDA initialized: %s, funded %s USDC for %s',
+                                result['pda'], role.escrow_funded_amount, role.user.username)
+                else:
+                    logger.warning('[FundEscrow] No wallet for %s — skipping PDA creation', role.user.username)
+            except Exception as e:
+                logger.error('[FundEscrow] PDA creation failed: %s', e, exc_info=True)
+                # Don't fail the funding — DB escrow is funded, PDA can be retried
+
         # Activate pending tasks if collaborator has already accepted
         if role.status == 'accepted':
             activated = role.contract_tasks.filter(status='pending').update(status='in_progress')

@@ -2052,6 +2052,11 @@ class CollaborativeProject(models.Model):
         help_text="Whether this project has already triggered founding creator checks"
     )
 
+    # PDA close tracking
+    escrow_closed = models.BooleanField(default=False, help_text="All escrow PDAs closed and rent recovered")
+    escrow_closed_at = models.DateTimeField(null=True, blank=True)
+    rent_recovered_lamports = models.BigIntegerField(null=True, blank=True, help_text="SOL rent recovered from closing PDAs")
+
     # Workspace setup tracking
     workspace_setup_complete = models.BooleanField(
         default=False,
@@ -3424,6 +3429,23 @@ class ContractTask(models.Model):
                         )
                         role.escrow_released_amount = role.escrow_funded_amount
                         role.save(update_fields=['escrow_released_amount'])
+
+                # Schedule PDA close after commit (recovers SOL rent)
+                if not project.escrow_closed:
+                    from django.db import transaction as db_tx
+                    db_tx.on_commit(lambda: ContractTask._schedule_pda_close(project.id))
+
+    @staticmethod
+    def _schedule_pda_close(project_id):
+        """Schedule Celery task to close escrow PDAs and recover rent."""
+        try:
+            from rb_core.tasks import close_project_pdas
+            close_project_pdas.delay(project_id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                'Failed to schedule PDA close for project %s', project_id
+            )
 
     @staticmethod
     def _schedule_escrow_release(task_id):
@@ -7362,6 +7384,11 @@ class Campaign(models.Model):
     campaign_pda_bump = models.PositiveSmallIntegerField(null=True, blank=True)
     on_chain_initialized = models.BooleanField(default=False)
 
+    # PDA close tracking
+    campaign_pda_closed = models.BooleanField(default=False)
+    campaign_pda_closed_at = models.DateTimeField(null=True, blank=True)
+    campaign_rent_recovered_lamports = models.BigIntegerField(null=True, blank=True)
+
     # Timing
     funded_at = models.DateTimeField(null=True, blank=True)
     escrow_creation_deadline = models.DateTimeField(
@@ -7512,6 +7539,23 @@ class Campaign(models.Model):
             'status', 'escrow_pda', 'escrow_pda_bump',
             'escrow_dormancy_deadline', 'updated_at'
         ])
+        # Schedule PDA1 close (campaign vault is now empty — all funds in PDA2)
+        if self.campaign_pda and not self.campaign_pda_closed:
+            from django.db import transaction as db_tx
+            campaign_id = self.id
+            db_tx.on_commit(lambda: self._schedule_campaign_pda_close(campaign_id))
+
+    @staticmethod
+    def _schedule_campaign_pda_close(campaign_id):
+        """Schedule Celery task to close campaign PDA1 and recover rent."""
+        try:
+            from rb_core.tasks import close_campaign_pda
+            close_campaign_pda.delay(campaign_id)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                'Failed to schedule PDA1 close for campaign %s', campaign_id
+            )
 
 
 class CampaignContribution(models.Model):
