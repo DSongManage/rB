@@ -118,6 +118,21 @@ app.conf.beat_schedule = {
         'task': 'rb_core.tasks.check_role_assignment_deadline',
         'schedule': crontab(hour=5, minute=0),
     },
+    # Expire 24hr cancellation windows - every 15 min
+    'expire-cancellation-windows': {
+        'task': 'rb_core.tasks.expire_cancellation_windows',
+        'schedule': crontab(minute='*/15'),
+    },
+    # Review escalation notifications - every 30 min
+    'check-review-escalations': {
+        'task': 'rb_core.tasks.check_review_escalations',
+        'schedule': crontab(minute='*/30'),
+    },
+    # Auto-cancel unfunded escrows after 14 days - daily at 6am
+    'check-escrow-funding-expiry': {
+        'task': 'rb_core.tasks.check_escrow_funding_expiry',
+        'schedule': crontab(hour=6, minute=0),
+    },
 }
 
 

@@ -3689,7 +3689,8 @@ def recalculate_reputation_scores():
     from decimal import Decimal
     from .models import (
         ReputationScore, MilestoneRating, ContractTask, CollaboratorRole,
-        UserProfile, EscrowTransaction,
+        UserProfile, EscrowTransaction, ScopeChangeRequest, CollaborativeProject,
+        PreProductionDeliverable, Campaign,
     )
 
     # Get all users who have participated in escrow projects
@@ -3763,6 +3764,61 @@ def recalculate_reputation_scores():
             except UserProfile.DoesNotExist:
                 pass
 
+            # Extended artist flags
+            score.artist_revision_rate = Decimal(str(
+                (ContractTask.objects.filter(
+                    collaborator_role__user_id=user_id,
+                    revisions_used__gt=0,
+                    status__in=['complete', 'signed_off', 'released', 'approved'],
+                ).count() / artist_completed * 100) if artist_completed > 0 else 0
+            )).quantize(Decimal('0.01'))
+
+            score.artist_final_rejection_count = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+                status='final_rejection',
+            ).count()
+
+            score.artist_cancellations_during_work = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+                cancellation_category='during_active_work',
+            ).count()
+            score.artist_cancellations_before_work = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+                cancellation_category='before_work',
+            ).count()
+
+            # Average delivery speed (negative = early, positive = late)
+            delivered_tasks = ContractTask.objects.filter(
+                collaborator_role__user_id=user_id,
+                status__in=['complete', 'signed_off', 'released', 'approved'],
+                marked_complete_at__isnull=False,
+                deadline__isnull=False,
+            )
+            if delivered_tasks.exists():
+                total_speed = sum(
+                    (t.marked_complete_at - t.deadline).total_seconds() / 86400.0
+                    for t in delivered_tasks
+                )
+                score.artist_avg_delivery_speed_days = Decimal(str(
+                    total_speed / delivered_tasks.count()
+                )).quantize(Decimal('0.01'))
+
+            # Pre-production delivery rate
+            preprod_assigned = PreProductionDeliverable.objects.filter(
+                uploaded_by_id=user_id
+            ).count()
+            preprod_completed = PreProductionDeliverable.objects.filter(
+                uploaded_by_id=user_id, status='approved'
+            ).count()
+            if preprod_assigned > 0:
+                score.artist_preproduction_delivery_rate = Decimal(str(
+                    preprod_completed / preprod_assigned * 100
+                )).quantize(Decimal('0.01'))
+
+            score.artist_scope_change_flags = ScopeChangeRequest.objects.filter(
+                requested_by_id=user_id
+            ).count()
+
             # Compute artist score (0-100)
             if artist_aggs['count'] and artist_aggs['count'] > 0:
                 q = float(artist_aggs['avg_quality'] or 0) * 20  # 1-5 → 0-100
@@ -3772,6 +3828,9 @@ def recalculate_reputation_scores():
                 raw = q * 0.40 + t * 0.30 + c * 0.20 + completion * 0.10
                 raw -= score.artist_stall_count * 5
                 raw -= float(score.artist_cancellation_rate) * 0.10
+                # Penalty for revisions and final rejections
+                raw -= score.artist_final_rejection_count * 10
+                raw -= float(score.artist_revision_rate or 0) * 0.05
                 score.artist_score = Decimal(str(max(0, min(100, raw)))).quantize(Decimal('0.01'))
 
             # Writer metrics
@@ -3790,6 +3849,128 @@ def recalculate_reputation_scores():
             score.writer_projects_completed = CollaboratorRole.objects.filter(
                 project__created_by_id=user_id, trust_phase='completed',
             ).values('project_id').distinct().count()
+
+            # Extended writer flags
+            score.writer_grace_period_cancellations = ContractTask.objects.filter(
+                collaborator_role__project__created_by_id=user_id,
+                cancellation_window_start__isnull=False,
+                status='cancelled',
+            ).count()
+
+            score.writer_post_preproduction_cancellations = CollaborativeProject.objects.filter(
+                created_by_id=user_id,
+                status='cancelled',
+            ).filter(
+                Q(character_designs_approved=True) | Q(storyboard_thumbnails_approved=True)
+            ).count()
+
+            # Projects ended early: not all milestones completed but project is done/cancelled
+            writer_projects = CollaborativeProject.objects.filter(created_by_id=user_id)
+            ended_early = 0
+            for proj in writer_projects.filter(status__in=['completed', 'cancelled']):
+                total_tasks = ContractTask.objects.filter(
+                    collaborator_role__project=proj
+                ).count()
+                completed_tasks = ContractTask.objects.filter(
+                    collaborator_role__project=proj,
+                    status__in=['complete', 'signed_off', 'released', 'approved'],
+                ).count()
+                if total_tasks > 0 and completed_tasks < total_tasks:
+                    ended_early += 1
+            score.writer_projects_ended_early = ended_early
+
+            score.writer_scope_change_requests = ScopeChangeRequest.objects.filter(
+                task__collaborator_role__project__created_by_id=user_id,
+            ).count()
+
+            # Avg rejection clarity from artist MilestoneRatings of this writer
+            writer_ratings = MilestoneRating.objects.filter(
+                rated_user_id=user_id,
+                rater__collaborator_roles__contract_type__in=('work_for_hire', 'hybrid'),
+            )
+            writer_rating_aggs = writer_ratings.aggregate(
+                avg_quality=Avg('quality_score'),
+                avg_communication=Avg('communication_score'),
+            )
+            if writer_rating_aggs['avg_quality']:
+                score.writer_avg_rejection_clarity = Decimal(str(
+                    writer_rating_aggs['avg_quality']
+                )).quantize(Decimal('0.01'))
+            if writer_rating_aggs['avg_communication']:
+                score.writer_avg_communication_rating = Decimal(str(
+                    writer_rating_aggs['avg_communication']
+                )).quantize(Decimal('0.01'))
+
+            # Avg escrow funding delay
+            funded_roles = CollaboratorRole.objects.filter(
+                project__created_by_id=user_id,
+                escrow_funded_at__isnull=False,
+                contract_locked_at__isnull=False,
+            )
+            if funded_roles.exists():
+                total_delay = sum(
+                    (r.escrow_funded_at - r.contract_locked_at).total_seconds() / 3600.0
+                    for r in funded_roles
+                )
+                score.writer_avg_escrow_funding_delay_hours = Decimal(str(
+                    total_delay / funded_roles.count()
+                )).quantize(Decimal('0.01'))
+
+            # Campaigns funded but never started
+            funded_campaigns = Campaign.objects.filter(
+                project__created_by_id=user_id,
+                status__in=['funded', 'transferred'],
+            )
+            never_started = 0
+            for camp in funded_campaigns:
+                has_active = ContractTask.objects.filter(
+                    collaborator_role__project=camp.project,
+                    status='in_progress',
+                ).exists()
+                if not has_active:
+                    never_started += 1
+            score.writer_campaigns_funded_never_started = never_started
+
+            # Compute writer score (0-100)
+            responsiveness = 100 - min(float(score.writer_auto_approve_rate), 100)
+            clarity = float(score.writer_avg_rejection_clarity or 3) * 20  # 1-5 → 0-100
+            communication = float(score.writer_avg_communication_rating or 3) * 20
+            funding_delay_hours = float(score.writer_avg_escrow_funding_delay_hours or 0)
+            funding_reliability = max(0, 100 - funding_delay_hours * 0.5)
+            raw_writer = (
+                responsiveness * 0.35
+                + clarity * 0.25
+                + communication * 0.20
+                + funding_reliability * 0.20
+            )
+            raw_writer -= score.writer_grace_period_cancellations * 5
+            raw_writer -= score.writer_post_preproduction_cancellations * 10
+            score.writer_score = Decimal(str(max(0, min(100, raw_writer)))).quantize(Decimal('0.01'))
+
+            # Mutual flags
+            score.mutual_cancellation_count = CollaborativeProject.objects.filter(
+                cancellation_type='mutual',
+            ).filter(
+                Q(created_by_id=user_id) | Q(collaborator_roles__user_id=user_id)
+            ).distinct().count()
+
+            # Repeat collaborations: distinct users with 2+ completed projects together
+            from django.db.models import F
+            as_writer = CollaboratorRole.objects.filter(
+                project__created_by_id=user_id,
+                trust_phase='completed',
+            ).values('user_id').annotate(
+                proj_count=Count('project_id', distinct=True)
+            ).filter(proj_count__gte=2).count()
+
+            as_artist = CollaboratorRole.objects.filter(
+                user_id=user_id,
+                trust_phase='completed',
+            ).values('project__created_by_id').annotate(
+                proj_count=Count('project_id', distinct=True)
+            ).filter(proj_count__gte=2).count()
+
+            score.repeat_collaboration_count = as_writer + as_artist
 
             # Founding creator badge: first 50 creators with $100+ completed escrow
             total_earned = EscrowTransaction.objects.filter(
@@ -3970,3 +4151,155 @@ def close_stale_pdas():
     logger.info('[StaleClose] Cleaned up %d projects, %d campaigns',
                 results['projects_closed'], results['campaigns_closed'])
     return results
+
+
+@shared_task
+def expire_cancellation_windows():
+    """Every 15 min: clear expired 24hr cancellation windows."""
+    from django.utils import timezone
+    from .models import ContractTask
+
+    now = timezone.now()
+    expired = ContractTask.objects.filter(
+        cancellation_window_end__lt=now,
+        cancellation_window_end__isnull=False,
+    )
+    count = expired.update(
+        cancellation_window_start=None,
+        cancellation_window_end=None,
+    )
+    if count:
+        logger.info('[CancellationWindow] Expired %d windows', count)
+    return {'expired': count}
+
+
+@shared_task
+def check_review_escalations():
+    """Every 30 min: send review escalation notifications at 50%, 75%, 100% of review window."""
+    from django.utils import timezone
+    from .models import ContractTask
+
+    now = timezone.now()
+    tasks = ContractTask.objects.filter(
+        status__in=['submitted', 'under_review', 'resubmitted'],
+        auto_approve_deadline__isnull=False,
+        auto_approved=False,
+    ).select_related('collaborator_role', 'collaborator_role__project', 'collaborator_role__user')
+
+    sent = {'50': 0, '75': 0, '100': 0}
+
+    for task in tasks:
+        if not task.marked_complete_at:
+            continue
+
+        total_window = (task.auto_approve_deadline - task.marked_complete_at).total_seconds()
+        if total_window <= 0:
+            continue
+
+        elapsed = (now - task.marked_complete_at).total_seconds()
+        pct = elapsed / total_window * 100
+
+        try:
+            from rb_core.notifications_utils import create_notification
+            writer = task.collaborator_role.project.created_by
+
+            artist = task.collaborator_role.user
+
+            if pct >= 50 and not task.review_escalation_sent_50:
+                create_notification(
+                    recipient=writer,
+                    from_user=artist,
+                    notification_type='review_escalation',
+                    title='Review reminder — 50% of window elapsed',
+                    message=f'"{task.title}" has been waiting for review. 50% of the review window has passed.',
+                    project=task.collaborator_role.project,
+                    contract_task=task,
+                )
+                task.review_escalation_sent_50 = True
+                task.save(update_fields=['review_escalation_sent_50'])
+                sent['50'] += 1
+
+            if pct >= 75 and not task.review_escalation_sent_75:
+                create_notification(
+                    recipient=writer,
+                    from_user=artist,
+                    notification_type='review_escalation',
+                    title='Review urgent — 75% of window elapsed',
+                    message=f'"{task.title}" review window is 75% expired. Auto-approval is approaching.',
+                    project=task.collaborator_role.project,
+                    contract_task=task,
+                    action_required=True,
+                )
+                task.review_escalation_sent_75 = True
+                task.save(update_fields=['review_escalation_sent_75'])
+                sent['75'] += 1
+
+            if pct >= 100 and not task.review_escalation_sent_100:
+                create_notification(
+                    recipient=writer,
+                    from_user=artist,
+                    notification_type='review_escalation',
+                    title='Final warning — review window expired',
+                    message=f'Review window for "{task.title}" has expired. Auto-approval will trigger during grace period.',
+                    project=task.collaborator_role.project,
+                    contract_task=task,
+                    action_required=True,
+                )
+                task.review_escalation_sent_100 = True
+                task.save(update_fields=['review_escalation_sent_100'])
+                sent['100'] += 1
+
+        except Exception:
+            logger.exception('[ReviewEscalation] Error for task %d', task.id)
+
+    if any(v > 0 for v in sent.values()):
+        logger.info('[ReviewEscalation] Sent: %s', sent)
+    return sent
+
+
+@shared_task
+def check_escrow_funding_expiry():
+    """Daily: auto-cancel collaborations where escrow isn't funded within 14 days."""
+    from django.utils import timezone
+    from .models import CollaborativeProject, ContractTask
+
+    now = timezone.now()
+    expired_projects = CollaborativeProject.objects.filter(
+        escrow_funding_deadline_auto__lt=now,
+        escrow_funding_deadline_auto__isnull=False,
+        status='active',
+    )
+
+    cancelled = 0
+    for project in expired_projects:
+        # Check if any role is actually funded
+        has_funded = project.collaborators.filter(escrow_funded_at__isnull=False).exists()
+        if has_funded:
+            continue
+
+        project.status = 'cancelled'
+        project.cancellation_reason = 'Escrow funding deadline expired (14 days)'
+        project.cancellation_type = 'writer'
+        project.cancellation_requested_at = now
+        project.save()
+
+        # Notify collaborators
+        try:
+            from rb_core.notifications_utils import create_notification
+            for role in project.collaborators.filter(status='accepted'):
+                create_notification(
+                    recipient=role.user,
+                    from_user=project.created_by,
+                    notification_type='escrow_funding_expired',
+                    title='Project expired — escrow not funded',
+                    message=f'"{project.title}" has been cancelled because escrow was not funded within 14 days.',
+                    project=project,
+                )
+        except Exception:
+            pass
+
+        cancelled += 1
+
+    if cancelled:
+        logger.info('[EscrowExpiry] Auto-cancelled %d projects', cancelled)
+    return {'cancelled': cancelled}

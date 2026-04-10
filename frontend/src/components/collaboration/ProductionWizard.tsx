@@ -24,6 +24,8 @@ interface ProductionWizardProps {
 interface StageInput {
   name: string;
   icon: string;
+  stage_category: 'pre_production' | 'production';
+  is_billable: boolean;
   collaborator_username: string;
   collaborator_display_name: string;
   is_tbd: boolean;
@@ -38,12 +40,19 @@ interface SearchResult {
   avatar_url?: string;
 }
 
-const DEFAULT_STAGES = [
-  { name: 'Pencils', icon: 'pen', enabled: true },
-  { name: 'Inks', icon: 'pen-tool', enabled: true },
-  { name: 'Colors', icon: 'paintbrush', enabled: true },
-  { name: 'Letters', icon: 'type', enabled: false },
+const DEFAULT_PRE_PRODUCTION_STAGES = [
+  { name: 'Character Designs', icon: 'pen', enabled: true, stage_category: 'pre_production' as const },
+  { name: 'Storyboard Thumbnails', icon: 'pen-tool', enabled: true, stage_category: 'pre_production' as const },
 ];
+
+const DEFAULT_PRODUCTION_STAGES = [
+  { name: 'Pencils', icon: 'pen', enabled: true, stage_category: 'production' as const },
+  { name: 'Inks', icon: 'pen-tool', enabled: true, stage_category: 'production' as const },
+  { name: 'Colors', icon: 'paintbrush', enabled: true, stage_category: 'production' as const },
+  { name: 'Letters', icon: 'type', enabled: false, stage_category: 'production' as const },
+];
+
+const DEFAULT_STAGES = [...DEFAULT_PRE_PRODUCTION_STAGES, ...DEFAULT_PRODUCTION_STAGES];
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   'pen': <PenTool size={18} />,
@@ -86,11 +95,17 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
   const batchCount = Math.ceil(totalPages / pagesPerBatch);
   const totalMilestones = activeStages.length * batchCount;
 
+  const activeProductionStages = activeStages.filter(s => s.stage_category === 'production');
+  const activePreProdStages = activeStages.filter(s => s.stage_category === 'pre_production');
+  const productionMilestones = activeProductionStages.length * batchCount;
+
   // Initialize team stage inputs when moving to team step
   const goToTeam = () => {
     setStages(activeStages.map(s => ({
       name: s.name,
       icon: s.icon,
+      stage_category: s.stage_category || 'production',
+      is_billable: s.stage_category === 'production', // pre-production defaults to approval-only
       collaborator_username: '',
       collaborator_display_name: '',
       is_tbd: false,
@@ -209,6 +224,8 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
           escrow_fee_mode: escrowFeeMode,
           stages: stages.map(s => ({
             name: s.name,
+            stage_category: s.stage_category || 'production',
+            is_billable: s.is_billable !== false,
             collaborator_username: s.is_tbd ? null : (s.same_as_stage != null ? null : s.collaborator_username || null),
             is_tbd: s.is_tbd,
             price_per_page: s.price_per_page || '0',
@@ -309,24 +326,59 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
 
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 8, display: 'block' }}>
-              What stages does your comic go through?
+              Pre-Production Stages
+            </label>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+              Character designs and storyboards that must be approved before page production begins.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {enabledStages.filter(s => s.stage_category === 'pre_production').map((s, _) => {
+                const i = enabledStages.indexOf(s);
+                return (
+                  <label key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                    borderRadius: 10, border: `1.5px solid ${s.enabled ? '#6366f1' : 'var(--border)'}`,
+                    background: s.enabled ? '#6366f108' : 'transparent', cursor: 'pointer',
+                  }}>
+                    <input type="checkbox" checked={s.enabled}
+                      onChange={() => setEnabledStages(prev => prev.map((st, j) => j === i ? { ...st, enabled: !st.enabled } : st))}
+                      style={{ accentColor: '#6366f1' }}
+                    />
+                    <span style={{ color: s.enabled ? 'var(--text)' : 'var(--text-muted)', fontSize: 14, fontWeight: 500 }}>
+                      {ICON_MAP[s.icon] || null} {s.name}
+                    </span>
+                    {s.enabled && (
+                      <span style={{ marginLeft: 'auto', fontSize: 11, color: '#6366f1', background: '#6366f110', padding: '2px 8px', borderRadius: 6 }}>
+                        Approval Gate
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+
+            <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 8, display: 'block' }}>
+              Production Stages
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {enabledStages.map((s, i) => (
-                <label key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                  borderRadius: 10, border: `1.5px solid ${s.enabled ? '#E8981F' : 'var(--border)'}`,
-                  background: s.enabled ? '#E8981F08' : 'transparent', cursor: 'pointer',
-                }}>
-                  <input type="checkbox" checked={s.enabled}
-                    onChange={() => setEnabledStages(prev => prev.map((st, j) => j === i ? { ...st, enabled: !st.enabled } : st))}
-                    style={{ accentColor: '#E8981F' }}
-                  />
-                  <span style={{ color: s.enabled ? 'var(--text)' : 'var(--text-muted)', fontSize: 14, fontWeight: 500 }}>
-                    {ICON_MAP[s.icon] || null} {s.name}
-                  </span>
-                </label>
-              ))}
+              {enabledStages.filter(s => s.stage_category === 'production').map((s, _) => {
+                const i = enabledStages.indexOf(s);
+                return (
+                  <label key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                    borderRadius: 10, border: `1.5px solid ${s.enabled ? '#E8981F' : 'var(--border)'}`,
+                    background: s.enabled ? '#E8981F08' : 'transparent', cursor: 'pointer',
+                  }}>
+                    <input type="checkbox" checked={s.enabled}
+                      onChange={() => setEnabledStages(prev => prev.map((st, j) => j === i ? { ...st, enabled: !st.enabled } : st))}
+                      style={{ accentColor: '#E8981F' }}
+                    />
+                    <span style={{ color: s.enabled ? 'var(--text)' : 'var(--text-muted)', fontSize: 14, fontWeight: 500 }}>
+                      {ICON_MAP[s.icon] || null} {s.name}
+                    </span>
+                  </label>
+                );
+              })}
               {/* Add custom stage */}
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={customStageName} onChange={e => setCustomStageName(e.target.value)}
@@ -335,7 +387,7 @@ export default function ProductionWizard({ project, onComplete, onCancel }: Prod
                 />
                 <button onClick={() => {
                   if (customStageName.trim()) {
-                    setEnabledStages(prev => [...prev, { name: customStageName.trim(), icon: 'custom', enabled: true }]);
+                    setEnabledStages(prev => [...prev, { name: customStageName.trim(), icon: 'custom', enabled: true, stage_category: 'production' }]);
                     setCustomStageName('');
                   }
                 }} style={{

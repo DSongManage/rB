@@ -24,6 +24,9 @@ interface ContractTask {
   deadline: string;
   is_overdue: boolean;
   days_until_deadline?: number;
+  cancellation_window_start?: string;
+  cancellation_window_end?: string;
+  cancellation_category?: string;
 }
 
 interface MilestoneTimelineProps {
@@ -137,6 +140,12 @@ export function MilestoneTimeline({
           const needsFinalRejectionAction = task.status === 'final_rejection' && isProjectOwner;
           const canFlagScopeChange = task.status === 'in_progress' && isArtist;
 
+          // Cancellation window
+          const hasCancellationWindow = task.cancellation_window_end && new Date(task.cancellation_window_end) > new Date();
+          const cancellationTimeLeft = hasCancellationWindow
+            ? Math.max(0, Math.round((new Date(task.cancellation_window_end!).getTime() - Date.now()) / 3600000))
+            : 0;
+
           return (
             <div key={task.id} style={{ display: 'flex', gap: 14 }}>
               {/* Timeline connector */}
@@ -199,6 +208,15 @@ export function MilestoneTimeline({
                         {task.page_range_start === task.page_range_end
                           ? `Page ${task.page_range_start}`
                           : `Pages ${task.page_range_start}–${task.page_range_end}`}
+                      </span>
+                    )}
+                    {hasCancellationWindow && isProjectOwner && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                        fontSize: 11, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)',
+                        padding: '1px 6px', borderRadius: 4,
+                      }}>
+                        Cancel window: {cancellationTimeLeft}h left
                       </span>
                     )}
                     {task.revisions_used > 0 && (

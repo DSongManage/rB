@@ -56,6 +56,12 @@ export interface CollaborativeProject {
   workspace_setup_complete?: boolean;
   workspace_setup_completed_at?: string;
   is_campaign_funded?: boolean;
+  // Pre-production gating
+  character_designs_approved?: boolean;
+  storyboard_thumbnails_approved?: boolean;
+  escrow_funding_deadline_auto?: string;
+  // Mutual cancellation
+  mutual_cancellation_requested_by?: number;
 }
 
 export interface CollaborativeProjectListItem {
@@ -103,11 +109,20 @@ export interface ContractTask {
   auto_approve_deadline?: string;
   auto_approved: boolean;
   // Milestone classification
-  milestone_type: 'trust_page' | 'production_block' | 'final_delivery' | 'custom';
+  milestone_type: 'trust_page' | 'production_block' | 'final_delivery' | 'pre_production' | 'custom';
   page_range_start?: number;
   page_range_end?: number;
   is_overdue: boolean;
   days_until_deadline?: number;
+  // Cancellation window
+  cancellation_window_start?: string;
+  cancellation_window_end?: string;
+  cancellation_category?: string;
+  // Review escalation
+  review_escalation_sent_50?: boolean;
+  review_escalation_sent_75?: boolean;
+  review_escalation_sent_100?: boolean;
+  scope_change_flag?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -3067,4 +3082,207 @@ export interface ArtworkLibraryItem {
   usage_count: number;
   created_at: string;
   updated_at: string;
+}
+
+// ===== Pre-Production Types =====
+
+export interface PreProductionDeliverable {
+  id: number;
+  project: number;
+  stage: number;
+  stage_name: string;
+  deliverable_type: 'character_design' | 'storyboard_thumbnail' | 'other';
+  title: string;
+  file?: string;
+  version: number;
+  uploaded_by?: number;
+  uploaded_by_username?: string;
+  deadline?: string;
+  status: 'pending' | 'uploaded' | 'under_review' | 'approved' | 'revision_requested';
+  approved_by?: number;
+  approved_by_username?: string;
+  approved_at?: string;
+  revision_notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductionStage {
+  id: number;
+  name: string;
+  order: number;
+  stage_category: 'pre_production' | 'production';
+  is_billable: boolean;
+  price_per_page?: string;
+  collaborator_username?: string;
+  depends_on_stage?: number;
+}
+
+// ===== Reputation Types =====
+
+export interface WriterReputation {
+  score: string;
+  projects_completed: number;
+  auto_approve_rate: string;
+  cancellation_rate: string;
+  avg_review_time_hours: string;
+  grace_period_cancellations: number;
+  post_preproduction_cancellations: number;
+  projects_ended_early: number;
+  scope_change_requests: number;
+  avg_rejection_clarity?: string;
+  avg_communication_rating?: string;
+  avg_escrow_funding_delay_hours?: string;
+  campaigns_funded_never_started: number;
+}
+
+export interface ArtistReputation {
+  score: string;
+  projects_completed: number;
+  on_time_rate: string;
+  avg_quality_rating: string;
+  avg_communication_rating: string;
+  avg_timeliness_rating: string;
+  stall_count: number;
+  cancellation_rate: string;
+  revision_rate?: string;
+  final_rejection_count: number;
+  cancellations_during_work: number;
+  cancellations_before_work: number;
+  avg_delivery_speed_days?: string;
+  preproduction_delivery_rate?: string;
+  scope_change_flags: number;
+}
+
+export interface UserReputation {
+  username: string;
+  has_reputation: boolean;
+  writer?: WriterReputation;
+  artist?: ArtistReputation;
+  mutual?: {
+    mutual_cancellation_count: number;
+    repeat_collaboration_count: number;
+  };
+  is_founding_creator?: boolean;
+  last_calculated?: string;
+}
+
+// ===== Pre-Production API Methods =====
+
+export async function getPreProductionStatus(projectId: number): Promise<{
+  deliverables: PreProductionDeliverable[];
+  character_designs_approved: boolean;
+  storyboard_thumbnails_approved: boolean;
+}> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/pre-production/status/`, {
+    headers: { Authorization: `Token ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to get pre-production status');
+  return res.json();
+}
+
+export async function uploadPreProductionDeliverable(
+  projectId: number,
+  data: FormData,
+): Promise<PreProductionDeliverable> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/pre-production/upload/`, {
+    method: 'POST',
+    headers: { Authorization: `Token ${token}` },
+    body: data,
+  });
+  if (!res.ok) throw new Error('Failed to upload deliverable');
+  return res.json();
+}
+
+export async function approvePreProductionDeliverable(
+  projectId: number,
+  deliverableId: number,
+): Promise<PreProductionDeliverable> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/pre-production/${deliverableId}/approve/`, {
+    method: 'POST',
+    headers: { Authorization: `Token ${token}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to approve deliverable');
+  return res.json();
+}
+
+export async function requestPreProductionRevision(
+  projectId: number,
+  deliverableId: number,
+  revisionNotes: string,
+): Promise<PreProductionDeliverable> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/pre-production/${deliverableId}/request-revision/`, {
+    method: 'POST',
+    headers: { Authorization: `Token ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revision_notes: revisionNotes }),
+  });
+  if (!res.ok) throw new Error('Failed to request revision');
+  return res.json();
+}
+
+// ===== Cancellation API Methods =====
+
+export async function cancelTaskInWindow(
+  projectId: number,
+  taskId: number,
+): Promise<{ status: string; message: string }> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/tasks/${taskId}/cancel-in-window/`, {
+    method: 'POST',
+    headers: { Authorization: `Token ${token}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to cancel task');
+  return res.json();
+}
+
+export async function requestMutualCancellation(
+  projectId: number,
+): Promise<{ status: string; requested_by: string }> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/request-mutual-cancellation/`, {
+    method: 'POST',
+    headers: { Authorization: `Token ${token}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to request mutual cancellation');
+  return res.json();
+}
+
+export async function agreeMutualCancellation(
+  projectId: number,
+): Promise<{ status: string; cancellation_type: string; refunded_tasks: number }> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/agree-mutual-cancellation/`, {
+    method: 'POST',
+    headers: { Authorization: `Token ${token}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to agree to mutual cancellation');
+  return res.json();
+}
+
+export async function refundUnfundedTask(
+  projectId: number,
+  taskId: number,
+): Promise<{ status: string; message: string }> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/collaborative-projects/${projectId}/tasks/${taskId}/refund-unfunded/`, {
+    method: 'POST',
+    headers: { Authorization: `Token ${token}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to refund task');
+  return res.json();
+}
+
+// ===== Reputation API Methods =====
+
+export async function getUserReputation(username: string): Promise<UserReputation> {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${API_BASE}/api/users/${username}/reputation/`, {
+    headers: { Authorization: `Token ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to get reputation');
+  return res.json();
 }

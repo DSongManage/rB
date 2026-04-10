@@ -2099,6 +2099,35 @@ class CollaborativeProject(models.Model):
         help_text="72hr hold for in-progress tasks before refund"
     )
 
+    # Mutual cancellation
+    mutual_cancellation_requested_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='mutual_cancellation_requests',
+        help_text="User who initiated mutual cancellation request"
+    )
+    mutual_cancellation_agreed_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='mutual_cancellation_agreements',
+        help_text="User who agreed to mutual cancellation"
+    )
+    mutual_cancellation_agreed_at = models.DateTimeField(null=True, blank=True)
+
+    # Escrow funding auto-expiry
+    escrow_funding_deadline_auto = models.DateTimeField(
+        null=True, blank=True,
+        help_text="14 days after contract acceptance — auto-expires if unfunded"
+    )
+
+    # Pre-production gating
+    character_designs_approved = models.BooleanField(
+        default=False,
+        help_text="Whether character designs have been approved (gates page workspace)"
+    )
+    storyboard_thumbnails_approved = models.BooleanField(
+        default=False,
+        help_text="Whether storyboard thumbnails have been approved (gates production milestones)"
+    )
+
     class Meta:
         ordering = ['-created_at']
         unique_together = ['created_by', 'title']
@@ -2939,6 +2968,25 @@ class ProductionStage(models.Model):
         max_digits=10, decimal_places=2, null=True, blank=True,
         help_text="Price per page for this stage (used to auto-calculate milestone amounts)"
     )
+
+    STAGE_CATEGORY_CHOICES = [
+        ('pre_production', 'Pre-Production'),
+        ('production', 'Production'),
+    ]
+    stage_category = models.CharField(
+        max_length=20, choices=STAGE_CATEGORY_CHOICES, default='production',
+        help_text="Whether this is a pre-production or production stage"
+    )
+    is_billable = models.BooleanField(
+        default=True,
+        help_text="If True, creates a paid ContractTask. If False, approval checkpoint only."
+    )
+    depends_on_stage = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dependent_stages',
+        help_text="Stage that must complete before this one can begin"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -2947,6 +2995,68 @@ class ProductionStage(models.Model):
 
     def __str__(self):
         return f"{self.name} (Stage {self.order}) — {self.project.title}"
+
+
+class PreProductionDeliverable(models.Model):
+    """A pre-production deliverable (character design, storyboard thumbnail, etc.).
+
+    Uploaded by the artist, approved/revised by the writer.
+    Gates downstream production stages when approved.
+    """
+
+    project = models.ForeignKey(
+        CollaborativeProject, on_delete=models.CASCADE,
+        related_name='pre_production_deliverables'
+    )
+    stage = models.ForeignKey(
+        ProductionStage, on_delete=models.CASCADE,
+        related_name='deliverables',
+        help_text="Pre-production stage this deliverable belongs to"
+    )
+
+    DELIVERABLE_TYPE_CHOICES = [
+        ('character_design', 'Character Design'),
+        ('storyboard_thumbnail', 'Storyboard Thumbnail'),
+        ('other', 'Other'),
+    ]
+    deliverable_type = models.CharField(
+        max_length=25, choices=DELIVERABLE_TYPE_CHOICES, default='other'
+    )
+    title = models.CharField(max_length=200)
+    file = models.FileField(upload_to='pre_production/', null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='pre_production_uploads'
+    )
+
+    deadline = models.DateTimeField(null=True, blank=True)
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('uploaded', 'Uploaded'),
+        ('under_review', 'Under Review'),
+        ('approved', 'Approved'),
+        ('revision_requested', 'Revision Requested'),
+    ]
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending'
+    )
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='pre_production_approvals'
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    revision_notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['stage__order', 'created_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.get_status_display()}) — {self.project.title}"
 
 
 class ContractTask(models.Model):
@@ -3191,6 +3301,7 @@ class ContractTask(models.Model):
         ('trust_page', 'Trust Phase - Single Page'),
         ('production_block', 'Production - Page Block'),
         ('final_delivery', 'Final Delivery'),
+        ('pre_production', 'Pre-Production'),
         ('custom', 'Custom Milestone'),
     ]
     milestone_type = models.CharField(
@@ -3220,6 +3331,46 @@ class ContractTask(models.Model):
         'self', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='dependents',
         help_text="Milestone that must complete before this one unlocks"
+    )
+
+    # 24hr cancellation window
+    cancellation_window_start = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the 24hr cancellation window opened (task became in_progress)"
+    )
+    cancellation_window_end = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the 24hr cancellation window closes"
+    )
+    CANCELLATION_CATEGORY_CHOICES = [
+        ('before_work', 'Before Work Started'),
+        ('during_active_work', 'During Active Work'),
+        ('post_preproduction', 'Post Pre-Production Approval'),
+        ('mutual', 'Mutual Cancellation'),
+    ]
+    cancellation_category = models.CharField(
+        max_length=25, choices=CANCELLATION_CATEGORY_CHOICES,
+        blank=True, default='',
+        help_text="Category of cancellation for reputation tracking"
+    )
+    cancellation_fee_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Fee paid to artist on post-pre-production cancellation"
+    )
+
+    # Review escalation tracking
+    review_escalation_sent_50 = models.BooleanField(
+        default=False, help_text="50% review window notification sent"
+    )
+    review_escalation_sent_75 = models.BooleanField(
+        default=False, help_text="75% review window notification sent"
+    )
+    review_escalation_sent_100 = models.BooleanField(
+        default=False, help_text="100% review window notification sent"
+    )
+    previous_rejection_issues = models.JSONField(
+        default=list, blank=True,
+        help_text="Issue keywords from prior rejections for scope-change detection"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -3801,6 +3952,69 @@ class ReputationScore(models.Model):
     artist_stall_count = models.PositiveIntegerField(default=0)
     artist_cancellation_rate = models.DecimalField(
         max_digits=5, decimal_places=2, default=Decimal('0')
+    )
+
+    # Extended writer flags
+    writer_grace_period_cancellations = models.PositiveIntegerField(
+        default=0, help_text="Milestones cancelled during 24hr window"
+    )
+    writer_post_preproduction_cancellations = models.PositiveIntegerField(
+        default=0, help_text="Projects cancelled after pre-production approved"
+    )
+    writer_projects_ended_early = models.PositiveIntegerField(
+        default=0, help_text="Projects where not all milestones were completed"
+    )
+    writer_scope_change_requests = models.PositiveIntegerField(
+        default=0, help_text="Scope change requests initiated as writer"
+    )
+    writer_avg_rejection_clarity = models.DecimalField(
+        max_digits=3, decimal_places=2, null=True, blank=True,
+        help_text="Avg quality score from artist ratings of rejection clarity (1-5)"
+    )
+    writer_avg_communication_rating = models.DecimalField(
+        max_digits=3, decimal_places=2, null=True, blank=True,
+        help_text="Avg communication score from artist ratings"
+    )
+    writer_avg_escrow_funding_delay_hours = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text="Avg hours between contract acceptance and escrow funding"
+    )
+    writer_campaigns_funded_never_started = models.PositiveIntegerField(
+        default=0, help_text="Campaigns funded but production never began"
+    )
+
+    # Extended artist flags
+    artist_revision_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="% of milestones requiring revisions"
+    )
+    artist_final_rejection_count = models.PositiveIntegerField(
+        default=0, help_text="Milestones that hit final rejection"
+    )
+    artist_cancellations_during_work = models.PositiveIntegerField(
+        default=0, help_text="Cancellations while work was in progress"
+    )
+    artist_cancellations_before_work = models.PositiveIntegerField(
+        default=0, help_text="Cancellations before work started"
+    )
+    artist_avg_delivery_speed_days = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Avg days before(-)/after(+) deadline artist delivers"
+    )
+    artist_preproduction_delivery_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="% of pre-production deliverables completed on time"
+    )
+    artist_scope_change_flags = models.PositiveIntegerField(
+        default=0, help_text="Scope change flags raised by this artist"
+    )
+
+    # Mutual flags
+    mutual_cancellation_count = models.PositiveIntegerField(
+        default=0, help_text="Projects mutually cancelled"
+    )
+    repeat_collaboration_count = models.PositiveIntegerField(
+        default=0, help_text="Distinct users collaborated with on 2+ projects"
     )
 
     # Badges

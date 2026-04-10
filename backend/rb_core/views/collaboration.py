@@ -21,7 +21,7 @@ from django.utils import timezone
 from ..models import (
     CollaborativeProject, CollaboratorRole, ProjectSection,
     ProjectComment, User as CoreUser, Content, ContractTask, RoleDefinition,
-    ComicPage, EscrowTransaction, MilestoneTemplate
+    ComicPage, EscrowTransaction, MilestoneTemplate, PreProductionDeliverable,
 )
 from ..serializers import (
     CollaborativeProjectSerializer, CollaborativeProjectListSerializer,
@@ -425,6 +425,13 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
 
             invitation.save()
 
+            # Set 14-day escrow funding deadline if not already set
+            if invitation.contract_type in ('work_for_hire', 'hybrid'):
+                from datetime import timedelta
+                if not project.escrow_funding_deadline_auto:
+                    project.escrow_funding_deadline_auto = now + timedelta(days=14)
+                    project.save(update_fields=['escrow_funding_deadline_auto'])
+
             # Activate tasks: only if escrow is funded (or no escrow needed)
             escrow_funded = invitation.contract_type == 'revenue_share' or \
                 invitation.escrow_funded_amount >= invitation.total_contract_amount
@@ -534,6 +541,19 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         total_with_desc = sum(m['pages_with_description'] for m in milestones)
         all_have_pages = all(m['page_count'] > 0 for m in milestones)
 
+        # Escrow funding status
+        escrow_funded = project.collaborators.filter(
+            status='accepted', escrow_funded_at__isnull=False
+        ).exists()
+
+        # Pre-production gating
+        has_character_design_stage = project.production_stages.filter(
+            stage_category='pre_production', name__icontains='character'
+        ).exists()
+        has_storyboard_stage = project.production_stages.filter(
+            stage_category='pre_production', name__icontains='storyboard'
+        ).exists()
+
         return Response({
             'workspace_setup_complete': project.workspace_setup_complete,
             'milestones': milestones,
@@ -541,6 +561,11 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             'pages_with_description': total_with_desc,
             'all_milestones_have_pages': all_have_pages,
             'ready_to_complete': all_have_pages and total_with_desc >= total_pages and total_pages > 0,
+            'escrow_funded': escrow_funded,
+            'character_designs_approved': project.character_designs_approved,
+            'storyboard_thumbnails_approved': project.storyboard_thumbnails_approved,
+            'has_character_design_stage': has_character_design_stage,
+            'has_storyboard_stage': has_storyboard_stage,
         })
 
     @action(detail=True, methods=['post'], url_path='workspace/complete-setup')
@@ -586,6 +611,177 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             ).update(page_status='ready')
 
         return Response({'status': 'complete', 'message': 'Workspace setup complete. Fund escrow to begin production.'})
+
+    # ============================================================
+    # Pre-Production Deliverables
+    # ============================================================
+
+    @action(detail=True, methods=['get'], url_path='pre-production/status')
+    def pre_production_status(self, request, pk=None):
+        """Get overview of all pre-production deliverables for a project."""
+        project = self.get_object()
+        deliverables = PreProductionDeliverable.objects.filter(
+            project=project
+        ).select_related('stage', 'uploaded_by', 'approved_by').order_by('stage__order', 'created_at')
+
+        from ..serializers import PreProductionDeliverableSerializer
+        return Response({
+            'deliverables': PreProductionDeliverableSerializer(deliverables, many=True).data,
+            'character_designs_approved': project.character_designs_approved,
+            'storyboard_thumbnails_approved': project.storyboard_thumbnails_approved,
+        })
+
+    @action(detail=True, methods=['post'], url_path='pre-production/upload')
+    def pre_production_upload(self, request, pk=None):
+        """Upload a pre-production deliverable (character design, storyboard, etc.)."""
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        stage_id = request.data.get('stage_id')
+        if not stage_id:
+            return Response({'error': 'stage_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            stage = project.production_stages.get(id=stage_id, stage_category='pre_production')
+        except Exception:
+            return Response({'error': 'Pre-production stage not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        title = request.data.get('title', stage.name)
+        file = request.FILES.get('file')
+
+        # Get current version for this stage
+        existing_count = PreProductionDeliverable.objects.filter(
+            project=project, stage=stage
+        ).count()
+
+        deliverable = PreProductionDeliverable.objects.create(
+            project=project,
+            stage=stage,
+            deliverable_type=request.data.get('deliverable_type', 'other'),
+            title=title,
+            file=file,
+            version=existing_count + 1,
+            uploaded_by=core_user,
+            status='uploaded',
+            deadline=request.data.get('deadline'),
+        )
+
+        from ..serializers import PreProductionDeliverableSerializer
+        return Response(
+            PreProductionDeliverableSerializer(deliverable).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'],
+            url_path='pre-production/(?P<deliverable_id>[^/.]+)/approve')
+    def pre_production_approve(self, request, pk=None, deliverable_id=None):
+        """Project owner approves a pre-production deliverable."""
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can approve deliverables'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            deliverable = PreProductionDeliverable.objects.get(
+                id=deliverable_id, project=project
+            )
+        except PreProductionDeliverable.DoesNotExist:
+            return Response({'error': 'Deliverable not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        deliverable.status = 'approved'
+        deliverable.approved_by = core_user
+        deliverable.approved_at = timezone.now()
+        deliverable.save(update_fields=['status', 'approved_by', 'approved_at'])
+
+        # Check if all deliverables for this stage type are approved
+        stage_name = deliverable.stage.name.lower()
+        all_approved = not PreProductionDeliverable.objects.filter(
+            project=project, stage=deliverable.stage
+        ).exclude(status='approved').exists()
+
+        if all_approved:
+            if 'character' in stage_name:
+                project.character_designs_approved = True
+                project.save(update_fields=['character_designs_approved'])
+            elif 'storyboard' in stage_name:
+                project.storyboard_thumbnails_approved = True
+                project.save(update_fields=['storyboard_thumbnails_approved'])
+
+        # Notify artist
+        try:
+            from rb_core.notifications_utils import create_notification
+            if deliverable.uploaded_by:
+                create_notification(
+                    recipient=deliverable.uploaded_by,
+                    notification_type='pre_production_approved',
+                    title=f'{deliverable.title} approved',
+                    message=f'Your {deliverable.get_deliverable_type_display()} for "{project.title}" has been approved.',
+                    from_user=core_user,
+                    project=project,
+                )
+        except Exception:
+            pass
+
+        from ..serializers import PreProductionDeliverableSerializer
+        return Response(PreProductionDeliverableSerializer(deliverable).data)
+
+    @action(detail=True, methods=['post'],
+            url_path='pre-production/(?P<deliverable_id>[^/.]+)/request-revision')
+    def pre_production_request_revision(self, request, pk=None, deliverable_id=None):
+        """Project owner requests revision on a pre-production deliverable."""
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can request revisions'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            deliverable = PreProductionDeliverable.objects.get(
+                id=deliverable_id, project=project
+            )
+        except PreProductionDeliverable.DoesNotExist:
+            return Response({'error': 'Deliverable not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        notes = request.data.get('revision_notes', '')
+        if len(notes) < 50:
+            return Response(
+                {'error': 'Revision notes must be at least 50 characters'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deliverable.status = 'revision_requested'
+        deliverable.revision_notes = notes
+        deliverable.save(update_fields=['status', 'revision_notes'])
+
+        # Notify artist
+        try:
+            from rb_core.notifications_utils import create_notification
+            if deliverable.uploaded_by:
+                create_notification(
+                    recipient=deliverable.uploaded_by,
+                    notification_type='pre_production_revision',
+                    title=f'Revision requested: {deliverable.title}',
+                    message=f'Revision requested for your {deliverable.get_deliverable_type_display()}: {notes[:100]}',
+                    from_user=core_user,
+                    project=project,
+                )
+        except Exception:
+            pass
+
+        from ..serializers import PreProductionDeliverableSerializer
+        return Response(PreProductionDeliverableSerializer(deliverable).data)
 
     @action(detail=True, methods=['post'], url_path='production-wizard')
     def production_wizard(self, request, pk=None):
@@ -697,12 +893,17 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                         except CoreUser.DoesNotExist:
                             pass
 
+                stage_category = stage_data.get('stage_category', 'production')
+                is_billable = stage_data.get('is_billable', True)
+
                 stage = ProductionStage.objects.create(
                     project=project,
                     name=stage_name,
                     order=i + 1,
                     collaborator_role=role,
                     price_per_page=price_per_page,
+                    stage_category=stage_category,
+                    is_billable=is_billable,
                 )
                 created_stages.append(stage)
 
@@ -715,7 +916,33 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 if not role:
                     continue
 
+                # Skip non-billable pre-production stages (approval checkpoints only)
+                if not stage.is_billable:
+                    continue
+
                 stage_batch_tasks = []
+
+                # Pre-production stages get a single milestone (not per-batch)
+                if stage.stage_category == 'pre_production':
+                    amount = stage.price_per_page * total_pages if stage.price_per_page else Decimal('0')
+                    task = ContractTask.objects.create(
+                        collaborator_role=role,
+                        title=f'{stage.name}',
+                        description=f'{stage.name} deliverable for the project',
+                        payment_amount=amount,
+                        status='pending',
+                        escrow_release_status='pending' if amount > 0 else 'not_applicable',
+                        milestone_type='pre_production',
+                        order=0,
+                        stage=stage,
+                        depends_on=None,
+                        deadline_days_after_funding=days_per_batch,
+                    )
+                    # All production batches depend on this pre-production task
+                    for batch_idx in range(len(batches)):
+                        prev_batch_tasks[batch_idx] = task
+                    continue
+
                 for batch_idx, (ps, pe) in enumerate(batches):
                     page_count = pe - ps + 1
                     amount = stage.price_per_page * page_count if stage.price_per_page else Decimal('0')
@@ -723,7 +950,8 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                     # Calculate deadline: days_per_batch * (batch + 1) * (stage_order)
                     # Stage 1 Batch 1: 7 days, Batch 2: 14 days
                     # Stage 2 Batch 1: after stage 1 batch 1 + 7 days, etc.
-                    stage_multiplier = created_stages.index(stage)
+                    prod_stages = [s for s in created_stages if s.stage_category == 'production']
+                    stage_multiplier = prod_stages.index(stage) if stage in prod_stages else 0
                     total_batches_before = stage_multiplier * len(batches)
                     deadline_days = days_per_batch * (total_batches_before + batch_idx + 1)
 
@@ -755,9 +983,9 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 for batch_idx, task in enumerate(stage_batch_tasks):
                     prev_batch_tasks[batch_idx] = task
 
-            # Create workspace pages (linked to first stage milestones)
-            first_stage = created_stages[0] if created_stages else None
-            first_stage_tasks = ContractTask.objects.filter(stage=first_stage).order_by('order') if first_stage else []
+            # Create workspace pages (linked to first PRODUCTION stage milestones)
+            first_prod_stage = next((s for s in created_stages if s.stage_category == 'production'), None)
+            first_stage_tasks = ContractTask.objects.filter(stage=first_prod_stage).order_by('order') if first_prod_stage else []
 
             issue = project.comic_issues.first()
             if not issue:
@@ -1512,12 +1740,39 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Update pre-production gating flags if this task's stage is pre-production
+        if task.stage and task.stage.stage_category == 'pre_production':
+            stage_name = task.stage.name.lower()
+            if 'character' in stage_name and not project.character_designs_approved:
+                project.character_designs_approved = True
+                project.save(update_fields=['character_designs_approved'])
+            elif 'storyboard' in stage_name and not project.storyboard_thumbnails_approved:
+                project.storyboard_thumbnails_approved = True
+                project.save(update_fields=['storyboard_thumbnails_approved'])
+
         # Pipeline unlock: activate dependent milestones
+        from datetime import timedelta
         unlocked_tasks = []
         dependents = ContractTask.objects.filter(depends_on=task, status='pending')
+        now = timezone.now()
+
+        # Check pre-production gates before unlocking production tasks
         for dep in dependents:
+            # Skip unlock if pre-production gates not met
+            if dep.stage and dep.stage.stage_category == 'production':
+                if dep.stage.depends_on_stage and dep.stage.depends_on_stage.stage_category == 'pre_production':
+                    stage_name = dep.stage.depends_on_stage.name.lower()
+                    if 'character' in stage_name and not project.character_designs_approved:
+                        logger.info('[PipelineUnlock] Skipping %s — character designs not approved', dep.title)
+                        continue
+                    if 'storyboard' in stage_name and not project.storyboard_thumbnails_approved:
+                        logger.info('[PipelineUnlock] Skipping %s — storyboards not approved', dep.title)
+                        continue
+
             dep.status = 'in_progress'
-            dep.save(update_fields=['status'])
+            dep.cancellation_window_start = now
+            dep.cancellation_window_end = now + timedelta(hours=24)
+            dep.save(update_fields=['status', 'cancellation_window_start', 'cancellation_window_end'])
             unlocked_tasks.append(dep.title)
             logger.info('[PipelineUnlock] %s unlocked by completion of %s', dep.title, task.title)
 
@@ -1582,6 +1837,27 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
                 {'error': 'rejection_reason is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        if len(reason) < 50:
+            return Response(
+                {'error': 'Rejection reason must be at least 50 characters to provide clear, actionable feedback'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check for scope expansion on second+ rejection
+        scope_change_flag = False
+        if task.revisions_used > 0 and task.previous_rejection_issues:
+            prev_issues = set(task.previous_rejection_issues)
+            # Simple keyword extraction: split reason into significant words
+            current_words = set(w.lower() for w in reason.split() if len(w) > 4)
+            new_issues = current_words - prev_issues
+            if len(new_issues) > len(current_words) * 0.5:
+                scope_change_flag = True
+
+        # Track rejection keywords for scope check
+        issue_words = [w.lower() for w in reason.split() if len(w) > 4]
+        existing = task.previous_rejection_issues or []
+        task.previous_rejection_issues = list(set(existing + issue_words))
+        task.save(update_fields=['previous_rejection_issues'])
 
         # Reject completion
         try:
@@ -1600,8 +1876,26 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             except Exception:
                 pass
 
-        serializer = ContractTaskSerializer(task)
-        return Response(serializer.data)
+        # Notify artist if scope expansion detected
+        if scope_change_flag:
+            try:
+                from rb_core.notifications_utils import create_notification
+                create_notification(
+                    recipient=task.collaborator_role.user,
+                    from_user=core_user,
+                    notification_type='scope_change_detected',
+                    title='Possible scope expansion detected',
+                    message=f'The rejection for "{task.title}" raises new issues not in previous feedback. You may flag this as a scope change.',
+                    project=project,
+                    contract_task=task,
+                    action_required=True,
+                )
+            except Exception:
+                pass
+
+        data = ContractTaskSerializer(task).data
+        data['scope_change_flag'] = scope_change_flag
+        return Response(data)
 
     # ============================================================
     # Escrow Lifecycle Endpoints
@@ -2196,6 +2490,32 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
             process_escrow_refund.delay(task.id)
             refund_count += 1
 
+        # Categorize artist cancellations for reputation tracking
+        if cancellation_type == 'artist':
+            category = 'during_active_work' if has_in_progress else 'before_work'
+            for task in in_progress_tasks:
+                task.cancellation_category = category
+                task.save(update_fields=['cancellation_category'])
+            for task in funded_tasks:
+                task.cancellation_category = 'before_work'
+                task.save(update_fields=['cancellation_category'])
+
+        # Post-pre-production cancellation fee
+        cancellation_fee = Decimal('0')
+        if cancellation_type == 'writer' and (
+            project.character_designs_approved or project.storyboard_thumbnails_approved
+        ):
+            # Charge 10% of first production milestone as compensation to artist
+            first_task = ContractTask.objects.filter(
+                collaborator_role__project=project,
+                status__in=['funded', 'in_progress'],
+            ).order_by('order').first()
+            if first_task and first_task.payment_amount > 0:
+                cancellation_fee = (first_task.payment_amount * Decimal('0.10')).quantize(Decimal('0.01'))
+                first_task.cancellation_fee_amount = cancellation_fee
+                first_task.cancellation_category = 'post_preproduction'
+                first_task.save(update_fields=['cancellation_fee_amount', 'cancellation_category'])
+
         # Set project cancellation
         project.status = 'cancelled'
         project.cancellation_requested_by = core_user
@@ -2230,7 +2550,182 @@ class CollaborativeProjectViewSet(viewsets.ModelViewSet):
         return Response({
             'status': 'cancelled',
             'immediate_refunds': refund_count,
+            'cancellation_fee': str(cancellation_fee),
             'hold_until': project.cancellation_hold_until.isoformat() if project.cancellation_hold_until else None,
+        })
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/cancel-in-window')
+    def cancel_task_in_window(self, request, pk=None, task_id=None):
+        """Cancel a task within its 24hr cancellation window for full refund.
+
+        Only the project owner can cancel during this window.
+        """
+        from datetime import timedelta
+
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can cancel tasks'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        now = timezone.now()
+        if not task.cancellation_window_end or now > task.cancellation_window_end:
+            return Response(
+                {'error': 'Cancellation window has expired'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        task.status = 'refunded'
+        task.escrow_release_status = 'refunded'
+        task.cancellation_category = 'before_work'
+        task.save(update_fields=['status', 'escrow_release_status', 'cancellation_category'])
+
+        from rb_core.tasks import process_escrow_refund
+        process_escrow_refund.delay(task.id)
+
+        return Response({
+            'status': 'refunded',
+            'message': f'Task "{task.title}" cancelled within window — full refund initiated',
+        })
+
+    @action(detail=True, methods=['post'], url_path='request-mutual-cancellation')
+    def request_mutual_cancellation(self, request, pk=None):
+        """Request mutual cancellation — both parties must agree, no reputation penalty."""
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        is_owner = project.created_by == core_user
+        is_collaborator = project.collaborators.filter(user=core_user, status='accepted').exists()
+        if not is_owner and not is_collaborator:
+            return Response({'error': 'Only project members can request cancellation'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        if project.mutual_cancellation_requested_by:
+            return Response({'error': 'Mutual cancellation already requested'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        project.mutual_cancellation_requested_by = core_user
+        project.save(update_fields=['mutual_cancellation_requested_by'])
+
+        # Notify other party
+        try:
+            from rb_core.notifications_utils import create_notification
+            other_users = []
+            if is_owner:
+                other_users = [r.user for r in project.collaborators.filter(status='accepted')]
+            else:
+                other_users = [project.created_by]
+            for user in other_users:
+                create_notification(
+                    recipient=user,
+                    notification_type='mutual_cancellation_request',
+                    title='Mutual cancellation requested',
+                    message=f'{core_user.username} has requested mutual cancellation of "{project.title}"',
+                    from_user=core_user,
+                    project=project,
+                    action_required=True,
+                )
+        except Exception:
+            pass
+
+        return Response({'status': 'requested', 'requested_by': core_user.username})
+
+    @action(detail=True, methods=['post'], url_path='agree-mutual-cancellation')
+    def agree_mutual_cancellation(self, request, pk=None):
+        """Agree to mutual cancellation — refund all tasks, no penalty."""
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not project.mutual_cancellation_requested_by:
+            return Response({'error': 'No mutual cancellation has been requested'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        if project.mutual_cancellation_requested_by == core_user:
+            return Response({'error': 'You cannot agree to your own request'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+
+        # Refund all tasks
+        tasks_to_refund = ContractTask.objects.filter(
+            collaborator_role__project=project,
+            escrow_release_status='pending',
+        ).exclude(status__in=ContractTask.TERMINAL_STATES)
+
+        refund_count = 0
+        for task in tasks_to_refund:
+            task.status = 'cancelled'
+            task.escrow_release_status = 'refunded'
+            task.cancellation_category = 'mutual'
+            task.save(update_fields=['status', 'escrow_release_status', 'cancellation_category'])
+            from rb_core.tasks import process_escrow_refund
+            process_escrow_refund.delay(task.id)
+            refund_count += 1
+
+        project.status = 'cancelled'
+        project.cancellation_type = 'mutual'
+        project.mutual_cancellation_agreed_by = core_user
+        project.mutual_cancellation_agreed_at = now
+        project.cancellation_requested_at = now
+        project.save()
+
+        return Response({
+            'status': 'cancelled',
+            'cancellation_type': 'mutual',
+            'refunded_tasks': refund_count,
+        })
+
+    @action(detail=True, methods=['post'],
+            url_path='tasks/(?P<task_id>[^/.]+)/refund-unfunded')
+    def refund_unfunded_task(self, request, pk=None, task_id=None):
+        """Refund a funded-but-not-yet-started task — writer can do this anytime."""
+        project = self.get_object()
+        try:
+            core_user = CoreUser.objects.get(username=request.user.username)
+        except CoreUser.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if project.created_by != core_user:
+            return Response({'error': 'Only the project owner can refund tasks'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            task = ContractTask.objects.get(id=task_id, collaborator_role__project=project)
+        except ContractTask.DoesNotExist:
+            return Response({'error': 'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if task.status not in ('funded', 'pending'):
+            return Response(
+                {'error': 'Only funded or pending tasks can be refunded this way'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        task.status = 'refunded'
+        task.escrow_release_status = 'refunded'
+        task.save(update_fields=['status', 'escrow_release_status'])
+
+        from rb_core.tasks import process_escrow_refund
+        process_escrow_refund.delay(task.id)
+
+        return Response({
+            'status': 'refunded',
+            'message': f'Task "{task.title}" refunded',
         })
 
     @action(detail=True, methods=['get'],
@@ -4120,6 +4615,15 @@ def get_user_reputation(request, username):
             'projects_completed': score.writer_projects_completed,
             'auto_approve_rate': str(score.writer_auto_approve_rate),
             'cancellation_rate': str(score.writer_cancellation_rate),
+            'avg_review_time_hours': str(score.writer_avg_review_time_hours),
+            'grace_period_cancellations': score.writer_grace_period_cancellations,
+            'post_preproduction_cancellations': score.writer_post_preproduction_cancellations,
+            'projects_ended_early': score.writer_projects_ended_early,
+            'scope_change_requests': score.writer_scope_change_requests,
+            'avg_rejection_clarity': str(score.writer_avg_rejection_clarity) if score.writer_avg_rejection_clarity else None,
+            'avg_communication_rating': str(score.writer_avg_communication_rating) if score.writer_avg_communication_rating else None,
+            'avg_escrow_funding_delay_hours': str(score.writer_avg_escrow_funding_delay_hours) if score.writer_avg_escrow_funding_delay_hours else None,
+            'campaigns_funded_never_started': score.writer_campaigns_funded_never_started,
         },
         'artist': {
             'score': str(score.artist_score),
@@ -4130,6 +4634,17 @@ def get_user_reputation(request, username):
             'avg_timeliness_rating': str(score.artist_avg_timeliness_rating),
             'stall_count': score.artist_stall_count,
             'cancellation_rate': str(score.artist_cancellation_rate),
+            'revision_rate': str(score.artist_revision_rate) if score.artist_revision_rate else None,
+            'final_rejection_count': score.artist_final_rejection_count,
+            'cancellations_during_work': score.artist_cancellations_during_work,
+            'cancellations_before_work': score.artist_cancellations_before_work,
+            'avg_delivery_speed_days': str(score.artist_avg_delivery_speed_days) if score.artist_avg_delivery_speed_days else None,
+            'preproduction_delivery_rate': str(score.artist_preproduction_delivery_rate) if score.artist_preproduction_delivery_rate else None,
+            'scope_change_flags': score.artist_scope_change_flags,
+        },
+        'mutual': {
+            'mutual_cancellation_count': score.mutual_cancellation_count,
+            'repeat_collaboration_count': score.repeat_collaboration_count,
         },
         'is_founding_creator': score.is_founding_creator,
         'last_calculated': score.last_calculated.isoformat(),

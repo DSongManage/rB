@@ -372,6 +372,24 @@ export default function UnifiedWorkspaceEditor({
         );
       }
 
+      // Check pre-production gates
+      if (project.character_designs_approved === false) {
+        return (
+          <div style={{
+            background: 'var(--panel)', border: '1px solid var(--panel-border)',
+            borderRadius: 12, padding: 48, textAlign: 'center', maxWidth: 480, margin: '40px auto',
+          }}>
+            <FileText size={48} style={{ color: '#6366f1', marginBottom: 16 }} />
+            <h3 style={{ fontFamily: 'var(--font-heading)', margin: '0 0 8px', color: 'var(--text)', fontSize: 22, fontWeight: 400 }}>
+              Waiting for character design approval
+            </h3>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6 }}>
+              Character designs must be approved by the project owner before page production can begin.
+            </p>
+          </div>
+        );
+      }
+
       // Note: artist can VIEW workspace before funding, but Art Delivery
       // upload is gated by canUploadArt which requires escrow to be funded
     }

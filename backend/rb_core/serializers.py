@@ -5,7 +5,8 @@ from .models import (
     BetaInvite, ExternalPortfolioItem, CollaboratorRating, ContractTask, RoleDefinition,
     ContentLike, ContentComment, ContentRating, CreatorReview, Tag, Series,
     BridgeCustomer, BridgeExternalAccount, BridgeLiquidationAddress, BridgeDrain,
-    ComicPage, ComicPanel, SpeechBubble, ComicSeries, ComicIssue, DividerLine
+    ComicPage, ComicPanel, SpeechBubble, ComicSeries, ComicIssue, DividerLine,
+    ProductionStage, PreProductionDeliverable, ReputationScore,
 )
 from django.utils.crypto import salted_hmac
 from django.utils import timezone
@@ -1964,4 +1965,72 @@ class ComicSeriesListSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'creator_username', 'issue_count', 'created_at', 'updated_at']
 
     def get_issue_count(self, obj):
-        return obj.issues.count()
+        return obj.comic_issues.count()
+
+
+class ProductionStageSerializer(serializers.ModelSerializer):
+    collaborator_username = serializers.CharField(
+        source='collaborator_role.user.username', read_only=True, default=None
+    )
+
+    class Meta:
+        model = ProductionStage
+        fields = [
+            'id', 'name', 'order', 'stage_category', 'is_billable',
+            'price_per_page', 'collaborator_username', 'depends_on_stage',
+        ]
+        read_only_fields = ['id']
+
+
+class PreProductionDeliverableSerializer(serializers.ModelSerializer):
+    uploaded_by_username = serializers.CharField(
+        source='uploaded_by.username', read_only=True, default=None
+    )
+    approved_by_username = serializers.CharField(
+        source='approved_by.username', read_only=True, default=None
+    )
+    stage_name = serializers.CharField(source='stage.name', read_only=True)
+
+    class Meta:
+        model = PreProductionDeliverable
+        fields = [
+            'id', 'project', 'stage', 'stage_name', 'deliverable_type', 'title',
+            'file', 'version', 'uploaded_by', 'uploaded_by_username',
+            'deadline', 'status', 'approved_by', 'approved_by_username',
+            'approved_at', 'revision_notes', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'uploaded_by', 'approved_by', 'approved_at',
+            'created_at', 'updated_at', 'version',
+        ]
+
+
+class ReputationScoreSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = ReputationScore
+        fields = [
+            'username',
+            # Writer
+            'writer_score', 'writer_projects_completed', 'writer_avg_review_time_hours',
+            'writer_cancellation_rate', 'writer_auto_approve_rate',
+            'writer_grace_period_cancellations', 'writer_post_preproduction_cancellations',
+            'writer_projects_ended_early', 'writer_scope_change_requests',
+            'writer_avg_rejection_clarity', 'writer_avg_communication_rating',
+            'writer_avg_escrow_funding_delay_hours', 'writer_campaigns_funded_never_started',
+            # Artist
+            'artist_score', 'artist_projects_completed', 'artist_on_time_rate',
+            'artist_avg_quality_rating', 'artist_avg_communication_rating',
+            'artist_avg_timeliness_rating', 'artist_stall_count', 'artist_cancellation_rate',
+            'artist_revision_rate', 'artist_final_rejection_count',
+            'artist_cancellations_during_work', 'artist_cancellations_before_work',
+            'artist_avg_delivery_speed_days', 'artist_preproduction_delivery_rate',
+            'artist_scope_change_flags',
+            # Mutual
+            'mutual_cancellation_count', 'repeat_collaboration_count',
+            # Badges
+            'is_founding_creator',
+            'last_calculated',
+        ]
+        read_only_fields = fields
