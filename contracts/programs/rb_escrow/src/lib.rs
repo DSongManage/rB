@@ -871,6 +871,16 @@ pub mod rb_escrow {
         // Account closure handled by Anchor's `close` constraint
         Ok(())
     }
+
+    /// Force-close an escrow vault. Only callable by the platform wallet
+    /// (program authority). Skips milestone status checks. Used for:
+    /// - Cleaning up test PDAs
+    /// - Emergency recovery
+    /// - Closing abandoned escrows
+    pub fn force_close_escrow(ctx: Context<ForceCloseEscrow>) -> Result<()> {
+        msg!("Escrow force-closed by platform authority.");
+        Ok(())
+    }
 }
 
 // ============================================================
@@ -1016,6 +1026,22 @@ pub struct CloseEscrow<'info> {
     #[account(
         mut,
         constraint = vault.writer == writer.key() @ EscrowError::Unauthorized,
+        close = writer,
+    )]
+    pub vault: Box<Account<'info, EscrowVault>>,
+}
+
+#[derive(Accounts)]
+pub struct ForceCloseEscrow<'info> {
+    /// Platform wallet — must be the program authority
+    #[account(
+        mut,
+        constraint = writer.key() == vault.platform_wallet @ EscrowError::Unauthorized,
+    )]
+    pub writer: Signer<'info>,
+
+    #[account(
+        mut,
         close = writer,
     )]
     pub vault: Box<Account<'info, EscrowVault>>,
